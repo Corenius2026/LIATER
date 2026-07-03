@@ -307,15 +307,109 @@ function ProfesoresTab({ teachers, loading }) {
 /* ─────────────────────────────────────────
    TAB 4 — Módulos (Supabase)
 ───────────────────────────────────────── */
-function ModulosTab({ modules, loading }) {
+function ModulosTab({ modules, loading, onRefresh }) {
+  const [showModal, setShowModal] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [orderIndex, setOrderIndex] = useState(1);
+  const [diplomaId, setDiplomaId] = useState('');
+  const [diplomas, setDiplomas] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (showModal && diplomas.length === 0) {
+      supabase.from('diploma_programs').select('id, title').then(({ data }) => {
+        setDiplomas(data || []);
+        if (data && data.length > 0) setDiplomaId(data[0].id);
+      });
+    }
+  }, [showModal]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(''); setSuccess('');
+    if (!title || !diplomaId) {
+      setError('El título y el diplomado son obligatorios.');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const { error: insertError } = await supabase
+        .from('modules')
+        .insert([{
+          title,
+          description,
+          order_index: parseInt(orderIndex) || 0,
+          diploma_id: diplomaId
+        }]);
+      
+      if (insertError) throw insertError;
+      
+      setSuccess('Módulo creado con éxito.');
+      setTitle(''); setDescription('');
+      if (onRefresh) onRefresh();
+      
+      setTimeout(() => {
+        setShowModal(false);
+        setSuccess('');
+      }, 1500);
+    } catch (err) {
+      setError('Error al crear módulo: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <div className="section-header-row">
         <span className="section-title">Módulos del programa ({modules.length})</span>
-        <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Módulo (próx.)
+        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+          <Plus size={16} /> Crear Módulo
         </button>
       </div>
+
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Crear Nuevo Módulo</h3>
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Módulo</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Fundamentos de Frontend" required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Diplomado Asociado</label>
+                <select value={diplomaId} onChange={e => setDiplomaId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                  {diplomas.length === 0 ? <option value="">Cargando diplomados...</option> : diplomas.map(d => (
+                    <option key={d.id} value={d.id}>{d.title}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden (Número)</label>
+                <input type="number" value={orderIndex} onChange={e => setOrderIndex(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="1" required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (opcional)</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '80px', fontFamily: 'inherit' }} placeholder="Descripción corta del módulo..." />
+              </div>
+              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
+                {submitting ? 'Guardando...' : 'Guardar Módulo'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
@@ -481,6 +575,8 @@ export default function AdminPanel() {
     counts: { usuarios: 0, profesores: 0, modulos: 0, subtemas: 0, clases: 0, recursos: 0 }
   });
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const refreshData = () => setRefreshTrigger(prev => prev + 1);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -522,7 +618,7 @@ export default function AdminPanel() {
     }
 
     fetchAll();
-  }, [role]);
+  }, [role, refreshTrigger]);
 
   if (role !== 'admin') {
     return (
@@ -540,7 +636,7 @@ export default function AdminPanel() {
       case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
       case 'usuarios':   return <UsuariosTab />;
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} />;
-      case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} />;
+      case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} />;
       case 'clases':     return <ClasesTab classes={data.classes} loading={loading} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} />;
