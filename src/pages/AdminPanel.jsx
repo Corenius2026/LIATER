@@ -828,15 +828,121 @@ function ClasesTab({ classes, loading, onRefresh }) {
 /* ─────────────────────────────────────────
    TAB 7 — Recursos (Supabase)
 ───────────────────────────────────────── */
-function RecursosTab({ resources, loading }) {
+function RecursosTab({ resources, loading, onRefresh }) {
+  const [showModal, setShowModal] = useState(false);
+  const [title, setTitle] = useState('');
+  const [classId, setClassId] = useState('');
+  const [resourceType, setResourceType] = useState('link');
+  const [url, setUrl] = useState('');
+  const [classesList, setClassesList] = useState([]);
+  
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Cargar clases al abrir el modal para seleccionar a qué clase pertenece
+  useEffect(() => {
+    if (showModal && classesList.length === 0) {
+      supabase.from('class_sessions').select('id, title').order('created_at', { ascending: false }).then(({ data }) => {
+        setClassesList(data || []);
+        if (data && data.length > 0) setClassId(data[0].id);
+      });
+    }
+  }, [showModal]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(''); setSuccess('');
+    
+    if (!title || !classId || !url) {
+      setError('El título, la clase y el enlace son obligatorios.');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const { error: insertError } = await supabase
+        .from('resources')
+        .insert([{
+          title,
+          class_id: classId,
+          resource_type: resourceType,
+          url
+        }]);
+      
+      if (insertError) throw insertError;
+      
+      setSuccess('Recurso agregado con éxito.');
+      setTitle(''); setUrl(''); setResourceType('link');
+      if (onRefresh) onRefresh();
+      
+      setTimeout(() => {
+        setShowModal(false);
+        setSuccess('');
+      }, 1500);
+    } catch (err) {
+      setError('Error al agregar recurso: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <div className="section-header-row">
         <span className="section-title">Recursos del diplomado ({resources.length})</span>
-        <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Agregar Recurso (próx.)
+        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+          <Plus size={16} /> Agregar Recurso
         </button>
       </div>
+
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Agregar Nuevo Recurso</h3>
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Recurso</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Diapositivas de la Clase 1" required />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Clase Asociada</label>
+                <select value={classId} onChange={e => setClassId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                  {classesList.length === 0 ? <option value="">Cargando clases...</option> : classesList.map(c => (
+                    <option key={c.id} value={c.id}>{c.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Tipo de Recurso</label>
+                <select value={resourceType} onChange={e => setResourceType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                  <option value="link">Enlace externo (Web)</option>
+                  <option value="pdf">Documento PDF</option>
+                  <option value="presentation">Presentación / Diapositivas</option>
+                  <option value="video">Video Externo</option>
+                  <option value="file">Otro Archivo</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL del Recurso</label>
+                <input type="url" value={url} onChange={e => setUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." required />
+              </div>
+
+              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
+                {submitting ? 'Guardando...' : 'Agregar Recurso'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
@@ -953,7 +1059,7 @@ export default function AdminPanel() {
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} />;
       case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
-      case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} />;
+      case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} onRefresh={refreshData} />;
       default:           return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
     }
   };
