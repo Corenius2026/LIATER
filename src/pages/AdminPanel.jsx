@@ -348,6 +348,39 @@ function ModulosTab({ modules, loading, onRefresh }) {
     }
   }, [showModal]);
 
+  const handleDelete = async (m) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${m.title}"?`)) return;
+
+    try {
+      // Verificar si tiene subtemas asociados
+      const { count, error: countError } = await supabase
+        .from('subtopics')
+        .select('*', { count: 'exact', head: true })
+        .eq('module_id', m.id);
+      
+      if (countError) throw countError;
+
+      if (count && count > 0) {
+        alert(`Operación denegada:\n\nNo se puede eliminar el módulo "${m.title}" porque tiene ${count} subtema(s) asociado(s).\n\nPara eliminarlo de forma segura, primero debes reasignar o eliminar esos subtemas.`);
+        return;
+      }
+
+      // Eliminar el módulo
+      const { error: deleteError } = await supabase
+        .from('modules')
+        .delete()
+        .eq('id', m.id);
+
+      if (deleteError) throw deleteError;
+
+      alert('Módulo eliminado exitosamente.');
+      if (onRefresh) onRefresh();
+
+    } catch (err) {
+      alert('Error al eliminar el módulo: ' + err.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
@@ -458,7 +491,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
                 <td><div className="order-badge">{m.order_index ?? i + 1}</div></td>
                 <td><span style={{ fontWeight: 600 }}>{m.title}</span></td>
                 <td style={{ color: 'var(--text-muted)', maxWidth: '240px' }}>{m.description}</td>
-                <td><ActionBtns onEdit={() => openEditModal(m)} /></td>
+                <td><ActionBtns onEdit={() => openEditModal(m)} onDelete={() => handleDelete(m)} /></td>
               </tr>
             ))}
           </tbody>
