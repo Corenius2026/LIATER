@@ -525,15 +525,6 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
     }
   }, [showModal]);
 
-  // Autocalcular el número de orden sugerido cuando cambia el módulo
-  useEffect(() => {
-    if (showModal && moduleId) {
-      const subtemasDelModulo = subtopics.filter(st => st.module_id === moduleId);
-      const maxOrder = Math.max(0, ...subtemasDelModulo.map(st => st.order_index || 0));
-      setOrderIndex(maxOrder + 1);
-    }
-  }, [moduleId, showModal, subtopics]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
