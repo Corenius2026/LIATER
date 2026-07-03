@@ -536,12 +536,6 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
     
     const parsedOrder = parseInt(orderIndex) || 0;
     
-    // Validar orden duplicado en el MISMO módulo
-    if (subtopics.some(st => st.module_id === moduleId && st.order_index === parsedOrder)) {
-      setError(`Ya existe un subtema con el orden ${parsedOrder} en este módulo. Por favor elige otro número.`);
-      return;
-    }
-    
     setSubmitting(true);
     try {
       const { error: insertError } = await supabase
