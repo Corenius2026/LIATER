@@ -95,7 +95,7 @@ function ResumenTab() {
             {[
               { label: 'Clases completadas', value: completadas, total: mockClasses.length, color: '#10b981' },
               { label: 'Clases próximas', value: proximas, total: mockClasses.length, color: '#f59e0b' },
-              { label: 'Usuarios activos', value: activos, total: mockUsers.length, color: '#6366f1' },
+              { label: 'Usuarios activos', value: activos, total: users.length, color: '#6366f1' },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.8rem' }}>
