@@ -842,24 +842,43 @@ function ModulosTab({ modules, loading, onRefresh }) {
 ───────────────────────────────────────── */
 function SubtemasTab({ subtopics, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
+  const [editSubtopicId, setEditSubtopicId] = useState(null);
+  
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [orderIndex, setOrderIndex] = useState(1);
   const [moduleId, setModuleId] = useState('');
+  
   const [modules, setModules] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Cargar módulos al abrir el modal para seleccionar a qué módulo pertenece
+  const openCreateModal = () => {
+    setEditSubtopicId(null);
+    setTitle(''); setDescription(''); setOrderIndex(1);
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
+  const openEditModal = (st) => {
+    setEditSubtopicId(st.id);
+    setTitle(st.title);
+    setDescription(st.description || '');
+    setOrderIndex(st.order_index || 1);
+    setModuleId(st.module_id);
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
   useEffect(() => {
     if (showModal && modules.length === 0) {
       supabase.from('modules').select('id, title').then(({ data }) => {
         setModules(data || []);
-        if (data && data.length > 0) setModuleId(data[0].id);
+        if (data && data.length > 0 && !editSubtopicId) setModuleId(data[0].id);
       });
     }
-  }, [showModal]);
+  }, [showModal, modules.length, editSubtopicId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -872,20 +891,31 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
     
     const parsedOrder = parseInt(orderIndex) || 0;
     
+    if (subtopics.some(s => s.module_id === moduleId && s.order_index === parsedOrder && s.id !== editSubtopicId)) {
+      setError(`Ya existe un subtema con el orden ${parsedOrder} en este módulo.`);
+      return;
+    }
+    
     setSubmitting(true);
     try {
-      const { error: insertError } = await supabase
-        .from('subtopics')
-        .insert([{
-          title,
-          description,
-          order_index: parsedOrder,
-          module_id: moduleId
-        }]);
+      const payload = {
+        title,
+        description,
+        order_index: parsedOrder,
+        module_id: moduleId
+      };
+
+      let query;
+      if (editSubtopicId) {
+        query = supabase.from('subtopics').update(payload).eq('id', editSubtopicId);
+      } else {
+        query = supabase.from('subtopics').insert([payload]);
+      }
       
-      if (insertError) throw insertError;
+      const { error: opError } = await query;
+      if (opError) throw opError;
       
-      setSuccess('Subtema creado con éxito.');
+      setSuccess(editSubtopicId ? 'Subtema actualizado con éxito.' : 'Subtema creado con éxito.');
       setTitle(''); setDescription('');
       if (onRefresh) onRefresh();
       
@@ -894,9 +924,39 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
         setSuccess('');
       }, 1500);
     } catch (err) {
-      setError('Error al crear subtema: ' + err.message);
+      setError('Error al guardar subtema: ' + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (st) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el subtema "${st.title}"?`)) return;
+
+    try {
+      const { count, error: countError } = await supabase
+        .from('class_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('subtopic_id', st.id);
+      
+      if (countError) throw countError;
+
+      if (count && count > 0) {
+        alert('No se puede eliminar este subtema porque tiene clases asociadas.');
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from('subtopics')
+        .delete()
+        .eq('id', st.id);
+
+      if (deleteError) throw deleteError;
+      
+      alert('Subtema eliminado exitosamente.');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al eliminar subtema: ' + err.message);
     }
   };
 
@@ -904,7 +964,7 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
     <div>
       <div className="section-header-row">
         <span className="section-title">Subtemas registrados ({subtopics.length})</span>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
           <Plus size={16} /> Crear Subtema
         </button>
       </div>
@@ -915,7 +975,7 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
             <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Crear Nuevo Subtema</h3>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editSubtopicId ? 'Editar Subtema' : 'Crear Nuevo Subtema'}</h3>
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -959,7 +1019,7 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
                 <td><div className="order-badge">{st.order_index ?? i + 1}</div></td>
                 <td><span style={{ fontWeight: 600 }}>{st.title}</span></td>
                 <td style={{ color: 'var(--text-muted)', maxWidth: '260px' }}>{st.description}</td>
-                <td><ActionBtns /></td>
+                <td><ActionBtns onEdit={() => openEditModal(st)} onDelete={() => handleDelete(st)} /></td>
               </tr>
             ))}
           </tbody>
