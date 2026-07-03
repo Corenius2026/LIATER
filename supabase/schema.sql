@@ -213,3 +213,9 @@ CREATE POLICY "Usuario actualiza su perfil"
 -- PASO 11: Módulo de desactivación de usuarios
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE users_profile ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+
+-- ─────────────────────────────────────────────────────────────
+-- PASO 12: Hacer opcional el user_id en profesores
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE teacher_profiles ALTER COLUMN user_id DROP NOT NULL;

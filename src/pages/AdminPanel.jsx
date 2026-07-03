@@ -437,15 +437,173 @@ function UsuariosTab() {
 /* ─────────────────────────────────────────
    TAB 3 — Profesores (Supabase)
 ───────────────────────────────────────── */
-function ProfesoresTab({ teachers, loading }) {
+function ProfesoresTab({ teachers, loading, onRefresh }) {
+  const [showModal, setShowModal] = useState(false);
+  const [editTeacherId, setEditTeacherId] = useState(null);
+  
+  const [name, setName] = useState('');
+  const [area, setArea] = useState('');
+  const [bio, setBio] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [userId, setUserId] = useState('');
+  const [availableUsers, setAvailableUsers] = useState([]);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const openCreateModal = () => {
+    setEditTeacherId(null);
+    setName(''); setArea(''); setBio(''); setPhotoUrl(''); setLinkedinUrl(''); setUserId('');
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
+  const openEditModal = (t) => {
+    setEditTeacherId(t.id);
+    setName(t.name || '');
+    setArea(t.area || '');
+    setBio(t.bio || '');
+    setPhotoUrl(t.photo_url || t.photo || '');
+    setLinkedinUrl(t.linkedin_url || t.linkedin || '');
+    setUserId(t.user_id || '');
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
+  useEffect(() => {
+    if (showModal && availableUsers.length === 0) {
+      supabase.from('users_profile').select('id, full_name, email').eq('role', 'teacher').then(({ data }) => {
+        setAvailableUsers(data || []);
+      });
+    }
+  }, [showModal]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(''); setSuccess('');
+    
+    if (!name || !area) {
+      setError('El nombre y el área son obligatorios.');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const payload = {
+        name, area, bio, photo_url: photoUrl, linkedin_url: linkedinUrl,
+        user_id: userId || null
+      };
+
+      if (editTeacherId) {
+        const { error: updateError } = await supabase.from('teacher_profiles').update(payload).eq('id', editTeacherId);
+        if (updateError) throw updateError;
+        setSuccess('Profesor actualizado con éxito.');
+      } else {
+        const { error: insertError } = await supabase.from('teacher_profiles').insert([payload]);
+        if (insertError) throw insertError;
+        setSuccess('Profesor agregado con éxito.');
+      }
+      
+      if (onRefresh) onRefresh();
+      
+      setTimeout(() => {
+        setShowModal(false);
+        setSuccess('');
+      }, 1500);
+    } catch (err) {
+      setError('Error: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (t) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar al profesor "${t.name}"?`)) return;
+
+    try {
+      const { count, error: countError } = await supabase
+        .from('class_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('teacher_id', t.id);
+      
+      if (countError) throw countError;
+
+      if (count && count > 0) {
+        alert('No se puede eliminar este profesor porque tiene clases asignadas.');
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from('teacher_profiles')
+        .delete()
+        .eq('id', t.id);
+
+      if (deleteError) throw deleteError;
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al eliminar profesor: ' + err.message);
+    }
+  };
+
   return (
     <div>
       <div className="section-header-row">
         <span className="section-title">Profesores del diplomado ({teachers.length})</span>
-        <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Agregar Profesor (próx.)
+        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+          <Plus size={16} /> Agregar Profesor
         </button>
       </div>
+      
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editTeacherId ? 'Editar Profesor' : 'Agregar Profesor'}</h3>
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Área de Experiencia</label>
+                <input type="text" value={area} onChange={e => setArea(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Biografía</label>
+                <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Fotografía</label>
+                <input type="url" value={photoUrl} onChange={e => setPhotoUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>LinkedIn URL</label>
+                <input type="url" value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Usuario Asociado (Opcional)</label>
+                <select value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                  <option value="">Ninguno</option>
+                  {availableUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Vincular a un usuario con rol "Teacher" permite que inicie sesión.</span>
+              </div>
+              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
+                {submitting ? 'Guardando...' : (editTeacherId ? 'Guardar Cambios' : 'Agregar Profesor')}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="teacher-cards-grid">
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Cargando profesores...</p>
@@ -467,9 +625,12 @@ function ProfesoresTab({ teachers, loading }) {
               </div>
             </div>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{t.bio || 'Sin biografía.'}</p>
-            <div className="teacher-card-actions">
-              <button className="btn btn-outline" style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>
-                <Pencil size={14} /> Editar (próx.)
+            <div className="teacher-card-actions" style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+              <button onClick={() => openEditModal(t)} className="btn btn-outline" style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>
+                <Pencil size={14} /> Editar
+              </button>
+              <button onClick={() => handleDelete(t)} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.5rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+                <Trash2 size={14} />
               </button>
             </div>
           </div>
@@ -1230,7 +1391,7 @@ export default function AdminPanel() {
     switch (activeTab) {
       case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
       case 'usuarios':   return <UsuariosTab />;
-      case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} />;
+      case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} />;
       case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
