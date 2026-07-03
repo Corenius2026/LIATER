@@ -1,40 +1,87 @@
-/**
- * Componente: ClassDetail
- * Muestra el detalle de una clase específica. 
- * Dependiendo del estado ('upcoming' o 'completed'), renderizará el espacio
- * para el video grabado o un botón para acceder a Google Meet.
- */
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { modules, teachers } from '../data';
-import { Download, PlayCircle, FileText, Video, Calendar } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
+import { Download, PlayCircle, FileText, Video, Calendar, User } from 'lucide-react';
 
 export default function ClassDetail() {
   const { id } = useParams();
   
-  let clsData = null;
-  let moduleData = null;
-  
-  // Buscar la clase en todos los módulos de manera anidada
-  modules.forEach(m => {
-    const found = m.classes.find(c => c.id === id);
-    if (found) {
-      clsData = found;
-      moduleData = m;
+  const [clsData, setClsData] = useState(null);
+  const [moduleId, setModuleId] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchClassDetail() {
+      try {
+        // 1. Obtener detalles de la clase y el profesor
+        const { data: classData, error: classError } = await supabase
+          .from('class_sessions')
+          .select('*, teacher_profiles(*)')
+          .eq('id', id)
+          .single();
+        
+        if (classError) throw classError;
+        setClsData(classData);
+
+        // 2. Obtener el módulo al que pertenece para el botón "Volver"
+        if (classData && classData.subtopic_id) {
+          const { data: subData } = await supabase
+            .from('subtopics')
+            .select('module_id')
+            .eq('id', classData.subtopic_id)
+            .single();
+          
+          if (subData) {
+            setModuleId(subData.module_id);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching class details:', err.message);
+      } finally {
+        setLoading(false);
+      }
     }
-  });
 
-  if (!clsData) return <div>Clase no encontrada</div>;
+    if (id) {
+      fetchClassDetail();
+    }
+  }, [id]);
 
-  const teacher = teachers.find(t => t.id === clsData.teacherId);
-  const isUpcoming = clsData.status === 'upcoming';
+  if (loading) {
+    return (
+      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+        <h2>Cargando detalle de la clase...</h2>
+      </div>
+    );
+  }
+
+  if (!clsData) {
+    return (
+      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+        <h2>Clase no encontrada</h2>
+        <Link to="/modules" className="btn btn-primary" style={{ marginTop: '1rem' }}>Ir a Módulos</Link>
+      </div>
+    );
+  }
+
+  const teacher = clsData.teacher_profiles || {};
+  // Si tiene video_url o la fecha ya pasó, asumimos que no es en vivo próximamente
+  const isUpcoming = clsData.class_date ? (new Date(clsData.class_date) > new Date()) : false;
+  const hasVideo = !!clsData.video_url;
 
   return (
     <div>
       {/* --- ENCABEZADO DE LA CLASE --- */}
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <Link to={`/modules/${moduleData.id}`} style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
-          &larr; Volver al Módulo
-        </Link>
+        {moduleId ? (
+          <Link to={`/modules/${moduleId}`} style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
+            &larr; Volver al Módulo
+          </Link>
+        ) : (
+          <Link to="/modules" style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
+            &larr; Volver a Módulos
+          </Link>
+        )}
         <h1 className="page-title">{clsData.title}</h1>
         {/* Etiqueta que identifica si es sesión en vivo o grabada */}
         <span className="badge" style={{ marginTop: '0.5rem', backgroundColor: isUpcoming ? '#fef3c7' : '#e0e7ff', color: isUpcoming ? '#d97706' : 'var(--primary-color)' }}>
@@ -46,35 +93,52 @@ export default function ClassDetail() {
         
         {/* --- COLUMNA PRINCIPAL (REPRODUCTOR O ACCESO A MEET) --- */}
         <div>
-          {isUpcoming ? (
+          {isUpcoming && !hasVideo ? (
             
-            // Render si la clase es EN VIVO (Muestra botón a Meet)
+            // Render si la clase es EN VIVO próximamente
             <div style={{ width: '100%', aspectRatio: '16/9', backgroundColor: '#f8fafc', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
               <Calendar size={64} style={{ color: 'var(--primary-light)', marginBottom: '1rem' }} />
               <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-dark)' }}>Esta clase será transmitida en vivo</h3>
-              <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Únete a la sesión de Google Meet a la hora programada.</p>
-              <a href={clsData.meetLink} target="_blank" rel="noreferrer" className="btn btn-primary">
-                <Video size={18} /> Entrar a Google Meet
-              </a>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                {clsData.class_date ? `Programada para: ${new Date(clsData.class_date).toLocaleString()}` : 'Únete a la sesión a la hora programada.'}
+              </p>
+              {clsData.meet_url ? (
+                <a href={clsData.meet_url} target="_blank" rel="noreferrer" className="btn btn-primary">
+                  <Video size={18} /> Entrar a la Sala Virtual
+                </a>
+              ) : (
+                <span className="btn btn-outline" style={{ cursor: 'not-allowed', opacity: 0.7 }}>
+                  Enlace disponible pronto
+                </span>
+              )}
             </div>
             
           ) : (
             
-            // Render si la clase está GRABADA (Muestra reproductor)
-            <div style={{ width: '100%', aspectRatio: '16/9', backgroundColor: '#0f172a', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1.5rem', position: 'relative' }}>
-              <PlayCircle size={64} style={{ opacity: 0.8 }} />
-              <span style={{ position: 'absolute', bottom: '1rem', left: '1rem', fontSize: '0.875rem', opacity: 0.8 }}>Reproductor de Grabación de la Clase</span>
-            </div>
+            // Render si la clase está GRABADA (Muestra visor)
+            hasVideo ? (
+              <a href={clsData.video_url} target="_blank" rel="noreferrer" style={{ display: 'block', textDecoration: 'none' }}>
+                <div style={{ width: '100%', aspectRatio: '16/9', backgroundColor: '#0f172a', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1.5rem', position: 'relative', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                  <PlayCircle size={64} style={{ opacity: 0.9, color: 'var(--primary-light)' }} />
+                  <span style={{ position: 'absolute', bottom: '1rem', left: '1rem', fontSize: '0.875rem', opacity: 0.8 }}>Clic para abrir grabación externa</span>
+                </div>
+              </a>
+            ) : (
+              <div style={{ width: '100%', aspectRatio: '16/9', backgroundColor: '#f1f5f9', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <Video size={48} style={{ opacity: 0.5, marginBottom: '1rem', margin: '0 auto' }} />
+                  <p>La grabación aún no está disponible.</p>
+                </div>
+              </div>
+            )
             
           )}
           
-          {/* Descripción de la clase (texto dinámico) */}
+          {/* Descripción de la clase (desde BD) */}
           <div className="card">
             <h3 style={{ marginBottom: '1rem', color: 'var(--text-dark)' }}>Acerca de esta clase</h3>
-            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              {isUpcoming 
-                ? "Esta sesión se impartirá en vivo. Recuerda ser puntual, ingresar a la sesión con micrófono silenciado y haber descargado el material de apoyo (si aplica)."
-                : "En esta sesión profundizamos en los conceptos teóricos y realizamos un análisis exhaustivo. La grabación ya está disponible para tu repaso."}
+            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              {clsData.description || 'No hay descripción disponible para esta clase.'}
             </p>
           </div>
         </div>
@@ -83,24 +147,40 @@ export default function ClassDetail() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
           {/* Ficha del Profesor */}
-          <div className="card">
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Profesor</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <img src={teacher.avatar} alt={teacher.name} style={{ width: '50px', height: '50px', borderRadius: '50%' }} />
-              <div>
-                <h4 style={{ fontWeight: 600 }}>{teacher.name}</h4>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{teacher.role}</p>
+          {teacher.name && (
+            <div className="card">
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Profesor</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {teacher.photo_url ? (
+                  <img src={teacher.photo_url} alt={teacher.name} style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: 'var(--primary-light)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <User size={24} />
+                  </div>
+                )}
+                <div>
+                  <h4 style={{ fontWeight: 600 }}>{teacher.name}</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{teacher.area || 'Docente'}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
           
           {/* Recursos Descargables */}
           <div className="card">
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Recursos</h3>
-            <button className="btn btn-outline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '1rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileText size={18} /> Presentación.pdf</span>
-              <Download size={18} />
-            </button>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Recursos de la Clase</h3>
+            {clsData.presentation_url ? (
+              <a href={clsData.presentation_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                <button className="btn btn-outline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '1rem', cursor: 'pointer' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileText size={18} /> Presentación.pdf</span>
+                  <Download size={18} />
+                </button>
+              </a>
+            ) : (
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem 0' }}>
+                No hay recursos disponibles.
+              </p>
+            )}
           </div>
           
         </div>
