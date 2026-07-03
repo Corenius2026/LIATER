@@ -3,12 +3,19 @@
  * Representa la barra lateral de navegación de la plataforma LMS.
  * Contiene los enlaces principales para navegar entre las distintas secciones.
  */
-import { NavLink } from 'react-router-dom';
-import { useRole } from '../context/RoleContext';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { Home, BookOpen, Users, LogOut, Settings, Video, Upload, FileText, LayoutDashboard, GraduationCap } from 'lucide-react';
 
 export default function Sidebar() {
-  const { role } = useRole();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const role = currentUser?.role;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     // Contenedor principal de la barra lateral (fija a la izquierda)
@@ -22,8 +29,11 @@ export default function Sidebar() {
       {/* --- SECCIÓN 2: Menú de Navegación Principal --- */}
       <nav className="sidebar-nav">
         
-        {/* Enlace común para todos */}
-        <NavLink to="/dashboard" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+        {/* Enlace al Dashboard dinámico */}
+        <NavLink 
+          to={role === 'admin' ? '/dashboard/admin' : role === 'teacher' ? '/dashboard/profesor' : '/dashboard'} 
+          className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}
+        >
           <Home size={20} />
           <span>Dashboard</span>
         </NavLink>
@@ -45,7 +55,7 @@ export default function Sidebar() {
         {/* --- ENLACES PROFESOR --- */}
         {role === 'teacher' && (
           <>
-            <NavLink to="/teacher" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <NavLink to="/dashboard/profesor" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
               <GraduationCap size={20} />
               <span>Mi Panel</span>
             </NavLink>
@@ -55,7 +65,7 @@ export default function Sidebar() {
         {/* --- ENLACES ADMINISTRADOR --- */}
         {role === 'admin' && (
           <>
-            <NavLink to="/admin" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <NavLink to="/dashboard/admin" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
               <LayoutDashboard size={20} />
               <span>Panel Admin</span>
             </NavLink>
@@ -67,10 +77,10 @@ export default function Sidebar() {
       {/* --- SECCIÓN 3: Pie de la barra lateral --- */}
       <div className="sidebar-footer">
         {/* Botón para cerrar sesión y regresar al inicio público */}
-        <NavLink to="/" className="nav-item">
+        <button onClick={handleLogout} className="nav-item" style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>
           <LogOut size={20} />
           <span>Salir</span>
-        </NavLink>
+        </button>
       </div>
       
     </aside>

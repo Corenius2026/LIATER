@@ -26,12 +26,13 @@ import TeacherPanel from './pages/TeacherPanel';
 import './App.css';
 
 // --- Contextos ---
-import { RoleProvider } from './context/RoleContext';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
     // Router principal que envuelve toda la aplicación para manejar el historial de navegación
-    <RoleProvider>
+    <AuthProvider>
       <Router>
         <Routes>
           {/* --- RUTAS PÚBLICAS --- */}
@@ -42,22 +43,24 @@ function App() {
           {/* --- RUTAS PRIVADAS (PLATAFORMA) --- */}
           {/* Envueltas en el componente <Layout />, el cual contiene el menú lateral y la barra superior.
               Todas estas rutas se renderizarán dentro del espacio de contenido del Layout. */}
-          <Route element={<Layout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
+          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            {/* Rutas compartidas o específicas */}
+            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['student']}><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/profesor" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherPanel /></ProtectedRoute>} />
+            <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminPanel /></ProtectedRoute>} />
+            
             <Route path="/modules" element={<ModulesList />} />
             <Route path="/modules/:id" element={<ModuleDetail />} />
             <Route path="/class/:id" element={<ClassDetail />} />
             <Route path="/teachers" element={<Teachers />} />
-            <Route path="/resources" element={<TeacherResources />} />
-            <Route path="/classes" element={<ClassesManagement />} />
-            <Route path="/users" element={<UserManagement />} />
-            <Route path="/settings" element={<AdminSettings />} />
-            <Route path="/admin" element={<AdminPanel />} />
-            <Route path="/teacher" element={<TeacherPanel />} />
+            <Route path="/resources" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherResources /></ProtectedRoute>} />
+            <Route path="/classes" element={<ProtectedRoute allowedRoles={['teacher', 'admin']}><ClassesManagement /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
           </Route>
         </Routes>
       </Router>
-    </RoleProvider>
+    </AuthProvider>
   );
 }
 

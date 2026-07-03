@@ -1,12 +1,11 @@
-import { useState } from 'react';
-import { useRole } from '../context/RoleContext';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   ListTree, Video, FileText, Plus, Pencil, Trash2,
-  CheckCircle2, Clock, Link as LinkIcon, ShieldAlert
+  CheckCircle2, Clock, Link as LinkIcon, ShieldAlert, X
 } from 'lucide-react';
 import {
-  mockUsers, mockTeachers, mockModules,
+  mockTeachers, mockModules,
   mockSubtopics, mockClasses, mockResources
 } from '../data/mockData';
 import './AdminPanel.css';
@@ -61,8 +60,9 @@ function ActionBtns() {
    TAB 1 — Resumen General
 ───────────────────────────────────────── */
 function ResumenTab() {
+  const { users } = useAuth();
   const stats = [
-    { label: 'Usuarios Total', value: mockUsers.length, color: '#6366f1', bg: '#eef2ff', icon: <Users size={22} color="#6366f1" /> },
+    { label: 'Usuarios Total', value: users.length, color: '#6366f1', bg: '#eef2ff', icon: <Users size={22} color="#6366f1" /> },
     { label: 'Profesores', value: mockTeachers.length, color: '#0ea5e9', bg: '#e0f2fe', icon: <GraduationCap size={22} color="#0ea5e9" /> },
     { label: 'Módulos', value: mockModules.length, color: '#10b981', bg: '#d1fae5', icon: <BookOpen size={22} color="#10b981" /> },
     { label: 'Subtemas', value: mockSubtopics.length, color: '#f59e0b', bg: '#fef3c7', icon: <ListTree size={22} color="#f59e0b" /> },
@@ -72,7 +72,7 @@ function ResumenTab() {
 
   const completadas = mockClasses.filter(c => c.status === 'completed').length;
   const proximas = mockClasses.filter(c => c.status === 'upcoming').length;
-  const activos = mockUsers.filter(u => u.status === 'active').length;
+  const activos = users.filter(u => u.status === 'active' || u.status === undefined).length;
 
   return (
     <div>
@@ -135,14 +135,99 @@ function ResumenTab() {
    TAB 2 — Usuarios
 ───────────────────────────────────────── */
 function UsuariosTab() {
+  const { users, registerUser } = useAuth();
+  const [showModal, setShowModal] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('student');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    
+    if (!name || !email || !password) {
+      setError('Por favor completa todos los campos.');
+      return;
+    }
+
+    const res = registerUser({ name, email, password, role, status: 'active', joinDate: new Date().toISOString().split('T')[0] });
+    if (res.success) {
+      setSuccess('Usuario registrado con éxito.');
+      setName('');
+      setEmail('');
+      setPassword('');
+      setRole('student');
+      setTimeout(() => {
+        setShowModal(false);
+        setSuccess('');
+      }, 1500);
+    } else {
+      setError(res.message);
+    }
+  };
+
   return (
     <div>
       <div className="section-header-row">
-        <span className="section-title">Usuarios registrados ({mockUsers.length})</span>
-        <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+        <span className="section-title">Usuarios registrados ({users.length})</span>
+        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
           <Plus size={16} /> Crear Usuario
         </button>
       </div>
+
+      {showModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Registrar Nuevo Usuario</h3>
+            
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Juan Pérez" />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="juan@ejemplo.com" />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Contraseña</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="••••••••" />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
+                <select value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                  <option value="student">Estudiante</option>
+                  <option value="teacher">Profesor</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>Registrar Usuario</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
@@ -155,7 +240,7 @@ function UsuariosTab() {
             </tr>
           </thead>
           <tbody>
-            {mockUsers.map(user => (
+            {users.map(user => (
               <tr key={user.id}>
                 <td>
                   <div className="user-cell">
@@ -167,8 +252,8 @@ function UsuariosTab() {
                   </div>
                 </td>
                 <td><RoleBadge role={user.role} /></td>
-                <td><StatusBadge status={user.status} /></td>
-                <td>{user.joinDate}</td>
+                <td><StatusBadge status={user.status ?? 'active'} /></td>
+                <td>{user.joinDate ?? '2024-01-01'}</td>
                 <td><ActionBtns /></td>
               </tr>
             ))}
@@ -421,8 +506,9 @@ const TABS = [
 ];
 
 export default function AdminPanel() {
-  const { role } = useRole();
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('resumen');
+  const role = currentUser?.role;
 
   if (role !== 'admin') {
     return (
