@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   ListTree, Video, FileText, Plus, Pencil, Trash2,
-  CheckCircle2, Clock, Link as LinkIcon, ShieldAlert, X
+  CheckCircle2, CheckCircle, Clock, Link as LinkIcon, ShieldAlert, X
 } from 'lucide-react';
 import './AdminPanel.css';
 
@@ -243,22 +243,25 @@ function UsuariosTab() {
     setSuccess('');
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario de la plataforma?')) return;
+  const handleToggleStatus = async (user) => {
+    const isCurrentlyActive = user.is_active !== false; // Asume activo si es null/undefined
+    const actionText = isCurrentlyActive ? 'desactivar' : 'reactivar';
+    
+    if (!window.confirm(`¿Estás seguro de que deseas ${actionText} este usuario?`)) return;
     
     setLoading(true);
     try {
-      const { error: deleteError } = await supabase
+      const { error: updateError } = await supabase
         .from('users_profile')
-        .delete()
-        .eq('id', id);
+        .update({ is_active: !isCurrentlyActive })
+        .eq('id', user.id);
         
-      if (deleteError) throw deleteError;
+      if (updateError) throw updateError;
       
-      setSuccess('Usuario eliminado con éxito.');
+      setSuccess(`Usuario ${isCurrentlyActive ? 'desactivado' : 'reactivado'} con éxito.`);
       fetchUsers();
     } catch (err) {
-      setError('Error al eliminar usuario: ' + err.message);
+      setError(`Error al ${actionText} usuario: ` + err.message);
       setLoading(false);
     }
   };
@@ -383,7 +386,7 @@ function UsuariosTab() {
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Usuario</th><th>Rol</th><th>Fecha de Ingreso</th><th>Acciones</th>
+              <th>Usuario</th><th>Rol</th><th>Estado</th><th>Fecha de Ingreso</th><th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -401,11 +404,25 @@ function UsuariosTab() {
                   </div>
                 </td>
                 <td><RoleBadge role={user.role} /></td>
+                <td>
+                  <span style={{ 
+                    padding: '4px 8px', 
+                    borderRadius: '12px', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 'bold', 
+                    backgroundColor: user.is_active !== false ? '#dcfce7' : '#fee2e2', 
+                    color: user.is_active !== false ? '#166534' : '#991b1b' 
+                  }}>
+                    {user.is_active !== false ? 'Activo' : 'Inactivo'}
+                  </span>
+                </td>
                 <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : '—'}</td>
                 <td>
                   <div className="action-btns">
                     <button className="btn-icon edit" title="Editar Usuario" onClick={() => openEditModal(user)}><Pencil size={15} /></button>
-                    <button className="btn-icon del" title="Eliminar Usuario" onClick={() => handleDelete(user.id)}><Trash2 size={15} /></button>
+                    <button className="btn-icon del" title={user.is_active !== false ? 'Desactivar Usuario' : 'Reactivar Usuario'} onClick={() => handleToggleStatus(user)}>
+                      {user.is_active !== false ? <Trash2 size={15} /> : <CheckCircle size={15} />}
+                    </button>
                   </div>
                 </td>
               </tr>

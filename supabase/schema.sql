@@ -207,3 +207,9 @@ CREATE POLICY "Usuario actualiza su perfil"
 --    7. resources
 --    8. announcements
 -- ============================================================
+
+
+-- ─────────────────────────────────────────────────────────────
+-- PASO 11: Módulo de desactivación de usuarios
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE users_profile ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
