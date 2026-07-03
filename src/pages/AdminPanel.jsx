@@ -636,15 +636,164 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
 /* ─────────────────────────────────────────
    TAB 6 — Clases (Supabase)
 ───────────────────────────────────────── */
-function ClasesTab({ classes, loading }) {
+function ClasesTab({ classes, loading, onRefresh }) {
+  const [showModal, setShowModal] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [subtopicId, setSubtopicId] = useState('');
+  const [teacherId, setTeacherId] = useState('');
+  const [classDate, setClassDate] = useState('');
+  const [duration, setDuration] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [presentationUrl, setPresentationUrl] = useState('');
+  const [orderIndex, setOrderIndex] = useState(1);
+  
+  const [subtopicsList, setSubtopicsList] = useState([]);
+  const [teachersList, setTeachersList] = useState([]);
+  
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Cargar subtemas y profesores al abrir el modal
+  useEffect(() => {
+    if (showModal && subtopicsList.length === 0) {
+      Promise.all([
+        supabase.from('subtopics').select('id, title').order('order_index', { ascending: true }),
+        supabase.from('teacher_profiles').select('id, name')
+      ]).then(([stRes, tRes]) => {
+        setSubtopicsList(stRes.data || []);
+        setTeachersList(tRes.data || []);
+        if (stRes.data && stRes.data.length > 0) setSubtopicId(stRes.data[0].id);
+        if (tRes.data && tRes.data.length > 0) setTeacherId(tRes.data[0].id);
+      });
+    }
+  }, [showModal]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(''); setSuccess('');
+    
+    if (!title || !subtopicId || !teacherId) {
+      setError('El título, subtema y profesor son obligatorios.');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const { error: insertError } = await supabase
+        .from('class_sessions')
+        .insert([{
+          title,
+          description,
+          subtopic_id: subtopicId,
+          teacher_id: teacherId,
+          class_date: classDate ? new Date(classDate).toISOString() : null,
+          duration: duration ? parseInt(duration) : null,
+          video_url: videoUrl || null,
+          presentation_url: presentationUrl || null,
+          order_index: parseInt(orderIndex) || 0
+        }]);
+      
+      if (insertError) throw insertError;
+      
+      setSuccess('Clase creada con éxito.');
+      setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl('');
+      if (onRefresh) onRefresh();
+      
+      setTimeout(() => {
+        setShowModal(false);
+        setSuccess('');
+      }, 1500);
+    } catch (err) {
+      setError('Error al crear clase: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <div className="section-header-row">
         <span className="section-title">Sesiones de clase ({classes.length})</span>
-        <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Clase (próx.)
+        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+          <Plus size={16} /> Crear Clase
         </button>
       </div>
+
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Crear Nueva Clase</h3>
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título de la Clase</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Bases de React" required />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Subtema Asociado</label>
+                <select value={subtopicId} onChange={e => setSubtopicId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                  {subtopicsList.length === 0 ? <option value="">Cargando subtemas...</option> : subtopicsList.map(st => (
+                    <option key={st.id} value={st.id}>{st.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Profesor Asignado</label>
+                <select value={teacherId} onChange={e => setTeacherId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                  {teachersList.length === 0 ? <option value="">Cargando profesores...</option> : teachersList.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Fecha y Hora</label>
+                <input type="datetime-local" value={classDate} onChange={e => setClassDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Duración (minutos)</label>
+                <input type="number" value={duration} onChange={e => setDuration(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: 90" />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Grabación</label>
+                <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Presentación</label>
+                <input type="url" value={presentationUrl} onChange={e => setPresentationUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden</label>
+                <input type="number" value={orderIndex} onChange={e => setOrderIndex(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+              </div>
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }} />
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+                <button type="submit" disabled={submitting} className="btn btn-primary" style={{ width: '100%' }}>
+                  {submitting ? 'Guardando...' : 'Guardar Clase'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
@@ -803,7 +952,7 @@ export default function AdminPanel() {
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} />;
-      case 'clases':     return <ClasesTab classes={data.classes} loading={loading} />;
+      case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} />;
       default:           return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
     }
