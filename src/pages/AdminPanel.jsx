@@ -155,30 +155,89 @@ function ResumenTab({ counts, upcomingClasses }) {
 }
 
 /* ─────────────────────────────────────────
-   TAB 2 — Usuarios (sigue leyendo del contexto local, sin cambios)
+   TAB 2 — Usuarios (Supabase users_profile)
 ───────────────────────────────────────── */
 function UsuariosTab() {
-  const { users, registerUser } = useAuth();
-  const [showModal, setShowModal] = useState(false);
-  const [name, setName] = useState('');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [role, setRole] = useState('student');
+  
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const handleSubmit = (e) => {
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const { data, error: fetchErr } = await supabase
+        .from('users_profile')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (fetchErr) throw fetchErr;
+      setUsers(data || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const openEditModal = (user) => {
+    setEditUser(user);
+    setFullName(user.full_name || '');
+    setEmail(user.email || '');
+    setRole(user.role || 'student');
+    setShowEditModal(true);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (!name || !email || !password) { setError('Por favor completa todos los campos.'); return; }
-    const res = registerUser({ name, email, password, role, status: 'active', joinDate: new Date().toISOString().split('T')[0] });
-    if (res.success) {
-      setSuccess('Usuario registrado con éxito.');
-      setName(''); setEmail(''); setPassword(''); setRole('student');
-      setTimeout(() => { setShowModal(false); setSuccess(''); }, 1500);
-    } else {
-      setError(res.message);
+    
+    if (!fullName || !role) { 
+      setError('El nombre y el rol son obligatorios.'); 
+      return; 
+    }
+
+    if (!['student', 'teacher', 'admin'].includes(role)) {
+      setError('El rol seleccionado no es válido.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('users_profile')
+        .update({ full_name: fullName, role })
+        .eq('id', editUser.id);
+      
+      if (updateError) throw updateError;
+      
+      setSuccess('Usuario actualizado con éxito.');
+      fetchUsers();
+      
+      setTimeout(() => { 
+        setShowEditModal(false); 
+        setSuccess(''); 
+      }, 1500);
+    } catch (err) {
+      setError('Error al actualizar: ' + err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -186,32 +245,27 @@ function UsuariosTab() {
     <div>
       <div className="section-header-row">
         <span className="section-title">Usuarios registrados ({users.length})</span>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Usuario
-        </button>
+        {/* El botón de crear se ocultó temporalmente porque requiere API de administración de Auth */}
       </div>
 
-      {showModal && (
+      {showEditModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
-            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+            <button onClick={() => setShowEditModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Registrar Nuevo Usuario</h3>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Editar Usuario</h3>
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Juan Pérez" />
+                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="juan@ejemplo.com" />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Contraseña</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="••••••••" />
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico (Solo lectura)</label>
+                <input type="email" value={email} disabled style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#f3f4f6', color: '#9ca3af' }} />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>El correo está enlazado a la cuenta y no puede editarse aquí de forma segura.</span>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
@@ -221,7 +275,9 @@ function UsuariosTab() {
                   <option value="admin">Administrador</option>
                 </select>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>Registrar Usuario</button>
+              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
+                {submitting ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
             </form>
           </div>
         </div>
@@ -231,17 +287,19 @@ function UsuariosTab() {
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Usuario</th><th>Rol</th><th>Estado</th><th>Fecha de Ingreso</th><th>Acciones</th>
+              <th>Usuario</th><th>Rol</th><th>Fecha de Ingreso</th><th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {users.map(user => (
+            {loading ? <LoadingRow cols={4} /> : 
+             users.length === 0 ? <EmptyRow cols={4} message="No hay usuarios registrados." /> :
+             users.map(user => (
               <tr key={user.id}>
                 <td>
                   <div className="user-cell">
-                    <Initials name={user.name} />
+                    <Initials name={user.full_name || 'Desconocido'} />
                     <div>
-                      <div className="user-name">{user.name}</div>
+                      <div className="user-name">{user.full_name}</div>
                       <div className="user-email">{user.email}</div>
                     </div>
                   </div>
