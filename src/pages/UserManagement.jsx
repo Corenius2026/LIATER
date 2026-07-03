@@ -1,8 +1,9 @@
 import { UserPlus, UserCog, Trash2, ShieldAlert } from 'lucide-react';
-import { useRole } from '../context/RoleContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function UserManagement() {
-  const { role } = useRole();
+  const { currentUser } = useAuth();
+  const role = currentUser?.role;
 
   if (role !== 'admin') {
     return (

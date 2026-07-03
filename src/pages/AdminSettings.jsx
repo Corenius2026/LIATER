@@ -1,8 +1,9 @@
 import { Settings, Save } from 'lucide-react';
-import { useRole } from '../context/RoleContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function AdminSettings() {
-  const { role } = useRole();
+  const { currentUser } = useAuth();
+  const role = currentUser?.role;
 
   if (role !== 'admin') {
     return (

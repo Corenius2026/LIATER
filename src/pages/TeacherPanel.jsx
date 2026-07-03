@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useRole } from '../context/RoleContext';
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import {
   BookOpen, Video, FileText, Megaphone, Presentation,
   Play, Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
@@ -381,8 +381,9 @@ const TABS = [
 ];
 
 export default function TeacherPanel() {
-  const { role } = useRole();
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('resumen');
+  const role = currentUser?.role;
 
   if (role !== 'teacher') {
     return (

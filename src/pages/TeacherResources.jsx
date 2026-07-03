@@ -1,8 +1,9 @@
 import { Upload, FileText, Trash2, Edit } from 'lucide-react';
-import { useRole } from '../context/RoleContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function TeacherResources() {
-  const { role } = useRole();
+  const { currentUser } = useAuth();
+  const role = currentUser?.role;
 
   if (role !== 'teacher') {
     return (
