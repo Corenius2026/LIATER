@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { PlayCircle, BookOpen, Calendar, Video, Clock } from 'lucide-react';
+import { PlayCircle, BookOpen, Calendar, Video, Clock, User } from 'lucide-react';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -22,7 +22,7 @@ export default function Dashboard() {
           .from('diploma_programs')
           .select('title')
           .limit(1)
-          .single();
+          .maybeSingle();
 
         // 2. Obtener conteo de módulos y el ID del primer módulo
         const { data: modulesData } = await supabase
@@ -39,17 +39,17 @@ export default function Dashboard() {
         const now = new Date().toISOString();
         const { data: upcomingData } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date, duration')
-          .gte('class_date', now)
-          .order('class_date', { ascending: true })
+          .select('id, title, date, duration')
+          .gte('date', now)
+          .order('date', { ascending: true })
           .limit(3);
 
         // 5. Obtener últimas grabaciones (tienen video_url, fecha < ahora)
         const { data: recordingsData } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date')
+          .select('id, title, date')
           .not('video_url', 'is', null)
-          .order('class_date', { ascending: false })
+          .order('date', { ascending: false })
           .limit(3);
 
         setDashboardData({
@@ -146,7 +146,7 @@ export default function Dashboard() {
                   <div>
                     <h4 style={{ fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>{cls.title}</h4>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Clock size={12} /> {new Date(cls.class_date).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      <Clock size={12} /> {cls.date ? new Date(cls.date).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Fecha por confirmar'}
                     </p>
                   </div>
                   <Link to={`/class/${cls.id}`} className="btn btn-outline" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
@@ -176,7 +176,7 @@ export default function Dashboard() {
                   <div>
                     <h4 style={{ fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>{cls.title}</h4>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Emitida el {new Date(cls.class_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                      Emitida el {cls.date ? new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }) : ''}
                     </p>
                   </div>
                   <Link to={`/class/${cls.id}`} className="btn btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
