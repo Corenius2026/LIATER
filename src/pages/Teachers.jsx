@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Linkedin, User } from 'lucide-react';
+import { Globe, User } from 'lucide-react';
 
 export default function Teachers() {
   const [teachersList, setTeachersList] = useState([]);
@@ -79,7 +79,7 @@ export default function Teachers() {
                   className="btn btn-outline" 
                   style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: '0.5rem' }}
                 >
-                  <Linkedin size={18} /> LinkedIn
+                  <Globe size={18} /> LinkedIn
                 </a>
               )}
             </div>
