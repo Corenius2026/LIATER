@@ -1030,6 +1030,8 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
 ───────────────────────────────────────── */
 function ClasesTab({ classes, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
+  const [editClassId, setEditClassId] = useState(null);
+  
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [subtopicId, setSubtopicId] = useState('');
@@ -1047,7 +1049,28 @@ function ClasesTab({ classes, loading, onRefresh }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Cargar subtemas y profesores al abrir el modal
+  const openCreateModal = () => {
+    setEditClassId(null);
+    setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl(''); setOrderIndex(1);
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
+  const openEditModal = (c) => {
+    setEditClassId(c.id);
+    setTitle(c.title);
+    setDescription(c.description || '');
+    setSubtopicId(c.subtopic_id);
+    setTeacherId(c.teacher_id);
+    setClassDate(c.class_date ? new Date(c.class_date).toISOString().slice(0, 16) : '');
+    setDuration(c.duration || '');
+    setVideoUrl(c.video_url || '');
+    setPresentationUrl(c.presentation_url || '');
+    setOrderIndex(c.order_index || 1);
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
   useEffect(() => {
     if (showModal && subtopicsList.length === 0) {
       Promise.all([
@@ -1056,11 +1079,11 @@ function ClasesTab({ classes, loading, onRefresh }) {
       ]).then(([stRes, tRes]) => {
         setSubtopicsList(stRes.data || []);
         setTeachersList(tRes.data || []);
-        if (stRes.data && stRes.data.length > 0) setSubtopicId(stRes.data[0].id);
-        if (tRes.data && tRes.data.length > 0) setTeacherId(tRes.data[0].id);
+        if (stRes.data && stRes.data.length > 0 && !editClassId) setSubtopicId(stRes.data[0].id);
+        if (tRes.data && tRes.data.length > 0 && !editClassId) setTeacherId(tRes.data[0].id);
       });
     }
-  }, [showModal]);
+  }, [showModal, subtopicsList.length, editClassId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1073,24 +1096,29 @@ function ClasesTab({ classes, loading, onRefresh }) {
     
     setSubmitting(true);
     try {
-      const { error: insertError } = await supabase
-        .from('class_sessions')
-        .insert([{
-          title,
-          description,
-          subtopic_id: subtopicId,
-          teacher_id: teacherId,
-          class_date: classDate ? new Date(classDate).toISOString() : null,
-          duration: duration ? parseInt(duration) : null,
-          video_url: videoUrl || null,
-          presentation_url: presentationUrl || null,
-          order_index: parseInt(orderIndex) || 0
-        }]);
+      const payload = {
+        title,
+        description,
+        subtopic_id: subtopicId,
+        teacher_id: teacherId,
+        class_date: classDate ? new Date(classDate).toISOString() : null,
+        duration: duration ? parseInt(duration) : null,
+        video_url: videoUrl || null,
+        presentation_url: presentationUrl || null,
+        order_index: parseInt(orderIndex) || 0
+      };
+
+      let query;
+      if (editClassId) {
+        query = supabase.from('class_sessions').update(payload).eq('id', editClassId);
+      } else {
+        query = supabase.from('class_sessions').insert([payload]);
+      }
       
-      if (insertError) throw insertError;
+      const { error: opError } = await query;
+      if (opError) throw opError;
       
-      setSuccess('Clase creada con éxito.');
-      setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl('');
+      setSuccess(editClassId ? 'Clase actualizada con éxito.' : 'Clase creada con éxito.');
       if (onRefresh) onRefresh();
       
       setTimeout(() => {
@@ -1098,9 +1126,39 @@ function ClasesTab({ classes, loading, onRefresh }) {
         setSuccess('');
       }, 1500);
     } catch (err) {
-      setError('Error al crear clase: ' + err.message);
+      setError('Error al guardar clase: ' + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (c) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la clase "${c.title}"?`)) return;
+
+    try {
+      const { count, error: countError } = await supabase
+        .from('resources')
+        .select('*', { count: 'exact', head: true })
+        .eq('class_id', c.id);
+      
+      if (countError) throw countError;
+
+      if (count && count > 0) {
+        alert('Esta clase tiene recursos asociados. Elimina primero los recursos o confirma una eliminación completa si se implementa más adelante.');
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from('class_sessions')
+        .delete()
+        .eq('id', c.id);
+
+      if (deleteError) throw deleteError;
+      
+      alert('Clase eliminada exitosamente.');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al eliminar clase: ' + err.message);
     }
   };
 
@@ -1108,7 +1166,7 @@ function ClasesTab({ classes, loading, onRefresh }) {
     <div>
       <div className="section-header-row">
         <span className="section-title">Sesiones de clase ({classes.length})</span>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
           <Plus size={16} /> Crear Clase
         </button>
       </div>
@@ -1119,7 +1177,7 @@ function ClasesTab({ classes, loading, onRefresh }) {
             <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Crear Nueva Clase</h3>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editClassId ? 'Editar Clase' : 'Crear Nueva Clase'}</h3>
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
             <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -1202,12 +1260,12 @@ function ClasesTab({ classes, loading, onRefresh }) {
                 <td>{cls.duration ? `${cls.duration} min` : '—'}</td>
                 <td><StatusBadge status={cls.status} /></td>
                 <td>
-                  {cls.video_url
+                  {cls.video_url || cls.presentation_url
                     ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontSize: '0.8rem', fontWeight: 500 }}><CheckCircle2 size={14} />Disponible</span>
                     : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Pendiente</span>
                   }
                 </td>
-                <td><ActionBtns /></td>
+                <td><ActionBtns onEdit={() => openEditModal(cls)} onDelete={() => handleDelete(cls)} /></td>
               </tr>
             ))}
           </tbody>
