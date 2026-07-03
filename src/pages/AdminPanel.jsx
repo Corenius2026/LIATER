@@ -141,7 +141,7 @@ function ResumenTab({ counts, upcomingClasses }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cls.title}</div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      {cls.date ? new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Fecha por confirmar'}
+                      {cls.class_date ? new Date(cls.class_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Fecha por confirmar'}
                     </div>
                   </div>
                 </div>
@@ -398,7 +398,7 @@ function ClasesTab({ classes, loading }) {
               <tr key={cls.id}>
                 <td style={{ fontWeight: 600 }}>{cls.title}</td>
                 <td>{cls.teacher_profiles?.name || '—'}</td>
-                <td>{cls.date ? new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+                <td>{cls.class_date ? new Date(cls.class_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
                 <td>{cls.duration ? `${cls.duration} min` : '—'}</td>
                 <td><StatusBadge status={cls.status} /></td>
                 <td>
@@ -440,7 +440,7 @@ function RecursosTab({ resources, loading }) {
              resources.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 600 }}>{r.title}</td>
-                <td><TypeBadge type={r.type} /></td>
+                <td><TypeBadge type={r.resource_type} /></td>
                 <td>
                   <a href={r.url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-light)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem' }}>
                     <LinkIcon size={13} /> Ver
@@ -491,12 +491,12 @@ export default function AdminPanel() {
           supabase.from('teacher_profiles').select('*'),
           supabase.from('modules').select('*').order('order_index', { ascending: true }),
           supabase.from('subtopics').select('*').order('order_index', { ascending: true }),
-          supabase.from('class_sessions').select('*, teacher_profiles(name)').order('date', { ascending: true }),
+          supabase.from('class_sessions').select('*, teacher_profiles(name)').order('class_date', { ascending: true }),
           supabase.from('resources').select('*'),
         ]);
 
         const now = new Date().toISOString();
-        const upcoming = (classesRes.data || []).filter(c => c.date && c.date > now).slice(0, 4);
+        const upcoming = (classesRes.data || []).filter(c => c.class_date && c.class_date > now).slice(0, 4);
 
         setData({
           teachers: teachersRes.data || [],

@@ -84,7 +84,6 @@ export default function ClassDetail() {
   const isUpcoming = clsData.class_date ? (new Date(clsData.class_date) > new Date()) : false;
   const hasVideo = !!clsData.video_url;
 
-  // Helper para renderizar iconos según el tipo de recurso
   const renderResourceIcon = (type) => {
     switch(type) {
       case 'presentation': return <Presentation size={18} />;
@@ -213,9 +212,9 @@ export default function ClassDetail() {
                   <a key={resource.id} href={resource.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
                     <button className="btn btn-outline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '1rem', cursor: 'pointer', backgroundColor: 'var(--bg-color)', border: 'none' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-dark)', fontSize: '0.875rem' }}>
-                        {renderResourceIcon(resource.type)} {resource.title}
+                        {renderResourceIcon(resource.resource_type)} {resource.title}
                       </span>
-                      {resource.type === 'link' || resource.type === 'video' ? <ExternalLink size={16} /> : <Download size={16} />}
+                      {resource.resource_type === 'link' || resource.resource_type === 'video' ? <ExternalLink size={16} /> : <Download size={16} />}
                     </button>
                   </a>
                 ))}
