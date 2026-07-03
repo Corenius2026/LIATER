@@ -47,11 +47,11 @@ function Initials({ name }) {
   return <div className="user-avatar-initials">{letters.toUpperCase()}</div>;
 }
 
-function ActionBtns() {
+function ActionBtns({ onEdit, onDelete }) {
   return (
     <div className="action-btns">
-      <button className="btn-icon edit" title="Editar (próximamente)"><Pencil size={15} /></button>
-      <button className="btn-icon del"  title="Eliminar (próximamente)"><Trash2 size={15} /></button>
+      <button className="btn-icon edit" title="Editar" onClick={onEdit}><Pencil size={15} /></button>
+      <button className="btn-icon del"  title="Eliminar (próximamente)" onClick={onDelete}><Trash2 size={15} /></button>
     </div>
   );
 }
@@ -309,6 +309,7 @@ function ProfesoresTab({ teachers, loading }) {
 ───────────────────────────────────────── */
 function ModulosTab({ modules, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
+  const [editModuleId, setEditModuleId] = useState(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [orderIndex, setOrderIndex] = useState(1);
@@ -317,6 +318,26 @@ function ModulosTab({ modules, loading, onRefresh }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Limpiar el formulario al abrir modal de creación
+  const openCreateModal = () => {
+    setEditModuleId(null);
+    setTitle('');
+    setDescription('');
+    setOrderIndex(1);
+    // diplomaId se setea en el useEffect si está vacío
+    setShowModal(true);
+  };
+
+  // Llenar el formulario al abrir modal de edición
+  const openEditModal = (m) => {
+    setEditModuleId(m.id);
+    setTitle(m.title);
+    setDescription(m.description || '');
+    setOrderIndex(m.order_index || 1);
+    setDiplomaId(m.diploma_id);
+    setShowModal(true);
+  };
 
   useEffect(() => {
     if (showModal && diplomas.length === 0) {
@@ -336,25 +357,33 @@ function ModulosTab({ modules, loading, onRefresh }) {
     }
     
     const parsedOrder = parseInt(orderIndex) || 0;
-    if (modules.some(m => m.order_index === parsedOrder)) {
+    
+    // Validar orden duplicado (ignorando el módulo actual si estamos editando)
+    if (modules.some(m => m.order_index === parsedOrder && m.id !== editModuleId)) {
       setError(`Ya existe un módulo con el orden ${parsedOrder}. Por favor elige otro número.`);
       return;
     }
     
     setSubmitting(true);
     try {
-      const { error: insertError } = await supabase
-        .from('modules')
-        .insert([{
-          title,
-          description,
-          order_index: parsedOrder,
-          diploma_id: diplomaId
-        }]);
+      const payload = {
+        title,
+        description,
+        order_index: parsedOrder,
+        diploma_id: diplomaId
+      };
+
+      let query;
+      if (editModuleId) {
+        query = supabase.from('modules').update(payload).eq('id', editModuleId);
+      } else {
+        query = supabase.from('modules').insert([payload]);
+      }
+
+      const { error: opError } = await query;
+      if (opError) throw opError;
       
-      if (insertError) throw insertError;
-      
-      setSuccess('Módulo creado con éxito.');
+      setSuccess(editModuleId ? 'Módulo actualizado con éxito.' : 'Módulo creado con éxito.');
       setTitle(''); setDescription('');
       if (onRefresh) onRefresh();
       
@@ -373,7 +402,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
     <div>
       <div className="section-header-row">
         <span className="section-title">Módulos del programa ({modules.length})</span>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
           <Plus size={16} /> Crear Módulo
         </button>
       </div>
@@ -384,7 +413,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
             <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Crear Nuevo Módulo</h3>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editModuleId ? 'Editar Módulo' : 'Crear Nuevo Módulo'}</h3>
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -429,7 +458,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
                 <td><div className="order-badge">{m.order_index ?? i + 1}</div></td>
                 <td><span style={{ fontWeight: 600 }}>{m.title}</span></td>
                 <td style={{ color: 'var(--text-muted)', maxWidth: '240px' }}>{m.description}</td>
-                <td><ActionBtns /></td>
+                <td><ActionBtns onEdit={() => openEditModal(m)} /></td>
               </tr>
             ))}
           </tbody>
