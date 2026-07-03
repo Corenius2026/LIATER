@@ -335,6 +335,12 @@ function ModulosTab({ modules, loading, onRefresh }) {
       return;
     }
     
+    const parsedOrder = parseInt(orderIndex) || 0;
+    if (modules.some(m => m.order_index === parsedOrder)) {
+      setError(`Ya existe un módulo con el orden ${parsedOrder}. Por favor elige otro número.`);
+      return;
+    }
+    
     setSubmitting(true);
     try {
       const { error: insertError } = await supabase
@@ -342,7 +348,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
         .insert([{
           title,
           description,
-          order_index: parseInt(orderIndex) || 0,
+          order_index: parsedOrder,
           diploma_id: diplomaId
         }]);
       
