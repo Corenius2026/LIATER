@@ -161,11 +161,15 @@ function UsuariosTab() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  const [showModal, setShowModal] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  
   const [showEditModal, setShowEditModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
   
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [role, setRole] = useState('student');
   
   const [submitting, setSubmitting] = useState(false);
@@ -193,10 +197,46 @@ function UsuariosTab() {
     fetchUsers();
   }, []);
 
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    setError(''); setSuccess('');
+    
+    if (!name || !email || !role) { 
+      setError('Por favor completa todos los campos.'); 
+      return; 
+    }
+
+    setSubmitting(true);
+    try {
+      const { error: insertError } = await supabase
+        .from('users_profile')
+        .insert([{
+          full_name: name,
+          email: email,
+          role: role
+        }]);
+      
+      if (insertError) throw insertError;
+      
+      setSuccess('Usuario registrado con éxito.');
+      fetchUsers();
+      
+      setTimeout(() => { 
+        setShowModal(false); 
+        setSuccess(''); 
+        setName(''); setEmail(''); setRole('student');
+      }, 1500);
+    } catch (err) {
+      setError('Error al registrar usuario: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const openEditModal = (user) => {
     setEditUser(user);
     setFullName(user.full_name || '');
-    setEmail(user.email || '');
+    setEditEmail(user.email || '');
     setRole(user.role || 'student');
     setShowEditModal(true);
     setError('');
@@ -245,8 +285,44 @@ function UsuariosTab() {
     <div>
       <div className="section-header-row">
         <span className="section-title">Usuarios registrados ({users.length})</span>
-        {/* El botón de crear se ocultó temporalmente porque requiere API de administración de Auth */}
+        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+          <Plus size={16} /> Crear Usuario
+        </button>
       </div>
+
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Registrar Nuevo Usuario</h3>
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
+            <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Juan Pérez" required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="juan@ejemplo.com" required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
+                <select value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                  <option value="student">Estudiante</option>
+                  <option value="teacher">Profesor</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
+                {submitting ? 'Guardando...' : 'Registrar Usuario'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showEditModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -264,7 +340,7 @@ function UsuariosTab() {
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico (Solo lectura)</label>
-                <input type="email" value={email} disabled style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#f3f4f6', color: '#9ca3af' }} />
+                <input type="email" value={editEmail} disabled style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#f3f4f6', color: '#9ca3af' }} />
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>El correo está enlazado a la cuenta y no puede editarse aquí de forma segura.</span>
               </div>
               <div>
