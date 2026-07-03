@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { Download, PlayCircle, FileText, Video, Calendar, User } from 'lucide-react';
+import { Download, PlayCircle, FileText, Video, Calendar, User, ExternalLink, Paperclip, Presentation } from 'lucide-react';
 
 export default function ClassDetail() {
   const { id } = useParams();
   
   const [clsData, setClsData] = useState(null);
   const [moduleId, setModuleId] = useState(null);
+  const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +36,20 @@ export default function ClassDetail() {
             setModuleId(subData.module_id);
           }
         }
+
+        // 3. Obtener los recursos de la clase
+        const { data: resData, error: resError } = await supabase
+          .from('resources')
+          .select('*')
+          .eq('class_id', id)
+          .order('created_at', { ascending: true });
+          
+        if (resError) {
+          console.error('Error fetching resources:', resError);
+        } else {
+          setResources(resData || []);
+        }
+
       } catch (err) {
         console.error('Error fetching class details:', err.message);
       } finally {
@@ -69,6 +84,17 @@ export default function ClassDetail() {
   const isUpcoming = clsData.class_date ? (new Date(clsData.class_date) > new Date()) : false;
   const hasVideo = !!clsData.video_url;
 
+  // Helper para renderizar iconos según el tipo de recurso
+  const renderResourceIcon = (type) => {
+    switch(type) {
+      case 'presentation': return <Presentation size={18} />;
+      case 'pdf': return <FileText size={18} />;
+      case 'link': return <ExternalLink size={18} />;
+      case 'video': return <Video size={18} />;
+      default: return <Paperclip size={18} />; // file genérico
+    }
+  };
+
   return (
     <div>
       {/* --- ENCABEZADO DE LA CLASE --- */}
@@ -102,8 +128,8 @@ export default function ClassDetail() {
               <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
                 {clsData.class_date ? `Programada para: ${new Date(clsData.class_date).toLocaleString()}` : 'Únete a la sesión a la hora programada.'}
               </p>
-              {clsData.meet_url ? (
-                <a href={clsData.meet_url} target="_blank" rel="noreferrer" className="btn btn-primary">
+              {clsData.meet_url || clsData.meet_link ? (
+                <a href={clsData.meet_url || clsData.meet_link} target="_blank" rel="noreferrer" className="btn btn-primary">
                   <Video size={18} /> Entrar a la Sala Virtual
                 </a>
               ) : (
@@ -151,8 +177,8 @@ export default function ClassDetail() {
             <div className="card">
               <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Profesor</h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                {teacher.photo_url ? (
-                  <img src={teacher.photo_url} alt={teacher.name} style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }} />
+                {teacher.photo_url || teacher.photo ? (
+                  <img src={teacher.photo_url || teacher.photo} alt={teacher.name} style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: 'var(--primary-light)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <User size={24} />
@@ -166,20 +192,40 @@ export default function ClassDetail() {
             </div>
           )}
           
-          {/* Recursos Descargables */}
+          {/* Recursos Complementarios */}
           <div className="card">
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Recursos de la Clase</h3>
-            {clsData.presentation_url ? (
-              <a href={clsData.presentation_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Materiales de clase</h3>
+            
+            {/* Si existe el campo presentation_url en class_sessions (legado) */}
+            {clsData.presentation_url && (
+              <a href={clsData.presentation_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block', marginBottom: '0.5rem' }}>
                 <button className="btn btn-outline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '1rem', cursor: 'pointer' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileText size={18} /> Presentación.pdf</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Presentation size={18} /> Presentación (Principal)</span>
                   <Download size={18} />
                 </button>
               </a>
+            )}
+
+            {/* Renderizar todos los recursos de la tabla resources */}
+            {resources.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {resources.map(resource => (
+                  <a key={resource.id} href={resource.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
+                    <button className="btn btn-outline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '1rem', cursor: 'pointer', backgroundColor: 'var(--bg-color)', border: 'none' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-dark)', fontSize: '0.875rem' }}>
+                        {renderResourceIcon(resource.type)} {resource.title}
+                      </span>
+                      {resource.type === 'link' || resource.type === 'video' ? <ExternalLink size={16} /> : <Download size={16} />}
+                    </button>
+                  </a>
+                ))}
+              </div>
             ) : (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem 0' }}>
-                No hay recursos disponibles.
-              </p>
+              !clsData.presentation_url && (
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem 0' }}>
+                  No hay recursos complementarios disponibles.
+                </p>
+              )
             )}
           </div>
           
