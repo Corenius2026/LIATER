@@ -51,7 +51,7 @@ function ActionBtns({ onEdit, onDelete }) {
   return (
     <div className="action-btns">
       <button className="btn-icon edit" title="Editar" onClick={onEdit}><Pencil size={15} /></button>
-      <button className="btn-icon del"  title="Eliminar (próximamente)" onClick={onDelete}><Trash2 size={15} /></button>
+      <button className="btn-icon del"  title="Eliminar" onClick={onDelete}><Trash2 size={15} /></button>
     </div>
   );
 }
@@ -243,6 +243,26 @@ function UsuariosTab() {
     setSuccess('');
   };
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario de la plataforma?')) return;
+    
+    setLoading(true);
+    try {
+      const { error: deleteError } = await supabase
+        .from('users_profile')
+        .delete()
+        .eq('id', id);
+        
+      if (deleteError) throw deleteError;
+      
+      setSuccess('Usuario eliminado con éxito.');
+      fetchUsers();
+    } catch (err) {
+      setError('Error al eliminar usuario: ' + err.message);
+      setLoading(false);
+    }
+  };
+
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -381,9 +401,13 @@ function UsuariosTab() {
                   </div>
                 </td>
                 <td><RoleBadge role={user.role} /></td>
-                <td><StatusBadge status={user.status ?? 'active'} /></td>
-                <td>{user.joinDate ?? '2024-01-01'}</td>
-                <td><ActionBtns /></td>
+                <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : '—'}</td>
+                <td>
+                  <div className="action-btns">
+                    <button className="btn-icon edit" title="Editar Usuario" onClick={() => openEditModal(user)}><Pencil size={15} /></button>
+                    <button className="btn-icon del" title="Eliminar Usuario" onClick={() => handleDelete(user.id)}><Trash2 size={15} /></button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
