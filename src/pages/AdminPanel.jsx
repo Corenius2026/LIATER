@@ -891,10 +891,6 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
     
     const parsedOrder = parseInt(orderIndex) || 0;
     
-    if (subtopics.some(s => s.module_id === moduleId && s.order_index === parsedOrder && s.id !== editSubtopicId)) {
-      setError(`Ya existe un subtema con el orden ${parsedOrder} en este módulo.`);
-      return;
-    }
     
     setSubmitting(true);
     try {
