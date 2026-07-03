@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, PlayCircle, Clock, Video, User } from 'lucide-react';
 
 export default function ModuleDetail() {
   const { id } = useParams();
@@ -11,7 +11,7 @@ export default function ModuleDetail() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchModuleAndSubtopics() {
+    async function fetchModuleData() {
       try {
         // 1. Obtener los datos del módulo
         const { data: modData, error: modError } = await supabase
@@ -23,7 +23,7 @@ export default function ModuleDetail() {
         if (modError) throw modError;
         setModuleData(modData);
 
-        // 2. Obtener los subtemas asociados a este módulo
+        // 2. Obtener los subtemas
         const { data: subData, error: subError } = await supabase
           .from('subtopics')
           .select('*')
@@ -31,7 +31,30 @@ export default function ModuleDetail() {
           .order('order_index', { ascending: true });
         
         if (subError) throw subError;
-        setSubtopics(subData || []);
+
+        let subtopicsWithClasses = subData || [];
+
+        // 3. Obtener las clases si hay subtemas
+        if (subtopicsWithClasses.length > 0) {
+          const subtopicIds = subtopicsWithClasses.map(s => s.id);
+          
+          // Hacemos un JOIN simple con teacher_profiles para sacar el nombre
+          const { data: classesData, error: classesError } = await supabase
+            .from('class_sessions')
+            .select('*, teacher_profiles(name)')
+            .in('subtopic_id', subtopicIds)
+            .order('order_index', { ascending: true });
+
+          if (classesError) throw classesError;
+
+          // Agrupamos las clases dentro de su respectivo subtema
+          subtopicsWithClasses = subtopicsWithClasses.map(sub => ({
+            ...sub,
+            classes: (classesData || []).filter(c => c.subtopic_id === sub.id)
+          }));
+        }
+
+        setSubtopics(subtopicsWithClasses);
         
       } catch (err) {
         console.error('Error fetching module details:', err.message);
@@ -41,7 +64,7 @@ export default function ModuleDetail() {
     }
 
     if (id) {
-      fetchModuleAndSubtopics();
+      fetchModuleData();
     }
   }, [id]);
 
@@ -62,6 +85,12 @@ export default function ModuleDetail() {
     );
   }
 
+  // Helper para saber si una clase es futura
+  const isUpcoming = (dateString) => {
+    if (!dateString) return false;
+    return new Date(dateString) > new Date();
+  };
+
   return (
     <div>
       {/* --- ENCABEZADO DEL MÓDULO --- */}
@@ -73,35 +102,82 @@ export default function ModuleDetail() {
         <p className="page-description">{moduleData.description}</p>
       </div>
 
-      {/* --- LISTA DE SUBTEMAS --- */}
+      {/* --- LISTA DE SUBTEMAS Y SUS CLASES --- */}
       {subtopics.length === 0 ? (
         <div style={{ padding: '3rem', textAlign: 'center', backgroundColor: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
           <p style={{ color: 'var(--text-muted)' }}>No hay subtemas disponibles para este módulo.</p>
         </div>
       ) : (
-        <div style={{ backgroundColor: 'var(--white)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {subtopics.map((subtopic, index) => (
-            <div key={subtopic.id} style={{ padding: '1.5rem', borderBottom: index !== subtopics.length - 1 ? '1px solid var(--border-color)' : 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div key={subtopic.id} style={{ backgroundColor: 'var(--white)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
               
-              {/* Información Básica del Subtema */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.25rem' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#e0e7ff', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, flexShrink: 0 }}>
+              {/* --- Cabecera del Subtema --- */}
+              <div style={{ padding: '1.5rem', backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'flex-start', gap: '1.25rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, flexShrink: 0 }}>
                   {index + 1}
                 </div>
                 <div>
-                  <h4 style={{ fontWeight: 600, fontSize: '1.125rem', color: 'var(--text-dark)', marginBottom: '0.25rem' }}>
+                  <h3 style={{ fontWeight: 600, fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '0.25rem' }}>
                     {subtopic.title}
-                  </h4>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight: '1.5' }}>
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
                     {subtopic.description}
                   </p>
                 </div>
               </div>
-              
-              {/* Placeholder estético ya que no conectamos clases todavía */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem', backgroundColor: 'var(--bg-color)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)' }}>
-                <BookOpen size={16} />
-                <span>Subtema</span>
+
+              {/* --- Lista de Clases del Subtema --- */}
+              <div style={{ padding: '0' }}>
+                {!subtopic.classes || subtopic.classes.length === 0 ? (
+                  <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                    No hay clases programadas para este subtema.
+                  </div>
+                ) : (
+                  subtopic.classes.map((cls, clsIndex) => (
+                    <div key={cls.id} style={{ padding: '1.25rem 1.5rem', borderBottom: clsIndex !== subtopic.classes.length - 1 ? '1px solid var(--border-color)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      
+                      {/* Info de la clase */}
+                      <div style={{ flex: 1, paddingRight: '1rem' }}>
+                        <h4 style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text-dark)', marginBottom: '0.35rem' }}>
+                          {cls.title}
+                        </h4>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                          {cls.description}
+                        </p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                          {cls.class_date && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Clock size={14} /> {new Date(cls.class_date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                          {cls.duration && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              ⏳ {cls.duration} min
+                            </span>
+                          )}
+                          {cls.teacher_profiles && cls.teacher_profiles.name && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <User size={14} /> {cls.teacher_profiles.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Botón dinámico */}
+                      {isUpcoming(cls.class_date) || (!cls.video_url && !cls.presentation_url) ? (
+                        <Link to={`/class/${cls.id}`} className="btn btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                          <Video size={16} /> Próxima
+                        </Link>
+                      ) : (
+                        <Link to={`/class/${cls.id}`} className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                          <PlayCircle size={16} /> Ver Clase
+                        </Link>
+                      )}
+
+                    </div>
+                  ))
+                )}
               </div>
               
             </div>
