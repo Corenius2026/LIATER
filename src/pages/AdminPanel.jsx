@@ -1280,50 +1280,82 @@ function ClasesTab({ classes, loading, onRefresh }) {
 ───────────────────────────────────────── */
 function RecursosTab({ resources, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
+  const [editResourceId, setEditResourceId] = useState(null);
+  
   const [title, setTitle] = useState('');
   const [classId, setClassId] = useState('');
   const [resourceType, setResourceType] = useState('link');
+  const [provider, setProvider] = useState('external');
   const [url, setUrl] = useState('');
-  const [classesList, setClassesList] = useState([]);
+  const [filePath, setFilePath] = useState('');
+  const [isVisible, setIsVisible] = useState(true);
   
+  const [classesList, setClassesList] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Cargar clases al abrir el modal para seleccionar a qué clase pertenece
+  const openCreateModal = () => {
+    setEditResourceId(null);
+    setTitle(''); setResourceType('link'); setProvider('external'); setUrl(''); setFilePath(''); setIsVisible(true);
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
+  const openEditModal = (r) => {
+    setEditResourceId(r.id);
+    setTitle(r.title);
+    setClassId(r.class_id);
+    setResourceType(r.resource_type || 'link');
+    setProvider(r.provider || 'external');
+    setUrl(r.url || '');
+    setFilePath(r.file_path || '');
+    setIsVisible(r.is_visible !== false);
+    setShowModal(true);
+    setError(''); setSuccess('');
+  };
+
   useEffect(() => {
     if (showModal && classesList.length === 0) {
       supabase.from('class_sessions').select('id, title').order('created_at', { ascending: false }).then(({ data }) => {
         setClassesList(data || []);
-        if (data && data.length > 0) setClassId(data[0].id);
+        if (data && data.length > 0 && !editResourceId) setClassId(data[0].id);
       });
     }
-  }, [showModal]);
+  }, [showModal, classesList.length, editResourceId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
     
-    if (!title || !classId || !url) {
-      setError('El título, la clase y el enlace son obligatorios.');
+    if (!title || !classId) {
+      setError('El título y la clase son obligatorios.');
       return;
     }
     
     setSubmitting(true);
     try {
-      const { error: insertError } = await supabase
-        .from('resources')
-        .insert([{
-          title,
-          class_id: classId,
-          resource_type: resourceType,
-          url
-        }]);
+      const payload = {
+        title,
+        class_id: classId,
+        resource_type: resourceType,
+        provider,
+        url: url || null,
+        file_path: filePath || null,
+        is_visible: isVisible
+      };
+
+      let query;
+      if (editResourceId) {
+        query = supabase.from('resources').update(payload).eq('id', editResourceId);
+      } else {
+        query = supabase.from('resources').insert([payload]);
+      }
       
-      if (insertError) throw insertError;
+      const { error: opError } = await query;
+      if (opError) throw opError;
       
-      setSuccess('Recurso agregado con éxito.');
-      setTitle(''); setUrl(''); setResourceType('link');
+      setSuccess(editResourceId ? 'Recurso actualizado con éxito.' : 'Recurso agregado con éxito.');
       if (onRefresh) onRefresh();
       
       setTimeout(() => {
@@ -1331,9 +1363,31 @@ function RecursosTab({ resources, loading, onRefresh }) {
         setSuccess('');
       }, 1500);
     } catch (err) {
-      setError('Error al agregar recurso: ' + err.message);
+      setError('Error al guardar recurso: ' + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (r) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el recurso "${r.title}"?`)) return;
+
+    try {
+      if (r.provider === 'supabase' && r.file_path) {
+        console.log('Documentado: Falta eliminar el archivo físico de Supabase Storage para', r.file_path);
+      }
+
+      const { error: deleteError } = await supabase
+        .from('resources')
+        .delete()
+        .eq('id', r.id);
+
+      if (deleteError) throw deleteError;
+      
+      alert('Recurso eliminado exitosamente.');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al eliminar recurso: ' + err.message);
     }
   };
 
@@ -1341,27 +1395,27 @@ function RecursosTab({ resources, loading, onRefresh }) {
     <div>
       <div className="section-header-row">
         <span className="section-title">Recursos del diplomado ({resources.length})</span>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
           <Plus size={16} /> Agregar Recurso
         </button>
       </div>
 
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '550px', maxHeight: '90vh', overflowY: 'auto', background: 'white', padding: '2rem', position: 'relative' }}>
             <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Agregar Nuevo Recurso</h3>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editResourceId ? 'Editar Recurso' : 'Agregar Nuevo Recurso'}</h3>
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Recurso</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Diapositivas de la Clase 1" required />
               </div>
               
-              <div>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Clase Asociada</label>
                 <select value={classId} onChange={e => setClassId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
                   {classesList.length === 0 ? <option value="">Cargando clases...</option> : classesList.map(c => (
@@ -1373,22 +1427,44 @@ function RecursosTab({ resources, loading, onRefresh }) {
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Tipo de Recurso</label>
                 <select value={resourceType} onChange={e => setResourceType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  <option value="link">Enlace externo (Web)</option>
-                  <option value="pdf">Documento PDF</option>
+                  <option value="video">Video</option>
                   <option value="presentation">Presentación / Diapositivas</option>
-                  <option value="video">Video Externo</option>
+                  <option value="pdf">Documento PDF</option>
+                  <option value="link">Enlace externo</option>
                   <option value="file">Otro Archivo</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL del Recurso</label>
-                <input type="url" value={url} onChange={e => setUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." required />
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Proveedor</label>
+                <select value={provider} onChange={e => setProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                  <option value="drive">Google Drive</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="supabase">Supabase Storage</option>
+                  <option value="external">Otro Externo</option>
+                </select>
               </div>
 
-              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
-                {submitting ? 'Guardando...' : 'Agregar Recurso'}
-              </button>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL del Recurso</label>
+                <input type="url" value={url} onChange={e => setUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
+              </div>
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>File Path (Ruta de archivo interno)</label>
+                <input type="text" value={filePath} onChange={e => setFilePath(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="ruta/del/archivo.pdf" />
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input type="checkbox" id="isVisible" checked={isVisible} onChange={e => setIsVisible(e.target.checked)} />
+                <label htmlFor="isVisible" style={{ fontWeight: 500, fontSize: '0.85rem' }}>Visible para estudiantes</label>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+                <button type="submit" disabled={submitting} className="btn btn-primary" style={{ width: '100%' }}>
+                  {submitting ? 'Guardando...' : 'Guardar Recurso'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -1410,7 +1486,7 @@ function RecursosTab({ resources, loading, onRefresh }) {
                     <LinkIcon size={13} /> Ver
                   </a>
                 </td>
-                <td><ActionBtns /></td>
+                <td><ActionBtns onEdit={() => openEditModal(r)} onDelete={() => handleDelete(r)} /></td>
               </tr>
             ))}
           </tbody>
