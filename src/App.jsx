@@ -11,6 +11,7 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import UpdatePassword from './pages/UpdatePassword';
 import ModulesList from './pages/ModulesList';
 import ModuleDetail from './pages/ModuleDetail';
 import ClassDetail from './pages/ClassDetail';
@@ -39,6 +40,7 @@ function App() {
           {/* Páginas accesibles sin necesidad de iniciar sesión */}
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
           
           {/* --- RUTAS PRIVADAS (PLATAFORMA) --- */}
           {/* Envueltas en el componente <Layout />, el cual contiene el menú lateral y la barra superior.

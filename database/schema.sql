@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS users_profile (
 );
 
 -- Índice para búsquedas rápidas por rol y email
-CREATE INDEX idx_users_profile_role ON users_profile(role);
-CREATE INDEX idx_users_profile_email ON users_profile(email);
+CREATE INDEX IF NOT EXISTS idx_users_profile_role ON users_profile(role);
+CREATE INDEX IF NOT EXISTS idx_users_profile_email ON users_profile(email);
 
 -- --------------------------------------------------------------------
 -- 2. Perfiles de Profesores (teacher_profiles)
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS teacher_profiles (
 );
 
 -- Índice para la relación con el usuario
-CREATE INDEX idx_teacher_profiles_user_id ON teacher_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_profiles_user_id ON teacher_profiles(user_id);
 
 -- --------------------------------------------------------------------
 -- 3. Programas de Diplomado (diploma_programs)
@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS modules (
 );
 
 -- Índice para obtener los módulos de un diplomado ordenados
-CREATE INDEX idx_modules_diploma_id ON modules(diploma_id);
-CREATE INDEX idx_modules_order ON modules(diploma_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_modules_diploma_id ON modules(diploma_id);
+CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(diploma_id, order_index);
 
 -- --------------------------------------------------------------------
 -- 5. Subtemas (subtopics)
@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS subtopics (
 );
 
 -- Índice para obtener los subtemas de un módulo ordenados
-CREATE INDEX idx_subtopics_module_id ON subtopics(module_id);
-CREATE INDEX idx_subtopics_order ON subtopics(module_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_subtopics_module_id ON subtopics(module_id);
+CREATE INDEX IF NOT EXISTS idx_subtopics_order ON subtopics(module_id, order_index);
 
 -- --------------------------------------------------------------------
 -- 6. Sesiones de Clase (class_sessions)
@@ -109,9 +109,9 @@ CREATE TABLE IF NOT EXISTS class_sessions (
 );
 
 -- Índices para optimizar las consultas de clases por subtema o profesor
-CREATE INDEX idx_class_sessions_subtopic_id ON class_sessions(subtopic_id);
-CREATE INDEX idx_class_sessions_teacher_id ON class_sessions(teacher_id);
-CREATE INDEX idx_class_sessions_order ON class_sessions(subtopic_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_class_sessions_subtopic_id ON class_sessions(subtopic_id);
+CREATE INDEX IF NOT EXISTS idx_class_sessions_teacher_id ON class_sessions(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_class_sessions_order ON class_sessions(subtopic_id, order_index);
 
 -- --------------------------------------------------------------------
 -- 7. Recursos Complementarios (resources)
@@ -122,9 +122,28 @@ CREATE TABLE IF NOT EXISTS resources (
     class_id UUID NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     resource_type VARCHAR(50) NOT NULL CHECK (resource_type IN ('presentation', 'pdf', 'link', 'video', 'file')),
-    url TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'external' CHECK (provider IN ('drive', 'youtube', 'supabase', 'external')),
+    url TEXT,
+    file_path TEXT,
+    is_visible BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Índice para buscar los recursos de una clase específica
-CREATE INDEX idx_resources_class_id ON resources(class_id);
+CREATE INDEX IF NOT EXISTS idx_resources_class_id ON resources(class_id);
+
+-- --------------------------------------------------------------------
+-- 8. Anuncios (announcements)
+-- Anuncios publicados por los profesores para sus estudiantes
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS announcements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    teacher_id UUID REFERENCES teacher_profiles(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    tag VARCHAR(50) DEFAULT 'general' CHECK (tag IN ('general', 'urgent', 'info')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_teacher_id ON announcements(teacher_id);
+

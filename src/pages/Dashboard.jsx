@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { PlayCircle, BookOpen, Calendar, Video, Clock, User } from 'lucide-react';
+import { PlayCircle, BookOpen, Calendar, Video, Clock, User, Megaphone } from 'lucide-react';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -11,7 +11,9 @@ export default function Dashboard() {
     classesCount: 0,
     upcomingClasses: [],
     latestRecordings: [],
-    firstModuleId: null
+    latestRecordings: [],
+    firstModuleId: null,
+    announcements: []
   });
 
   useEffect(() => {
@@ -52,13 +54,21 @@ export default function Dashboard() {
           .order('date', { ascending: false })
           .limit(3);
 
+        // 6. Obtener anuncios
+        const { data: announcementsData } = await supabase
+          .from('announcements')
+          .select('*, teacher_profiles(name)')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
         setDashboardData({
           diplomaTitle: diplomaData?.title || 'Diplomado en Formación',
           modulesCount: modulesData?.length || 0,
           classesCount: classesCount || 0,
           upcomingClasses: upcomingData || [],
           latestRecordings: recordingsData || [],
-          firstModuleId: modulesData?.[0]?.id || null
+          firstModuleId: modulesData?.[0]?.id || null,
+          announcements: announcementsData || []
         });
 
       } catch (err) {
@@ -79,7 +89,7 @@ export default function Dashboard() {
     );
   }
 
-  const { diplomaTitle, modulesCount, classesCount, upcomingClasses, latestRecordings, firstModuleId } = dashboardData;
+  const { diplomaTitle, modulesCount, classesCount, upcomingClasses, latestRecordings, firstModuleId, announcements } = dashboardData;
 
   return (
     <div>
@@ -192,6 +202,39 @@ export default function Dashboard() {
           )}
         </div>
 
+      </div>
+
+      {/* --- ANUNCIOS --- */}
+      <div className="card" style={{ marginBottom: '2.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+          <Megaphone size={20} color="var(--primary-color)" />
+          <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Tablón de Anuncios</h2>
+        </div>
+        
+        {announcements.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {announcements.map(a => (
+              <div key={a.id} style={{ padding: '1rem', borderLeft: `4px solid ${a.tag === 'urgent' ? '#dc2626' : a.tag === 'info' ? '#2563eb' : '#cbd5e1'}`, backgroundColor: '#f8fafc', borderRadius: '0 var(--radius-md) var(--radius-md) 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                  <h4 style={{ fontWeight: 600, color: 'var(--text-dark)', margin: 0 }}>{a.title}</h4>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {a.created_at ? new Date(a.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : ''}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-dark)', marginBottom: '0.5rem', whiteSpace: 'pre-wrap' }}>
+                  {a.body}
+                </p>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Publicado por: <strong>{a.teacher_profiles?.name || 'Administración'}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', padding: '1rem 0' }}>
+            No hay anuncios recientes.
+          </p>
+        )}
       </div>
 
       {/* --- ACCESOS RÁPIDOS --- */}

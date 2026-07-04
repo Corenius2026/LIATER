@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+
+// Cliente secundario solo para crear usuarios sin sobreescribir la sesión del admin
+const supabaseCreator = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  { auth: { storageKey: 'dummy-admin-creator', autoRefreshToken: false, persistSession: false } }
+);
+
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   ListTree, Video, FileText, Plus, Pencil, Trash2,
-  CheckCircle2, CheckCircle, Clock, Link as LinkIcon, ShieldAlert, X
+  CheckCircle2, CheckCircle, Clock, Link as LinkIcon, ShieldAlert, X, Megaphone
 } from 'lucide-react';
 import './AdminPanel.css';
+import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../utils/dateUtils';
 
 /* ─────────────────────────────────────────
    HELPERS (sin cambios)
@@ -141,7 +151,7 @@ function ResumenTab({ counts, upcomingClasses }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cls.title}</div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      {cls.class_date ? new Date(cls.class_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Fecha por confirmar'}
+                      {formatShortDate(cls.class_date)}
                     </div>
                   </div>
                 </div>
@@ -164,6 +174,7 @@ function UsuariosTab() {
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   
   const [showEditModal, setShowEditModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
@@ -200,38 +211,84 @@ function UsuariosTab() {
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
-    
-    if (!name || !email || !role) { 
-      setError('Por favor completa todos los campos.'); 
-      return; 
+
+    if (!name || !email || !role || !password) {
+      setError('Por favor completa todos los campos, incluyendo la contraseña.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
     }
 
     setSubmitting(true);
     try {
-      const { error: insertError } = await supabase
+      // PASO 1: Crear cuenta en Supabase Auth usando el cliente secundario
+      // Esto evita que Supabase cierre la sesión actual del administrador.
+      const { data: authData, error: authError } = await supabaseCreator.auth.signUp({
+        email: email,
+        password: password,
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('No se pudo crear la cuenta de acceso.');
+
+      // PASO 2: Crear el perfil en users_profile vinculado al auth_user_id.
+      const { data: newUserProfile, error: insertError } = await supabase
         .from('users_profile')
         .insert([{
+          auth_user_id: authData.user.id,
           full_name: name,
           email: email,
-          role: role
-        }]);
-      
+          role: role,
+          is_active: true
+        }])
+        .select()
+        .single();
+
       if (insertError) throw insertError;
-      
-      setSuccess('Usuario registrado con éxito.');
+
+      // PASO 2.5: Si es profesor, crear su perfil público de profesor
+      if (role === 'teacher' && newUserProfile) {
+        const { error: teacherInsertError } = await supabase
+          .from('teacher_profiles')
+          .insert([{
+            user_id: newUserProfile.id,
+            name: name
+          }]);
+        
+        if (teacherInsertError) {
+          console.error('Error al crear perfil de profesor:', teacherInsertError);
+          // Opcional: mostrar advertencia o manejarlo de otra forma
+        }
+      }
+
+      // Ya no enviamos correo de recuperación. El admin le entregará la contraseña al usuario.
+      setSuccess(`Usuario creado. El usuario ya puede iniciar sesión con el correo ${email} y la contraseña que le asignaste.`);
       fetchUsers();
-      
-      setTimeout(() => { 
-        setShowModal(false); 
-        setSuccess(''); 
-        setName(''); setEmail(''); setRole('student');
-      }, 1500);
+
+      setTimeout(() => {
+        setShowModal(false);
+        setSuccess('');
+        setName(''); setEmail(''); setPassword(''); setRole('student');
+      }, 2500);
     } catch (err) {
-      setError('Error al registrar usuario: ' + err.message);
+      console.error('Error completo:', err);
+      let errorMsg = err.message || err.error_description;
+      if (!errorMsg) {
+        try {
+          errorMsg = JSON.stringify(err, Object.getOwnPropertyNames(err));
+        } catch (e) {
+          errorMsg = String(err);
+        }
+      }
+      setError('Error al registrar usuario: ' + errorMsg);
     } finally {
       setSubmitting(false);
     }
   };
+
 
   const openEditModal = (user) => {
     setEditUser(user);
@@ -330,6 +387,10 @@ function UsuariosTab() {
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="juan@ejemplo.com" required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Contraseña Inicial</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Mínimo 6 caracteres" required />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
@@ -484,16 +545,20 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
     e.preventDefault();
     setError(''); setSuccess('');
     
-    if (!name || !area) {
-      setError('El nombre y el área son obligatorios.');
+    if (!name.trim() || !area.trim() || !userId) {
+      setError('El nombre, el área y el usuario asociado son obligatorios.');
       return;
     }
     
     setSubmitting(true);
     try {
       const payload = {
-        name, area, bio, photo_url: photoUrl, linkedin_url: linkedinUrl,
-        user_id: userId || null
+        name: name.trim(), 
+        area: area.trim(), 
+        bio: bio.trim(), 
+        photo_url: photoUrl.trim(), 
+        linkedin_url: linkedinUrl.trim(),
+        user_id: userId
       };
 
       if (editTeacherId) {
@@ -587,14 +652,14 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
                 <input type="url" value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Usuario Asociado (Opcional)</label>
-                <select value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                  <option value="">Ninguno</option>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Usuario Asociado (Obligatorio)</label>
+                <select value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                  <option value="" disabled>Selecciona un usuario de la lista...</option>
                   {availableUsers.map(u => (
                     <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
                   ))}
                 </select>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Vincular a un usuario con rol "Teacher" permite que inicie sesión.</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Todo profesor debe estar vinculado a una cuenta de usuario existente.</span>
               </div>
               <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
                 {submitting ? 'Guardando...' : (editTeacherId ? 'Guardar Cambios' : 'Agregar Profesor')}
@@ -1062,7 +1127,7 @@ function ClasesTab({ classes, loading, onRefresh }) {
     setDescription(c.description || '');
     setSubtopicId(c.subtopic_id);
     setTeacherId(c.teacher_id);
-    setClassDate(c.class_date ? new Date(c.class_date).toISOString().slice(0, 16) : '');
+    setClassDate(toLocalDatetimeString(c.class_date));
     setDuration(c.duration || '');
     setVideoUrl(c.video_url || '');
     setPresentationUrl(c.presentation_url || '');
@@ -1075,7 +1140,7 @@ function ClasesTab({ classes, loading, onRefresh }) {
     if (showModal && subtopicsList.length === 0) {
       Promise.all([
         supabase.from('subtopics').select('id, title').order('order_index', { ascending: true }),
-        supabase.from('teacher_profiles').select('id, name')
+        supabase.from('teacher_profiles').select('id, name').order('name', { ascending: true })
       ]).then(([stRes, tRes]) => {
         setSubtopicsList(stRes.data || []);
         setTeachersList(tRes.data || []);
@@ -1101,7 +1166,7 @@ function ClasesTab({ classes, loading, onRefresh }) {
         description,
         subtopic_id: subtopicId,
         teacher_id: teacherId,
-        class_date: classDate ? new Date(classDate).toISOString() : null,
+        class_date: parseLocalDatetime(classDate),
         duration: duration ? parseInt(duration) : null,
         video_url: videoUrl || null,
         presentation_url: presentationUrl || null,
@@ -1256,7 +1321,7 @@ function ClasesTab({ classes, loading, onRefresh }) {
               <tr key={cls.id}>
                 <td style={{ fontWeight: 600 }}>{cls.title}</td>
                 <td>{cls.teacher_profiles?.name || '—'}</td>
-                <td>{cls.class_date ? new Date(cls.class_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+                <td>{formatShortDate(cls.class_date)}</td>
                 <td>{cls.duration ? `${cls.duration} min` : '—'}</td>
                 <td><StatusBadge status={cls.status} /></td>
                 <td>
@@ -1497,6 +1562,207 @@ function RecursosTab({ resources, loading, onRefresh }) {
 }
 
 /* ─────────────────────────────────────────
+   TAB 8 — Anuncios
+───────────────────────────────────────── */
+function AnnouncementModal({ announcement, onClose, onRefresh }) {
+  const [title, setTitle] = useState(announcement?.title || '');
+  const [body, setBody] = useState(announcement?.body || '');
+  const [tag, setTag] = useState(announcement?.tag || 'general');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim() || !body.trim()) {
+      setError('El título y el mensaje son obligatorios.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    const payload = {
+      // Admin announcement has NO teacher_id
+      teacher_id: null,
+      title: title.trim(),
+      body: body.trim(),
+      tag
+    };
+
+    try {
+      if (announcement?.id) {
+        // Al editar un anuncio, respetamos su teacher_id original para no cambiar su autor
+        const { error: updateError } = await supabase
+          .from('announcements')
+          .update({ title: payload.title, body: payload.body, tag: payload.tag })
+          .eq('id', announcement.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('announcements')
+          .insert([payload]);
+        if (insertError) throw insertError;
+      }
+
+      onRefresh();
+      onClose();
+    } catch (err) {
+      setError('Error al guardar el anuncio: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-container" style={{ maxWidth: '500px' }}>
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <div className="modal-header">
+          <h2 className="modal-title">{announcement ? 'Editar Anuncio' : 'Nuevo Anuncio Institucional'}</h2>
+        </div>
+        <div className="modal-body">
+          {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div>
+              <label className="form-label">Título del anuncio</label>
+              <input type="text" className="form-input" value={title} onChange={e => setTitle(e.target.value)} required />
+            </div>
+            <div>
+              <label className="form-label">Etiqueta de importancia</label>
+              <select className="form-select" value={tag} onChange={e => setTag(e.target.value)}>
+                <option value="general">General</option>
+                <option value="info">Información</option>
+                <option value="urgent">Urgente</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Mensaje</label>
+              <textarea className="form-input" value={body} onChange={e => setBody(e.target.value)} rows={5} required />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+              <button type="submit" className="btn btn-primary" disabled={submitting} style={{ flex: 1 }}>
+                {submitting ? 'Guardando...' : 'Guardar Anuncio'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnunciosTab() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+
+  const fetchAnnouncements = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*, teacher_profiles(name)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAnnouncements(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
+
+  const handleEdit = (a) => {
+    setSelectedAnnouncement(a);
+    setShowModal(true);
+  };
+
+  const handleCreate = () => {
+    setSelectedAnnouncement(null);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio?')) return;
+    try {
+      const { error } = await supabase.from('announcements').delete().eq('id', id);
+      if (error) throw error;
+      fetchAnnouncements();
+    } catch (err) {
+      alert('Error al eliminar: ' + err.message);
+    }
+  };
+
+  return (
+    <div>
+      <div className="admin-table-header">
+        <h2 className="admin-table-title">Todos los Anuncios ({announcements.length})</h2>
+        <button onClick={handleCreate} className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>
+          <Plus size={16} style={{ marginRight: '0.25rem' }} /> Nuevo Anuncio
+        </button>
+      </div>
+
+      <div className="admin-table-wrapper">
+        {loading ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando anuncios...</div>
+        ) : announcements.length === 0 ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay anuncios publicados.</div>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Publicado por</th>
+                <th>Etiqueta</th>
+                <th>Fecha</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {announcements.map(a => (
+                <tr key={a.id}>
+                  <td style={{ fontWeight: 500 }}>{a.title}</td>
+                  <td>{a.teacher_profiles?.name || 'Administración'}</td>
+                  <td>
+                    <span className={`role-badge`} style={{
+                      backgroundColor: a.tag === 'urgent' ? '#fee2e2' : a.tag === 'info' ? '#dbeafe' : '#f1f5f9',
+                      color: a.tag === 'urgent' ? '#dc2626' : a.tag === 'info' ? '#2563eb' : '#64748b'
+                    }}>
+                      {a.tag}
+                    </span>
+                  </td>
+                  <td>{formatShortDate(a.created_at)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <button onClick={() => handleEdit(a)} className="action-btn" title="Editar"><Pencil size={15} /></button>
+                      <button onClick={() => handleDelete(a.id)} className="action-btn action-delete" title="Eliminar"><Trash2 size={15} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {showModal && (
+        <AnnouncementModal 
+          announcement={selectedAnnouncement} 
+          onClose={() => setShowModal(false)} 
+          onRefresh={fetchAnnouncements}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    COMPONENTE PRINCIPAL
 ───────────────────────────────────────── */
 const TABS = [
@@ -1507,6 +1773,7 @@ const TABS = [
   { id: 'subtemas',  label: 'Subtemas',   icon: <ListTree size={16} /> },
   { id: 'clases',    label: 'Clases',     icon: <Video size={16} /> },
   { id: 'recursos',  label: 'Recursos',   icon: <FileText size={16} /> },
+  { id: 'anuncios',  label: 'Anuncios',   icon: <Megaphone size={16} /> },
 ];
 
 export default function AdminPanel() {
@@ -1529,12 +1796,13 @@ export default function AdminPanel() {
 
     async function fetchAll() {
       try {
-        const [teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes] = await Promise.all([
+        const [teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes, usersCountRes] = await Promise.all([
           supabase.from('teacher_profiles').select('*'),
           supabase.from('modules').select('*').order('order_index', { ascending: true }),
           supabase.from('subtopics').select('*').order('order_index', { ascending: true }),
           supabase.from('class_sessions').select('*, teacher_profiles(name)').order('class_date', { ascending: true }),
           supabase.from('resources').select('*'),
+          supabase.from('users_profile').select('id', { count: 'exact', head: true }),
         ]);
 
         const now = new Date().toISOString();
@@ -1548,7 +1816,7 @@ export default function AdminPanel() {
           resources: resourcesRes.data || [],
           upcomingClasses: upcoming,
           counts: {
-            usuarios: '—',
+            usuarios: usersCountRes.count || 0,
             profesores: (teachersRes.data || []).length,
             modulos: (modulesRes.data || []).length,
             subtemas: (subtopicsRes.data || []).length,
@@ -1586,6 +1854,7 @@ export default function AdminPanel() {
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} />;
       case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} onRefresh={refreshData} />;
+      case 'anuncios':   return <AnunciosTab />;
       default:           return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
     }
   };

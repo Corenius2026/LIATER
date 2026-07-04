@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { BookOpen, PlayCircle, Clock, Video, User } from 'lucide-react';
+import { formatClassDate, isUpcomingClass } from '../utils/dateUtils';
 
 export default function ModuleDetail() {
   const { id } = useParams();
@@ -85,11 +86,7 @@ export default function ModuleDetail() {
     );
   }
 
-  // Helper para saber si una clase es futura
-  const isUpcoming = (dateString) => {
-    if (!dateString) return false;
-    return new Date(dateString) > new Date();
-  };
+  // isUpcomingClass helper is imported from dateUtils
 
   return (
     <div>
@@ -148,7 +145,7 @@ export default function ModuleDetail() {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                           {cls.class_date && (
                             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <Clock size={14} /> {new Date(cls.class_date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              <Clock size={14} /> {formatClassDate(cls.class_date)}
                             </span>
                           )}
                           {cls.duration && (
@@ -165,7 +162,7 @@ export default function ModuleDetail() {
                       </div>
 
                       {/* Botón dinámico */}
-                      {isUpcoming(cls.class_date) || (!cls.video_url && !cls.presentation_url) ? (
+                      {isUpcomingClass(cls.class_date) || (!cls.video_url && !cls.presentation_url) ? (
                         <Link to={`/class/${cls.id}`} className="btn btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
                           <Video size={16} /> Próxima
                         </Link>

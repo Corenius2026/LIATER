@@ -68,10 +68,10 @@ export default function Teachers() {
             
             <h3 style={{ color: 'var(--text-dark)', marginBottom: '0.25rem' }}>{teacher.name}</h3>
             <p style={{ color: 'var(--primary-light)', fontWeight: 500, fontSize: '0.875rem', marginBottom: '1rem' }}>{teacher.area || 'Docente'}</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem', flex: 1 }}>{teacher.bio || 'Sin biografía disponible.'}</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem', flex: 1, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{teacher.bio || 'Sin biografía disponible.'}</p>
             
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {(teacher.linkedin_url || teacher.linkedin) && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
+              {(teacher.linkedin_url || teacher.linkedin) && String(teacher.linkedin_url || teacher.linkedin).trim().length > 0 && (
                 <a 
                   href={teacher.linkedin_url || teacher.linkedin} 
                   target="_blank" 

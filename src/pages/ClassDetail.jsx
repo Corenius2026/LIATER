@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Download, PlayCircle, FileText, Video, Calendar, User, ExternalLink, Paperclip, Presentation } from 'lucide-react';
+import { formatClassDate, isUpcomingClass } from '../utils/dateUtils';
 
 export default function ClassDetail() {
   const { id } = useParams();
@@ -81,7 +82,7 @@ export default function ClassDetail() {
 
   const teacher = clsData.teacher_profiles || {};
   // Si tiene video_url o la fecha ya pasó, asumimos que no es en vivo próximamente
-  const isUpcoming = clsData.class_date ? (new Date(clsData.class_date) > new Date()) : false;
+  const isUpcoming = isUpcomingClass(clsData.class_date);
   const hasVideo = !!clsData.video_url;
 
   const renderResourceIcon = (type) => {
@@ -125,7 +126,7 @@ export default function ClassDetail() {
               <Calendar size={64} style={{ color: 'var(--primary-light)', marginBottom: '1rem' }} />
               <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-dark)' }}>Esta clase será transmitida en vivo</h3>
               <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                {clsData.class_date ? `Programada para: ${new Date(clsData.class_date).toLocaleString()}` : 'Únete a la sesión a la hora programada.'}
+                {formatClassDate(clsData.class_date)}
               </p>
               {clsData.meet_url || clsData.meet_link ? (
                 <a href={clsData.meet_url || clsData.meet_link} target="_blank" rel="noreferrer" className="btn btn-primary">
