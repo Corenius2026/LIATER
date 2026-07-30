@@ -20,13 +20,7 @@ export default function Login() {
     setLoading(false);
 
     if (result.success) {
-      if (result.role === 'admin') {
-        navigate('/dashboard/admin');
-      } else if (result.role === 'teacher') {
-        navigate('/dashboard/profesor');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/portal');
     } else {
       setError(result.message);
     }
@@ -35,7 +29,8 @@ export default function Login() {
   return (
     <div className="public-layout">
       <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem', color: 'var(--text-dark)' }}>Iniciar Sesión</h2>
+        <h2 style={{ textAlign: 'center', marginBottom: '0.5rem', color: 'var(--text-dark)' }}>Portal LIATER</h2>
+        <p style={{ textAlign: 'center', marginBottom: '2rem', color: 'var(--text-muted)' }}>Iniciar Sesión</p>
 
         {error && (
           <div style={{

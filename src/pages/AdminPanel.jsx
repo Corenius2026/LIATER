@@ -87,13 +87,74 @@ function EmptyRow({ cols, message }) {
 }
 
 /* ─────────────────────────────────────────
+   TAB — Alumnos Inscritos
+───────────────────────────────────────── */
+function AlumnosTab({ enrolledStudents }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const filtered = enrolledStudents.filter(e => {
+    if (!e.users_profile) return false;
+    const term = searchTerm.toLowerCase();
+    return e.users_profile.full_name?.toLowerCase().includes(term) || e.users_profile.email?.toLowerCase().includes(term);
+  });
+
+  return (
+    <div>
+      <div className="section-header-row" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <span className="section-title" style={{ display: 'block' }}>Alumnos Inscritos ({filtered.length})</span>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Estudiantes que actualmente tienen acceso a los programas.</p>
+        </div>
+        <input 
+          type="text" 
+          placeholder="Buscar por nombre o correo..." 
+          value={searchTerm} 
+          onChange={e => setSearchTerm(e.target.value)}
+          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: '4px', minWidth: '250px' }}
+        />
+      </div>
+
+      <div className="admin-table-wrapper">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Alumno</th>
+              <th>Diplomado</th>
+              <th>Fecha de Inscripción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? <EmptyRow cols={3} message="No hay alumnos inscritos que coincidan con la búsqueda." /> :
+             filtered.map(enroll => (
+              <tr key={enroll.id}>
+                <td>
+                  <div className="user-cell">
+                    <Initials name={enroll.users_profile?.full_name || 'Desconocido'} />
+                    <div>
+                      <div className="user-name">{enroll.users_profile?.full_name}</div>
+                      <div className="user-email">{enroll.users_profile?.email}</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span className="role-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{enroll.diploma_programs?.title || 'Programa Desconocido'}</span></td>
+                <td>{formatShortDate(enroll.created_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    TAB 1 — Resumen General
 ───────────────────────────────────────── */
 function ResumenTab({ counts, upcomingClasses }) {
   const { users } = useAuth();
 
   const stats = [
-    { label: 'Usuarios Total',  value: counts.usuarios,  color: '#6366f1', bg: '#eef2ff', icon: <Users size={22} color="#6366f1" /> },
+    { label: 'Alumnos Inscritos',  value: counts.usuarios,  color: '#6366f1', bg: '#eef2ff', icon: <Users size={22} color="#6366f1" /> },
     { label: 'Profesores',      value: counts.profesores, color: '#0ea5e9', bg: '#e0f2fe', icon: <GraduationCap size={22} color="#0ea5e9" /> },
     { label: 'Módulos',         value: counts.modulos,    color: '#10b981', bg: '#d1fae5', icon: <BookOpen size={22} color="#10b981" /> },
     { label: 'Subtemas',        value: counts.subtemas,   color: '#f59e0b', bg: '#fef3c7', icon: <ListTree size={22} color="#f59e0b" /> },
@@ -183,6 +244,12 @@ function UsuariosTab() {
   const [editEmail, setEditEmail] = useState('');
   const [role, setRole] = useState('student');
   
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [enrollStudent, setEnrollStudent] = useState(null);
+  const [diplomas, setDiplomas] = useState([]);
+  const [studentEnrollments, setStudentEnrollments] = useState([]);
+  const [enrollSubmitting, setEnrollSubmitting] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -298,6 +365,38 @@ function UsuariosTab() {
     setShowEditModal(true);
     setError('');
     setSuccess('');
+  };
+
+  const openEnrollModal = async (user) => {
+    setEnrollStudent(user);
+    setShowEnrollModal(true);
+    setError(''); setSuccess('');
+    
+    // Fetch all diplomas
+    const { data: dData } = await supabase.from('diploma_programs').select('id, title');
+    setDiplomas(dData || []);
+    
+    // Fetch student's enrollments
+    const { data: eData } = await supabase.from('enrollments').select('diploma_id').eq('student_id', user.id);
+    setStudentEnrollments(eData ? eData.map(e => e.diploma_id) : []);
+  };
+
+  const handleToggleEnrollment = async (diplomaId) => {
+    const isEnrolled = studentEnrollments.includes(diplomaId);
+    setEnrollSubmitting(true);
+    try {
+      if (isEnrolled) {
+        await supabase.from('enrollments').delete().eq('student_id', enrollStudent.id).eq('diploma_id', diplomaId);
+        setStudentEnrollments(prev => prev.filter(id => id !== diplomaId));
+      } else {
+        await supabase.from('enrollments').insert([{ student_id: enrollStudent.id, diploma_id: diplomaId }]);
+        setStudentEnrollments(prev => [...prev, diplomaId]);
+      }
+    } catch (err) {
+      setError('Error al actualizar inscripción: ' + err.message);
+    } finally {
+      setEnrollSubmitting(false);
+    }
   };
 
   const handleToggleStatus = async (user) => {
@@ -443,6 +542,50 @@ function UsuariosTab() {
         </div>
       )}
 
+      {showEnrollModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '500px', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowEnrollModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '0.5rem', fontWeight: 700 }}>Gestionar Inscripciones</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Estudiante: <strong>{enrollStudent?.full_name}</strong></p>
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '300px', overflowY: 'auto' }}>
+              {diplomas.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No hay diplomados disponibles.</p>
+              ) : (
+                diplomas.map(dip => {
+                  const isEnrolled = studentEnrollments.includes(dip.id);
+                  return (
+                    <div key={dip.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                      <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{dip.title}</span>
+                      <button 
+                        onClick={() => handleToggleEnrollment(dip.id)} 
+                        disabled={enrollSubmitting}
+                        className="btn" 
+                        style={{ 
+                          padding: '0.4rem 0.8rem', 
+                          fontSize: '0.75rem', 
+                          backgroundColor: isEnrolled ? '#fee2e2' : '#dcfce7', 
+                          color: isEnrolled ? '#991b1b' : '#166534',
+                          border: 'none',
+                          minWidth: '90px'
+                        }}
+                      >
+                        {isEnrolled ? 'Desinscribir' : 'Inscribir'}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            
+          </div>
+        </div>
+      )}
+
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
@@ -480,6 +623,11 @@ function UsuariosTab() {
                 <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : '—'}</td>
                 <td>
                   <div className="action-btns">
+                    {user.role === 'student' && (
+                      <button className="btn-icon" style={{color: '#4f46e5'}} title="Gestionar Inscripciones" onClick={() => openEnrollModal(user)}>
+                        <BookOpen size={15} />
+                      </button>
+                    )}
                     <button className="btn-icon edit" title="Editar Usuario" onClick={() => openEditModal(user)}><Pencil size={15} /></button>
                     <button className="btn-icon del" title={user.is_active !== false ? 'Desactivar Usuario' : 'Reactivar Usuario'} onClick={() => handleToggleStatus(user)}>
                       {user.is_active !== false ? <Trash2 size={15} /> : <CheckCircle size={15} />}
@@ -1767,7 +1915,7 @@ function AnunciosTab() {
 ───────────────────────────────────────── */
 const TABS = [
   { id: 'resumen',    label: 'Resumen',    icon: <LayoutDashboard size={16} /> },
-  { id: 'usuarios',  label: 'Usuarios',   icon: <Users size={16} /> },
+  { id: 'alumnos',    label: 'Alumnos',    icon: <Users size={16} /> },
   { id: 'profesores',label: 'Profesores', icon: <GraduationCap size={16} /> },
   { id: 'modulos',   label: 'Módulos',    icon: <BookOpen size={16} /> },
   { id: 'subtemas',  label: 'Subtemas',   icon: <ListTree size={16} /> },
@@ -1776,15 +1924,37 @@ const TABS = [
   { id: 'anuncios',  label: 'Anuncios',   icon: <Megaphone size={16} /> },
 ];
 
+import { useLocation, useNavigate } from 'react-router-dom';
+
 export default function AdminPanel() {
   const { currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('resumen');
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  const queryParams = new URLSearchParams(location.search);
+  const tabFromUrl = queryParams.get('tab');
+  
+  const [activeTab, setActiveTab] = useState(tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : 'resumen');
   const role = currentUser?.role;
+
+  // Actualizar la pestaña activa si cambia la URL
+  useEffect(() => {
+    const currentTab = queryParams.get('tab');
+    if (currentTab && currentTab !== activeTab && TABS.some(t => t.id === currentTab)) {
+      setActiveTab(currentTab);
+    }
+  }, [location.search]);
+
+  // Actualizar la URL cuando cambia la pestaña
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    navigate(`/dashboard/admin?tab=${tabId}`, { replace: true });
+  };
 
   // Estado centralizado de datos
   const [data, setData] = useState({
     teachers: [], modules: [], subtopics: [], classes: [], resources: [],
-    upcomingClasses: [],
+    upcomingClasses: [], enrolledStudents: [],
     counts: { usuarios: 0, profesores: 0, modulos: 0, subtemas: 0, clases: 0, recursos: 0 }
   });
   const [loading, setLoading] = useState(true);
@@ -1796,13 +1966,13 @@ export default function AdminPanel() {
 
     async function fetchAll() {
       try {
-        const [teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes, usersCountRes] = await Promise.all([
+        const [teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes, enrolledRes] = await Promise.all([
           supabase.from('teacher_profiles').select('*'),
           supabase.from('modules').select('*').order('order_index', { ascending: true }),
           supabase.from('subtopics').select('*').order('order_index', { ascending: true }),
           supabase.from('class_sessions').select('*, teacher_profiles(name)').order('class_date', { ascending: true }),
           supabase.from('resources').select('*'),
-          supabase.from('users_profile').select('id', { count: 'exact', head: true }),
+          supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)')
         ]);
 
         const now = new Date().toISOString();
@@ -1815,8 +1985,9 @@ export default function AdminPanel() {
           classes: classesRes.data || [],
           resources: resourcesRes.data || [],
           upcomingClasses: upcoming,
+          enrolledStudents: enrolledRes.data || [],
           counts: {
-            usuarios: usersCountRes.count || 0,
+            usuarios: (enrolledRes.data || []).length,
             profesores: (teachersRes.data || []).length,
             modulos: (modulesRes.data || []).length,
             subtemas: (subtopicsRes.data || []).length,
@@ -1848,7 +2019,7 @@ export default function AdminPanel() {
   const renderTab = () => {
     switch (activeTab) {
       case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
-      case 'usuarios':   return <UsuariosTab />;
+      case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} />;
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} />;
@@ -1872,7 +2043,7 @@ export default function AdminPanel() {
             key={tab.id}
             id={`admin-tab-${tab.id}`}
             className={`admin-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
           >
             {tab.icon}
             {tab.label}

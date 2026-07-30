@@ -147,3 +147,17 @@ CREATE TABLE IF NOT EXISTS announcements (
 
 CREATE INDEX IF NOT EXISTS idx_announcements_teacher_id ON announcements(teacher_id);
 
+-- --------------------------------------------------------------------
+-- 9. Inscripciones (enrollments)
+-- Conecta a los estudiantes con los programas a los que tienen acceso
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS enrollments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID NOT NULL REFERENCES users_profile(id) ON DELETE CASCADE,
+    diploma_id UUID NOT NULL REFERENCES diploma_programs(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(student_id, diploma_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id);
+CREATE INDEX IF NOT EXISTS idx_enrollments_diploma_id ON enrollments(diploma_id);

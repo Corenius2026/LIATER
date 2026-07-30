@@ -135,3 +135,28 @@
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
 }
+
+/* PORTAL LAYOUT */
+.portal-layout { 
+  display: grid; 
+  grid-template-columns: 1fr; 
+  gap: 2rem; 
+}
+@media (min-width: 800px) { 
+  .portal-layout { 
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); 
+  } 
+}
+.portal-main { 
+  display: flex; 
+  flex-direction: column; 
+  min-width: 0; /* CRÍTICO para evitar que el slider rompa el grid */
+}
+.portal-sidebar { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 2rem; 
+  min-width: 0;
+}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

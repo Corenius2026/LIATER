@@ -20,7 +20,7 @@ export default function Header() {
   return (
     <header className="app-header">
       <div className="header-search">
-        <h3 style={{color: 'var(--text-muted)', fontWeight: 500}}>Plataforma Académica</h3>
+        <h3 style={{color: 'var(--text-muted)', fontWeight: 500}}>Portal Educativo LIATER</h3>
       </div>
       
       {currentUser && (

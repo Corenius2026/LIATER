@@ -8,11 +8,7 @@ import {
   CalendarDays, Timer, ShieldAlert, Eye, Pencil, Trash2,
   AlertCircle, Info, Layers, X, User
 } from 'lucide-react';
-import {
-  currentTeacher, teacherModules, teacherClasses,
-  teacherPresentations, teacherRecordings,
-  teacherResources, teacherAnnouncements
-} from '../data/teacherData';
+
 import './TeacherPanel.css';
 
 /* ─────────────────────────────────────────
@@ -49,8 +45,37 @@ function TagPill({ tag }) {
 ───────────────────────────────────────── */
 function ResumenTab({ onChangeTab }) {
   const { profile } = useTeacherContext();
-  const completed = teacherClasses.filter(c => c.status === 'completed').length;
-  const upcoming  = teacherClasses.filter(c => c.status === 'upcoming').length;
+  const [stats, setStats] = useState({ totalClasses: 0, completed: 0, upcoming: 0, announcements: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      if (!profile?.id) return;
+      try {
+        const pClasses = supabase.from('class_sessions').select('class_date', { count: 'exact' }).eq('teacher_id', profile.id);
+        const pAnnouncements = supabase.from('announcements').select('*', { count: 'exact', head: true }).eq('teacher_id', profile.id);
+        
+        const [resClasses, resAnn] = await Promise.all([pClasses, pAnnouncements]);
+        
+        const classes = resClasses.data || [];
+        const now = new Date();
+        const completed = classes.filter(c => new Date(c.class_date) < now).length;
+        const upcoming = classes.filter(c => new Date(c.class_date) >= now).length;
+
+        setStats({
+          totalClasses: classes.length,
+          completed,
+          upcoming,
+          announcements: resAnn.count || 0
+        });
+      } catch (err) {
+        console.error('Error fetching teacher stats', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStats();
+  }, [profile?.id]);
 
   return (
     <div>
@@ -63,15 +88,15 @@ function ResumenTab({ onChangeTab }) {
           <p style={{ fontSize: '0.82rem', opacity: 0.7 }}>{profile.bio || 'Sin biografía'}</p>
           <div className="teacher-hero-stats" style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
             <div className="teacher-hero-stat" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 700 }}>{teacherClasses.length}</span>
+              <span style={{ fontWeight: 700 }}>{loading ? '-' : stats.totalClasses}</span>
               <span style={{ fontSize: '0.75rem' }}>Clases Asignadas</span>
             </div>
             <div className="teacher-hero-stat" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 700 }}>{upcoming}</span>
+              <span style={{ fontWeight: 700 }}>{loading ? '-' : stats.upcoming}</span>
               <span style={{ fontSize: '0.75rem' }}>Clases Pendientes</span>
             </div>
             <div className="teacher-hero-stat" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 700 }}>{teacherAnnouncements.length}</span>
+              <span style={{ fontWeight: 700 }}>{loading ? '-' : stats.announcements}</span>
               <span style={{ fontSize: '0.75rem' }}>Avisos Publicados</span>
             </div>
           </div>
@@ -84,19 +109,22 @@ function ResumenTab({ onChangeTab }) {
         <div className="card">
           <h3 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '1.25rem' }}>Progreso del Curso</h3>
           {[
-            { label: 'Clases completadas', value: completed, total: teacherClasses.length, color: '#10b981' },
-            { label: 'Clases próximas',    value: upcoming,  total: teacherClasses.length, color: '#f59e0b' },
-          ].map(item => (
-            <div key={item.label} style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.8rem' }}>
-                <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
-                <span style={{ fontWeight: 600 }}>{item.value} / {item.total}</span>
+            { label: 'Clases completadas', value: stats.completed, total: stats.totalClasses, color: '#10b981' },
+            { label: 'Clases próximas',    value: stats.upcoming,  total: stats.totalClasses, color: '#f59e0b' },
+          ].map(item => {
+            const percentage = item.total === 0 ? 0 : (item.value / item.total) * 100;
+            return (
+              <div key={item.label} style={{ marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
+                  <span style={{ fontWeight: 600 }}>{item.value} / {item.total}</span>
+                </div>
+                <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${percentage}%`, height: '100%', background: item.color, borderRadius: '4px', transition: 'width 0.6s ease' }} />
+                </div>
               </div>
-              <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ width: `${(item.value / item.total) * 100}%`, height: '100%', background: item.color, borderRadius: '4px', transition: 'width 0.6s ease' }} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Accesos rápidos */}

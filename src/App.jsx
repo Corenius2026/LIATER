@@ -2,6 +2,7 @@
  * Archivo principal de rutas de la aplicación.
  * Define la estructura de navegación utilizando React Router.
  */
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // --- Importación de Componentes de Layout ---
@@ -22,6 +23,9 @@ import UserManagement from './pages/UserManagement';
 import AdminSettings from './pages/AdminSettings';
 import AdminPanel from './pages/AdminPanel';
 import TeacherPanel from './pages/TeacherPanel';
+import Portal from './pages/Portal';
+import Profile from './pages/Profile';
+import Support from './pages/Support';
 
 // --- Importación de Estilos Globales ---
 import './App.css';
@@ -47,6 +51,10 @@ function App() {
               Todas estas rutas se renderizarán dentro del espacio de contenido del Layout. */}
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             {/* Rutas compartidas o específicas */}
+            <Route path="/portal" element={<Portal />} />
+            <Route path="/perfil" element={<Profile />} />
+            <Route path="/soporte" element={<Support />} />
+            
             <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['student']}><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/profesor" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherPanel /></ProtectedRoute>} />
             <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminPanel /></ProtectedRoute>} />
