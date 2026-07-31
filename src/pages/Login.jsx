@@ -145,27 +145,28 @@ export default function Login() {
 
       {/* Institucional UNAL Independiente Fuera de la Tarjeta */}
       <div style={{
-        marginTop: '1.75rem',
+        marginTop: '2rem',
         zIndex: 1,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '0.65rem',
+        gap: '0.75rem',
         animation: 'fadeIn 0.5s ease both',
       }}>
         <img
           src={unalPillLogo}
           alt="UNAL - Universidad Nacional de Colombia"
           style={{
-            height: '75px',
+            height: '120px',
+            maxWidth: '320px',
             objectFit: 'contain',
-            filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.4))',
+            filter: 'drop-shadow(0 6px 20px rgba(0,0,0,0.45))',
           }}
         />
-        <span style={{ color: 'rgba(255, 255, 255, 0.55)', fontSize: '0.75rem', fontWeight: 500, letterSpacing: '0.04em' }}>
+        <span style={{ color: 'rgba(255, 255, 255, 0.70)', fontSize: '0.82rem', fontWeight: 600, letterSpacing: '0.06em' }}>
           UNIVERSIDAD NACIONAL DE COLOMBIA
         </span>
-        <span style={{ color: 'rgba(255, 255, 255, 0.35)', fontSize: '0.68rem', fontWeight: 400 }}>
+        <span style={{ color: 'rgba(255, 255, 255, 0.40)', fontSize: '0.70rem', fontWeight: 400 }}>
           © {new Date().getFullYear()} Laboratorio LIATER
         </span>
       </div>
