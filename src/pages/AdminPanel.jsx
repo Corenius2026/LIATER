@@ -234,175 +234,14 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
    TAB 3 — Profesores (Supabase)
 ───────────────────────────────────────── */
 function ProfesoresTab({ teachers, loading, onRefresh }) {
-  const [showModal, setShowModal] = useState(false);
-  const [editTeacherId, setEditTeacherId] = useState(null);
-  
-  const [name, setName] = useState('');
-  const [area, setArea] = useState('');
-  const [bio, setBio] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
-  const [userId, setUserId] = useState('');
-  const [availableUsers, setAvailableUsers] = useState([]);
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  const openCreateModal = () => {
-    setEditTeacherId(null);
-    setName(''); setArea(''); setBio(''); setPhotoUrl(''); setLinkedinUrl(''); setUserId('');
-    setShowModal(true);
-    setError(''); setSuccess('');
-  };
-
-  const openEditModal = (t) => {
-    setEditTeacherId(t.id);
-    setName(t.name || '');
-    setArea(t.area || '');
-    setBio(t.bio || '');
-    setPhotoUrl(t.photo_url || t.photo || '');
-    setLinkedinUrl(t.linkedin_url || t.linkedin || '');
-    setUserId(t.user_id || '');
-    setShowModal(true);
-    setError(''); setSuccess('');
-  };
-
-  useEffect(() => {
-    if (showModal && availableUsers.length === 0) {
-      supabase.from('users_profile').select('id, full_name, email').eq('role', 'teacher').then(({ data }) => {
-        setAvailableUsers(data || []);
-      });
-    }
-  }, [showModal]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(''); setSuccess('');
-    
-    if (!name.trim() || !area.trim() || !userId) {
-      setError('El nombre, el área y el usuario asociado son obligatorios.');
-      return;
-    }
-    
-    setSubmitting(true);
-    try {
-      const payload = {
-        name: name.trim(), 
-        area: area.trim(), 
-        bio: bio.trim(), 
-        photo_url: photoUrl.trim(), 
-        linkedin_url: linkedinUrl.trim(),
-        user_id: userId
-      };
-
-      if (editTeacherId) {
-        const { error: updateError } = await supabase.from('teacher_profiles').update(payload).eq('id', editTeacherId);
-        if (updateError) throw updateError;
-        setSuccess('Profesor actualizado con éxito.');
-      } else {
-        const { error: insertError } = await supabase.from('teacher_profiles').insert([payload]);
-        if (insertError) throw insertError;
-        setSuccess('Profesor agregado con éxito.');
-      }
-      
-      if (onRefresh) onRefresh();
-      
-      setTimeout(() => {
-        setShowModal(false);
-        setSuccess('');
-      }, 1500);
-    } catch (err) {
-      setError('Error: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (t) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente de la plataforma al profesor "${t.name}"?\n\nEsta acción es global y borrará su perfil de todos lados.`)) return;
-
-    try {
-      const { count, error: countError } = await supabase
-        .from('class_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('teacher_id', t.id);
-      
-      if (countError) throw countError;
-
-      if (count && count > 0) {
-        alert(`No se puede eliminar el perfil del profesor "${t.name}" porque tiene clases asignadas en la plataforma (puede ser en este programa o en otro).\n\nRecuerda que este es un directorio global de profesores, por lo que borrar a un profesor afectaría a todos los cursos y diplomados donde imparta clase.`);
-        return;
-      }
-
-      const { error: deleteError } = await supabase
-        .from('teacher_profiles')
-        .delete()
-        .eq('id', t.id);
-
-      if (deleteError) throw deleteError;
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error al eliminar profesor: ' + err.message);
-    }
-  };
-
   return (
     <div>
       <div className="section-header-row">
-        <span className="section-title">Directorio Global de Profesores ({teachers.length})</span>
-        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Agregar Profesor
-        </button>
-      </div>
-      
-      {showModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', background: 'white', padding: '2rem', position: 'relative' }}>
-            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
-              <X size={20} />
-            </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editTeacherId ? 'Editar Profesor' : 'Agregar Profesor'}</h3>
-            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
-            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Área de Experiencia</label>
-                <input type="text" value={area} onChange={e => setArea(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Biografía</label>
-                <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Fotografía</label>
-                <input type="url" value={photoUrl} onChange={e => setPhotoUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>LinkedIn URL</label>
-                <input type="url" value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Usuario Asociado (Obligatorio)</label>
-                <select value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  <option value="" disabled>Selecciona un usuario de la lista...</option>
-                  {availableUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
-                  ))}
-                </select>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Todo profesor debe estar vinculado a una cuenta de usuario existente.</span>
-              </div>
-              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
-                {submitting ? 'Guardando...' : (editTeacherId ? 'Guardar Cambios' : 'Agregar Profesor')}
-              </button>
-            </form>
-          </div>
+        <span className="section-title">Profesores del programa ({teachers.length})</span>
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          Directorio de profesores vinculados.
         </div>
-      )}
+      </div>
 
       <div className="teacher-cards-grid">
         {loading ? (
@@ -423,16 +262,9 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
                 <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t.name}</div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{t.area}</div>
               </div>
+              </div>
             </div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{t.bio || 'Sin biografía.'}</p>
-            <div className="teacher-card-actions" style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-              <button onClick={() => openEditModal(t)} className="btn btn-outline" style={{ flex: 1, fontSize: '0.8rem', padding: '0.5rem' }}>
-                <Pencil size={14} /> Editar
-              </button>
-              <button onClick={() => handleDelete(t)} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.5rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
-                <Trash2 size={14} />
-              </button>
-            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 0 }}>{t.bio || 'Sin biografía.'}</p>
           </div>
         ))}
       </div>
@@ -1549,9 +1381,12 @@ export default function AdminPanel() {
         const now = new Date().toISOString();
         const upcoming = (classesRes.data || []).filter(c => c.class_date && c.class_date > now).slice(0, 4);
 
+        const enrolledIds = (enrolledRes.data || []).map(e => e.student_id);
+        const teachersAssigned = (teachersRes.data || []).filter(t => enrolledIds.includes(t.user_id));
+
         setData({
           program: programRes.data,
-          teachers: teachersRes.data || [],
+          teachers: teachersAssigned,
           modules: modulesRes.data || [],
           subtopics: subtopicsRes.data || [],
           classes: classesRes.data || [],
@@ -1560,7 +1395,7 @@ export default function AdminPanel() {
           enrolledStudents: enrolledRes.data || [],
           counts: {
             usuarios: (enrolledRes.data || []).length,
-            profesores: (teachersRes.data || []).length,
+            profesores: teachersAssigned.length,
             modulos: (modulesRes.data || []).length,
             subtemas: (subtopicsRes.data || []).length,
             clases: (classesRes.data || []).length,

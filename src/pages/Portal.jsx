@@ -120,6 +120,7 @@ function StudentPortal({ getDiplomadoLink }) {
 function TeacherPortal({ getDiplomadoLink }) {
   const { currentUser } = useAuth();
   const [classes, setClasses] = useState([]);
+  const [diplomas, setDiplomas] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -133,6 +134,7 @@ function TeacherPortal({ getDiplomadoLink }) {
           .maybeSingle();
 
         if (profileData) {
+          // Obtener clases para la agenda
           const { data: classData } = await supabase
             .from('class_sessions')
             .select('*, diploma_programs(id, title, program_type, description), subtopics(modules(diploma_programs(id, title, program_type, description)))')
@@ -140,6 +142,18 @@ function TeacherPortal({ getDiplomadoLink }) {
             .order('class_date', { ascending: true });
             
           setClasses(classData || []);
+        }
+
+        // Obtener diplomados/cursos inscritos
+        const { data: enrollData } = await supabase
+          .from('enrollments')
+          .select('diploma_programs(*)')
+          .eq('student_id', currentUser.id)
+          .order('created_at', { ascending: false });
+          
+        if (enrollData) {
+          const enrolledDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
+          setDiplomas(enrolledDiplomas);
         }
       } catch (err) {
         console.error('Error fetching teacher portal data', err);
@@ -157,40 +171,38 @@ function TeacherPortal({ getDiplomadoLink }) {
       <div className="portal-main">
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Diplomados</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id || c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
-            const cls = classes.find(c => (c.program_id || c.subtopics?.modules?.diploma_programs?.id) === programId);
-            const program = cls?.diploma_programs || cls?.subtopics?.modules?.diploma_programs;
-            if (!program || program.program_type === 'curso') return null;
-            return (
-              <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#e0e7ff', border: '1px solid #bfdbfe', padding: '1.25rem' }}>
+          {diplomas.filter(p => p.program_type !== 'curso').length === 0 ? (
+            <p style={{ color: 'var(--text-muted)' }}>No tienes diplomados asignados.</p>
+          ) : (
+            diplomas.filter(p => p.program_type !== 'curso').map(program => (
+              <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#e0e7ff', border: '1px solid #bfdbfe', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}>
                   <span style={{ background: '#4f46e5', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
                 </div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#1e3a8a', lineHeight: '1.3' }}>{program.title}</h3>
-                <p style={{ color: '#3730a3', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso al entorno del diplomado.</p>
-                <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
+                <p style={{ color: '#3730a3', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso al entorno del diplomado.'}</p>
+                <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
               </div>
-            );
-          })}
+            ))
+          )}
         </div>
 
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Cursos Cortos</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id || c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
-            const cls = classes.find(c => (c.program_id || c.subtopics?.modules?.diploma_programs?.id) === programId);
-            const program = cls?.diploma_programs || cls?.subtopics?.modules?.diploma_programs;
-            if (!program || program.program_type !== 'curso') return null;
-            return (
-              <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
+          {diplomas.filter(p => p.program_type === 'curso').length === 0 ? (
+            <p style={{ color: 'var(--text-muted)' }}>No tienes cursos asignados.</p>
+          ) : (
+            diplomas.filter(p => p.program_type === 'curso').map(program => (
+              <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}>
                   <span style={{ background: '#16a34a', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
                 </div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#14532d', lineHeight: '1.3' }}>{program.title}</h3>
-                <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso directo a subtemas y clases.</p>
-                <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
+                <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso directo a subtemas y clases.'}</p>
+                <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
               </div>
-            );
-          })}
+            ))
+          )}
         </div>
 
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>

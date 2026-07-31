@@ -388,7 +388,7 @@ export default function UserManagement() {
                 <X size={20} />
               </button>
               <h3 style={{ marginBottom: '0.5rem', fontWeight: 700 }}>Gestionar Inscripciones</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Estudiante: <strong>{enrollStudent?.full_name}</strong></p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>{enrollStudent?.role === 'teacher' ? 'Profesor' : 'Estudiante'}: <strong>{enrollStudent?.full_name}</strong></p>
               {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '300px', overflowY: 'auto' }}>
@@ -477,7 +477,7 @@ export default function UserManagement() {
                   <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : '—'}</td>
                   <td>
                     <div className="action-btns">
-                      {user.role === 'student' && (
+                      {(user.role === 'student' || user.role === 'teacher') && (
                         <button className="btn-icon" style={{color: '#4f46e5'}} title="Gestionar Inscripciones" onClick={() => openEnrollModal(user)}>
                           <BookOpen size={15} />
                         </button>
