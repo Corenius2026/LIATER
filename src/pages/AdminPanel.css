@@ -1,4 +1,4 @@
-﻿/* ================================================
+/* ================================================
    ADMIN PANEL - Estilos globales
    ================================================ */
 
@@ -211,8 +211,8 @@
 }
 
 .btn-icon:hover { background: var(--bg-color); }
-.btn-icon.edit  { color: #1d4ed8; }
-.btn-icon.edit:hover { background: #eff6ff; border-color: rgba(252,163,17,0.3); }
+.btn-icon.edit  { color: var(--navy); }
+.btn-icon.edit:hover { background: rgba(20, 33, 61, 0.05); border-color: var(--navy); }
 .btn-icon.del   { color: #dc2626; }
 .btn-icon.del:hover  { background: #fef2f2; border-color: #fca5a5; }
 

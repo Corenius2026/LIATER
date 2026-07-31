@@ -103,7 +103,7 @@ export default function Dashboard() {
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
       {/* --- ENCABEZADO --- */}
       <div className="page-header" style={{ marginBottom: '2rem' }}>
-        <h1 className="page-title">¡Hola, Estudiante! 👋</h1>
+        <h1 className="page-title">Panel de Estudiante</h1>
         <p className="page-description">
           Bienvenido a tu panel de control de <strong>{diplomaTitle}</strong>.
         </p>

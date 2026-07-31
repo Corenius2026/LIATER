@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
@@ -52,6 +52,7 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewRole, setViewRole] = useState('student');
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, user: null, actionText: '' });
   
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
@@ -230,12 +231,18 @@ export default function UserManagement() {
     }
   };
 
-  const handleToggleStatus = async (user) => {
+  const requestToggleStatus = (user) => {
     const isCurrentlyActive = user.is_active !== false;
     const actionText = isCurrentlyActive ? 'desactivar' : 'reactivar';
+    setConfirmModal({ isOpen: true, user, actionText });
+  };
+
+  const handleToggleStatus = async () => {
+    if (!confirmModal.user) return;
+    const { user } = confirmModal;
+    const isCurrentlyActive = user.is_active !== false;
     
-    if (!window.confirm(`¿Estás seguro de que deseas ${actionText} este usuario?`)) return;
-    
+    setConfirmModal({ isOpen: false, user: null, actionText: '' });
     setLoading(true);
     try {
       const { error: updateError } = await supabase
@@ -248,7 +255,7 @@ export default function UserManagement() {
       setSuccess(`Usuario ${isCurrentlyActive ? 'desactivado' : 'reactivado'} con éxito.`);
       fetchUsers();
     } catch (err) {
-      setError(`Error al ${actionText} usuario: ` + err.message);
+      setError('Error al actualizar estado: ' + err.message);
       setLoading(false);
     }
   };
@@ -483,7 +490,7 @@ export default function UserManagement() {
                         </button>
                       )}
                       <button className="btn-icon edit" title="Editar Usuario" onClick={() => openEditModal(user)}><Pencil size={15} /></button>
-                      <button className="btn-icon del" title={user.is_active !== false ? 'Desactivar Usuario' : 'Reactivar Usuario'} onClick={() => handleToggleStatus(user)}>
+                      <button className="btn-icon del" title={user.is_active !== false ? 'Desactivar Usuario' : 'Reactivar Usuario'} onClick={() => requestToggleStatus(user)}>
                         {user.is_active !== false ? <Trash2 size={15} /> : <CheckCircle size={15} />}
                       </button>
                     </div>
@@ -494,6 +501,40 @@ export default function UserManagement() {
           </table>
         </div>
       </div>
+
+      {confirmModal.isOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20, 33, 61, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(4px)' }}>
+          <div className="card" style={{ background: 'var(--white)', padding: '2.5rem', borderRadius: '12px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: confirmModal.actionText === 'desactivar' ? '#fef2f2' : '#f0fdf4', color: confirmModal.actionText === 'desactivar' ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
+                {confirmModal.actionText === 'desactivar' ? <Trash2 size={28} /> : <CheckCircle size={28} />}
+              </div>
+              <h3 style={{ fontSize: '1.25rem', color: 'var(--navy)', fontWeight: 800, marginBottom: '0.5rem' }}>Confirmar Acción</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.5 }}>
+                ¿Estás seguro de que deseas <strong>{confirmModal.actionText}</strong> al usuario <strong>{confirmModal.user?.full_name}</strong>?
+                {confirmModal.actionText === 'desactivar' && ' Podrás reactivarlo más adelante si lo necesitas.'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+              <button 
+                onClick={() => setConfirmModal({ isOpen: false, user: null, actionText: '' })} 
+                className="btn"
+                style={{ flex: 1, background: 'var(--bg-light)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 600 }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleToggleStatus} 
+                className="btn"
+                style={{ flex: 1, background: confirmModal.actionText === 'desactivar' ? '#dc2626' : 'var(--navy)', color: 'var(--white)', border: 'none', fontWeight: 600 }}
+              >
+                {confirmModal.actionText === 'desactivar' ? 'Sí, Desactivar' : 'Sí, Reactivar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

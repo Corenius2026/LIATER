@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import liaterLogo from '../assets/liater-logo.png';
+import unalPillLogo from '../assets/unal-pill-logo.png';
+import unalPillNavyLogo from '../assets/unal-pill-navy-logo.png';
 
 export default function PublicNavbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -31,7 +33,26 @@ export default function PublicNavbar() {
       transition: 'all 0.3s ease',
       borderBottom: isScrolled ? '1px solid rgba(20, 33, 61, 0.05)' : '1px solid rgba(255, 255, 255, 0.1)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        <a href="https://unal.edu.co" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center' }}>
+          <img 
+            src={isScrolled ? unalPillNavyLogo : unalPillLogo} 
+            alt="Universidad Nacional de Colombia" 
+            style={{ 
+              height: isScrolled ? '65px' : '60px', 
+              objectFit: 'contain',
+              transition: 'all 0.3s ease' 
+            }} 
+          />
+        </a>
+        
+        <div style={{ 
+          width: '1px', 
+          height: '50px', 
+          background: isScrolled ? 'rgba(20, 33, 61, 0.2)' : 'rgba(255, 255, 255, 0.3)',
+          transition: 'background 0.3s ease'
+        }}></div>
+
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
           <div style={{
             background: isScrolled ? 'transparent' : 'rgba(255, 255, 255, 0.95)',
@@ -45,7 +66,7 @@ export default function PublicNavbar() {
               src={liaterLogo} 
               alt="LIATER" 
               style={{ 
-                height: isScrolled ? '45px' : '40px', 
+                height: isScrolled ? '50px' : '45px', 
                 objectFit: 'contain',
                 transition: 'all 0.3s ease' 
               }} 
@@ -54,7 +75,7 @@ export default function PublicNavbar() {
           <span style={{ 
             color: isScrolled ? 'var(--navy)' : 'var(--white)', 
             fontWeight: 800, 
-            fontSize: '1.25rem',
+            fontSize: '1.35rem',
             letterSpacing: '-0.02em',
             transition: 'color 0.3s ease'
           }}>

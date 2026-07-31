@@ -74,18 +74,18 @@ function StudentPortal({ getDiplomadoLink }) {
             ).map(dip => {
               const isCourse = dip.program_type === 'curso';
               return (
-                <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: isCourse ? 'var(--green-subtle)' : '#eef2ff', border: isCourse ? '1px solid #bbf7d0' : '1px solid #c7d2fe', padding: '1.25rem', transition: 'all 0.25s ease' }}
+                <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: isCourse ? 'var(--gold-subtle)' : 'var(--bg-light)', border: isCourse ? '1px solid rgba(252, 163, 17, 0.3)' : '1px solid rgba(20, 33, 61, 0.15)', padding: '1.25rem', transition: 'all 0.25s ease' }}
                   onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
                   onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
                 >
                   <div style={{ marginBottom: '1rem' }}>
-                    <span style={{ background: isCourse ? 'var(--green-600)' : 'var(--navy)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    <span style={{ background: isCourse ? 'var(--gold)' : 'var(--navy)', color: isCourse ? 'var(--navy)' : 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                       {isCourse ? 'Curso' : 'Diplomado'}
                     </span>
                   </div>
-                  <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: isCourse ? 'var(--green-700)' : 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
+                  <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
-                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'linear-gradient(135deg, var(--green-700), var(--green-600))' : 'linear-gradient(135deg, var(--navy), var(--navy))', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: isCourse ? 'var(--shadow-green)' : 'var(--shadow-sm)' }}>Entrar →</Link>
+                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'var(--gold)' : 'var(--navy)', color: isCourse ? 'var(--navy)' : 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)' }}>Entrar →</Link>
                 </div>
               );
             })
@@ -107,7 +107,7 @@ function StudentPortal({ getDiplomadoLink }) {
                  <span>{dip.title}</span><span>{(idx+1) * 15}%</span>
                </div>
                <div style={{ width: '100%', height: '14px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                 <div style={{ width: `${(idx+1) * 15}%`, height: '100%', background: 'var(--primary-color)' }}></div>
+                 <div style={{ width: `${(idx+1) * 15}%`, height: '100%', background: 'var(--navy)' }}></div>
                </div>
              </div>
           ))}
@@ -365,13 +365,13 @@ function AdminPortal({ getDiplomadoLink }) {
         </div>
 
         {/* Programas Creados */}
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.25rem 1.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: '#ffffff', color: 'var(--green-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #bbf7d0' }}>
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.25rem 1.5rem', background: 'var(--bg-light)', border: '1px solid rgba(20, 33, 61, 0.15)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: '#ffffff', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(20, 33, 61, 0.1)' }}>
             <BookOpen size={22} />
           </div>
           <div>
-            <h4 style={{ margin: 0, fontSize: '0.74rem', color: 'var(--green-700)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Programas Creados</h4>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--green-800)', lineHeight: 1.1, marginTop: '0.2rem' }}>{counts.programs}</div>
+            <h4 style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Programas Creados</h4>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1, marginTop: '0.2rem' }}>{counts.programs}</div>
           </div>
         </div>
 
@@ -448,18 +448,18 @@ function AdminPortal({ getDiplomadoLink }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
             {diplomas.filter(d => d.program_type === 'curso').map(dip => (
-              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
+              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-light)', border: '1px solid rgba(20, 33, 61, 0.15)', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '0.85rem' }}>
-                  <span className="badge badge-green">Curso Corto</span>
+                  <span className="badge badge-navy">Curso Corto</span>
                 </div>
-                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--green-800)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
+                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem', flexGrow: 1, lineHeight: 1.4 }}>
                   {dip.description || 'Sin descripción detallada.'}
                 </p>
                 <Link
                   onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
                   to={getDiplomadoLink(dip.id)}
-                  className="btn btn-green"
+                  className="btn btn-navy"
                   style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
                 >
                   Administrar →
@@ -473,15 +473,15 @@ function AdminPortal({ getDiplomadoLink }) {
               style={{ textDecoration: 'none' }}
             >
               <div className="card" style={{
-                display: 'flex', flexDirection: 'column', border: '1.5px dashed var(--green-600)',
-                background: 'rgba(0, 122, 46, 0.04)', boxShadow: 'none', padding: '1.25rem',
-                alignItems: 'center', justifyContent: 'center', color: 'var(--green-700)',
+                display: 'flex', flexDirection: 'column', border: '1.5px dashed var(--navy)',
+                background: 'rgba(20, 33, 61, 0.04)', boxShadow: 'none', padding: '1.25rem',
+                alignItems: 'center', justifyContent: 'center', color: 'var(--navy)',
                 cursor: 'pointer', height: '100%', minHeight: '180px', transition: 'all 0.2s ease',
               }}
-              onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(0, 122, 46, 0.10)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(0, 122, 46, 0.04)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+              onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(20, 33, 61, 0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(20, 33, 61, 0.04)'; e.currentTarget.style.transform = 'translateY(0)'; }}
               >
-                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--green-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem', color: '#ffffff' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem', color: '#ffffff' }}>
                   <Plus size={22} />
                 </div>
                 <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Crear Nuevo Curso</span>
@@ -590,9 +590,8 @@ export default function Portal() {
         <h1 style={{ color: 'var(--text-dark)', fontSize: '2.5rem', fontWeight: 'bold' }}>
           {role === 'admin' ? 'Panel de Control LIATER' : 'Mis Programas'}
         </h1>
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Hola, {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Profesor' : 'Estudiante'} 👋
-        </span>
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+          </span>
       </div>
 
       {/* RENDERIZADO DINÁMICO SEGÚN ROL */}
