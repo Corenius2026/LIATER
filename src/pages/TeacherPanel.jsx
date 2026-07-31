@@ -137,32 +137,73 @@ function ResumenTab({ onChangeTab }) {
           })}
         </div>
 
-        {/* Accesos rápidos */}
-        <div className="card">
-          <h3 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '1.25rem' }}>Accesos Rápidos</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {/* Acciones Rápidas */}
+        <div className="card" style={{ background: 'var(--white)', padding: '1.5rem', borderRadius: '12px' }}>
+          <h3 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--navy)', marginBottom: '1.25rem' }}>
+            Acciones Rápidas
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
+            {/* 1. Leer preguntas */}
             <button 
-              onClick={() => onChangeTab('clases')}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', borderRadius: 'var(--radius-md)', background: '#eff6ff', border: '1px solid #bfdbfe', cursor: 'pointer', textAlign: 'left' }}
+              onClick={() => onChangeTab('dudas')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Video size={20} color="var(--navy)" />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--navy)' }}>Mis Clases</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--primary-600)' }}>Consulta tus próximas sesiones</div>
-                </div>
+              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <MessageSquare size={18} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Leer preguntas</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Atender dudas de alumnos</div>
               </div>
             </button>
+
+            {/* 2. Crear anuncio */}
             <button 
-              onClick={() => onChangeTab('materiales')}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', borderRadius: 'var(--radius-md)', background: '#f0fdf4', border: '1px solid #bbf7d0', cursor: 'pointer', textAlign: 'left' }}
+              onClick={() => onChangeTab('anuncios')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileText size={20} color="#15803d" />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--green-700)' }}>Materiales de Apoyo</div>
-                  <div style={{ fontSize: '0.75rem', color: '#22c55e' }}>Sube o revisa tus recursos</div>
-                </div>
+              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Megaphone size={18} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Crear anuncio</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Publicar aviso general</div>
+              </div>
+            </button>
+
+            {/* 3. Ver próxima clase */}
+            <button 
+              onClick={() => onChangeTab('clases')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(252, 163, 17, 0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CalendarDays size={18} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Ver próxima clase</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Consultar horario activo</div>
+              </div>
+            </button>
+
+            {/* 4. Agregar material */}
+            <button 
+              onClick={() => onChangeTab('clases')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Upload size={18} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Agregar material</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Subir recurso o lectura</div>
               </div>
             </button>
           </div>
