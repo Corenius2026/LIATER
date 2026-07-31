@@ -146,23 +146,7 @@ export default function Sidebar() {
           </button>
         )}
 
-        {/* Institucional UNAL */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.85rem',
-          padding: '0.75rem 0.85rem', marginBottom: '0.5rem',
-          borderRadius: 'var(--radius-lg)', background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.12)'
-        }}>
-          <img src={unalLogoWhite} alt="Universidad Nacional de Colombia" style={{ height: '42px', objectFit: 'contain' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '0.74rem', color: '#FFFFFF', fontWeight: 700, lineHeight: 1.1, letterSpacing: '0.01em' }}>
-              Universidad Nacional
-            </span>
-            <span style={{ fontSize: '0.65rem', color: 'var(--gold)', fontWeight: 600 }}>
-              de Colombia
-            </span>
-          </div>
-        </div>
+
 
         {/* Botón para cerrar sesión */}
         <button onClick={handleLogout} className="nav-item">

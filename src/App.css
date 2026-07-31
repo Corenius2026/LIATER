@@ -121,7 +121,7 @@
 
 /* ── Header ── */
 .app-header {
-  height: 64px;
+  height: 74px;
   background: var(--white);
   border-bottom: 1px solid var(--border-color);
   display: flex; justify-content: space-between; align-items: center;
