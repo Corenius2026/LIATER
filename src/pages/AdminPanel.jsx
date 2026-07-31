@@ -1504,7 +1504,7 @@ const TABS = [
   { id: 'anuncios',  label: 'Anuncios',   icon: <Megaphone size={16} /> },
 ];
 
-import { useLocation, useNavigate } from 'react-router-dom';
+
 
 export default function AdminPanel() {
   const { currentUser } = useAuth();
