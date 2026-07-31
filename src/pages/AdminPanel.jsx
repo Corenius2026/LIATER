@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
@@ -424,9 +424,10 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
   );
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 1 — Resumen General
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+/* ————————————————————————————————————
+   TAB 1 — Resumen General
+———————————————————————————————————— */
 function ResumenTab({ counts, upcomingClasses, isCourse }) {
   let stats = [
     { label: 'Alumnos Inscritos', value: counts.usuarios,  color: 'var(--navy)', bg: 'rgba(20, 33, 61, 0.08)', icon: <Users size={22} color="var(--navy)" /> },
@@ -513,68 +514,6 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
   );
 }
 
-  return (
-    <div>
-      <div className="stats-grid">
-        {stats.map(s => (
-          <div className="stat-card" key={s.label}>
-            <div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div>
-            <div className="stat-number">{s.value ?? '—'}</div>
-            <div className="stat-label">{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-        {/* Estado de clases */}
-        <div className="admin-table-wrapper" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '0.95rem', color: 'var(--text-dark)' }}>Estado del Programa</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {[
-              { label: 'Total Clases',   value: counts.clases,   total: counts.clases,   color: '#10b981' },
-              !isCourse && { label: 'Total Módulos',  value: counts.modulos,  total: counts.modulos,  color: '#6366f1' },
-              { label: 'Total Recursos', value: counts.recursos, total: counts.recursos, color: '#f59e0b' },
-            ].filter(Boolean).map(item => (
-              <div key={item.label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.8rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
-                  <span style={{ fontWeight: 600 }}>{item.value}</span>
-                </div>
-                <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '100%', height: '100%', background: item.color, borderRadius: '4px' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Próximas clases */}
-        <div className="admin-table-wrapper" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '0.95rem', color: 'var(--text-dark)' }}>Próximas Clases</h3>
-          {upcomingClasses.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No hay clases próximas.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {upcomingClasses.map(cls => (
-                <div key={cls.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.625rem', borderRadius: 'var(--radius-md)', background: '#f8fafc', border: '1px solid var(--border-color)' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Clock size={18} color="#ca8a04" />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cls.title}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      {formatShortDate(cls.class_date)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    MODAL — Asignar Profesor

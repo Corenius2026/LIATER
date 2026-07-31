@@ -1,128 +1,262 @@
-import { Link } from 'react-router-dom';
-import liaterLogo from '../assets/liater-logo.png';
-import unalPillLogo from '../assets/unal-pill-logo.png';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
+import PublicNavbar from '../components/PublicNavbar';
+import PublicFooter from '../components/PublicFooter';
 
 export default function Home() {
+  const navigate = useNavigate();
+  const [featuredModules, setFeaturedModules] = useState([]);
+  const [loadingModules, setLoadingModules] = useState(true);
+
+  useEffect(() => {
+    async function fetchFeatured() {
+      try {
+        // Obtenemos los programas y la cantidad de inscritos (enrollments)
+        const { data, error } = await supabase
+          .from('diploma_programs')
+          .select('*, enrollments(count)');
+        
+        if (error) throw error;
+        
+        // Ordenamos en memoria por cantidad de inscritos (descendente)
+        const sortedPrograms = (data || []).sort((a, b) => {
+          const countA = a.enrollments?.[0]?.count || 0;
+          const countB = b.enrollments?.[0]?.count || 0;
+          return countB - countA;
+        });
+
+        // Tomamos los 3 más populares
+        setFeaturedModules(sortedPrograms.slice(0, 3));
+      } catch (err) {
+        console.error('Error al cargar programas destacados:', err.message);
+        // Fallback en caso de que falle la relación de enrollments
+        try {
+          const fallback = await supabase.from('diploma_programs').select('*').limit(3);
+          if (fallback.data) setFeaturedModules(fallback.data);
+        } catch(e) {}
+      } finally {
+        setLoadingModules(false);
+      }
+    }
+    fetchFeatured();
+  }, []);
+
   return (
-    <div style={{
-      height: '100vh',
-      maxHeight: '100vh',
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '1rem',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      background: 'linear-gradient(135deg, #14213D 0%, #000000 100%)',
-      position: 'relative',
-    }}>
-      {/* Resplandor decorativo de fondo */}
-      <div style={{
-        position: 'absolute', width: '500px', height: '500px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(252,163,17,0.14) 0%, transparent 70%)',
-        top: '-150px', right: '-100px', pointerEvents: 'none'
-      }} />
-      <div style={{
-        position: 'absolute', width: '380px', height: '380px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(252,163,17,0.08) 0%, transparent 70%)',
-        bottom: '-100px', left: '-100px', pointerEvents: 'none'
-      }} />
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
+      <PublicNavbar />
 
-      {/* Card Principal */}
-      <div style={{
-        width: '100%',
-        maxWidth: '440px',
-        background: 'rgba(255, 255, 255, 0.98)',
-        borderRadius: '1.25rem',
-        boxShadow: '0 24px 64px rgba(0, 0, 0, 0.45)',
-        padding: '1.75rem 2rem 1.5rem',
+      {/* --- HERO SECTION --- */}
+      <section style={{
         position: 'relative',
-        zIndex: 1,
-        animation: 'fadeSlideUp 0.45s cubic-bezier(0.4, 0, 0.2, 1) both',
-        border: '1px solid rgba(252, 163, 17, 0.20)',
+        minHeight: '90vh',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        textAlign: 'center',
+        padding: '8rem 2rem 4rem',
+        background: 'linear-gradient(135deg, var(--navy) 0%, #0a1122 100%)',
+        color: 'var(--white)',
+        overflow: 'hidden'
       }}>
-        {/* Logo LIATER */}
-        <img
-          src={liaterLogo}
-          alt="LIATER"
-          style={{
-            height: '90px',
-            objectFit: 'contain',
-            marginBottom: '0.65rem',
-          }}
-        />
+        {/* Decorative elements */}
+        <div style={{
+          position: 'absolute', width: '600px', height: '600px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252,163,17,0.15) 0%, transparent 60%)',
+          top: '-200px', right: '-150px', pointerEvents: 'none'
+        }} />
+        <div style={{
+          position: 'absolute', width: '400px', height: '400px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(20,33,61,0.5) 0%, transparent 60%)',
+          bottom: '-100px', left: '-100px', pointerEvents: 'none'
+        }} />
 
-        <h1 style={{ color: '#14213D', fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.4rem', letterSpacing: '-0.02em' }}>
-          Laboratorio LIATER
-        </h1>
+        <div className="container" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px', margin: '0' }}>
+          <div style={{ animation: 'fadeSlideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) both' }}>
+            <span className="badge badge-gold" style={{ marginBottom: '1.5rem', padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
+              Plataforma Educativa Oficial
+            </span>
+            <h1 style={{ 
+              fontSize: 'clamp(2.5rem, 5vw, 4rem)', 
+              fontWeight: 800, 
+              lineHeight: 1.1, 
+              letterSpacing: '-0.03em',
+              marginBottom: '1.5rem'
+            }}>
+              Transforma tu futuro con el <span style={{ color: 'var(--gold)' }}>Laboratorio LIATER</span>
+            </h1>
+            <p style={{ 
+              fontSize: 'clamp(1rem, 2vw, 1.25rem)', 
+              color: 'rgba(255, 255, 255, 0.8)', 
+              lineHeight: 1.6,
+              maxWidth: '650px',
+              marginBottom: '2.5rem'
+            }}>
+              Accede a formación tecnológica de alto nivel, desarrolla habilidades prácticas y avanza en tu carrera con nuestros diplomados y cursos especializados.
+            </p>
+            
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => navigate('/login')}
+                className="btn btn-gold"
+                style={{ padding: '0.8rem 2rem', fontSize: '1.05rem', boxShadow: '0 8px 24px rgba(252, 163, 17, 0.3)' }}
+              >
+                Iniciar Sesión
+              </button>
+              <a 
+                href="#programas"
+                className="btn"
+                style={{ 
+                  padding: '0.8rem 2rem', 
+                  fontSize: '1.05rem',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: 'var(--white)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backdropFilter: 'blur(10px)'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; }}
+              >
+                Explorar Programas
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <p style={{ color: '#6b7280', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '1.25rem', maxWidth: '360px' }}>
-          Portal Académico oficial para la gestión de cursos y diplomados de la Universidad Nacional de Colombia.
-        </p>
+      {/* --- PROGRAMAS DESTACADOS --- */}
+      <section id="programas" style={{ padding: '6rem 0', background: 'var(--bg-color)' }}>
+        <div className="container">
+          <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+            <h2 style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '1rem' }}>Programas Destacados</h2>
+            <p style={{ color: 'var(--text-muted)', maxWidth: '600px', margin: '0 auto', fontSize: '1.1rem' }}>
+              Descubre nuestros diplomados y cursos más populares, diseñados para brindarte experiencia práctica e inmediata en el sector tecnológico.
+            </p>
+          </div>
 
-        {/* Línea dorada decorativa */}
-        <div style={{ width: '100%', height: '2px', background: 'linear-gradient(90deg, transparent, #FCA311, transparent)', marginBottom: '1.25rem', borderRadius: '9999px' }} />
+          <div className="grid-3">
+            {loadingModules ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="card skeleton" style={{ height: '240px' }}></div>
+              ))
+            ) : featuredModules.length > 0 ? (
+              featuredModules.map((mod, idx) => {
+                const tag = mod.program_type === 'diploma' ? 'Diplomado' : (mod.program_type === 'course' ? 'Curso Corto' : 'Programa');
+                
+                return (
+                  <div key={mod.id} className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="badge badge-primary">{tag}</span>
+                    </div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--navy)' }}>{mod.title}</h3>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', flexGrow: 1 }}>
+                      {mod.description || 'Explora el contenido de este programa.'}
+                    </p>
+                    <button 
+                      onClick={() => navigate('/login')}
+                      className="btn btn-outline" 
+                      style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                      Ver Detalles →
+                    </button>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--text-muted)' }}>
+                No hay programas destacados disponibles en este momento.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
-        <Link
-          to="/login"
-          style={{
-            width: '100%',
-            padding: '0.78rem 1.5rem',
-            borderRadius: '0.5rem',
-            background: '#FCA311',
-            color: '#000',
-            fontWeight: 800,
-            fontSize: '0.95rem',
-            border: 'none',
-            textDecoration: 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.25s ease',
-            boxShadow: '0 4px 18px rgba(252,163,17,0.40)',
-            letterSpacing: '0.04em',
-          }}
-          onMouseOver={(e) => { e.currentTarget.style.background = '#d98a00'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseOut={(e) => { e.currentTarget.style.background = '#FCA311'; e.currentTarget.style.transform = 'translateY(0)'; }}
-        >
-          Ingresar al Portal →
-        </Link>
-      </div>
+      {/* --- BENEFICIOS (POR QUÉ LIATER) --- */}
+      <section id="beneficios" style={{ padding: '6rem 0', background: 'var(--white)' }}>
+        <div className="container">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '4rem', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '1.5rem', lineHeight: 1.2 }}>
+                Impulsa tu carrera con metodología de vanguardia
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '2rem', lineHeight: 1.7 }}>
+                Nuestro enfoque se basa en el aprendizaje práctico y la resolución de problemas reales. Al ser parte de LIATER, te unes a una comunidad de innovación respaldada por la Universidad Nacional.
+              </p>
+              <ul style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {[
+                  'Instructores expertos y altamente capacitados',
+                  'Acceso a herramientas y recursos de última generación',
+                  'Certificación avalada por la institución',
+                ].map((item, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontWeight: 500, color: 'var(--text-dark)' }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--gold-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold-dark)', flexShrink: 0 }}>
+                      ✓
+                    </div>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <div style={{ position: 'relative' }}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, var(--gray) 0%, #f0f0f0 100%)', 
+                borderRadius: 'var(--radius-2xl)', 
+                aspectRatio: '4/3',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: 'var(--shadow-lg)'
+              }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-dark)' }}>
+                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                </div>
+              </div>
+              <div style={{
+                position: 'absolute', bottom: '-20px', left: '-20px', 
+                background: 'var(--white)', padding: '1.5rem', 
+                borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-md)',
+                display: 'flex', alignItems: 'center', gap: '1rem'
+              }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--green-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--green-700)', fontSize: '1.5rem', fontWeight: 800 }}>
+                  +
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--navy)' }}>Metodología</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>100% Práctica</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      {/* Identidad UNAL Fuera de la Tarjeta */}
-      <div style={{
-        marginTop: '1.1rem',
-        zIndex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '0.25rem',
-        animation: 'fadeIn 0.5s ease both',
-      }}>
-        <img
-          src={unalPillLogo}
-          alt="UNAL - Universidad Nacional de Colombia"
-          style={{
-            height: '70px',
-            maxWidth: '280px',
-            objectFit: 'contain',
-            filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.45))',
-          }}
-        />
-        <span style={{ color: 'rgba(255, 255, 255, 0.70)', fontSize: '0.76rem', fontWeight: 600, letterSpacing: '0.05em' }}>
-          UNIVERSIDAD NACIONAL DE COLOMBIA
-        </span>
-        <span style={{ color: 'rgba(255, 255, 255, 0.40)', fontSize: '0.68rem', fontWeight: 400 }}>
-          © {new Date().getFullYear()} Laboratorio LIATER
-        </span>
-      </div>
+      {/* --- ESTADÍSTICAS --- */}
+      <section style={{ padding: '5rem 0', background: 'var(--navy)', color: 'var(--white)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
+        <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '3rem', textAlign: 'center' }}>
+            {[
+              { num: '+500', label: 'Estudiantes Activos' },
+              { num: '20+', label: 'Módulos Especializados' },
+              { num: '15', label: 'Proyectos de Laboratorio' },
+              { num: '100%', label: 'Compromiso de Calidad' }
+            ].map((stat, idx) => (
+              <div key={idx}>
+                <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--gold)', marginBottom: '0.5rem', lineHeight: 1 }}>
+                  {stat.num}
+                </div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 500, color: 'rgba(255,255,255,0.8)' }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <PublicFooter />
     </div>
   );
 }
