@@ -180,19 +180,6 @@ function TeacherPortal({ getDiplomadoLink }) {
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#14532d', lineHeight: '1.3' }}>{program.title}</h3>
                 <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso directo a subtemas y clases.</p>
                 <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
-              </div>
-            );
-          })}
-          
-          {/* CURSO SIMULADO FAKE */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', background: '#fdf4ff', border: '1px dashed #f0abfc', padding: '1.25rem' }}>
-            <div style={{ marginBottom: '1rem' }}>
-              <span style={{ background: '#c026d3', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Simulado (Mock)</span>
-            </div>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#701a75', lineHeight: '1.3' }}>Curso de Sistemas Fotovoltaicos</h3>
-            <p style={{ color: '#86198f', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Explora un diseño 100% interactivo y visual del nuevo reproductor de cursos sin afectar la base de datos.</p>
-            <Link to="/mock-course" className="btn" style={{ background: '#c026d3', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Probar Entorno</Link>
-          </div>
         </div>
 
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>
@@ -386,6 +373,16 @@ function AdminPortal({ getDiplomadoLink }) {
                 <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
               </div>
             ))}
+
+            {/* CURSO SIMULADO FAKE PARA ADMIN */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', background: '#fdf4ff', border: '1px dashed #f0abfc', padding: '1.25rem' }}>
+              <div style={{ marginBottom: '1rem' }}>
+                <span style={{ background: '#c026d3', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Simulado (Mock)</span>
+              </div>
+              <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#701a75', lineHeight: '1.3' }}>Curso de Sistemas Fotovoltaicos</h3>
+              <p style={{ color: '#86198f', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Explora un diseño 100% interactivo y visual del nuevo reproductor de cursos sin afectar la base de datos.</p>
+              <Link to="/mock-course" className="btn" style={{ background: '#c026d3', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Probar Entorno Front-End</Link>
+            </div>
 
             <div onClick={() => { setNewProgram({...newProgram, program_type: 'curso'}); setShowModal(true); }} style={{textDecoration: 'none'}}>
               <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%', minHeight: '200px' }}>
