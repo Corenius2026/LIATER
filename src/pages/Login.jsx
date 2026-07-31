@@ -43,9 +43,8 @@ export default function Login() {
             src={liaterLogo}
             alt="LIATER"
             style={{
-              width: '140px', height: '140px', objectFit: 'contain',
-              filter: 'drop-shadow(0 4px 12px rgba(252,163,17,0.35))',
-              animation: 'logoFloat 4s ease-in-out infinite',
+              width: '160px', height: '160px', objectFit: 'contain',
+              filter: 'none',
             }}
           />
           <div style={{ textAlign: 'center' }}>
