@@ -28,7 +28,7 @@ async function buildUserFromAuth(authUser) {
     email: profile.email || authUser.email,
     role: profile.role,
     is_active: profile.is_active,
-    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name)}&background=3b82f6&color=fff&size=150`
+    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name)}&background=14213D&color=FCA311&size=150`
   };
 }
 

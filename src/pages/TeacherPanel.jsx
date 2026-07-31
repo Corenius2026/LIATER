@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { formatClassDate } from '../utils/dateUtils';
@@ -91,7 +91,7 @@ function ResumenTab({ onChangeTab }) {
     <div>
       {/* Hero Banner */}
       <div className="card teacher-hero" style={{ padding: '2rem', display: 'flex', gap: '2rem', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <img src={profile.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=3b82f6&color=fff&size=150`} alt={profile.name} className="teacher-hero-img" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />
+        <img src={profile.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=14213D&color=FCA311&size=150`} alt={profile.name} className="teacher-hero-img" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />
         <div className="teacher-hero-info">
           <h1>{profile.name}</h1>
           <p>{profile.area || 'Sin área especificada'} Â· {profile.users_profile?.email || ''}</p>
@@ -927,7 +927,7 @@ function PerfilTab() {
       </div>
       <div className="card" style={{ maxWidth: '600px' }}>
         <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <img src={profile.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=3b82f6&color=fff&size=150`} alt="Avatar" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover' }} />
+          <img src={profile.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=14213D&color=FCA311&size=150`} alt="Avatar" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover' }} />
           <div>
             <h3 style={{ fontWeight: 700, fontSize: '1.1rem' }}>{profile.name}</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{profile.users_profile?.email}</p>
