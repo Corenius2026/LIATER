@@ -17,35 +17,48 @@ export default function Header() {
     return 'Estudiante';
   };
 
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   return (
     <header className="app-header">
-      <div className="header-search">
-        <h3 style={{color: 'var(--text-muted)', fontWeight: 500}}>Portal Educativo LIATER</h3>
+      <div className="header-title">
+        Portal Educativo <span style={{ color: 'var(--gold-500)', fontWeight: 700 }}>LIATER</span>
       </div>
-      
+
       {currentUser && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div className="header-profile">
             <div className="profile-info">
-              <span className="profile-name">{currentUser.name}</span>
+              <span className="profile-name">{currentUser.name || currentUser.email}</span>
               <span className="profile-role">{getRoleLabel(currentUser.role)}</span>
             </div>
-            <img src={currentUser.avatar} alt="Profile" className="profile-avatar" />
+            {currentUser.avatar ? (
+              <img src={currentUser.avatar} alt="Profile" className="profile-avatar" />
+            ) : (
+              <div className="profile-avatar-initials">
+                {getInitials(currentUser.name || currentUser.email)}
+              </div>
+            )}
           </div>
 
-          <button 
+          <button
             onClick={handleLogout}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              color: 'var(--text-muted)', 
-              fontSize: '0.875rem',
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              color: 'var(--text-muted)',
+              fontSize: '0.8rem',
               fontWeight: 500,
-              padding: '0.5rem 0.75rem',
+              padding: '0.45rem 0.875rem',
               borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-              transition: 'var(--transition)'
+              border: '1.5px solid var(--border-color)',
+              transition: 'var(--transition)',
+              background: 'transparent',
+              cursor: 'pointer',
             }}
             onMouseOver={(e) => {
               e.currentTarget.style.backgroundColor = '#fee2e2';
@@ -58,7 +71,7 @@ export default function Header() {
               e.currentTarget.style.borderColor = 'var(--border-color)';
             }}
           >
-            <LogOut size={16} />
+            <LogOut size={15} />
             <span>Cerrar Sesión</span>
           </button>
         </div>

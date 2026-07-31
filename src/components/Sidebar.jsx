@@ -1,11 +1,12 @@
 /**
  * Componente: Sidebar
  * Representa la barra lateral de navegación de la plataforma LMS.
- * Contiene los enlaces principales para navegar entre las distintas secciones.
+ * Dark navy design con logo LIATER y acentos dorados.
  */
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Home, BookOpen, Users, LogOut, Settings, Video, Upload, FileText, LayoutDashboard, GraduationCap, UserCircle, HelpCircle, ShieldCheck } from 'lucide-react';
+import { Home, BookOpen, Users, LogOut, Settings, LayoutDashboard, GraduationCap, UserCircle, HelpCircle, ListTree } from 'lucide-react';
+import liaterLogo from '../assets/liater-logo.png';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
@@ -25,56 +26,60 @@ export default function Sidebar() {
   };
 
   return (
-    // Contenedor principal de la barra lateral (fija a la izquierda)
     <aside className="sidebar">
-      
-      {/* --- SECCIÓN 1: Logotipo / Título --- */}
-      <div className="sidebar-logo" onClick={() => navigate('/portal')} style={{ cursor: 'pointer' }}>
-        <h2>LIATER</h2>
+
+      {/* --- SECCIÓN 1: Logo LIATER --- */}
+      <div className="sidebar-logo" onClick={() => navigate('/portal')}>
+        <img src={liaterLogo} alt="LIATER Logo" className="sidebar-logo-img" />
+        <div className="sidebar-logo-text">
+          <span className="sidebar-logo-name">LIATER</span>
+          <span className="sidebar-logo-sub">Portal Educativo · UNAL</span>
+        </div>
       </div>
 
       {/* --- SECCIÓN 2: Menú de Navegación Principal --- */}
       <nav className="sidebar-nav">
-        
-        {/* --- ENLACES GLOBALES (Solo visibles en rutas globales) --- */}
+
+        {/* --- ENLACES GLOBALES --- */}
         {isGlobalRoute && (
           <>
-            <NavLink 
-              to="/portal" 
+            <div className="sidebar-section-label">Principal</div>
+            <NavLink
+              to="/portal"
               className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}
             >
-              <LayoutDashboard size={20} />
+              <LayoutDashboard size={18} />
               <span>{role === 'admin' ? 'Programas Creados' : 'Mis Cursos'}</span>
             </NavLink>
 
             {role === 'admin' && (
-              <NavLink 
-                to="/users" 
+              <NavLink
+                to="/users"
                 className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}
               >
-                <Users size={20} />
-                <span>Registrar Usuarios</span>
+                <Users size={18} />
+                <span>Gestión de Usuarios</span>
               </NavLink>
             )}
 
+            <div className="sidebar-divider" />
+            <div className="sidebar-section-label">Cuenta</div>
+
             <NavLink to="/perfil" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-              <UserCircle size={20} />
+              <UserCircle size={18} />
               <span>Mi Perfil</span>
             </NavLink>
 
             <NavLink to="/soporte" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-              <HelpCircle size={20} />
+              <HelpCircle size={18} />
               <span>Soporte Técnico</span>
             </NavLink>
-
           </>
         )}
 
-        {/* --- SEPARADOR VISUAL --- */}
+        {/* --- SEPARADOR VISUAL PARA MENÚ DE CURSO --- */}
         {!isGlobalRoute && (
-          <div style={{ margin: '0 0 0.5rem 0', padding: '0 1rem' }}>
-            <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Menú del Curso</span>
-          </div>
+          <div className="sidebar-section-label">Menú del Curso</div>
         )}
 
         {/* MUESTRA LAS OPCIONES DEL CURSO SOLO SI NO ESTÁ EN EL PORTAL GLOBAL */}
@@ -84,22 +89,22 @@ export default function Sidebar() {
             {role === 'student' && (
               <>
                 <NavLink to={`/dashboard/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
-                  <Home size={20} />
+                  <Home size={18} />
                   <span>Inicio {activeProgramType === 'curso' ? 'del Curso' : 'del Diplomado'}</span>
                 </NavLink>
                 {activeProgramType !== 'curso' ? (
                   <NavLink to={`/modules/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-                    <BookOpen size={20} />
+                    <BookOpen size={18} />
                     <span>Módulos</span>
                   </NavLink>
                 ) : (
                   <NavLink to={`/syllabus/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-                    <ListTree size={20} />
+                    <ListTree size={18} />
                     <span>Subtemas</span>
                   </NavLink>
                 )}
                 <NavLink to={`/teachers/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-                  <Users size={20} />
+                  <Users size={18} />
                   <span>Profesores</span>
                 </NavLink>
               </>
@@ -109,7 +114,7 @@ export default function Sidebar() {
             {role === 'teacher' && (
               <>
                 <NavLink to={`/dashboard/profesor/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-                  <GraduationCap size={20} />
+                  <GraduationCap size={18} />
                   <span>Mi Panel</span>
                 </NavLink>
               </>
@@ -119,11 +124,11 @@ export default function Sidebar() {
             {role === 'admin' && (
               <>
                 <NavLink to={`/dashboard/admin/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
-                  <Home size={20} />
+                  <Home size={18} />
                   <span>Inicio del Programa</span>
                 </NavLink>
                 <NavLink to={`/settings/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-                  <Settings size={20} />
+                  <Settings size={18} />
                   <span>Configurar Programa</span>
                 </NavLink>
               </>
@@ -135,22 +140,22 @@ export default function Sidebar() {
 
       {/* --- SECCIÓN 3: Pie de la barra lateral --- */}
       <div className="sidebar-footer">
-        
+
         {/* Botón Volver (solo visible dentro de un curso) */}
         {!isGlobalRoute && (
-          <button onClick={() => navigate('/portal')} className="nav-item" style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', marginBottom: '0.5rem' }}>
-            <LayoutDashboard size={20} />
+          <button onClick={() => navigate('/portal')} className="nav-item" style={{ marginBottom: '0.25rem' }}>
+            <LayoutDashboard size={18} />
             <span>Volver al Portal</span>
           </button>
         )}
 
-        {/* Botón para cerrar sesión y regresar al inicio público */}
-        <button onClick={handleLogout} className="nav-item" style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>
-          <LogOut size={20} />
+        {/* Botón para cerrar sesión */}
+        <button onClick={handleLogout} className="nav-item">
+          <LogOut size={18} />
           <span>Salir</span>
         </button>
       </div>
-      
+
     </aside>
   );
 }

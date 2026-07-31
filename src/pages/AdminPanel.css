@@ -12,32 +12,34 @@
 }
 
 .admin-tab-btn {
-  padding: 0.75rem 1.25rem;
+  padding: 0.625rem 1rem;
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
-  transition: var(--transition);
+  transition: var(--transition-fast);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  white-space: nowrap;
 }
 
 .admin-tab-btn:hover {
-  color: var(--primary-color);
-  background-color: var(--bg-color);
+  color: var(--primary-700);
+  background-color: var(--surface-light);
 }
 
 .admin-tab-btn.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
-  background-color: var(--bg-color);
+  color: var(--gold-600);
+  border-bottom-color: var(--gold-500);
+  background-color: var(--gold-subtle);
+  font-weight: 600;
 }
 
 /* Stat cards del resumen */
@@ -51,18 +53,37 @@
 .stat-card {
   background: var(--white);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   box-shadow: var(--shadow-sm);
   transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold-500), var(--primary-600));
+  opacity: 0;
+  transition: var(--transition);
 }
 
 .stat-card:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  border-color: rgba(212,160,23,0.20);
+}
+
+.stat-card:hover::after {
+  opacity: 1;
 }
 
 .stat-icon {
@@ -154,9 +175,9 @@
   font-weight: 600;
 }
 
-.role-admin    { background: #fef2f2; color: #dc2626; }
-.role-teacher  { background: #eff6ff; color: #1d4ed8; }
-.role-student  { background: #f0fdf4; color: #16a34a; }
+.role-admin    { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.role-teacher  { background: #eff6ff; color: var(--primary-700); border: 1px solid #bfdbfe; }
+.role-student  { background: var(--green-subtle); color: var(--green-700); border: 1px solid #bbf7d0; }
 
 .status-active   { background: #dcfce7; color: #16a34a; }
 .status-inactive { background: #fee2e2; color: #dc2626; }
