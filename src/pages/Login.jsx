@@ -155,25 +155,25 @@ export default function Login() {
 
       {/* Institucional UNAL Independiente Fuera de la Tarjeta */}
       <div style={{
-        marginTop: '1.1rem',
+        marginTop: '0.85rem',
         zIndex: 1,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '0.35rem',
+        gap: '0.25rem',
         animation: 'fadeIn 0.5s ease both',
       }}>
         <img
           src={unalPillLogo}
           alt="UNAL - Universidad Nacional de Colombia"
           style={{
-            height: '70px',
-            maxWidth: '280px',
+            height: '92px',
+            maxWidth: '310px',
             objectFit: 'contain',
-            filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.45))',
+            filter: 'drop-shadow(0 4px 18px rgba(0,0,0,0.5))',
           }}
         />
-        <span style={{ color: 'rgba(255, 255, 255, 0.70)', fontSize: '0.76rem', fontWeight: 600, letterSpacing: '0.05em' }}>
+        <span style={{ color: 'rgba(255, 255, 255, 0.70)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.05em' }}>
           UNIVERSIDAD NACIONAL DE COLOMBIA
         </span>
         <span style={{ color: 'rgba(255, 255, 255, 0.40)', fontSize: '0.68rem', fontWeight: 400 }}>
