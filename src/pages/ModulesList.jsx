@@ -1,20 +1,27 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { BookOpen, ArrowRight } from 'lucide-react';
 
 export default function ModulesList() {
   const { programId } = useParams();
   const [modulesList, setModulesList] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const cleanProgramId = programId ? decodeURIComponent(programId).replace(/\s+/g, '-').trim() : '';
+
   useEffect(() => {
     async function fetchModules() {
-      if (!programId) return;
+      if (!cleanProgramId) {
+        setLoading(false);
+        return;
+      }
       try {
+        setLoading(true);
         const { data, error } = await supabase
           .from('modules')
           .select('*')
-          .eq('program_id', programId)
+          .eq('program_id', cleanProgramId)
           .order('order_index', { ascending: true });
         
         if (error) throw error;
@@ -26,13 +33,12 @@ export default function ModulesList() {
       }
     }
     fetchModules();
-  }, []);
+  }, [programId]);
 
   if (loading) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
         <h2>Cargando módulos...</h2>
-        <p>Conectando con la base de datos</p>
       </div>
     );
   }
@@ -40,45 +46,42 @@ export default function ModulesList() {
   if (modulesList.length === 0) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Aún no hay módulos</h2>
-        <p>Los módulos del diplomado aparecerán aquí cuando sean creados.</p>
+        <h2>Aún no hay módulos creados</h2>
+        <p>Los módulos del programa aparecerán aquí cuando sean publicados.</p>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Temario del Diplomado</h1>
-        <p className="page-description">Explora todos los módulos y su contenido.</p>
+    <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+      <div className="page-header" style={{ marginBottom: '2rem' }}>
+        <h1 className="page-title">Módulos del Programa</h1>
+        <p className="page-description">Selecciona un módulo para explorar sus contenidos y clases en vivo.</p>
       </div>
 
-      <div className="grid-3">
-        {modulesList.map(mod => (
-          <div key={mod.id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <span className="badge">Módulo</span>
-              {/* Se dejó 0 clases hardcodeado temporalmente según restricciones */}
-              <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>0 clases (pdte.)</span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+        {modulesList.map((m, index) => (
+          <div key={m.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)',
+                color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1rem', fontWeight: 800, flexShrink: 0
+              }}>
+                {m.order_index ?? (index + 1)}
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, lineHeight: 1.3 }}>
+                {m.title}
+              </h3>
             </div>
-            
-            <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-dark)' }}>{mod.title}</h3>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', flex: 1, fontSize: '0.875rem' }}>
-              {mod.description}
+
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexGrow: 1, lineHeight: 1.5 }}>
+              {m.description || 'Sin descripción disponible.'}
             </p>
-            
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                <span>Progreso</span>
-                <span>0%</span>
-              </div>
-              <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-color)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `0%`, height: '100%', backgroundColor: 'var(--primary-light)' }}></div>
-              </div>
-            </div>
-            
-            <Link to={`/modules/${mod.id}`} className="btn btn-outline" style={{ width: '100%', textAlign: 'center' }}>
-              Ver detalles
+
+            <Link to={`/module/${m.id}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
+              Ver Módulo <ArrowRight size={16} />
             </Link>
           </div>
         ))}
@@ -86,4 +89,3 @@ export default function ModulesList() {
     </div>
   );
 }
-

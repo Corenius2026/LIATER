@@ -6,9 +6,11 @@ export default function SyllabusRedirector() {
   const { programId } = useParams();
   const navigate = useNavigate();
 
+  const cleanProgramId = programId ? decodeURIComponent(programId).replace(/\s+/g, '-').trim() : '';
+
   useEffect(() => {
     async function redirect() {
-      if (!programId) {
+      if (!cleanProgramId) {
         navigate('/portal');
         return;
       }
@@ -17,21 +19,21 @@ export default function SyllabusRedirector() {
         const { data, error } = await supabase
           .from('modules')
           .select('id')
-          .eq('program_id', programId)
+          .eq('program_id', cleanProgramId)
           .order('order_index', { ascending: true })
           .limit(1)
-          .single();
+          .maybeSingle();
           
         if (error || !data) {
           console.error("No se encontró módulo principal para el curso", error);
-          navigate(`/dashboard/${programId}`);
+          navigate(`/dashboard/${cleanProgramId}`);
         } else {
           // Redirigir al detalle del módulo (que lista los subtemas)
           navigate(`/module/${data.id}`);
         }
       } catch (err) {
         console.error(err);
-        navigate(`/dashboard/${programId}`);
+        navigate(`/dashboard/${cleanProgramId}`);
       }
     }
     
@@ -40,7 +42,7 @@ export default function SyllabusRedirector() {
 
   return (
     <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-      <h2>Cargando temario...</h2>
+      <h2>Cargando contenido...</h2>
     </div>
   );
 }
