@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2 } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms } from '../services/programService';
+import PendingActivitiesCard from '../components/PendingActivitiesCard';
 
 /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
    SUB-COMPONENTE: Portal de Estudiante
@@ -97,10 +98,15 @@ function StudentPortal({ getDiplomadoLink }) {
 
   return (
     <div className="portal-layout">
-      {/* COLUMNA IZQUIERDA: PROGRAMAS */}
-      <div className="portal-main">
-        {/* FILTROS TIPO PASTILLA */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
+      {/* 1. TARJETA DE PENDIENTES Y PRÓXIMAS FECHAS (Reemplaza a "Tu progreso". En móvil orden 1, en escritorio columna lateral superior) */}
+      <div className="mobile-order-pending desktop-sidebar-pending">
+        <PendingActivitiesCard studentId={currentUser?.id} />
+      </div>
+
+      {/* 2. COLUMNA PRINCIPAL CON FILTROS Y REJILLA DE PROGRAMAS (En móvil orden 2, en escritorio columna principal flexible) */}
+      <div className="portal-main mobile-order-main">
+        {/* FILTROS TIPO PASTILLA CON SCROLL HORIZONTAL CONTROLADO EN MÓVIL */}
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.25rem', width: '100%' }} className="hide-scrollbar">
           {filters.map(filter => (
             <button 
               key={filter}
@@ -108,7 +114,15 @@ function StudentPortal({ getDiplomadoLink }) {
               style={{ 
                 background: activeFilter === filter ? 'var(--navy)' : '#f1f5f9', 
                 color: activeFilter === filter ? '#ffffff' : 'var(--text-muted)', 
-                padding: '0.5rem 1.25rem', borderRadius: '9999px', fontSize: '0.86rem', fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.2s'
+                padding: '0.5rem 1.25rem', 
+                borderRadius: '9999px', 
+                fontSize: '0.86rem', 
+                fontWeight: 600, 
+                cursor: 'pointer', 
+                border: 'none', 
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                transition: 'all 0.2s'
               }}
             >
               {filter}
@@ -117,11 +131,11 @@ function StudentPortal({ getDiplomadoLink }) {
         </div>
 
         {/* REJILLA DE TARJETAS DE PROGRAMA */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
           
           {/* ESTADO DE CARGA SKELETON */}
           {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
+            Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', minHeight: '300px', background: '#ffffff', border: '1px solid var(--border-color)' }}>
                 <div style={{ width: '100%', aspectRatio: '16 / 9', background: '#e2e8f0', animation: 'pulse 1.5s infinite' }} />
                 <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -267,32 +281,8 @@ function StudentPortal({ getDiplomadoLink }) {
         </div>
       </div>
 
-      {/* COLUMNA DERECHA: PROGRESO GLOBAL & PRÓXIMOS PROGRAMAS */}
-      <div className="portal-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        
-        {/* BLOQUE 1: TU PROGRESO */}
-        <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-            <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Tu progreso</h3>
-          </div>
-          {diplomas.length === 0 ? (
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No hay avance registrado.</p>
-          ) : (
-            diplomas.slice(0, 3).map((dip) => (
-              <div key={dip.id} style={{ marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '0.35rem', color: 'var(--navy)', fontWeight: 600 }}>
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>{dip.title}</span>
-                  <span>{dip.progress || 0}%</span>
-                </div>
-                <div style={{ width: '100%', height: '8px', background: 'rgba(0,0,0,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: `${dip.progress || 0}%`, height: '100%', background: 'var(--navy)', borderRadius: '4px' }} />
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* BLOQUE 2: PRÓXIMOS PROGRAMAS (BLOQUE INDEPENDIENTE UBICADO INMEDIATAMENTE DEBAJO) */}
+      {/* 3. BLOQUE DE PRÓXIMOS PROGRAMAS (En móvil orden 3, en escritorio columna lateral inferior) */}
+      <div className="mobile-order-upcoming desktop-sidebar-upcoming">
         <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
             <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Próximos programas</h3>
@@ -936,14 +926,17 @@ export default function Portal() {
   };
 
   return (
-    <div style={{ padding: '2rem 1rem', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '1rem 1rem 2.5rem 1rem', maxWidth: '1400px', margin: '0 auto' }}>
       {/* HEADER PRINCIPAL COMPARTIDO */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ color: 'var(--text-dark)', fontSize: '2.5rem', fontWeight: 'bold' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
           {role === 'admin' ? 'Panel de Control LIATER' : 'Mis Programas'}
         </h1>
-          <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          </span>
+        {role === 'student' && (
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
+            Continúa tu formación y revisa tus próximos compromisos.
+          </p>
+        )}
       </div>
 
       {/* RENDERIZADO DINÁMICO SEGÚN ROL */}
