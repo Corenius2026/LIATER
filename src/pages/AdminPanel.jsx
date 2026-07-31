@@ -151,10 +151,10 @@ function AlumnosTab({ enrolledStudents }) {
 /* ─────────────────────────────────────────
    TAB 1 — Resumen General
 ───────────────────────────────────────── */
-function ResumenTab({ counts, upcomingClasses }) {
+function ResumenTab({ counts, upcomingClasses, isCourse }) {
   const { users } = useAuth();
 
-  const stats = [
+  let stats = [
     { label: 'Alumnos Inscritos',  value: counts.usuarios,  color: '#6366f1', bg: '#eef2ff', icon: <Users size={22} color="#6366f1" /> },
     { label: 'Profesores',      value: counts.profesores, color: '#0ea5e9', bg: '#e0f2fe', icon: <GraduationCap size={22} color="#0ea5e9" /> },
     { label: 'Módulos',         value: counts.modulos,    color: '#10b981', bg: '#d1fae5', icon: <BookOpen size={22} color="#10b981" /> },
@@ -162,6 +162,10 @@ function ResumenTab({ counts, upcomingClasses }) {
     { label: 'Clases',          value: counts.clases,     color: '#ef4444', bg: '#fee2e2', icon: <Video size={22} color="#ef4444" /> },
     { label: 'Recursos',        value: counts.recursos,   color: '#8b5cf6', bg: '#ede9fe', icon: <FileText size={22} color="#8b5cf6" /> },
   ];
+
+  if (isCourse) {
+    stats = stats.filter(s => s.label !== 'Módulos');
+  }
 
   return (
     <div>
@@ -182,9 +186,9 @@ function ResumenTab({ counts, upcomingClasses }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {[
               { label: 'Total Clases',   value: counts.clases,   total: counts.clases,   color: '#10b981' },
-              { label: 'Total Módulos',  value: counts.modulos,  total: counts.modulos,  color: '#6366f1' },
+              !isCourse && { label: 'Total Módulos',  value: counts.modulos,  total: counts.modulos,  color: '#6366f1' },
               { label: 'Total Recursos', value: counts.recursos, total: counts.recursos, color: '#f59e0b' },
-            ].map(item => (
+            ].filter(Boolean).map(item => (
               <div key={item.label}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.8rem' }}>
                   <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
@@ -1606,7 +1610,7 @@ export default function AdminPanel() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
+      case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
       case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} />;
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
@@ -1614,7 +1618,7 @@ export default function AdminPanel() {
       case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} onRefresh={refreshData} />;
       case 'anuncios':   return <AnunciosTab />;
-      default:           return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
+      default:           return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
     }
   };
 
