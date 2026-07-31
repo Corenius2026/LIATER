@@ -66,11 +66,6 @@ export default function Sidebar() {
               <HelpCircle size={20} />
               <span>Soporte Técnico</span>
             </NavLink>
-            
-            <NavLink to="/mock-course" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} style={{ marginTop: '1rem', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
-              <Video size={20} />
-              <span>Ver Diseño del Curso</span>
-            </NavLink>
 
           </>
         )}
