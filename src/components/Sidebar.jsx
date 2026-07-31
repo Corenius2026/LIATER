@@ -5,9 +5,12 @@
  */
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Home, BookOpen, Users, LogOut, Settings, LayoutDashboard, GraduationCap, UserCircle, HelpCircle, ListTree } from 'lucide-react';
+import {
+  Home, BookOpen, Users, LogOut, Settings, LayoutDashboard,
+  GraduationCap, UserCircle, HelpCircle, ListTree, ArrowLeft,
+  Video, FileText, Megaphone
+} from 'lucide-react';
 import liaterLogoWhite from '../assets/liater-logo-white.png';
-import unalLogoWhite from '../assets/unal-logo-white.png';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
@@ -46,7 +49,7 @@ export default function Sidebar() {
               className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}
             >
               <LayoutDashboard size={18} />
-              <span>{role === 'admin' ? 'Programas Creados' : 'Mis Cursos'}</span>
+              <span>{role === 'admin' ? 'Panorama General' : 'Mis Cursos'}</span>
             </NavLink>
 
             {role === 'admin' && (
@@ -76,7 +79,9 @@ export default function Sidebar() {
 
         {/* --- SEPARADOR VISUAL PARA MENÚ DE CURSO --- */}
         {!isGlobalRoute && (
-          <div className="sidebar-section-label">Menú del Curso</div>
+          <div className="sidebar-section-label">
+            {role === 'admin' ? 'Gestión del Programa' : 'Menú del Curso'}
+          </div>
         )}
 
         {/* MUESTRA LAS OPCIONES DEL CURSO SOLO SI NO ESTÁ EN EL PORTAL GLOBAL */}
@@ -117,13 +122,57 @@ export default function Sidebar() {
               </>
             )}
 
-            {/* --- ENLACES ADMINISTRADOR --- */}
+            {/* --- ENLACES ADMINISTRADOR (ENTORNO COMPLETO DE GESTIÓN) --- */}
             {role === 'admin' && (
               <>
-                <NavLink to={`/dashboard/admin/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
-                  <Home size={18} />
-                  <span>Inicio del Programa</span>
+                <NavLink to="/portal" className="nav-item" style={{ color: 'var(--gold)', marginBottom: '0.4rem', fontWeight: 700 }}>
+                  <ArrowLeft size={18} />
+                  <span>← Panorama General</span>
                 </NavLink>
+
+                <NavLink to={`/dashboard/admin/${activeProgramId}?tab=resumen`} className={({isActive}) => (isActive && (!location.search || location.search.includes('resumen'))) ? 'nav-item active' : 'nav-item'}>
+                  <LayoutDashboard size={18} />
+                  <span>Resumen</span>
+                </NavLink>
+
+                <NavLink to={`/dashboard/admin/${activeProgramId}?tab=alumnos`} className={({isActive}) => location.search.includes('alumnos') ? 'nav-item active' : 'nav-item'}>
+                  <Users size={18} />
+                  <span>Estudiantes</span>
+                </NavLink>
+
+                <NavLink to={`/dashboard/admin/${activeProgramId}?tab=profesores`} className={({isActive}) => location.search.includes('profesores') ? 'nav-item active' : 'nav-item'}>
+                  <GraduationCap size={18} />
+                  <span>Profesores</span>
+                </NavLink>
+
+                {activeProgramType !== 'curso' && (
+                  <NavLink to={`/dashboard/admin/${activeProgramId}?tab=modulos`} className={({isActive}) => location.search.includes('modulos') ? 'nav-item active' : 'nav-item'}>
+                    <BookOpen size={18} />
+                    <span>Módulos</span>
+                  </NavLink>
+                )}
+
+                <NavLink to={`/dashboard/admin/${activeProgramId}?tab=subtemas`} className={({isActive}) => location.search.includes('subtemas') ? 'nav-item active' : 'nav-item'}>
+                  <ListTree size={18} />
+                  <span>Subtemas</span>
+                </NavLink>
+
+                <NavLink to={`/dashboard/admin/${activeProgramId}?tab=clases`} className={({isActive}) => location.search.includes('clases') ? 'nav-item active' : 'nav-item'}>
+                  <Video size={18} />
+                  <span>Clases en Vivo</span>
+                </NavLink>
+
+                <NavLink to={`/dashboard/admin/${activeProgramId}?tab=recursos`} className={({isActive}) => location.search.includes('recursos') ? 'nav-item active' : 'nav-item'}>
+                  <FileText size={18} />
+                  <span>Recursos</span>
+                </NavLink>
+
+                <NavLink to={`/dashboard/admin/${activeProgramId}?tab=anuncios`} className={({isActive}) => location.search.includes('anuncios') ? 'nav-item active' : 'nav-item'}>
+                  <Megaphone size={18} />
+                  <span>Anuncios</span>
+                </NavLink>
+
+                <div className="sidebar-divider" />
                 <NavLink to={`/settings/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                   <Settings size={18} />
                   <span>Configurar Programa</span>
@@ -137,21 +186,9 @@ export default function Sidebar() {
 
       {/* --- SECCIÓN 3: Pie de la barra lateral --- */}
       <div className="sidebar-footer">
-
-        {/* Botón Volver (solo visible dentro de un curso) */}
-        {!isGlobalRoute && (
-          <button onClick={() => navigate('/portal')} className="nav-item" style={{ marginBottom: '0.25rem' }}>
-            <LayoutDashboard size={18} />
-            <span>Volver al Portal</span>
-          </button>
-        )}
-
-
-
-        {/* Botón para cerrar sesión */}
-        <button onClick={handleLogout} className="nav-item">
+        <button className="logout-btn" onClick={handleLogout}>
           <LogOut size={18} />
-          <span>Salir</span>
+          <span>Cerrar Sesión</span>
         </button>
       </div>
 
