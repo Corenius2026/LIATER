@@ -7,6 +7,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Home, BookOpen, Users, LogOut, Settings, LayoutDashboard, GraduationCap, UserCircle, HelpCircle, ListTree } from 'lucide-react';
 import liaterLogo from '../assets/liater-logo.png';
+import unalLogoWhite from '../assets/unal-logo-white.png';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
@@ -144,6 +145,24 @@ export default function Sidebar() {
             <span>Volver al Portal</span>
           </button>
         )}
+
+        {/* Institucional UNAL */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.65rem',
+          padding: '0.65rem 0.75rem', marginBottom: '0.35rem',
+          borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.06)'
+        }}>
+          <img src={unalLogoWhite} alt="UNAL" style={{ height: '26px', objectFit: 'contain', opacity: 0.85 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.85)', fontWeight: 600, lineHeight: 1.1 }}>
+              Univ. Nacional
+            </span>
+            <span style={{ fontSize: '0.60rem', color: 'rgba(255,255,255,0.40)', fontWeight: 500 }}>
+              de Colombia
+            </span>
+          </div>
+        </div>
 
         {/* Botón para cerrar sesión */}
         <button onClick={handleLogout} className="nav-item">

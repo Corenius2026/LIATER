@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import liaterLogo from '../assets/liater-logo.png';
+import unalLogoWhite from '../assets/unal-logo-white.png';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -142,8 +143,9 @@ export default function Login() {
         </div>
       </div>
 
-      <div style={{ marginTop: '1.5rem', zIndex: 1, textAlign: 'center' }}>
-        <span style={{ color: 'rgba(255,255,255,0.30)', fontSize: '0.70rem', fontWeight: 500, letterSpacing: '0.05em' }}>
+      <div style={{ marginTop: '1.75rem', zIndex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+        <img src={unalLogoWhite} alt="Universidad Nacional de Colombia" style={{ height: '32px', objectFit: 'contain', opacity: 0.7 }} />
+        <span style={{ color: 'rgba(255,255,255,0.40)', fontSize: '0.72rem', fontWeight: 500, letterSpacing: '0.04em' }}>
           © {new Date().getFullYear()} LIATER · Universidad Nacional de Colombia
         </span>
       </div>

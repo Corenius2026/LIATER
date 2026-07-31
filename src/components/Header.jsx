@@ -2,6 +2,8 @@ import { useAuth } from '../context/AuthContext';
 import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import unalLogo from '../assets/unal-logo.png';
+
 export default function Header() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -24,8 +26,10 @@ export default function Header() {
 
   return (
     <header className="app-header">
-      <div className="header-title">
-        Portal Educativo <span style={{ color: 'var(--gold-500)', fontWeight: 700 }}>LIATER</span>
+      <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+        <img src={unalLogo} alt="UNAL" style={{ height: '28px', objectFit: 'contain', opacity: 0.9 }} />
+        <div style={{ height: '18px', width: '1px', background: 'var(--border-color)' }} />
+        <span>Portal Educativo <strong style={{ color: 'var(--gold-600)', fontWeight: 700 }}>LIATER</strong></span>
       </div>
 
       {currentUser && (
