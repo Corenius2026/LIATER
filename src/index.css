@@ -268,9 +268,10 @@ input:focus, select:focus, textarea:focus {
   min-height: 100vh;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  padding: 2rem;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
   background: linear-gradient(135deg, var(--navy) 0%, #0e1929 60%, #1a2a4a 100%);
-  position: relative; overflow: hidden;
+  position: relative;
 }
 .public-layout::before {
   content: '';
