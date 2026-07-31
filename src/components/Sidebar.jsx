@@ -120,15 +120,11 @@ export default function Sidebar() {
               <>
                 <NavLink to={`/dashboard/admin/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
                   <Home size={20} />
-                  <span>Inicio del Curso</span>
-                </NavLink>
-                <NavLink to={`/classes/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-                  <Video size={20} />
-                  <span>Gestión de Clases</span>
+                  <span>Inicio del Programa</span>
                 </NavLink>
                 <NavLink to={`/settings/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                   <Settings size={20} />
-                  <span>Configuración</span>
+                  <span>Configurar Programa</span>
                 </NavLink>
               </>
             )}
