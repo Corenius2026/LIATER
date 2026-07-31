@@ -143,10 +143,13 @@ export default function Login() {
         </div>
       </div>
 
-      <div style={{ marginTop: '1.75rem', zIndex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-        <img src={unalLogoWhite} alt="Universidad Nacional de Colombia" style={{ height: '32px', objectFit: 'contain', opacity: 0.7 }} />
-        <span style={{ color: 'rgba(255,255,255,0.40)', fontSize: '0.72rem', fontWeight: 500, letterSpacing: '0.04em' }}>
-          © {new Date().getFullYear()} LIATER · Universidad Nacional de Colombia
+      <div style={{ marginTop: '2rem', zIndex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem' }}>
+        <img src={unalLogoWhite} alt="Universidad Nacional de Colombia" style={{ height: '52px', objectFit: 'contain', opacity: 0.95, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))' }} />
+        <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.04em' }}>
+          UNIVERSIDAD NACIONAL DE COLOMBIA
+        </span>
+        <span style={{ color: 'rgba(255,255,255,0.40)', fontSize: '0.70rem', fontWeight: 400 }}>
+          © {new Date().getFullYear()} Laboratorio LIATER
         </span>
       </div>
     </div>

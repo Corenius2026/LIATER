@@ -26,10 +26,17 @@ export default function Header() {
 
   return (
     <header className="app-header">
-      <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-        <img src={unalLogo} alt="UNAL" style={{ height: '28px', objectFit: 'contain', opacity: 0.9 }} />
-        <div style={{ height: '18px', width: '1px', background: 'var(--border-color)' }} />
-        <span>Portal Educativo <strong style={{ color: 'var(--gold-600)', fontWeight: 700 }}>LIATER</strong></span>
+      <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <img src={unalLogo} alt="Universidad Nacional de Colombia" style={{ height: '44px', objectFit: 'contain' }} />
+        <div style={{ height: '28px', width: '1.5px', background: 'var(--border-color)' }} />
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--navy)', lineHeight: 1.2 }}>
+            Portal Educativo <span style={{ color: 'var(--gold-600)' }}>LIATER</span>
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            Universidad Nacional de Colombia
+          </span>
+        </div>
       </div>
 
       {currentUser && (
