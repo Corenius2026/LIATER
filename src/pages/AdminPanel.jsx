@@ -350,7 +350,7 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
   return (
     <div>
       <div className="section-header-row">
-        <span className="section-title">Profesores del diplomado ({teachers.length})</span>
+        <span className="section-title">Directorio Global de Profesores ({teachers.length})</span>
         <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
           <Plus size={16} /> Agregar Profesor
         </button>

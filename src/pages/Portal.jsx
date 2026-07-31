@@ -135,7 +135,7 @@ function TeacherPortal({ getDiplomadoLink }) {
         if (profileData) {
           const { data: classData } = await supabase
             .from('class_sessions')
-            .select('*, diploma_programs(id, title, program_type)')
+            .select('*, diploma_programs(id, title, program_type, description), subtopics(modules(diploma_programs(id, title, program_type, description)))')
             .eq('teacher_id', profileData.id)
             .order('class_date', { ascending: true });
             
@@ -157,8 +157,9 @@ function TeacherPortal({ getDiplomadoLink }) {
       <div className="portal-main">
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Diplomados</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id))).filter(Boolean).map(programId => {
-            const program = classes.find(c => c.program_id === programId)?.diploma_programs;
+          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id || c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
+            const cls = classes.find(c => (c.program_id || c.subtopics?.modules?.diploma_programs?.id) === programId);
+            const program = cls?.diploma_programs || cls?.subtopics?.modules?.diploma_programs;
             if (!program || program.program_type === 'curso') return null;
             return (
               <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#e0e7ff', border: '1px solid #bfdbfe', padding: '1.25rem' }}>
@@ -175,8 +176,9 @@ function TeacherPortal({ getDiplomadoLink }) {
 
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Cursos Cortos</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id))).filter(Boolean).map(programId => {
-            const program = classes.find(c => c.program_id === programId)?.diploma_programs;
+          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id || c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
+            const cls = classes.find(c => (c.program_id || c.subtopics?.modules?.diploma_programs?.id) === programId);
+            const program = cls?.diploma_programs || cls?.subtopics?.modules?.diploma_programs;
             if (!program || program.program_type !== 'curso') return null;
             return (
               <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
@@ -210,7 +212,7 @@ function TeacherPortal({ getDiplomadoLink }) {
                   </div>
                   <div style={{ flex: '1 1 200px' }}>
                     <h4 style={{ margin: 0, color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>{cls.title}</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || 'Programa'} • {cls.duration || 0} min</p>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa'} • {cls.duration || 0} min</p>
                   </div>
                   <Link to={getDiplomadoLink()} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Ir al Panel</Link>
                 </div>
