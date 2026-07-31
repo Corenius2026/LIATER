@@ -55,18 +55,18 @@ function App() {
             <Route path="/perfil" element={<Profile />} />
             <Route path="/soporte" element={<Support />} />
             
-            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['student']}><Dashboard /></ProtectedRoute>} />
-            <Route path="/dashboard/profesor" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherPanel /></ProtectedRoute>} />
-            <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminPanel /></ProtectedRoute>} />
+            <Route path="/dashboard/:programId" element={<ProtectedRoute allowedRoles={['student']}><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/profesor/:programId" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherPanel /></ProtectedRoute>} />
+            <Route path="/dashboard/admin/:programId" element={<ProtectedRoute allowedRoles={['admin']}><AdminPanel /></ProtectedRoute>} />
             
-            <Route path="/modules" element={<ModulesList />} />
-            <Route path="/modules/:id" element={<ModuleDetail />} />
+            <Route path="/modules/:programId" element={<ModulesList />} />
+            <Route path="/module/:id" element={<ModuleDetail />} />
             <Route path="/class/:id" element={<ClassDetail />} />
-            <Route path="/teachers" element={<Teachers />} />
-            <Route path="/resources" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherResources /></ProtectedRoute>} />
-            <Route path="/classes" element={<ProtectedRoute allowedRoles={['teacher', 'admin']}><ClassesManagement /></ProtectedRoute>} />
+            <Route path="/teachers/:programId" element={<Teachers />} />
+            <Route path="/resources/:programId" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherResources /></ProtectedRoute>} />
+            <Route path="/classes/:programId" element={<ProtectedRoute allowedRoles={['teacher', 'admin']}><ClassesManagement /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+            <Route path="/settings/:programId" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
           </Route>
         </Routes>
       </Router>

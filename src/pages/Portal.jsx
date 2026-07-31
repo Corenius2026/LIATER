@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { PlayCircle, Clock, BookOpen, User, Users, Activity, BarChart3, TrendingUp, Calendar, CheckCircle, GraduationCap } from 'lucide-react';
+import { PlayCircle, Clock, BookOpen, User, Users, Activity, BarChart3, TrendingUp, Calendar, CheckCircle, GraduationCap, Plus, X } from 'lucide-react';
 import { formatClassDate, formatShortDate } from '../utils/dateUtils';
 
 /* ────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ function StudentPortal({ getDiplomadoLink }) {
                 </div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#1e3a8a', lineHeight: '1.3' }}>{dip.title}</h3>
                 <p style={{ color: '#3730a3', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
-                <Link to={getDiplomadoLink()} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
+                <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
               </div>
             ))
           )}
@@ -151,14 +151,19 @@ function TeacherPortal({ getDiplomadoLink }) {
       <div className="portal-main">
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Programas Asignados</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
-            <div style={{ marginBottom: '1rem' }}>
-              <span style={{ background: '#16a34a', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Docente</span>
-            </div>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#14532d', lineHeight: '1.3' }}>Diplomado: Sistemas Fotovoltaicos</h3>
-            <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso a gestión de material y clases.</p>
-            <Link to={getDiplomadoLink()} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Gestionar Clases</Link>
-          </div>
+          {classes.length > 0 && Array.from(new Set(classes.map(c => c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
+            const program = classes.find(c => c.subtopics?.modules?.diploma_programs?.id === programId).subtopics.modules.diploma_programs;
+            return (
+              <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
+                <div style={{ marginBottom: '1rem' }}>
+                  <span style={{ background: '#16a34a', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Docente</span>
+                </div>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#14532d', lineHeight: '1.3' }}>{program.title}</h3>
+                <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso a gestión de material y clases.</p>
+                <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Gestionar Clases</Link>
+              </div>
+            );
+          })}
         </div>
 
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>
@@ -216,6 +221,12 @@ function AdminPortal({ getDiplomadoLink }) {
   const [counts, setCounts] = useState({ students: 0, teachers: 0, programs: 0 });
   const [diplomas, setDiplomas] = useState([]);
   const [recentUsers, setRecentUsers] = useState([]);
+  
+  // Estados para el Modal de Crear Programa
+  const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [newProgram, setNewProgram] = useState({ title: '', description: '', program_type: 'diplomado' });
 
   useEffect(() => {
     async function fetchData() {
@@ -237,6 +248,50 @@ function AdminPortal({ getDiplomadoLink }) {
     }
     fetchData();
   }, []);
+
+  const handleCreateProgram = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      if (!newProgram.title) throw new Error("El título es obligatorio");
+
+      // Insertar el programa
+      const { data: progData, error: progError } = await supabase
+        .from('diploma_programs')
+        .insert([{ 
+          title: newProgram.title, 
+          description: newProgram.description, 
+          program_type: newProgram.program_type 
+        }])
+        .select()
+        .single();
+
+      if (progError) throw progError;
+
+      // Si es un curso, creamos un Módulo Invisible
+      if (newProgram.program_type === 'curso') {
+        const { error: modError } = await supabase
+          .from('modules')
+          .insert([{
+            diploma_id: progData.id,
+            title: 'Contenido del Curso',
+            description: 'Módulo interno para mantener la estructura de la base de datos.',
+            order_index: 0
+          }]);
+        if (modError) throw modError;
+      }
+
+      setDiplomas([progData, ...diplomas]);
+      setCounts(prev => ({ ...prev, programs: prev.programs + 1 }));
+      setShowModal(false);
+      setNewProgram({ title: '', description: '', program_type: 'diplomado' });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -277,18 +332,18 @@ function AdminPortal({ getDiplomadoLink }) {
                 <div style={{ marginBottom: '1rem' }}><span style={{ background: '#4f46e5', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Activo</span></div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#1e3a8a', lineHeight: '1.3' }}>{dip.title}</h3>
                 <p style={{ color: '#3730a3', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción.'}</p>
-                <Link to={getDiplomadoLink()} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
+                <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
               </div>
             ))}
 
-            <Link to={getDiplomadoLink()} style={{textDecoration: 'none'}}>
-              <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%' }}>
+            <div onClick={() => setShowModal(true)} style={{textDecoration: 'none'}}>
+              <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%', minHeight: '200px' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>+</span>
+                  <Plus size={24} color="#64748b" />
                 </div>
                 <span style={{ fontWeight: 600 }}>Crear Nuevo Programa</span>
               </div>
-            </Link>
+            </div>
             
           </div>
         </div>
@@ -315,6 +370,59 @@ function AdminPortal({ getDiplomadoLink }) {
 
         </div>
       </div>
+
+      {/* MODAL CREAR PROGRAMA */}
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
+            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Crear Nuevo Programa</h3>
+            
+            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+            
+            <form onSubmit={handleCreateProgram} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Tipo de Programa</label>
+                <select 
+                  value={newProgram.program_type} 
+                  onChange={e => setNewProgram({...newProgram, program_type: e.target.value})}
+                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}
+                >
+                  <option value="diplomado">Diplomado (Estructura con Módulos)</option>
+                  <option value="curso">Curso Corto (Solo Temas y Clases)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Programa</label>
+                <input 
+                  type="text" 
+                  value={newProgram.title} 
+                  onChange={e => setNewProgram({...newProgram, title: e.target.value})} 
+                  placeholder="Ej: Curso de Energía Solar"
+                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} 
+                  required 
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (Opcional)</label>
+                <textarea 
+                  value={newProgram.description} 
+                  onChange={e => setNewProgram({...newProgram, description: e.target.value})} 
+                  rows={3}
+                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} 
+                />
+              </div>
+              
+              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%', padding: '0.75rem' }}>
+                {submitting ? 'Creando...' : 'Crear Programa'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -327,10 +435,10 @@ export default function Portal() {
   const { currentUser } = useAuth();
   const role = currentUser?.role;
 
-  const getDiplomadoLink = () => {
-    if (role === 'admin') return '/dashboard/admin';
-    if (role === 'teacher') return '/dashboard/profesor';
-    return '/dashboard'; // Estudiante
+  const getDiplomadoLink = (programId) => {
+    if (role === 'admin') return `/dashboard/admin/${programId}`;
+    if (role === 'teacher') return `/dashboard/profesor/${programId}`;
+    return `/dashboard/${programId}`; // Estudiante
   };
 
   return (

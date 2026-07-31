@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import './AdminPanel.css';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../utils/dateUtils';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 /* ─────────────────────────────────────────
    HELPERS (sin cambios)
@@ -220,424 +221,6 @@ function ResumenTab({ counts, upcomingClasses }) {
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
-   TAB 2 — Usuarios (Supabase users_profile)
-───────────────────────────────────────── */
-function UsuariosTab() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  const [showModal, setShowModal] = useState(false);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editUser, setEditUser] = useState(null);
-  
-  const [fullName, setFullName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [role, setRole] = useState('student');
-  
-  const [showEnrollModal, setShowEnrollModal] = useState(false);
-  const [enrollStudent, setEnrollStudent] = useState(null);
-  const [diplomas, setDiplomas] = useState([]);
-  const [studentEnrollments, setStudentEnrollments] = useState([]);
-  const [enrollSubmitting, setEnrollSubmitting] = useState(false);
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const { data, error: fetchErr } = await supabase
-        .from('users_profile')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (fetchErr) throw fetchErr;
-      setUsers(data || []);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const handleCreateSubmit = async (e) => {
-    e.preventDefault();
-    setError(''); setSuccess('');
-
-    if (!name || !email || !role || !password) {
-      setError('Por favor completa todos los campos, incluyendo la contraseña.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      // PASO 1: Crear cuenta en Supabase Auth usando el cliente secundario
-      // Esto evita que Supabase cierre la sesión actual del administrador.
-      const { data: authData, error: authError } = await supabaseCreator.auth.signUp({
-        email: email,
-        password: password,
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('No se pudo crear la cuenta de acceso.');
-
-      // PASO 2: Crear el perfil en users_profile vinculado al auth_user_id.
-      const { data: newUserProfile, error: insertError } = await supabase
-        .from('users_profile')
-        .insert([{
-          auth_user_id: authData.user.id,
-          full_name: name,
-          email: email,
-          role: role,
-          is_active: true
-        }])
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      // PASO 2.5: Si es profesor, crear su perfil público de profesor
-      if (role === 'teacher' && newUserProfile) {
-        const { error: teacherInsertError } = await supabase
-          .from('teacher_profiles')
-          .insert([{
-            user_id: newUserProfile.id,
-            name: name
-          }]);
-        
-        if (teacherInsertError) {
-          console.error('Error al crear perfil de profesor:', teacherInsertError);
-          // Opcional: mostrar advertencia o manejarlo de otra forma
-        }
-      }
-
-      // Ya no enviamos correo de recuperación. El admin le entregará la contraseña al usuario.
-      setSuccess(`Usuario creado. El usuario ya puede iniciar sesión con el correo ${email} y la contraseña que le asignaste.`);
-      fetchUsers();
-
-      setTimeout(() => {
-        setShowModal(false);
-        setSuccess('');
-        setName(''); setEmail(''); setPassword(''); setRole('student');
-      }, 2500);
-    } catch (err) {
-      console.error('Error completo:', err);
-      let errorMsg = err.message || err.error_description;
-      if (!errorMsg) {
-        try {
-          errorMsg = JSON.stringify(err, Object.getOwnPropertyNames(err));
-        } catch (e) {
-          errorMsg = String(err);
-        }
-      }
-      setError('Error al registrar usuario: ' + errorMsg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-
-  const openEditModal = (user) => {
-    setEditUser(user);
-    setFullName(user.full_name || '');
-    setEditEmail(user.email || '');
-    setRole(user.role || 'student');
-    setShowEditModal(true);
-    setError('');
-    setSuccess('');
-  };
-
-  const openEnrollModal = async (user) => {
-    setEnrollStudent(user);
-    setShowEnrollModal(true);
-    setError(''); setSuccess('');
-    
-    // Fetch all diplomas
-    const { data: dData } = await supabase.from('diploma_programs').select('id, title');
-    setDiplomas(dData || []);
-    
-    // Fetch student's enrollments
-    const { data: eData } = await supabase.from('enrollments').select('diploma_id').eq('student_id', user.id);
-    setStudentEnrollments(eData ? eData.map(e => e.diploma_id) : []);
-  };
-
-  const handleToggleEnrollment = async (diplomaId) => {
-    const isEnrolled = studentEnrollments.includes(diplomaId);
-    setEnrollSubmitting(true);
-    try {
-      if (isEnrolled) {
-        await supabase.from('enrollments').delete().eq('student_id', enrollStudent.id).eq('diploma_id', diplomaId);
-        setStudentEnrollments(prev => prev.filter(id => id !== diplomaId));
-      } else {
-        await supabase.from('enrollments').insert([{ student_id: enrollStudent.id, diploma_id: diplomaId }]);
-        setStudentEnrollments(prev => [...prev, diplomaId]);
-      }
-    } catch (err) {
-      setError('Error al actualizar inscripción: ' + err.message);
-    } finally {
-      setEnrollSubmitting(false);
-    }
-  };
-
-  const handleToggleStatus = async (user) => {
-    const isCurrentlyActive = user.is_active !== false; // Asume activo si es null/undefined
-    const actionText = isCurrentlyActive ? 'desactivar' : 'reactivar';
-    
-    if (!window.confirm(`¿Estás seguro de que deseas ${actionText} este usuario?`)) return;
-    
-    setLoading(true);
-    try {
-      const { error: updateError } = await supabase
-        .from('users_profile')
-        .update({ is_active: !isCurrentlyActive })
-        .eq('id', user.id);
-        
-      if (updateError) throw updateError;
-      
-      setSuccess(`Usuario ${isCurrentlyActive ? 'desactivado' : 'reactivado'} con éxito.`);
-      fetchUsers();
-    } catch (err) {
-      setError(`Error al ${actionText} usuario: ` + err.message);
-      setLoading(false);
-    }
-  };
-
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    
-    if (!fullName || !role) { 
-      setError('El nombre y el rol son obligatorios.'); 
-      return; 
-    }
-
-    if (!['student', 'teacher', 'admin'].includes(role)) {
-      setError('El rol seleccionado no es válido.');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const { error: updateError } = await supabase
-        .from('users_profile')
-        .update({ full_name: fullName, role })
-        .eq('id', editUser.id);
-      
-      if (updateError) throw updateError;
-      
-      setSuccess('Usuario actualizado con éxito.');
-      fetchUsers();
-      
-      setTimeout(() => { 
-        setShowEditModal(false); 
-        setSuccess(''); 
-      }, 1500);
-    } catch (err) {
-      setError('Error al actualizar: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div>
-      <div className="section-header-row">
-        <span className="section-title">Usuarios registrados ({users.length})</span>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Usuario
-        </button>
-      </div>
-
-      {showModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
-            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
-              <X size={20} />
-            </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Registrar Nuevo Usuario</h3>
-            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
-            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
-            <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Juan Pérez" required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="juan@ejemplo.com" required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Contraseña Inicial</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Mínimo 6 caracteres" required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
-                <select value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                  <option value="student">Estudiante</option>
-                  <option value="teacher">Profesor</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
-              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
-                {submitting ? 'Guardando...' : 'Registrar Usuario'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showEditModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '100%', maxWidth: '450px', background: 'white', padding: '2rem', position: 'relative' }}>
-            <button onClick={() => setShowEditModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
-              <X size={20} />
-            </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Editar Usuario</h3>
-            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
-            {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
-            <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
-                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico (Solo lectura)</label>
-                <input type="email" value={editEmail} disabled style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#f3f4f6', color: '#9ca3af' }} />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>El correo está enlazado a la cuenta y no puede editarse aquí de forma segura.</span>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
-                <select value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                  <option value="student">Estudiante</option>
-                  <option value="teacher">Profesor</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
-              <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
-                {submitting ? 'Guardando...' : 'Guardar Cambios'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showEnrollModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '100%', maxWidth: '500px', background: 'white', padding: '2rem', position: 'relative' }}>
-            <button onClick={() => setShowEnrollModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
-              <X size={20} />
-            </button>
-            <h3 style={{ marginBottom: '0.5rem', fontWeight: 700 }}>Gestionar Inscripciones</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Estudiante: <strong>{enrollStudent?.full_name}</strong></p>
-            {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '300px', overflowY: 'auto' }}>
-              {diplomas.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No hay diplomados disponibles.</p>
-              ) : (
-                diplomas.map(dip => {
-                  const isEnrolled = studentEnrollments.includes(dip.id);
-                  return (
-                    <div key={dip.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-                      <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{dip.title}</span>
-                      <button 
-                        onClick={() => handleToggleEnrollment(dip.id)} 
-                        disabled={enrollSubmitting}
-                        className="btn" 
-                        style={{ 
-                          padding: '0.4rem 0.8rem', 
-                          fontSize: '0.75rem', 
-                          backgroundColor: isEnrolled ? '#fee2e2' : '#dcfce7', 
-                          color: isEnrolled ? '#991b1b' : '#166534',
-                          border: 'none',
-                          minWidth: '90px'
-                        }}
-                      >
-                        {isEnrolled ? 'Desinscribir' : 'Inscribir'}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            
-          </div>
-        </div>
-      )}
-
-      <div className="admin-table-wrapper">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Usuario</th><th>Rol</th><th>Estado</th><th>Fecha de Ingreso</th><th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? <LoadingRow cols={4} /> : 
-             users.length === 0 ? <EmptyRow cols={4} message="No hay usuarios registrados." /> :
-             users.map(user => (
-              <tr key={user.id}>
-                <td>
-                  <div className="user-cell">
-                    <Initials name={user.full_name || 'Desconocido'} />
-                    <div>
-                      <div className="user-name">{user.full_name}</div>
-                      <div className="user-email">{user.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td><RoleBadge role={user.role} /></td>
-                <td>
-                  <span style={{ 
-                    padding: '4px 8px', 
-                    borderRadius: '12px', 
-                    fontSize: '0.75rem', 
-                    fontWeight: 'bold', 
-                    backgroundColor: user.is_active !== false ? '#dcfce7' : '#fee2e2', 
-                    color: user.is_active !== false ? '#166534' : '#991b1b' 
-                  }}>
-                    {user.is_active !== false ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : '—'}</td>
-                <td>
-                  <div className="action-btns">
-                    {user.role === 'student' && (
-                      <button className="btn-icon" style={{color: '#4f46e5'}} title="Gestionar Inscripciones" onClick={() => openEnrollModal(user)}>
-                        <BookOpen size={15} />
-                      </button>
-                    )}
-                    <button className="btn-icon edit" title="Editar Usuario" onClick={() => openEditModal(user)}><Pencil size={15} /></button>
-                    <button className="btn-icon del" title={user.is_active !== false ? 'Desactivar Usuario' : 'Reactivar Usuario'} onClick={() => handleToggleStatus(user)}>
-                      {user.is_active !== false ? <Trash2 size={15} /> : <CheckCircle size={15} />}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );
@@ -1053,7 +636,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
 /* ─────────────────────────────────────────
    TAB 5 — Subtemas (Supabase)
 ───────────────────────────────────────── */
-function SubtemasTab({ subtopics, loading, onRefresh }) {
+function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse }) {
   const [showModal, setShowModal] = useState(false);
   const [editSubtopicId, setEditSubtopicId] = useState(null);
   
@@ -1061,8 +644,6 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
   const [description, setDescription] = useState('');
   const [orderIndex, setOrderIndex] = useState(1);
   const [moduleId, setModuleId] = useState('');
-  
-  const [modules, setModules] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1085,13 +666,10 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
   };
 
   useEffect(() => {
-    if (showModal && modules.length === 0) {
-      supabase.from('modules').select('id, title').then(({ data }) => {
-        setModules(data || []);
-        if (data && data.length > 0 && !editSubtopicId) setModuleId(data[0].id);
-      });
+    if (showModal && modulesProp.length > 0 && !editSubtopicId) {
+      setModuleId(modulesProp[0].id);
     }
-  }, [showModal, modules.length, editSubtopicId]);
+  }, [showModal, modulesProp, editSubtopicId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1192,14 +770,16 @@ function SubtemasTab({ subtopics, loading, onRefresh }) {
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Subtema</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Introducción a HTML" required />
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Módulo Asociado</label>
-                <select value={moduleId} onChange={e => setModuleId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  {modules.length === 0 ? <option value="">Cargando módulos...</option> : modules.map(m => (
-                    <option key={m.id} value={m.id}>{m.title}</option>
-                  ))}
-                </select>
-              </div>
+              {!isCourse && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Módulo Asociado</label>
+                  <select value={moduleId} onChange={e => setModuleId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                    {modulesProp.length === 0 ? <option value="">Cargando módulos...</option> : modulesProp.map(m => (
+                      <option key={m.id} value={m.id}>{m.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden (Número)</label>
                 <input type="number" value={orderIndex} onChange={e => setOrderIndex(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="1" required />
@@ -1930,6 +1510,7 @@ export default function AdminPanel() {
   const { currentUser } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { programId } = useParams();
   
   const queryParams = new URLSearchParams(location.search);
   const tabFromUrl = queryParams.get('tab');
@@ -1948,11 +1529,12 @@ export default function AdminPanel() {
   // Actualizar la URL cuando cambia la pestaña
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
-    navigate(`/dashboard/admin?tab=${tabId}`, { replace: true });
+    navigate(`/dashboard/admin/${programId}?tab=${tabId}`, { replace: true });
   };
 
   // Estado centralizado de datos
   const [data, setData] = useState({
+    program: null,
     teachers: [], modules: [], subtopics: [], classes: [], resources: [],
     upcomingClasses: [], enrolledStudents: [],
     counts: { usuarios: 0, profesores: 0, modulos: 0, subtemas: 0, clases: 0, recursos: 0 }
@@ -1965,20 +1547,23 @@ export default function AdminPanel() {
     if (role !== 'admin') return;
 
     async function fetchAll() {
+      if (!programId) return;
       try {
-        const [teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes, enrolledRes] = await Promise.all([
+        const [programRes, teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes, enrolledRes] = await Promise.all([
+          supabase.from('diploma_programs').select('*').eq('id', programId).single(),
           supabase.from('teacher_profiles').select('*'),
-          supabase.from('modules').select('*').order('order_index', { ascending: true }),
-          supabase.from('subtopics').select('*').order('order_index', { ascending: true }),
-          supabase.from('class_sessions').select('*, teacher_profiles(name)').order('class_date', { ascending: true }),
+          supabase.from('modules').select('*').eq('diploma_id', programId).order('order_index', { ascending: true }),
+          supabase.from('subtopics').select('*, modules!inner(diploma_id)').eq('modules.diploma_id', programId).order('order_index', { ascending: true }),
+          supabase.from('class_sessions').select('*, teacher_profiles(name), subtopics!inner(modules!inner(diploma_id))').eq('subtopics.modules.diploma_id', programId).order('class_date', { ascending: true }),
           supabase.from('resources').select('*'),
-          supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)')
+          supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)').eq('diploma_id', programId)
         ]);
 
         const now = new Date().toISOString();
         const upcoming = (classesRes.data || []).filter(c => c.class_date && c.class_date > now).slice(0, 4);
 
         setData({
+          program: programRes.data,
           teachers: teachersRes.data || [],
           modules: modulesRes.data || [],
           subtopics: subtopicsRes.data || [],
@@ -2016,13 +1601,16 @@ export default function AdminPanel() {
     );
   }
 
+  const isCourse = data.program?.program_type === 'curso';
+  const filteredTabs = isCourse ? TABS.filter(t => t.id !== 'modulos') : TABS;
+
   const renderTab = () => {
     switch (activeTab) {
       case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} />;
       case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} />;
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
-      case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} />;
+      case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} modulesProp={data.modules} isCourse={isCourse} />;
       case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} onRefresh={refreshData} />;
       case 'anuncios':   return <AnunciosTab />;
@@ -2033,12 +1621,12 @@ export default function AdminPanel() {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <h1 className="page-title">Panel de Administración</h1>
-        <p className="page-description">Gestiona todos los recursos y contenidos del diplomado desde un solo lugar.</p>
+        <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
+        <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
       </div>
 
       <div className="admin-tabs">
-        {TABS.map(tab => (
+        {filteredTabs.map(tab => (
           <button
             key={tab.id}
             id={`admin-tab-${tab.id}`}

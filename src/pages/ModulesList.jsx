@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 export default function ModulesList() {
+  const { programId } = useParams();
   const [modulesList, setModulesList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchModules() {
+      if (!programId) return;
       try {
         const { data, error } = await supabase
           .from('modules')
           .select('*')
+          .eq('diploma_id', programId)
           .order('order_index', { ascending: true });
         
         if (error) throw error;

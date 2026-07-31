@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { formatClassDate } from '../utils/dateUtils';
+import { useParams } from 'react-router-dom';
 import {
   BookOpen, Video, FileText, Megaphone, Presentation,
   Play, Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
@@ -52,8 +53,17 @@ function ResumenTab({ onChangeTab }) {
     async function fetchStats() {
       if (!profile?.id) return;
       try {
-        const pClasses = supabase.from('class_sessions').select('class_date', { count: 'exact' }).eq('teacher_id', profile.id);
-        const pAnnouncements = supabase.from('announcements').select('*', { count: 'exact', head: true }).eq('teacher_id', profile.id);
+        const { programId } = useTeacherContext();
+        // Filtrar clases por programa
+        const pClasses = supabase.from('class_sessions')
+          .select('class_date, subtopics!inner(modules!inner(diploma_id))')
+          .eq('teacher_id', profile.id)
+          .eq('subtopics.modules.diploma_id', programId);
+          
+        const pAnnouncements = supabase.from('announcements')
+          .select('*', { count: 'exact', head: true })
+          .eq('teacher_id', profile.id)
+          .eq('diploma_id', programId); // assuming announcements have diploma_id or we filter it
         
         const [resClasses, resAnn] = await Promise.all([pClasses, pAnnouncements]);
         
@@ -412,7 +422,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
    TAB 3 — Mis Clases
 ───────────────────────────────────────── */
 function ClasesTab() {
-  const { id: teacherId } = useTeacherContext();
+  const { id: teacherId, programId } = useTeacherContext();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -420,14 +430,15 @@ function ClasesTab() {
   const [selectedClass, setSelectedClass] = useState(null);
 
   useEffect(() => {
-    if (!teacherId) return;
+    if (!teacherId || !programId) return;
     async function fetchMyClasses() {
       try {
         setLoading(true);
         const { data, error: fetchError } = await supabase
           .from('class_sessions')
-          .select('*, subtopics(title, module_id, modules(title))')
+          .select('*, subtopics!inner(title, module_id, modules!inner(title, diploma_id))')
           .eq('teacher_id', teacherId)
+          .eq('subtopics.modules.diploma_id', programId)
           .order('class_date', { ascending: true });
 
         if (fetchError) throw fetchError;
@@ -509,19 +520,20 @@ function ClasesTab() {
    TAB 4 — Materiales de Apoyo (Global)
 ───────────────────────────────────────── */
 function SupportMaterialsTab() {
-  const { id: teacherId } = useTeacherContext();
+  const { id: teacherId, programId } = useTeacherContext();
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!teacherId) return;
+    if (!teacherId || !programId) return;
     async function fetchMaterials() {
       try {
         setLoading(true);
         const { data } = await supabase
           .from('resources')
-          .select('*, class_sessions!inner(title, teacher_id)')
+          .select('*, class_sessions!inner(title, teacher_id, subtopics!inner(modules!inner(diploma_id)))')
           .eq('class_sessions.teacher_id', teacherId)
+          .eq('class_sessions.subtopics.modules.diploma_id', programId)
           .in('resource_type', ['presentation', 'pdf', 'link', 'file'])
           .order('created_at', { ascending: false });
         
@@ -580,19 +592,20 @@ function SupportMaterialsTab() {
    TAB 5 — Grabaciones Disponibles
 ───────────────────────────────────────── */
 function RecordingsTab() {
-  const { id: teacherId } = useTeacherContext();
+  const { id: teacherId, programId } = useTeacherContext();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!teacherId) return;
+    if (!teacherId || !programId) return;
     async function fetchRecordings() {
       try {
         setLoading(true);
         const { data } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date, duration, video_url')
+          .select('id, title, class_date, duration, video_url, subtopics!inner(modules!inner(diploma_id))')
           .eq('teacher_id', teacherId)
+          .eq('subtopics.modules.diploma_id', programId)
           .not('video_url', 'is', null)
           .order('class_date', { ascending: false });
         
@@ -604,7 +617,7 @@ function RecordingsTab() {
       }
     }
     fetchRecordings();
-  }, [teacherId]);
+  }, [teacherId, programId]);
 
   return (
     <div>
@@ -652,7 +665,7 @@ function RecordingsTab() {
    MODAL DE ANUNCIOS
 ───────────────────────────────────────── */
 function AnnouncementModal({ announcement, onClose, onRefresh }) {
-  const { id: teacherId } = useTeacherContext();
+  const { id: teacherId, programId } = useTeacherContext();
   const [title, setTitle] = useState(announcement?.title || '');
   const [body, setBody] = useState(announcement?.body || '');
   const [tag, setTag] = useState(announcement?.tag || 'general');
@@ -671,6 +684,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
 
     const payload = {
       teacher_id: teacherId,
+      diploma_id: programId,
       title: title.trim(),
       body: body.trim(),
       tag
@@ -749,20 +763,21 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
    TAB 7 — Anuncios
 ───────────────────────────────────────── */
 function AnunciosTab() {
-  const { id: teacherId } = useTeacherContext();
+  const { id: teacherId, programId } = useTeacherContext();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
 
   const fetchAnnouncements = async () => {
-    if (!teacherId) return;
+    if (!teacherId || !programId) return;
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('announcements')
         .select('*')
         .eq('teacher_id', teacherId)
+        .eq('diploma_id', programId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -989,6 +1004,7 @@ const TABS = [
 
 export default function TeacherPanel() {
   const { currentUser } = useAuth();
+  const { programId } = useParams();
   const [activeTab, setActiveTab] = useState('resumen');
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -1041,11 +1057,11 @@ export default function TeacherPanel() {
   const ActiveComponent = TABS.find(t => t.id === activeTab)?.component ?? ResumenTab;
 
   return (
-    <TeacherContext.Provider value={{ id: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile }}>
+    <TeacherContext.Provider value={{ id: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId }}>
       <div>
         <div className="page-header" style={{ marginBottom: '1.5rem' }}>
           <h1 className="page-title">Mi Panel de Profesor</h1>
-          <p className="page-description">Gestiona tus módulos, clases, recursos y anuncios del diplomado.</p>
+          <p className="page-description">Gestiona tus clases, recursos y anuncios de este programa.</p>
         </div>
 
         <div className="teacher-tabs">

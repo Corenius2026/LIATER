@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { PlayCircle, BookOpen, Calendar, Video, Clock, User, Megaphone } from 'lucide-react';
 
 export default function Dashboard() {
+  const { programId } = useParams();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState({
     diplomaTitle: 'Diplomado',
@@ -18,53 +19,53 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function fetchDashboardData() {
+      if (!programId) return;
       try {
-        // 1. Obtener Diplomado activo (tomamos el primero)
+        // 1. Obtener Diplomado activo
         const { data: diplomaData } = await supabase
           .from('diploma_programs')
-          .select('title')
-          .limit(1)
+          .select('title, program_type')
+          .eq('id', programId)
           .maybeSingle();
 
         // 2. Obtener conteo de módulos y el ID del primer módulo
         const { data: modulesData } = await supabase
           .from('modules')
           .select('id')
+          .eq('diploma_id', programId)
           .order('order_index', { ascending: true });
 
-        // 3. Obtener conteo total de clases
-        const { count: classesCount } = await supabase
-          .from('class_sessions')
-          .select('*', { count: 'exact', head: true });
-
-        // 4. Obtener próximas clases (fecha > ahora)
+        // 3. Obtener próximas clases (fecha > ahora)
         const now = new Date().toISOString();
         const { data: upcomingData } = await supabase
           .from('class_sessions')
-          .select('id, title, date, duration')
-          .gte('date', now)
-          .order('date', { ascending: true })
+          .select('id, title, class_date, duration, subtopics!inner(modules!inner(diploma_id))')
+          .eq('subtopics.modules.diploma_id', programId)
+          .gte('class_date', now)
+          .order('class_date', { ascending: true })
           .limit(3);
 
-        // 5. Obtener últimas grabaciones (tienen video_url, fecha < ahora)
+        // 4. Obtener últimas grabaciones
         const { data: recordingsData } = await supabase
           .from('class_sessions')
-          .select('id, title, date')
+          .select('id, title, class_date, subtopics!inner(modules!inner(diploma_id))')
+          .eq('subtopics.modules.diploma_id', programId)
           .not('video_url', 'is', null)
-          .order('date', { ascending: false })
+          .order('class_date', { ascending: false })
           .limit(3);
 
-        // 6. Obtener anuncios
+        // 5. Obtener anuncios
         const { data: announcementsData } = await supabase
           .from('announcements')
           .select('*, teacher_profiles(name)')
+          .eq('diploma_id', programId)
           .order('created_at', { ascending: false })
           .limit(5);
 
         setDashboardData({
-          diplomaTitle: diplomaData?.title || 'Diplomado en Formación',
+          diplomaTitle: diplomaData?.title || 'Programa en Formación',
+          programType: diplomaData?.program_type || 'diplomado',
           modulesCount: modulesData?.length || 0,
-          classesCount: classesCount || 0,
           upcomingClasses: upcomingData || [],
           latestRecordings: recordingsData || [],
           firstModuleId: modulesData?.[0]?.id || null,
@@ -89,7 +90,8 @@ export default function Dashboard() {
     );
   }
 
-  const { diplomaTitle, modulesCount, classesCount, upcomingClasses, latestRecordings, firstModuleId, announcements } = dashboardData;
+  const { diplomaTitle, programType, modulesCount, upcomingClasses, latestRecordings, firstModuleId, announcements } = dashboardData;
+  const isCourse = programType === 'curso';
 
   return (
     <div>
@@ -112,11 +114,11 @@ export default function Dashboard() {
           </p>
           <div style={{ marginTop: 'auto' }}>
             {firstModuleId ? (
-              <Link to={`/modules/${firstModuleId}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
-                <PlayCircle size={20} /> Ir al primer módulo
+              <Link to={`/module/${firstModuleId}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
+                <PlayCircle size={20} /> {isCourse ? 'Ir al contenido' : 'Ir al primer módulo'}
               </Link>
             ) : (
-              <Link to="/modules" className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
+              <Link to={`/modules/${programId}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
                 <BookOpen size={20} /> Ver Temario
               </Link>
             )}
@@ -129,12 +131,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', gap: '2rem' }}>
             <div>
               <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary-color)', lineHeight: 1 }}>{modulesCount}</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Módulos</p>
-            </div>
-            <div style={{ width: '1px', backgroundColor: 'var(--border-color)' }}></div>
-            <div>
-              <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary-color)', lineHeight: 1 }}>{classesCount}</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Clases Totales</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{isCourse ? 'Bloques de Contenido' : 'Módulos'}</p>
             </div>
           </div>
         </div>

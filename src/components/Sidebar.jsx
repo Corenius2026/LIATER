@@ -12,6 +12,8 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const role = currentUser?.role;
+  const activeProgramId = localStorage.getItem('activeProgramId') || '';
+  const activeProgramType = localStorage.getItem('activeProgramType') || 'diplomado';
 
   // Lista de rutas donde NO se debe mostrar el menú específico del curso
   const globalRoutes = ['/portal', '/perfil', '/soporte', '/users'];
@@ -81,15 +83,17 @@ export default function Sidebar() {
             {/* --- ENLACES ESTUDIANTE --- */}
             {role === 'student' && (
               <>
-                <NavLink to="/dashboard" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
+                <NavLink to={`/dashboard/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
                   <Home size={20} />
-                  <span>Inicio del Curso</span>
+                  <span>Inicio {activeProgramType === 'curso' ? 'del Curso' : 'del Diplomado'}</span>
                 </NavLink>
-                <NavLink to="/modules" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
-                  <BookOpen size={20} />
-                  <span>Módulos</span>
-                </NavLink>
-                <NavLink to="/teachers" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+                {activeProgramType !== 'curso' && (
+                  <NavLink to={`/modules/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+                    <BookOpen size={20} />
+                    <span>Módulos</span>
+                  </NavLink>
+                )}
+                <NavLink to={`/teachers/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                   <Users size={20} />
                   <span>Profesores</span>
                 </NavLink>
@@ -99,7 +103,7 @@ export default function Sidebar() {
             {/* --- ENLACES PROFESOR --- */}
             {role === 'teacher' && (
               <>
-                <NavLink to="/dashboard/profesor" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+                <NavLink to={`/dashboard/profesor/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                   <GraduationCap size={20} />
                   <span>Mi Panel</span>
                 </NavLink>
@@ -109,15 +113,15 @@ export default function Sidebar() {
             {/* --- ENLACES ADMINISTRADOR --- */}
             {role === 'admin' && (
               <>
-                <NavLink to="/dashboard/admin" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
+                <NavLink to={`/dashboard/admin/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} end>
                   <Home size={20} />
                   <span>Inicio del Curso</span>
                 </NavLink>
-                <NavLink to="/classes" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+                <NavLink to={`/classes/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                   <Video size={20} />
                   <span>Gestión de Clases</span>
                 </NavLink>
-                <NavLink to="/settings" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+                <NavLink to={`/settings/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                   <Settings size={20} />
                   <span>Configuración</span>
                 </NavLink>
