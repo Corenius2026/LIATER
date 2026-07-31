@@ -376,16 +376,6 @@ function AdminPortal({ getDiplomadoLink }) {
               </div>
             ))}
 
-            {/* CURSO SIMULADO FAKE PARA ADMIN */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', background: '#fdf4ff', border: '1px dashed #f0abfc', padding: '1.25rem' }}>
-              <div style={{ marginBottom: '1rem' }}>
-                <span style={{ background: '#c026d3', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Simulado (Mock)</span>
-              </div>
-              <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#701a75', lineHeight: '1.3' }}>Curso de Sistemas Fotovoltaicos</h3>
-              <p style={{ color: '#86198f', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Explora un diseño 100% interactivo y visual del nuevo reproductor de cursos sin afectar la base de datos.</p>
-              <Link to="/mock-course" className="btn" style={{ background: '#c026d3', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Probar Entorno Front-End</Link>
-            </div>
-
             <div onClick={() => { setNewProgram({...newProgram, program_type: 'curso'}); setShowModal(true); }} style={{textDecoration: 'none'}}>
               <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%', minHeight: '200px' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
