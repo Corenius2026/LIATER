@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { PlayCircle, Clock, BookOpen, User, Users, Activity, BarChart3, TrendingUp, Calendar, CheckCircle, GraduationCap, Plus, X } from 'lucide-react';
+import { PlayCircle, Clock, BookOpen, User, Users, Activity, BarChart3, TrendingUp, Calendar, CheckCircle, GraduationCap, Plus, X, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 import { formatClassDate, formatShortDate } from '../utils/dateUtils';
+import { uploadProgramCover } from '../services/programService';
 
 /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
    SUB-COMPONENTE: Portal de Estudiante
@@ -270,6 +271,10 @@ function AdminPortal({ getDiplomadoLink }) {
   const [error, setError] = useState('');
   const [newProgram, setNewProgram] = useState({ title: '', description: '', program_type: 'diplomado' });
 
+  // Estados para imagen de portada
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
+
   useEffect(() => {
     async function fetchData() {
       // Counts
@@ -298,7 +303,9 @@ function AdminPortal({ getDiplomadoLink }) {
     try {
       if (!newProgram.title) throw new Error("El título es obligatorio");
 
-      // Insertar el programa
+      let imageUrl = null;
+
+      // 1. Insertar el programa básico primero para obtener su ID
       const { data: progData, error: progError } = await supabase
         .from('diploma_programs')
         .insert([{ 
@@ -311,7 +318,22 @@ function AdminPortal({ getDiplomadoLink }) {
 
       if (progError) throw progError;
 
-      // Si es un curso, creamos un Módulo Invisible
+      // 2. Subir imagen de portada si se seleccionó un archivo
+      if (coverFile && progData?.id) {
+        const { publicUrl, error: uploadErr } = await uploadProgramCover(coverFile, progData.id);
+        if (uploadErr) {
+          console.error("Advertencia al subir portada:", uploadErr);
+        } else if (publicUrl) {
+          imageUrl = publicUrl;
+          await supabase
+            .from('diploma_programs')
+            .update({ image_url: publicUrl })
+            .eq('id', progData.id);
+          progData.image_url = publicUrl;
+        }
+      }
+
+      // 3. Si es un curso, creamos un Módulo Invisible
       if (newProgram.program_type === 'curso') {
         const { error: modError } = await supabase
           .from('modules')
@@ -328,6 +350,8 @@ function AdminPortal({ getDiplomadoLink }) {
       setCounts(prev => ({ ...prev, programs: prev.programs + 1 }));
       setShowModal(false);
       setNewProgram({ title: '', description: '', program_type: 'diplomado' });
+      setCoverFile(null);
+      setCoverPreview(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -556,9 +580,63 @@ function AdminPortal({ getDiplomadoLink }) {
                   style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} 
                 />
               </div>
+
+              {/* CAMPO DE IMAGEN DE PORTADA */}
+              <div>
+                <label htmlFor="create-program-cover-input" style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>
+                  Imagen de Portada (Opcional)
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {coverPreview ? (
+                    <div style={{ position: 'relative', width: '100%', height: '120px', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                      <img src={coverPreview} alt="Vista previa de la portada del programa" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => { setCoverFile(null); setCoverPreview(null); }}
+                        style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(220, 38, 38, 0.9)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        aria-label="Eliminar imagen seleccionada"
+                        title="Eliminar imagen"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label 
+                      htmlFor="create-program-cover-input" 
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById('create-program-cover-input')?.click(); } }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem', border: '1.5px dashed var(--border-color)', borderRadius: '4px', cursor: 'pointer', background: '#f8fafc', color: 'var(--text-muted)', fontSize: '0.84rem' }}
+                    >
+                      <Upload size={16} />
+                      <span>Cargar portada (JPG, PNG, WebP máx 5MB)</span>
+                    </label>
+                  )}
+                  <input
+                    id="create-program-cover-input"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                        setError('Formato no válido. Selecciona únicamente imágenes JPG, PNG o WebP.');
+                        return;
+                      }
+                      if (file.size > 5 * 1024 * 1024) {
+                        setError('El archivo seleccionado excede el tamaño máximo permitido de 5MB.');
+                        return;
+                      }
+                      setError('');
+                      setCoverFile(file);
+                      setCoverPreview(URL.createObjectURL(file));
+                    }}
+                  />
+                </div>
+              </div>
               
               <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%', padding: '0.75rem' }}>
-                {submitting ? 'Creando...' : 'Crear Programa'}
+                {submitting ? 'Creando programa e imagen...' : 'Crear Programa'}
               </button>
             </form>
           </div>
