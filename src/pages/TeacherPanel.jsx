@@ -1011,9 +1011,9 @@ function DudasTab() {
 }
 
 /* ─────────────────────────────────────────
-   TAB: Participantes
+   TAB: Estudiantes
 ───────────────────────────────────────── */
-function ParticipantesTab() {
+function EstudiantesTab() {
   const { programId } = useTeacherContext();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1027,7 +1027,13 @@ function ParticipantesTab() {
           .select('student_id, created_at, users_profile:student_id(*)')
           .eq('program_id', programId);
         if (error) throw error;
-        setStudents(data || []);
+        
+        // Filtrar exclusivamente los estudiantes vinculados a este programa
+        const programStudents = (data || []).filter(item => 
+          item.users_profile && item.users_profile.role === 'student'
+        );
+        
+        setStudents(programStudents);
       } catch (err) {
         console.error('Error al obtener estudiantes:', err);
       } finally {
@@ -1037,17 +1043,17 @@ function ParticipantesTab() {
     fetchStudents();
   }, [programId]);
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando participantes...</div>;
+  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando estudiantes...</div>;
 
   return (
     <div className="card" style={{ padding: '1.5rem', background: 'var(--white)', borderRadius: '12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
-            Participantes Inscritos ({students.length})
+            Estudiantes Inscritos ({students.length})
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-            Listado oficial de estudiantes con acceso activo a este programa.
+            Listado oficial de estudiantes matriculados en este programa.
           </p>
         </div>
       </div>
@@ -1083,12 +1089,12 @@ function ParticipantesTab() {
    COMPONENTE PRINCIPAL
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const TABS = [
-  { id: 'resumen',       label: 'Resumen',              icon: <BookOpen size={16} />,      component: ResumenTab },
-  { id: 'clases',        label: 'Clases',               icon: <Video size={16} />,         component: ClasesTab },
-  { id: 'dudas',         label: 'Dudas de estudiantes', icon: <MessageSquare size={16} />,  component: DudasTab },
-  { id: 'grabaciones',   label: 'Grabaciones',          icon: <Play size={16} />,          component: RecordingsTab },
-  { id: 'anuncios',      label: 'Anuncios',             icon: <Megaphone size={16} />,     component: AnunciosTab },
-  { id: 'participantes', label: 'Participantes',        icon: <Users size={16} />,         component: ParticipantesTab },
+  { id: 'resumen',     label: 'Resumen',              icon: <BookOpen size={16} />,      component: ResumenTab },
+  { id: 'clases',      label: 'Clases',               icon: <Video size={16} />,         component: ClasesTab },
+  { id: 'dudas',       label: 'Dudas de estudiantes', icon: <MessageSquare size={16} />,  component: DudasTab },
+  { id: 'grabaciones', label: 'Grabaciones',          icon: <Play size={16} />,          component: RecordingsTab },
+  { id: 'anuncios',    label: 'Anuncios',             icon: <Megaphone size={16} />,     component: AnunciosTab },
+  { id: 'estudiantes', label: 'Estudiantes',          icon: <Users size={16} />,         component: EstudiantesTab },
 ];
 
 export default function TeacherPanel() {
