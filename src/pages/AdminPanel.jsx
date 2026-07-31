@@ -1790,24 +1790,6 @@ export default function AdminPanel() {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <button
-          onClick={() => navigate('/dashboard/portal')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            background: 'none',
-            border: 'none',
-            color: 'var(--primary)',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            cursor: 'pointer',
-            marginBottom: '0.75rem',
-            padding: 0
-          }}
-        >
-          <ArrowLeft size={18} /> Volver al Portal
-        </button>
         <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
         <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
       </div>
