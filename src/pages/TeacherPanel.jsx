@@ -637,16 +637,21 @@ function ClasesTab() {
   const [selectedClass, setSelectedClass] = useState(null);
 
   useEffect(() => {
-    if (!teacherId || !programId) return;
+    if (!programId) return;
     async function fetchMyClasses() {
       try {
         setLoading(true);
-        const { data, error: fetchError } = await supabase
+        let query = supabase
           .from('class_sessions')
-          .select('*, subtopics!inner(title, module_id, modules!inner(title, program_id))')
-          .eq('teacher_id', teacherId)
+          .select('*, subtopics(title, module_id, modules(title, program_id))')
           .eq('program_id', programId)
           .order('class_date', { ascending: true });
+
+        if (teacherId) {
+          query = query.eq('teacher_id', teacherId);
+        }
+
+        const { data, error: fetchError } = await query;
 
         if (fetchError) throw fetchError;
         setClasses(data || []);
@@ -658,7 +663,7 @@ function ClasesTab() {
     }
 
     fetchMyClasses();
-  }, [teacherId]);
+  }, [teacherId, programId]);
 
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando tus clases asignadas...</div>;
@@ -1479,7 +1484,7 @@ export default function TeacherPanel() {
     </TeacherContext.Provider>
   );
 }
-
-
-
-
+
+
+
+
