@@ -133,17 +133,6 @@ function ConfirmModal({ isOpen, title, message, note, confirmText = 'Eliminar', 
             </p>
           </div>
         </div>
-
-        {note && (
-          <div style={{
-            background: '#f8fafc', borderLeft: '4px solid #94a3b8',
-            padding: '0.75rem 1rem', borderRadius: '0 8px 8px 0',
-            fontSize: '0.825rem', color: '#64748b', marginBottom: '1.5rem'
-          }}>
-            {note}
-          </div>
-        )}
-
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
           <button
             type="button"
@@ -425,7 +414,6 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
         isOpen={!!studentToUnenroll}
         title="Desvincular Alumno"
         message={`¿Estás seguro de que deseas desvincular a "${studentToUnenroll?.users_profile?.full_name}" de este programa?`}
-        note="El estudiante seguirá existiendo en la gestión global de usuarios."
         confirmText="Desvincular"
         cancelText="Cancelar"
         loading={unenrolling}
@@ -733,7 +721,6 @@ function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }
         isOpen={!!teacherToUnassign}
         title="Desvincular Profesor"
         message={`¿Estás seguro de que deseas desvincular al profesor "${teacherToUnassign?.name}" de este programa?`}
-        note="El profesor seguirá existiendo en el directorio global de profesores."
         confirmText="Desvincular"
         cancelText="Cancelar"
         loading={unassigning}
