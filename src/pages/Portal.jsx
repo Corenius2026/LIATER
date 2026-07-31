@@ -227,7 +227,7 @@ function TeacherPortal({ getDiplomadoLink }) {
                   </div>
                   <div style={{ flex: '1 1 200px' }}>
                     <h4 style={{ margin: 0, color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>{cls.title}</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa'} Ã¢â‚¬Â¢ {cls.duration || 0} min</p>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa'} • {cls.duration || 0} min</p>
                   </div>
                   <Link to={getDiplomadoLink()} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Ir al Panel</Link>
                 </div>
@@ -256,9 +256,9 @@ function TeacherPortal({ getDiplomadoLink }) {
   );
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+/* ─────────────────────────────────────────────────────────────────────────────
    SUB-COMPONENTE: Portal de Administrador
-Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+───────────────────────────────────────────────────────────────────────────── */
 function AdminPortal({ getDiplomadoLink }) {
   const [counts, setCounts] = useState({ students: 0, teachers: 0, programs: 0 });
   const [diplomas, setDiplomas] = useState([]);
@@ -285,7 +285,7 @@ function AdminPortal({ getDiplomadoLink }) {
       setDiplomas(dData || []);
 
       // Recent users
-      const { data: rData } = await supabase.from('users_profile').select('*').order('created_at', { ascending: false }).limit(3);
+      const { data: rData } = await supabase.from('users_profile').select('*').order('created_at', { ascending: false }).limit(4);
       setRecentUsers(rData || []);
     }
     fetchData();
@@ -335,80 +335,158 @@ function AdminPortal({ getDiplomadoLink }) {
     }
   };
 
+  const getRoleLabel = (role) => {
+    if (role === 'admin') return 'Administrador';
+    if (role === 'teacher') return 'Profesor';
+    return 'Estudiante';
+  };
+
+  const getInitials = (name) => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase();
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeSlideUp 0.35s ease-out' }}>
       
-      {/* MÃƒâ€°TRICAS GLOBALES ADMIN */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.5rem', background: '#eff6ff', border: '1px solid rgba(212,160,23,0.2)' }}>
-          <div style={{ background: 'white', padding: '0.75rem', borderRadius: '50%', color: '#2563eb' }}><Users size={24} /></div>
+      {/* MÉTRICAS GLOBALES ADMIN */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+        
+        {/* Total Estudiantes */}
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.25rem 1.5rem', background: 'var(--surface-light)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Users size={22} />
+          </div>
           <div>
-            <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#3b82f6', textTransform: 'uppercase', fontWeight: 600 }}>Total Estudiantes</h4>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--navy)' }}>{counts.students}</div>
+            <h4 style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Total Estudiantes</h4>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1, marginTop: '0.2rem' }}>{counts.students}</div>
           </div>
         </div>
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-          <div style={{ background: 'white', padding: '0.75rem', borderRadius: '50%', color: 'var(--green-600)' }}><BookOpen size={24} /></div>
+
+        {/* Programas Creados */}
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.25rem 1.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: '#ffffff', color: 'var(--green-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #bbf7d0' }}>
+            <BookOpen size={22} />
+          </div>
           <div>
-            <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#22c55e', textTransform: 'uppercase', fontWeight: 600 }}>Programas Creados</h4>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--green-700)' }}>{counts.programs}</div>
+            <h4 style={{ margin: 0, fontSize: '0.74rem', color: 'var(--green-700)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Programas Creados</h4>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--green-800)', lineHeight: 1.1, marginTop: '0.2rem' }}>{counts.programs}</div>
           </div>
         </div>
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.5rem', background: '#fffbeb', border: '1px solid #fde68a' }}>
-          <div style={{ background: 'white', padding: '0.75rem', borderRadius: '50%', color: '#d97706' }}><GraduationCap size={24} /></div>
+
+        {/* Profesores */}
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.25rem 1.5rem', background: 'var(--gold-subtle)', border: '1px solid rgba(252, 163, 17, 0.35)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: '#ffffff', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(252, 163, 17, 0.3)' }}>
+            <GraduationCap size={22} />
+          </div>
           <div>
-            <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#d97706', textTransform: 'uppercase', fontWeight: 600 }}>Profesores</h4>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#92400e' }}>{counts.teachers}</div>
+            <h4 style={{ margin: 0, fontSize: '0.74rem', color: 'var(--gold-dark)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Profesores</h4>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1, marginTop: '0.2rem' }}>{counts.teachers}</div>
           </div>
         </div>
+
       </div>
 
       <div className="portal-layout">
         <div className="portal-main">
           
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>CatÃƒ¡logo de Diplomados</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-            
+          {/* SECCIÓN 1: DIPLOMADOS */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h2 style={{ fontSize: '1.25rem', color: 'var(--navy)', margin: 0, fontWeight: 700 }}>Catálogo de Diplomados</h2>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Estructura por Módulos</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
             {diplomas.filter(d => d.program_type !== 'curso').map(dip => (
-              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--gold-subtle)', border: 'none', padding: '1.25rem' }}>
-                <div style={{ marginBottom: '1rem' }}><span style={{ background: 'var(--navy)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Activo</span></div>
-                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3' }}>{dip.title}</h3>
-                <p style={{ color: 'var(--navy-light)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción.'}</p>
-                <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: 'var(--navy)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
+              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--gold-subtle)', border: '1px solid rgba(252, 163, 17, 0.25)', padding: '1.25rem' }}>
+                <div style={{ marginBottom: '0.85rem' }}>
+                  <span className="badge badge-navy">Diplomado</span>
+                </div>
+                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem', flexGrow: 1, lineHeight: 1.4 }}>
+                  {dip.description || 'Sin descripción detallada.'}
+                </p>
+                <Link
+                  onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
+                  to={getDiplomadoLink(dip.id)}
+                  className="btn btn-gold"
+                  style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
+                >
+                  Administrar →
+                </Link>
               </div>
             ))}
 
-            <div onClick={() => { setNewProgram({...newProgram, program_type: 'diplomado'}); setShowModal(true); }} style={{textDecoration: 'none'}}>
-              <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%', minHeight: '200px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
-                  <Plus size={24} color="#64748b" />
+            {/* Tarjeta de Crear Diplomado */}
+            <div
+              onClick={() => { setNewProgram({...newProgram, program_type: 'diplomado'}); setShowModal(true); }}
+              style={{ textDecoration: 'none' }}
+            >
+              <div className="card" style={{
+                display: 'flex', flexDirection: 'column', border: '1.5px dashed var(--gold-dark)',
+                background: 'rgba(252, 163, 17, 0.04)', boxShadow: 'none', padding: '1.25rem',
+                alignItems: 'center', justifyContent: 'center', color: 'var(--navy)',
+                cursor: 'pointer', height: '100%', minHeight: '180px', transition: 'all 0.2s ease',
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(252, 163, 17, 0.10)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(252, 163, 17, 0.04)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem', color: 'var(--gold)' }}>
+                  <Plus size={22} />
                 </div>
-                <span style={{ fontWeight: 600 }}>Crear Nuevo Diplomado</span>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Crear Nuevo Diplomado</span>
               </div>
             </div>
           </div>
 
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>CatÃƒ¡logo de Cursos Cortos</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-            
+          {/* SECCIÓN 2: CURSOS CORTOS */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h2 style={{ fontSize: '1.25rem', color: 'var(--navy)', margin: 0, fontWeight: 700 }}>Catálogo de Cursos Cortos</h2>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Temario Directo</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
             {diplomas.filter(d => d.program_type === 'curso').map(dip => (
-              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: 'none', padding: '1.25rem' }}>
-                <div style={{ marginBottom: '1rem' }}><span style={{ background: 'var(--green-600)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Activo</span></div>
-                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--green-700)', lineHeight: '1.3' }}>{dip.title}</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción.'}</p>
-                <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: 'var(--green-600)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
+              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
+                <div style={{ marginBottom: '0.85rem' }}>
+                  <span className="badge badge-green">Curso Corto</span>
+                </div>
+                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--green-800)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem', flexGrow: 1, lineHeight: 1.4 }}>
+                  {dip.description || 'Sin descripción detallada.'}
+                </p>
+                <Link
+                  onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
+                  to={getDiplomadoLink(dip.id)}
+                  className="btn btn-green"
+                  style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
+                >
+                  Administrar →
+                </Link>
               </div>
             ))}
 
-            <div onClick={() => { setNewProgram({...newProgram, program_type: 'curso'}); setShowModal(true); }} style={{textDecoration: 'none'}}>
-              <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%', minHeight: '200px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
-                  <Plus size={24} color="#64748b" />
+            {/* Tarjeta de Crear Curso */}
+            <div
+              onClick={() => { setNewProgram({...newProgram, program_type: 'curso'}); setShowModal(true); }}
+              style={{ textDecoration: 'none' }}
+            >
+              <div className="card" style={{
+                display: 'flex', flexDirection: 'column', border: '1.5px dashed var(--green-600)',
+                background: 'rgba(0, 122, 46, 0.04)', boxShadow: 'none', padding: '1.25rem',
+                alignItems: 'center', justifyContent: 'center', color: 'var(--green-700)',
+                cursor: 'pointer', height: '100%', minHeight: '180px', transition: 'all 0.2s ease',
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(0, 122, 46, 0.10)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(0, 122, 46, 0.04)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--green-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem', color: '#ffffff' }}>
+                  <Plus size={22} />
                 </div>
-                <span style={{ fontWeight: 600 }}>Crear Nuevo Curso</span>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Crear Nuevo Curso</span>
               </div>
             </div>
-            
           </div>
         </div>
 
