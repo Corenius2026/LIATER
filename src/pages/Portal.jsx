@@ -67,18 +67,25 @@ function StudentPortal({ getDiplomadoLink }) {
               No hay programas disponibles.
             </div>
           ) : (
-            diplomas.filter(d => activeFilter === 'Todos' || activeFilter === 'Diplomados').map(dip => (
-              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#e0e7ff', border: 'none', padding: '1.25rem' }}>
-                <div style={{ marginBottom: '1rem' }}>
-                  <span style={{ background: '#4f46e5', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
-                    Diplomado
-                  </span>
+            diplomas.filter(d => 
+              activeFilter === 'Todos' || 
+              (activeFilter === 'Diplomados' && d.program_type !== 'curso') ||
+              (activeFilter === 'Cursos Cortos' && d.program_type === 'curso')
+            ).map(dip => {
+              const isCourse = dip.program_type === 'curso';
+              return (
+                <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: isCourse ? '#f0fdf4' : '#e0e7ff', border: isCourse ? '1px solid #bbf7d0' : 'none', padding: '1.25rem' }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <span style={{ background: isCourse ? '#16a34a' : '#4f46e5', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
+                      {isCourse ? 'Curso' : 'Diplomado'}
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: isCourse ? '#14532d' : '#1e3a8a', lineHeight: '1.3' }}>{dip.title}</h3>
+                  <p style={{ color: isCourse ? '#166534' : '#3730a3', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
+                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? '#16a34a' : '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
                 </div>
-                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#1e3a8a', lineHeight: '1.3' }}>{dip.title}</h3>
-                <p style={{ color: '#3730a3', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
-                <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -128,10 +135,9 @@ function TeacherPortal({ getDiplomadoLink }) {
         if (profileData) {
           const { data: classData } = await supabase
             .from('class_sessions')
-            .select('*, subtopics(title, modules(title, diploma_programs(title)))')
+            .select('*, diploma_programs(id, title, program_type)')
             .eq('teacher_id', profileData.id)
-            .order('class_date', { ascending: true })
-            .limit(5);
+            .order('class_date', { ascending: true });
             
           setClasses(classData || []);
         }
@@ -151,9 +157,9 @@ function TeacherPortal({ getDiplomadoLink }) {
       <div className="portal-main">
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Diplomados</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {classes.length > 0 && Array.from(new Set(classes.map(c => c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
-            const program = classes.find(c => c.subtopics?.modules?.diploma_programs?.id === programId).subtopics.modules.diploma_programs;
-            if (program.program_type === 'curso') return null;
+          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id))).filter(Boolean).map(programId => {
+            const program = classes.find(c => c.program_id === programId)?.diploma_programs;
+            if (!program || program.program_type === 'curso') return null;
             return (
               <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#e0e7ff', border: '1px solid #bfdbfe', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}>
@@ -169,9 +175,9 @@ function TeacherPortal({ getDiplomadoLink }) {
 
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Cursos Cortos</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {classes.length > 0 && Array.from(new Set(classes.map(c => c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
-            const program = classes.find(c => c.subtopics?.modules?.diploma_programs?.id === programId).subtopics.modules.diploma_programs;
-            if (program.program_type !== 'curso') return null;
+          {classes.length > 0 && Array.from(new Set(classes.map(c => c.program_id))).filter(Boolean).map(programId => {
+            const program = classes.find(c => c.program_id === programId)?.diploma_programs;
+            if (!program || program.program_type !== 'curso') return null;
             return (
               <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}>
@@ -179,6 +185,7 @@ function TeacherPortal({ getDiplomadoLink }) {
                 </div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#14532d', lineHeight: '1.3' }}>{program.title}</h3>
                 <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso directo a subtemas y clases.</p>
+                <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
               </div>
             );
           })}
@@ -203,7 +210,7 @@ function TeacherPortal({ getDiplomadoLink }) {
                   </div>
                   <div style={{ flex: '1 1 200px' }}>
                     <h4 style={{ margin: 0, color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>{cls.title}</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.subtopics?.modules?.diploma_programs?.title || 'Diplomado'} • {cls.duration || 0} min</p>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || 'Programa'} • {cls.duration || 0} min</p>
                   </div>
                   <Link to={getDiplomadoLink()} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Ir al Panel</Link>
                 </div>
