@@ -20,15 +20,36 @@ function StudentPortal({ getDiplomadoLink }) {
     async function fetchDiplomas() {
       if (!currentUser?.id) return;
       try {
-        const { data, error } = await supabase
+        setLoading(true);
+        const { data: enrollData, error } = await supabase
           .from('enrollments')
           .select('diploma_programs(*)')
           .eq('student_id', currentUser.id)
           .order('created_at', { ascending: false });
           
         if (error) throw error;
-        const enrolledDiplomas = data.map(enr => enr.diploma_programs).filter(Boolean);
-        setDiplomas(enrolledDiplomas);
+        const enrolledDiplomas = (enrollData || []).map(enr => enr.diploma_programs).filter(Boolean);
+
+        // Obtener sesiones de clase para calcular el progreso dinámico real
+        if (enrolledDiplomas.length > 0) {
+          const programIds = enrolledDiplomas.map(d => d.id);
+          const { data: classesData } = await supabase
+            .from('class_sessions')
+            .select('id, program_id, class_date')
+            .in('program_id', programIds);
+
+          const now = new Date();
+          const diplomasWithProgress = enrolledDiplomas.map(dip => {
+            const progClasses = (classesData || []).filter(c => c.program_id === dip.id);
+            const totalClasses = progClasses.length;
+            const completedClasses = progClasses.filter(c => c.class_date && new Date(c.class_date) <= now).length;
+            const progress = totalClasses === 0 ? 0 : Math.min(100, Math.max(0, Math.round((completedClasses / totalClasses) * 100)));
+            return { ...dip, progress };
+          });
+          setDiplomas(diplomasWithProgress);
+        } else {
+          setDiplomas([]);
+        }
       } catch (err) {
         console.error('Error fetching diplomas:', err);
       } finally {
@@ -38,20 +59,32 @@ function StudentPortal({ getDiplomadoLink }) {
     fetchDiplomas();
   }, [currentUser?.id]);
 
+  const getButtonLabel = (progress) => {
+    if (progress === 0) return 'Comenzar →';
+    if (progress === 100) return 'Revisar contenido →';
+    return 'Continuar →';
+  };
+
+  const getBadgeLabel = (type) => {
+    if (type === 'curso') return 'Curso Corto';
+    if (type === 'taller') return 'Taller';
+    return 'Diplomado';
+  };
+
   return (
     <div className="portal-layout">
-      {/* COLUMNA IZQUIERDA */}
+      {/* COLUMNA IZQUIERDA: PROGRAMAS */}
       <div className="portal-main">
         {/* FILTROS TIPO PASTILLA */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
           {filters.map(filter => (
             <button 
               key={filter}
               onClick={() => setActiveFilter(filter)}
               style={{ 
-                background: activeFilter === filter ? 'var(--text-dark)' : '#f1f5f9', 
-                color: activeFilter === filter ? 'white' : 'var(--text-muted)', 
-                padding: '0.5rem 1.25rem', borderRadius: '9999px', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer', border: 'none', transition: 'all 0.2s'
+                background: activeFilter === filter ? 'var(--navy)' : '#f1f5f9', 
+                color: activeFilter === filter ? '#ffffff' : 'var(--text-muted)', 
+                padding: '0.5rem 1.25rem', borderRadius: '9999px', fontSize: '0.86rem', fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.2s'
               }}
             >
               {filter}
@@ -59,34 +92,166 @@ function StudentPortal({ getDiplomadoLink }) {
           ))}
         </div>
 
-        {/* TARJETAS DE CURSOS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+        {/* REJILLA DE TARJETAS DE PROGRAMA */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+          
+          {/* ESTADO DE CARGA SKELETON */}
           {loading ? (
-            <div style={{ color: 'var(--text-muted)' }}>Cargando programas...</div>
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', height: '360px', background: '#ffffff', border: '1px solid var(--border-color)' }}>
+                <div style={{ width: '100%', aspectRatio: '16 / 9', background: '#e2e8f0', animation: 'pulse 1.5s infinite' }} />
+                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ width: '80px', height: '18px', borderRadius: '999px', background: '#cbd5e1' }} />
+                  <div style={{ width: '90%', height: '22px', borderRadius: '4px', background: '#cbd5e1' }} />
+                  <div style={{ width: '100%', height: '14px', borderRadius: '4px', background: '#e2e8f0' }} />
+                  <div style={{ width: '100%', height: '14px', borderRadius: '4px', background: '#e2e8f0' }} />
+                  <div style={{ width: '100%', height: '38px', borderRadius: 'var(--radius-md)', background: '#e2e8f0', marginTop: 'auto' }} />
+                </div>
+              </div>
+            ))
           ) : diplomas.length === 0 ? (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-              No hay programas disponibles.
+            /* ESTADO VACÍO CUANDO NO HAY PROGRAMAS */
+            <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', background: '#ffffff', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
+              <BookOpen size={48} color="var(--navy)" style={{ marginBottom: '1rem', opacity: 0.4 }} />
+              <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>No estás inscrito en ningún programa</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
+                Explora los cursos y diplomados disponibles para iniciar tu aprendizaje.
+              </p>
             </div>
           ) : (
+            /* LISTA DE TARJETAS DE PROGRAMAS ENROLADOS */
             diplomas.filter(d =>
               activeFilter === 'Todos' ||
-              (activeFilter === 'Diplomados' && d.program_type !== 'curso') ||
-              (activeFilter === 'Cursos Cortos' && d.program_type === 'curso')
+              (activeFilter === 'Diplomados' && (d.program_type === 'diplomado' || !d.program_type)) ||
+              (activeFilter === 'Cursos Cortos' && d.program_type === 'curso') ||
+              (activeFilter === 'Talleres' && d.program_type === 'taller')
             ).map(dip => {
               const isCourse = dip.program_type === 'curso';
+              const progress = dip.progress || 0;
+              const buttonText = getButtonLabel(progress);
+              const badgeText = getBadgeLabel(dip.program_type);
+
               return (
-                <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: isCourse ? 'var(--gold-subtle)' : 'var(--bg-light)', border: isCourse ? '1px solid rgba(252, 163, 17, 0.3)' : '1px solid rgba(20, 33, 61, 0.15)', padding: '1.25rem', transition: 'all 0.25s ease' }}
-                  onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
-                  onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                <div 
+                  key={dip.id} 
+                  className="card" 
+                  style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    background: '#ffffff', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: 'var(--radius-lg)', 
+                    padding: 0, 
+                    overflow: 'hidden', 
+                    boxShadow: 'var(--shadow-sm)',
+                    transition: 'all 0.25s ease' 
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
+                  onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
                 >
-                  <div style={{ marginBottom: '1rem' }}>
-                    <span style={{ background: isCourse ? 'var(--gold)' : 'var(--navy)', color: isCourse ? 'var(--navy)' : 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                      {isCourse ? 'Curso' : 'Diplomado'}
-                    </span>
+                  {/* 1. IMAGEN DE PORTADA (RELACIÓN DE ASPECTO 16:9) */}
+                  <div style={{ width: '100%', aspectRatio: '16 / 9', overflow: 'hidden', position: 'relative', background: 'var(--navy)' }}>
+                    {dip.image_url ? (
+                      <img 
+                        src={dip.image_url} 
+                        alt={`Portada de ${dip.title}`}
+                        onError={(e) => { 
+                          e.target.style.display = 'none'; 
+                          if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; 
+                        }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+                      />
+                    ) : null}
+                    
+                    {/* Fallback cuando no hay imagen o falla la carga */}
+                    <div style={{ 
+                      display: dip.image_url ? 'none' : 'flex', 
+                      width: '100%', 
+                      height: '100%', 
+                      background: isCourse ? 'linear-gradient(135deg, #14213D 0%, #1d3557 60%, #FCA311 100%)' : 'linear-gradient(135deg, #14213D 0%, #1a2c50 60%, #007a2e 100%)',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '1rem',
+                      boxSizing: 'border-box'
+                    }}>
+                      <BookOpen size={30} color={isCourse ? 'var(--gold)' : '#ffffff'} style={{ marginBottom: '0.3rem', opacity: 0.9 }} />
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', color: isCourse ? 'var(--gold)' : '#a7f3d0', textTransform: 'uppercase' }}>
+                        LIATER UNAL
+                      </span>
+                    </div>
                   </div>
-                  <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
-                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'var(--gold)' : 'var(--navy)', color: isCourse ? 'var(--navy)' : 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)' }}>Abrir programa →</Link>
+
+                  {/* CUERPO DE LA TARJETA */}
+                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                    
+                    {/* 2. ETIQUETA DEL TIPO DE PROGRAMA */}
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <span className={isCourse ? 'badge badge-green' : 'badge badge-navy'} style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {badgeText}
+                      </span>
+                    </div>
+
+                    {/* 3. TÍTULO DEL PROGRAMA */}
+                    <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem', lineHeight: '1.35' }}>
+                      {dip.title}
+                    </h3>
+
+                    {/* 4. DESCRIPCIÓN LIMITADA VISUALMENTE A MÁXIMO 3 LÍNEAS */}
+                    <p style={{ 
+                      display: '-webkit-box', 
+                      WebkitLineClamp: 3, 
+                      WebkitBoxOrient: 'vertical', 
+                      overflow: 'hidden', 
+                      color: 'var(--text-secondary)', 
+                      fontSize: '0.84rem', 
+                      marginBottom: '1.25rem', 
+                      lineHeight: '1.45', 
+                      flexGrow: 1 
+                    }}>
+                      {dip.description || 'Sin descripción detallada disponible.'}
+                    </p>
+
+                    {/* 5. FILA DE TEXTO PROGRESO Y PORCENTAJE */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', marginBottom: '0.4rem', fontWeight: 700, color: 'var(--navy)' }}>
+                      <span>Progreso</span>
+                      <span>{progress}%</span>
+                    </div>
+
+                    {/* 6. BARRA DE PROGRESO */}
+                    <div style={{ width: '100%', height: '8px', background: 'rgba(0,0,0,0.06)', borderRadius: '4px', overflow: 'hidden', marginBottom: '1.25rem' }}>
+                      <div style={{ 
+                        width: `${progress}%`, 
+                        height: '100%', 
+                        background: progress === 100 ? 'var(--green-600)' : 'var(--navy)', 
+                        borderRadius: '4px',
+                        transition: 'width 0.4s ease'
+                      }} />
+                    </div>
+
+                    {/* 7. BOTÓN PRINCIPAL CON TEXTO SEGÚN EL AVANCE */}
+                    <Link 
+                      onClick={() => { 
+                        localStorage.setItem('activeProgramId', dip.id); 
+                        localStorage.setItem('activeProgramType', dip.program_type); 
+                      }} 
+                      to={getDiplomadoLink(dip.id)} 
+                      className="btn btn-primary" 
+                      style={{ 
+                        textAlign: 'center', 
+                        width: '100%', 
+                        justifyContent: 'center', 
+                        padding: '0.65rem', 
+                        fontWeight: 700, 
+                        fontSize: '0.88rem',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}
+                    >
+                      {buttonText}
+                    </Link>
+
+                  </div>
                 </div>
               );
             })
@@ -94,24 +259,27 @@ function StudentPortal({ getDiplomadoLink }) {
         </div>
       </div>
 
-      {/* COLUMNA DERECHA */}
+      {/* COLUMNA DERECHA: PROGRESO GLOBAL */}
       <div className="portal-sidebar">
-        {/* PROGRESO */}
-        <div className="card" style={{ background: '#f8fafc', border: 'none', boxShadow: 'none' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-dark)' }}>Tu progreso</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Ver todo</span>
+        <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Tu progreso</h3>
           </div>
-          {diplomas.slice(0,2).map((dip, idx) => (
-             <div key={dip.id} style={{ marginBottom: '1rem' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-dark)', fontWeight: 500 }}>
-                 <span>{dip.title}</span><span>{(idx+1) * 15}%</span>
-               </div>
-               <div style={{ width: '100%', height: '14px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                 <div style={{ width: `${(idx+1) * 15}%`, height: '100%', background: 'var(--navy)' }}></div>
-               </div>
-             </div>
-          ))}
+          {diplomas.length === 0 ? (
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No hay avance registrado.</p>
+          ) : (
+            diplomas.slice(0, 3).map((dip) => (
+              <div key={dip.id} style={{ marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '0.35rem', color: 'var(--navy)', fontWeight: 600 }}>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>{dip.title}</span>
+                  <span>{dip.progress || 0}%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: 'rgba(0,0,0,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${dip.progress || 0}%`, height: '100%', background: 'var(--navy)', borderRadius: '4px' }} />
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
