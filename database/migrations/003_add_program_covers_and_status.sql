@@ -34,7 +34,27 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = 5242880,
   allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
 
--- ====================================================================
--- Nota: Las políticas RLS avanzadas para el bucket 'program-covers'
--- quedan reservadas para la etapa final de Seguridad.
--- ====================================================================
+-- 4. Políticas RLS en storage.objects para permitir la carga y lectura en 'program-covers'
+DROP POLICY IF EXISTS "Public Read Program Covers" ON storage.objects;
+CREATE POLICY "Public Read Program Covers"
+  ON storage.objects FOR SELECT
+  TO public
+  USING (bucket_id = 'program-covers');
+
+DROP POLICY IF EXISTS "Upload Program Covers" ON storage.objects;
+CREATE POLICY "Upload Program Covers"
+  ON storage.objects FOR INSERT
+  TO authenticated, anon
+  WITH CHECK (bucket_id = 'program-covers');
+
+DROP POLICY IF EXISTS "Update Program Covers" ON storage.objects;
+CREATE POLICY "Update Program Covers"
+  ON storage.objects FOR UPDATE
+  TO authenticated, anon
+  USING (bucket_id = 'program-covers');
+
+DROP POLICY IF EXISTS "Delete Program Covers" ON storage.objects;
+CREATE POLICY "Delete Program Covers"
+  ON storage.objects FOR DELETE
+  TO authenticated, anon
+  USING (bucket_id = 'program-covers');
