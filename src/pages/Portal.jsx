@@ -85,7 +85,7 @@ function StudentPortal({ getDiplomadoLink }) {
                   </div>
                   <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
-                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'var(--gold)' : 'var(--navy)', color: isCourse ? 'var(--navy)' : 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)' }}>Entrar →</Link>
+                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'var(--gold)' : 'var(--navy)', color: isCourse ? 'var(--navy)' : 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)' }}>Abrir programa →</Link>
                 </div>
               );
             })

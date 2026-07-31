@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { formatClassDate } from '../utils/dateUtils';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   BookOpen, Video, FileText, Megaphone, Presentation,
   Play, Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
   CalendarDays, Timer, ShieldAlert, Eye, Pencil, Trash2,
-  AlertCircle, Info, Layers, X, User
+  AlertCircle, Info, Layers, X, User, MessageSquare, Users
 } from 'lucide-react';
 
 import './TeacherPanel.css';
@@ -990,27 +990,119 @@ function PerfilTab() {
   );
 }
 
+/* ─────────────────────────────────────────
+   TAB: Dudas de estudiantes
+───────────────────────────────────────── */
+function DudasTab() {
+  return (
+    <div className="card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
+      <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.05)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
+        <MessageSquare size={30} />
+      </div>
+      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>Dudas e Inquietudes de Estudiantes</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '500px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
+        Atiende las consultas recibidas de los estudiantes matriculados en este programa o revisa la bandeja general.
+      </p>
+      <Link to="/soporte" className="btn btn-navy" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.25rem', fontWeight: 600 }}>
+        Ir a Bandeja de Consultas
+      </Link>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   TAB: Participantes
+───────────────────────────────────────── */
+function ParticipantesTab() {
+  const { programId } = useTeacherContext();
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStudents() {
+      if (!programId) return;
+      try {
+        const { data, error } = await supabase
+          .from('enrollments')
+          .select('student_id, created_at, users_profile:student_id(*)')
+          .eq('program_id', programId);
+        if (error) throw error;
+        setStudents(data || []);
+      } catch (err) {
+        console.error('Error al obtener estudiantes:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStudents();
+  }, [programId]);
+
+  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando participantes...</div>;
+
+  return (
+    <div className="card" style={{ padding: '1.5rem', background: 'var(--white)', borderRadius: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
+            Participantes Inscritos ({students.length})
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
+            Listado oficial de estudiantes con acceso activo a este programa.
+          </p>
+        </div>
+      </div>
+
+      {students.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+          No hay estudiantes inscritos en este programa por el momento.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
+          {students.map(item => (
+            <div key={item.student_id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem', borderRadius: '10px', background: 'var(--bg-light)', border: '1px solid var(--border-color)' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'var(--navy)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>
+                {item.users_profile?.full_name ? item.users_profile.full_name.charAt(0).toUpperCase() : 'E'}
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.users_profile?.full_name || 'Estudiante'}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.users_profile?.email || 'Sin correo registrado'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    COMPONENTE PRINCIPAL
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const TABS = [
-  { id: 'resumen',       label: 'Resumen',                 icon: <BookOpen size={16} />,     component: ResumenTab },
-  { id: 'clases',        label: 'Mis Clases',              icon: <Video size={16} />,        component: ClasesTab },
-  { id: 'materiales',    label: 'Materiales de Apoyo',     icon: <FileText size={16} />,     component: SupportMaterialsTab },
-  { id: 'grabaciones',   label: 'Grabaciones Disponibles', icon: <Play size={16} />,         component: RecordingsTab },
-  { id: 'anuncios',      label: 'Anuncios',                icon: <Megaphone size={16} />,    component: AnunciosTab },
-  { id: 'perfil',        label: 'Perfil',                  icon: <User size={16} />,         component: PerfilTab },
+  { id: 'resumen',       label: 'Resumen',              icon: <BookOpen size={16} />,      component: ResumenTab },
+  { id: 'clases',        label: 'Clases',               icon: <Video size={16} />,         component: ClasesTab },
+  { id: 'dudas',         label: 'Dudas de estudiantes', icon: <MessageSquare size={16} />,  component: DudasTab },
+  { id: 'grabaciones',   label: 'Grabaciones',          icon: <Play size={16} />,          component: RecordingsTab },
+  { id: 'anuncios',      label: 'Anuncios',             icon: <Megaphone size={16} />,     component: AnunciosTab },
+  { id: 'participantes', label: 'Participantes',        icon: <Users size={16} />,         component: ParticipantesTab },
 ];
 
 export default function TeacherPanel() {
   const { currentUser } = useAuth();
   const { programId } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('resumen');
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [currentProgram, setCurrentProgram] = useState(null);
+  const [myPrograms, setMyPrograms] = useState([]);
   const role = currentUser?.role;
 
-  // Resolver el teacher_profile.id real a partir del users_profile.id del usuario autenticado
+  // Resolver el teacher_profile.id real y obtener datos del programa
   useEffect(() => {
     async function resolveTeacherProfile() {
       if (!currentUser?.id) return;
@@ -1027,8 +1119,37 @@ export default function TeacherPanel() {
         setProfileLoading(false);
       }
     }
+
+    async function fetchProgramDetails() {
+      if (!programId) return;
+      try {
+        const { data } = await supabase
+          .from('diploma_programs')
+          .select('*')
+          .eq('id', programId)
+          .maybeSingle();
+        if (data) setCurrentProgram(data);
+      } catch (err) {
+        console.error('Error al obtener programa:', err);
+      }
+    }
+
+    async function fetchAllPrograms() {
+      try {
+        const { data } = await supabase
+          .from('diploma_programs')
+          .select('*')
+          .order('title', { ascending: true });
+        if (data) setMyPrograms(data);
+      } catch (err) {
+        console.error('Error al obtener lista de programas:', err);
+      }
+    }
+
     resolveTeacherProfile();
-  }, [currentUser?.id]);
+    fetchProgramDetails();
+    fetchAllPrograms();
+  }, [currentUser?.id, programId]);
 
   if (role !== 'teacher') {
     return (
@@ -1059,11 +1180,73 @@ export default function TeacherPanel() {
   return (
     <TeacherContext.Provider value={{ id: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId }}>
       <div>
-        <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-          <h1 className="page-title">Mi Panel de Profesor</h1>
-          <p className="page-description">Gestiona tus clases, recursos y anuncios de este programa.</p>
+
+        {/* --- RUTA DE NAVEGACIÓN (BREADCRUMB) Y ACCIONES DE PROGRAMA --- */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            <Link to="/portal" style={{ color: 'var(--text-muted)', textDecoration: 'none' }} onMouseOver={e => e.currentTarget.style.color = 'var(--gold)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+              Mis programas
+            </Link>
+            <span>/</span>
+            <span style={{ color: 'var(--navy)', fontWeight: 700 }}>
+              {currentProgram?.title || 'Cargando programa...'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {myPrograms.length > 1 && (
+              <select
+                value={programId}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  localStorage.setItem('activeProgramId', newId);
+                  navigate(`/dashboard/profesor/${newId}`);
+                }}
+                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', background: 'var(--white)', cursor: 'pointer' }}
+              >
+                {myPrograms.map(p => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </select>
+            )}
+
+            <Link
+              to="/portal"
+              style={{
+                fontSize: '0.82rem',
+                color: 'var(--text-muted)',
+                textDecoration: 'none',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--white)',
+                fontWeight: 600,
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = 'var(--bg-light)'; e.currentTarget.style.color = 'var(--navy)'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'var(--white)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              ← Volver a mis programas
+            </Link>
+          </div>
         </div>
 
+        {/* --- ENCABEZADO PRINCIPAL DEL PROGRAMA --- */}
+        <div className="page-header" style={{ marginBottom: '1.5rem', background: 'var(--white)', padding: '1.5rem 1.75rem', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
+            <span className="badge badge-navy" style={{ textTransform: 'uppercase', fontSize: '0.7rem' }}>
+              {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'}
+            </span>
+          </div>
+          <h1 className="page-title" style={{ fontSize: '1.6rem', color: 'var(--navy)', margin: 0, fontWeight: 800, lineHeight: 1.2 }}>
+            {currentProgram?.title || 'Mi Panel de Profesor'}
+          </h1>
+          <p className="page-description" style={{ marginTop: '0.4rem', marginBottom: 0, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            {currentProgram?.description || 'Gestiona las clases, recursos, dudas y anuncios de este programa.'}
+          </p>
+        </div>
+
+        {/* --- PESTAÑAS DEL PROGRAMA --- */}
         <div className="teacher-tabs">
           {TABS.map(tab => (
             <button
