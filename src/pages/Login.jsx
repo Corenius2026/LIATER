@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import liaterLogo from '../assets/liater-logo.png';
-import unalLogo from '../assets/unal-logo.png';
+import unalLogoWhiteText from '../assets/unal-logo-white-text.png';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -27,13 +27,14 @@ export default function Login() {
 
   return (
     <div className="public-layout">
+      {/* Card Blanca Independiente de Login */}
       <div style={{
         width: '100%',
         maxWidth: '420px',
         background: 'rgba(255, 255, 255, 0.98)',
         borderRadius: '1.25rem',
         boxShadow: '0 24px 64px rgba(0, 0, 0, 0.40)',
-        padding: '2rem 2.25rem 1.5rem',
+        padding: '2rem 2.25rem 1.75rem',
         position: 'relative',
         zIndex: 1,
         animation: 'fadeSlideUp 0.45s cubic-bezier(0.4, 0, 0.2, 1) both',
@@ -131,7 +132,7 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '1.1rem' }}>
+        <div style={{ textAlign: 'center', marginTop: '1.25rem' }}>
           <Link to="/"
             style={{ color: '#9ca3af', fontSize: '0.8rem', fontWeight: 500, transition: 'color 0.2s' }}
             onMouseOver={(e) => e.currentTarget.style.color = '#FCA311'}
@@ -140,26 +141,26 @@ export default function Login() {
             ← Volver al Inicio
           </Link>
         </div>
+      </div>
 
-        {/* Institucional UNAL Footer dentro de la tarjeta */}
-        <div style={{
-          marginTop: '1.25rem',
-          paddingTop: '1rem',
-          borderTop: '1px solid #f1f5f9',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '0.4rem',
-        }}>
-          <img
-            src={unalLogo}
-            alt="Universidad Nacional de Colombia"
-            style={{ height: '42px', objectFit: 'contain' }}
-          />
-          <span style={{ color: '#94a3b8', fontSize: '0.68rem', fontWeight: 500 }}>
-            © {new Date().getFullYear()} Laboratorio LIATER · UNAL
-          </span>
-        </div>
+      {/* Institucional UNAL Independiente Fuera de la Tarjeta */}
+      <div style={{
+        marginTop: '1.75rem',
+        zIndex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '0.65rem',
+        animation: 'fadeIn 0.5s ease both',
+      }}>
+        <img
+          src={unalLogoWhiteText}
+          alt="Universidad Nacional de Colombia"
+          style={{ height: '60px', objectFit: 'contain' }}
+        />
+        <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.72rem', fontWeight: 400 }}>
+          © {new Date().getFullYear()} Laboratorio LIATER · Universidad Nacional de Colombia
+        </span>
       </div>
     </div>
   );
