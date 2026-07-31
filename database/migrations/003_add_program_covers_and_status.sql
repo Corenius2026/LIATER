@@ -26,7 +26,7 @@ END
 $$;
 
 -- 3. Configuración del Bucket de Supabase Storage para Portadas ('program-covers')
--- Limite de tamaño: 5MB (5242880 bytes). Tipos permitidos: image/jpeg, image/png, image/webp
+-- Límite de tamaño: 5MB (5242880 bytes). Tipos permitidos: image/jpeg, image/png, image/webp
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('program-covers', 'program-covers', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
 ON CONFLICT (id) DO UPDATE SET
@@ -34,49 +34,7 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = 5242880,
   allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
 
--- 4. Políticas de RLS para el bucket 'program-covers' en storage.objects
-
--- A) Lectura Pública (Cualquier usuario o visitante puede ver las portadas)
-DROP POLICY IF EXISTS "Public Read Program Covers" ON storage.objects;
-CREATE POLICY "Public Read Program Covers"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'program-covers');
-
--- B) Subida/Escritura exclusiva para Administradores
-DROP POLICY IF EXISTS "Admin Upload Program Covers" ON storage.objects;
-CREATE POLICY "Admin Upload Program Covers"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'program-covers' AND (
-      EXISTS (
-        SELECT 1 FROM public.users_profile
-        WHERE id = auth.uid() AND role = 'admin'
-      )
-    )
-  );
-
--- C) Actualización exclusiva para Administradores
-DROP POLICY IF EXISTS "Admin Update Program Covers" ON storage.objects;
-CREATE POLICY "Admin Update Program Covers"
-  ON storage.objects FOR UPDATE
-  USING (
-    bucket_id = 'program-covers' AND (
-      EXISTS (
-        SELECT 1 FROM public.users_profile
-        WHERE id = auth.uid() AND role = 'admin'
-      )
-    )
-  );
-
--- D) Eliminación exclusiva para Administradores
-DROP POLICY IF EXISTS "Admin Delete Program Covers" ON storage.objects;
-CREATE POLICY "Admin Delete Program Covers"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'program-covers' AND (
-      EXISTS (
-        SELECT 1 FROM public.users_profile
-        WHERE id = auth.uid() AND role = 'admin'
-      )
-    )
-  );
+-- ====================================================================
+-- Nota: Las políticas RLS avanzadas para el bucket 'program-covers'
+-- quedan reservadas para la etapa final de Seguridad.
+-- ====================================================================
