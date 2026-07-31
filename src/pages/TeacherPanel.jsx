@@ -798,79 +798,6 @@ function SupportMaterialsTab() {
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 5 — Grabaciones Disponibles
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function RecordingsTab() {
-  const { id: teacherId, programId } = useTeacherContext();
-  const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!teacherId || !programId) return;
-    async function fetchRecordings() {
-      try {
-        setLoading(true);
-        const { data } = await supabase
-          .from('class_sessions')
-          .select('id, title, class_date, duration, video_url, program_id')
-          .eq('teacher_id', teacherId)
-          .eq('program_id', programId)
-          .not('video_url', 'is', null)
-          .order('class_date', { ascending: false });
-        
-        setClasses(data || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchRecordings();
-  }, [teacherId, programId]);
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <span style={{ fontWeight: 600, fontSize: '1rem' }}>Grabaciones disponibles ({classes.length})</span>
-      </div>
-
-      <div style={{ background: '#f0fdf4', color: 'var(--text-muted)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-        <Info size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
-        <div style={{ fontSize: '0.85rem' }}>
-          <strong style={{ display: 'block', marginBottom: '4px' }}>Modo de solo lectura</strong>
-          Las grabaciones oficiales son subidas y gestionadas por la administración del diplomado. No es posible modificarlas desde este panel.
-        </div>
-      </div>
-
-      {loading ? (
-        <p style={{ color: 'var(--text-muted)' }}>Cargando grabaciones...</p>
-      ) : classes.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Aún no hay grabaciones subidas para tus clases.</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {classes.map(c => (
-            <div className="resource-row" key={c.id}>
-              <div className="resource-icon-box" style={{ background: '#f0fdf4' }}>
-                <Video size={20} color="var(--green-600)" />
-              </div>
-              <div className="resource-row-body">
-                <div className="resource-row-title">{c.title}</div>
-                <div className="resource-row-meta">{formatClassDate(c.class_date, false)} Â· {c.duration || 0} min</div>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <a href={c.video_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ background:'#f0fdf4', color:'var(--green-600)', borderColor:'#bbf7d0', fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}>
-                  <Play size={13} style={{display:'inline', marginRight:'4px'}}/> Reproducir
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    MODAL DE ANUNCIOS
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function AnnouncementModal({ announcement, onClose, onRefresh }) {
@@ -1301,7 +1228,6 @@ const TABS = [
   { id: 'resumen',     label: 'Resumen',              icon: <BookOpen size={16} />,      component: ResumenTab },
   { id: 'clases',      label: 'Clases',               icon: <Video size={16} />,         component: ClasesTab },
   { id: 'dudas',       label: 'Dudas de estudiantes', icon: <MessageSquare size={16} />,  component: DudasTab },
-  { id: 'grabaciones', label: 'Grabaciones',          icon: <Play size={16} />,          component: RecordingsTab },
   { id: 'anuncios',    label: 'Anuncios',             icon: <Megaphone size={16} />,     component: AnunciosTab },
   { id: 'estudiantes', label: 'Estudiantes',          icon: <Users size={16} />,         component: EstudiantesTab },
 ];
