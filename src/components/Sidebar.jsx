@@ -30,11 +30,7 @@ export default function Sidebar() {
 
       {/* --- SECCIÓN 1: Logo LIATER --- */}
       <div className="sidebar-logo" onClick={() => navigate('/portal')}>
-        <img src={liaterLogo} alt="LIATER Logo" className="sidebar-logo-img" />
-        <div className="sidebar-logo-text">
-          <span className="sidebar-logo-name">LIATER</span>
-          <span className="sidebar-logo-sub">Portal Educativo · UNAL</span>
-        </div>
+        <img src={liaterLogo} alt="LIATER" className="sidebar-logo-img" />
       </div>
 
       {/* --- SECCIÓN 2: Menú de Navegación Principal --- */}

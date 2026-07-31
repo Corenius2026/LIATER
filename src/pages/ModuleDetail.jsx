@@ -14,7 +14,7 @@ export default function ModuleDetail() {
   useEffect(() => {
     async function fetchModuleData() {
       try {
-        // 1. Obtener los datos del mÃ³dulo
+        // 1. Obtener los datos del módulo
         const { data: modData, error: modError } = await supabase
           .from('modules')
           .select('*')
@@ -72,7 +72,7 @@ export default function ModuleDetail() {
   if (loading) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Cargando detalle del mÃ³dulo...</h2>
+        <h2>Cargando detalle del módulo...</h2>
       </div>
     );
   }
@@ -93,7 +93,7 @@ export default function ModuleDetail() {
       <div className="page-header">
         {localStorage.getItem('activeProgramType') !== 'curso' && (
           <Link to={`/modules/${moduleData.program_id}`} style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
-            &larr; Volver a MÃ³dulos
+            &larr; Volver a Módulos
           </Link>
         )}
         <h1 className="page-title">{localStorage.getItem('activeProgramType') === 'curso' ? 'Temario del Curso' : moduleData.title}</h1>
@@ -103,7 +103,7 @@ export default function ModuleDetail() {
       {/* --- LISTA DE SUBTEMAS Y SUS CLASES --- */}
       {subtopics.length === 0 ? (
         <div style={{ padding: '3rem', textAlign: 'center', backgroundColor: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
-          <p style={{ color: 'var(--text-muted)' }}>No hay subtemas disponibles para este mÃ³dulo.</p>
+          <p style={{ color: 'var(--text-muted)' }}>No hay subtemas disponibles para este módulo.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -162,10 +162,10 @@ export default function ModuleDetail() {
                         </div>
                       </div>
 
-                      {/* BotÃ³n dinÃ¡mico */}
+                      {/* Botón dinámico */}
                       {isUpcomingClass(cls.class_date) || (!cls.video_url && !cls.presentation_url) ? (
                         <Link to={`/class/${cls.id}`} className="btn btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
-                          <Video size={16} /> PrÃ³xima
+                          <Video size={16} /> Próxima
                         </Link>
                       ) : (
                         <Link to={`/class/${cls.id}`} className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
@@ -185,4 +185,4 @@ export default function ModuleDetail() {
     </div>
   );
 }
-
+

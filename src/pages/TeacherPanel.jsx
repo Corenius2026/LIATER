@@ -21,7 +21,7 @@ const useTeacherContext = () => React.useContext(TeacherContext);
 
 const TYPE_CONFIG = {
   pdf:          { bg: '#fef2f2', color: '#dc2626', label: 'PDF' },
-  presentation: { bg: '#eff6ff', color: 'var(--navy)', label: 'PresentaciÃ³n' },
+  presentation: { bg: '#eff6ff', color: 'var(--navy)', label: 'Presentación' },
   link:         { bg: '#f0fdf4', color: 'var(--green-600)', label: 'Enlace' },
   file:         { bg: '#fef9c3', color: '#ca8a04', label: 'Archivo' },
 };
@@ -37,12 +37,12 @@ function TypePill({ type }) {
 
 function TagPill({ tag }) {
   const map = { general: 'tag-general', urgent: 'tag-urgent', info: 'tag-info' };
-  const labels = { general: 'General', urgent: 'âš  Urgente', info: 'âœ“ Aviso' };
+  const labels = { general: 'General', urgent: 'âš  Urgente', info: '✓ Aviso' };
   return <span className={`announcement-tag ${map[tag] ?? 'tag-general'}`}>{labels[tag] ?? tag}</span>;
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 1 â€” Resumen (Hero + stats rÃ¡pidas)
+   TAB 1 — Resumen (Hero + stats rápidas)
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ResumenTab({ onChangeTab }) {
   const { profile } = useTeacherContext();
@@ -94,8 +94,8 @@ function ResumenTab({ onChangeTab }) {
         <img src={profile.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=3b82f6&color=fff&size=150`} alt={profile.name} className="teacher-hero-img" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />
         <div className="teacher-hero-info">
           <h1>{profile.name}</h1>
-          <p>{profile.area || 'Sin Ã¡rea especificada'} Â· {profile.users_profile?.email || ''}</p>
-          <p style={{ fontSize: '0.82rem', opacity: 0.7 }}>{profile.bio || 'Sin biografÃ­a'}</p>
+          <p>{profile.area || 'Sin área especificada'} Â· {profile.users_profile?.email || ''}</p>
+          <p style={{ fontSize: '0.82rem', opacity: 0.7 }}>{profile.bio || 'Sin biografía'}</p>
           <div className="teacher-hero-stats" style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
             <div className="teacher-hero-stat" style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontWeight: 700 }}>{loading ? '-' : stats.totalClasses}</span>
@@ -120,7 +120,7 @@ function ResumenTab({ onChangeTab }) {
           <h3 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '1.25rem' }}>Progreso del Curso</h3>
           {[
             { label: 'Clases completadas', value: stats.completed, total: stats.totalClasses, color: '#10b981' },
-            { label: 'Clases prÃ³ximas',    value: stats.upcoming,  total: stats.totalClasses, color: '#f59e0b' },
+            { label: 'Clases próximas',    value: stats.upcoming,  total: stats.totalClasses, color: '#f59e0b' },
           ].map(item => {
             const percentage = item.total === 0 ? 0 : (item.value / item.total) * 100;
             return (
@@ -137,9 +137,9 @@ function ResumenTab({ onChangeTab }) {
           })}
         </div>
 
-        {/* Accesos rÃ¡pidos */}
+        {/* Accesos rápidos */}
         <div className="card">
-          <h3 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '1.25rem' }}>Accesos RÃ¡pidos</h3>
+          <h3 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '1.25rem' }}>Accesos Rápidos</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <button 
               onClick={() => onChangeTab('clases')}
@@ -149,7 +149,7 @@ function ResumenTab({ onChangeTab }) {
                 <Video size={20} color="var(--navy)" />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--navy)' }}>Mis Clases</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--primary-600)' }}>Consulta tus prÃ³ximas sesiones</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--primary-600)' }}>Consulta tus próximas sesiones</div>
                 </div>
               </div>
             </button>
@@ -237,7 +237,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim() || !url.trim()) {
-      setError('El tÃ­tulo y el enlace son obligatorios.');
+      setError('El título y el enlace son obligatorios.');
       return;
     }
 
@@ -278,7 +278,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Â¿EstÃ¡s seguro de que deseas eliminar este material de apoyo?')) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este material de apoyo?')) return;
     try {
       const { error: deleteError } = await supabase
         .from('resources')
@@ -301,20 +301,20 @@ function ClassDetailModal({ selectedClass, onClose }) {
         
         <h2 style={{ marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.4rem' }}>{selectedClass.title}</h2>
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Layers size={14} /> {selectedClass.subtopics?.modules?.title || 'Sin mÃ³dulo'}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Layers size={14} /> {selectedClass.subtopics?.modules?.title || 'Sin módulo'}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><BookOpen size={14} /> {selectedClass.subtopics?.title || 'Sin subtema'}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CalendarDays size={14} /> {formatClassDate(selectedClass.class_date, false)}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Timer size={14} /> {selectedClass.duration || 0} min</span>
         </div>
 
-        {/* GrabaciÃ³n oficial (Solo lectura) */}
+        {/* Grabación oficial (Solo lectura) */}
         <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Video size={20} color={selectedClass.video_url ? "var(--green-600)" : "#94a3b8"} />
             <div>
-              <div style={{ fontWeight: 600 }}>GrabaciÃ³n Oficial</div>
+              <div style={{ fontWeight: 600 }}>Grabación Oficial</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {selectedClass.video_url ? 'Disponible para los estudiantes' : 'No se ha subido la grabaciÃ³n aÃºn (solo admin)'}
+                {selectedClass.video_url ? 'Disponible para los estudiantes' : 'No se ha subido la grabación aún (solo admin)'}
               </div>
             </div>
           </div>
@@ -330,17 +330,17 @@ function ClassDetailModal({ selectedClass, onClose }) {
         {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={{ background: '#f0fdf4', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid #bbf7d0' }}>
-          <h4 style={{ marginBottom: '1rem', color: 'var(--green-600)' }}>{editId ? 'Editar Material' : 'AÃ±adir Material (Enlace)'}</h4>
+          <h4 style={{ marginBottom: '1rem', color: 'var(--green-600)' }}>{editId ? 'Editar Material' : 'Añadir Material (Enlace)'}</h4>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>TÃ­tulo del material</label>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Título del material</label>
               <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
             </div>
             <div>
               <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Tipo</label>
               <select value={type} onChange={e => setType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                <option value="presentation">PresentaciÃ³n</option>
+                <option value="presentation">Presentación</option>
                 <option value="pdf">PDF</option>
                 <option value="link">Enlace web</option>
               </select>
@@ -368,7 +368,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="submit" disabled={submitting} className="btn btn-primary" style={{ flex: 1, background: 'var(--green-600)', borderColor: 'var(--green-600)' }}>
-              {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'AÃ±adir Material')}
+              {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Añadir Material')}
             </button>
             {editId && (
               <button type="button" onClick={handleCancelEdit} className="btn btn-outline">Cancelar</button>
@@ -419,7 +419,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 3 â€” Mis Clases
+   TAB 3 — Mis Clases
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ClasesTab() {
   const { id: teacherId, programId } = useTeacherContext();
@@ -470,8 +470,8 @@ function ClasesTab() {
       {classes.length === 0 ? (
         <div style={{ padding: '3rem', textAlign: 'center', background: 'var(--card-bg)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border-color)' }}>
           <BookOpen size={48} color="var(--primary-light)" style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-          <h3 style={{ color: 'var(--text-dark)', marginBottom: '0.5rem' }}>AÃºn no tienes clases asignadas</h3>
-          <p style={{ color: 'var(--text-muted)' }}>Cuando un administrador te asigne una clase, aparecerÃ¡ aquÃ­.</p>
+          <h3 style={{ color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Aún no tienes clases asignadas</h3>
+          <p style={{ color: 'var(--text-muted)' }}>Cuando un administrador te asigne una clase, aparecerá aquí.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -486,7 +486,7 @@ function ClasesTab() {
                 <div className="class-card-body">
                   <div className="class-title">{cls.title}</div>
                   <div className="class-meta">
-                    <span>{cls.subtopics?.modules?.title || 'MÃ³dulo Desconocido'}</span> Â· 
+                    <span>{cls.subtopics?.modules?.title || 'Módulo Desconocido'}</span> Â· 
                     <span>{cls.subtopics?.title || 'Subtema Desconocido'}</span> Â· 
                     <CalendarDays size={12} style={{ display:'inline', margin:'0 3px 0 6px', verticalAlign:'middle' }} />
                     <span>{formatClassDate(cls.class_date, false)}</span> Â· 
@@ -517,7 +517,7 @@ function ClasesTab() {
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 4 â€” Materiales de Apoyo (Global)
+   TAB 4 — Materiales de Apoyo (Global)
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function SupportMaterialsTab() {
   const { id: teacherId, programId } = useTeacherContext();
@@ -556,8 +556,8 @@ function SupportMaterialsTab() {
       <div style={{ background: '#eef2ff', color: '#3730a3', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
         <Info size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div style={{ fontSize: '0.85rem' }}>
-          <strong style={{ display: 'block', marginBottom: '4px' }}>Nota sobre la gestiÃ³n de materiales</strong>
-          Para aÃ±adir, editar o eliminar un material de una de tus clases, ve a la pestaÃ±a <strong>Mis Clases</strong>, haz clic en <strong>Ver Clase</strong> y gestiÃ³nalo desde allÃ­. AquÃ­ puedes ver una lista consolidada de todo el material.
+          <strong style={{ display: 'block', marginBottom: '4px' }}>Nota sobre la gestión de materiales</strong>
+          Para añadir, editar o eliminar un material de una de tus clases, ve a la pestaña <strong>Mis Clases</strong>, haz clic en <strong>Ver Clase</strong> y gestiónalo desde allí. Aquí puedes ver una lista consolidada de todo el material.
         </div>
       </div>
 
@@ -589,7 +589,7 @@ function SupportMaterialsTab() {
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 5 â€” Grabaciones Disponibles
+   TAB 5 — Grabaciones Disponibles
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function RecordingsTab() {
   const { id: teacherId, programId } = useTeacherContext();
@@ -629,14 +629,14 @@ function RecordingsTab() {
         <Info size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div style={{ fontSize: '0.85rem' }}>
           <strong style={{ display: 'block', marginBottom: '4px' }}>Modo de solo lectura</strong>
-          Las grabaciones oficiales son subidas y gestionadas por la administraciÃ³n del diplomado. No es posible modificarlas desde este panel.
+          Las grabaciones oficiales son subidas y gestionadas por la administración del diplomado. No es posible modificarlas desde este panel.
         </div>
       </div>
 
       {loading ? (
         <p style={{ color: 'var(--text-muted)' }}>Cargando grabaciones...</p>
       ) : classes.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>AÃºn no hay grabaciones subidas para tus clases.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Aún no hay grabaciones subidas para tus clases.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {classes.map(c => (
@@ -675,7 +675,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
-      setError('El tÃ­tulo y el mensaje son obligatorios.');
+      setError('El título y el mensaje son obligatorios.');
       return;
     }
 
@@ -727,7 +727,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>TÃ­tulo del anuncio</label>
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Título del anuncio</label>
             <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
           </div>
           
@@ -760,7 +760,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 7 â€” Anuncios
+   TAB 7 — Anuncios
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function AnunciosTab() {
   const { id: teacherId, programId } = useTeacherContext();
@@ -804,7 +804,7 @@ function AnunciosTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Â¿EstÃ¡s seguro de que deseas eliminar este anuncio?')) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio?')) return;
     try {
       const { error } = await supabase
         .from('announcements')
@@ -866,7 +866,7 @@ function AnunciosTab() {
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 7 â€” Perfil
+   TAB 7 — Perfil
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function PerfilTab() {
   const { profile, setProfile } = useTeacherContext();
@@ -906,7 +906,7 @@ function PerfilTab() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      setPwdMsg({ text: 'ContraseÃ±a actualizada con Ã©xito.', type: 'success' });
+      setPwdMsg({ text: 'Contraseña actualizada con éxito.', type: 'success' });
       setNewPassword('');
     } catch (err) {
       setPwdMsg({ text: 'Error al actualizar: ' + err.message, type: 'error' });
@@ -918,7 +918,7 @@ function PerfilTab() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <span style={{ fontWeight: 600, fontSize: '1rem' }}>Mi Perfil PÃºblico</span>
+        <span style={{ fontWeight: 600, fontSize: '1rem' }}>Mi Perfil Público</span>
         {!editing && (
           <button onClick={() => setEditing(true)} className="btn btn-outline" style={{ display: 'flex', gap: '0.5rem' }}>
             <Pencil size={16} /> Editar Perfil
@@ -936,11 +936,11 @@ function PerfilTab() {
         {editing ? (
           <form onSubmit={handleUpdateProfile}>
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Especialidad / Ãrea</label>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Especialidad / Área</label>
               <input type="text" value={editData.area} onChange={e => setEditData({...editData, area: e.target.value})} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
             </div>
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>BiografÃ­a corta</label>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Biografía corta</label>
               <textarea value={editData.bio} onChange={e => setEditData({...editData, bio: e.target.value})} rows={4} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -951,11 +951,11 @@ function PerfilTab() {
         ) : (
           <>
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Especialidad / Ãrea</label>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Especialidad / Área</label>
               <input type="text" value={profile.area || ''} disabled style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', background: '#f8fafc' }} />
             </div>
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>BiografÃ­a corta</label>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Biografía corta</label>
               <textarea value={profile.bio || ''} disabled rows={4} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', background: '#f8fafc' }} />
             </div>
           </>
@@ -963,7 +963,7 @@ function PerfilTab() {
       </div>
 
       <div className="card" style={{ maxWidth: '600px', marginTop: '1.5rem' }}>
-        <h3 style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '1rem' }}>Cambiar ContraseÃ±a</h3>
+        <h3 style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '1rem' }}>Cambiar Contraseña</h3>
         {pwdMsg.text && (
           <div style={{ color: pwdMsg.type === 'error' ? 'red' : 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>
             {pwdMsg.text}
@@ -971,12 +971,12 @@ function PerfilTab() {
         )}
         <form onSubmit={handleUpdatePassword} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Nueva ContraseÃ±a</label>
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Nueva Contraseña</label>
             <input 
               type="password" 
               value={newPassword} 
               onChange={e => setNewPassword(e.target.value)} 
-              placeholder="MÃ­nimo 6 caracteres"
+              placeholder="Mínimo 6 caracteres"
               required
               style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} 
             />
@@ -1083,7 +1083,7 @@ export default function TeacherPanel() {
     </TeacherContext.Provider>
   );
 }
-
-
-
-
+
+
+
+

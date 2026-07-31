@@ -31,7 +31,7 @@ export default function ModulesList() {
   if (loading) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Cargando mÃ³dulos...</h2>
+        <h2>Cargando módulos...</h2>
         <p>Conectando con la base de datos</p>
       </div>
     );
@@ -40,8 +40,8 @@ export default function ModulesList() {
   if (modulesList.length === 0) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>AÃºn no hay mÃ³dulos</h2>
-        <p>Los mÃ³dulos del diplomado aparecerÃ¡n aquÃ­ cuando sean creados.</p>
+        <h2>Aún no hay módulos</h2>
+        <p>Los módulos del diplomado aparecerán aquí cuando sean creados.</p>
       </div>
     );
   }
@@ -50,15 +50,15 @@ export default function ModulesList() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Temario del Diplomado</h1>
-        <p className="page-description">Explora todos los mÃ³dulos y su contenido.</p>
+        <p className="page-description">Explora todos los módulos y su contenido.</p>
       </div>
 
       <div className="grid-3">
         {modulesList.map(mod => (
           <div key={mod.id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <span className="badge">MÃ³dulo</span>
-              {/* Se dejÃ³ 0 clases hardcodeado temporalmente segÃºn restricciones */}
+              <span className="badge">Módulo</span>
+              {/* Se dejó 0 clases hardcodeado temporalmente según restricciones */}
               <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>0 clases (pdte.)</span>
             </div>
             
@@ -86,4 +86,4 @@ export default function ModulesList() {
     </div>
   );
 }
-
+

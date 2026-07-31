@@ -18,34 +18,29 @@
 
 /* ── Logo Area ── */
 .sidebar-logo {
-  padding: 1.35rem 1.5rem;
+  padding: 1.5rem 1.25rem;
   border-bottom: 1px solid var(--sidebar-border);
-  display: flex; align-items: center; gap: 0.875rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   cursor: pointer;
   transition: var(--transition);
+  width: 100%;
 }
 .sidebar-logo:hover { background: var(--sidebar-item-hover); }
 
 .sidebar-logo-img {
-  width: 58px; height: 58px;
+  width: 100%;
+  max-width: 180px;
+  height: 90px;
   object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(252,163,17,0.35));
+  filter: drop-shadow(0 4px 14px rgba(252,163,17,0.30));
   animation: logoFloat 4s ease-in-out infinite;
-  flex-shrink: 0;
+  transition: transform 0.3s ease;
 }
 
-.sidebar-logo-text { display: flex; flex-direction: column; gap: 1px; }
-
-.sidebar-logo-name {
-  font-size: 1.05rem; font-weight: 800;
-  color: var(--white);
-  letter-spacing: 0.10em; line-height: 1;
-}
-
-.sidebar-logo-sub {
-  font-size: 0.62rem;
-  color: rgba(255,255,255,0.45);
-  font-weight: 500; letter-spacing: 0.02em;
+.sidebar-logo-img:hover {
+  transform: scale(1.05);
 }
 
 /* ── Navegación ── */

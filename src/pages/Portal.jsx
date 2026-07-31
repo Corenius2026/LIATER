@@ -84,7 +84,7 @@ function StudentPortal({ getDiplomadoLink }) {
                     </span>
                   </div>
                   <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: isCourse ? 'var(--green-700)' : 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripciÃ³n'}</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
                   <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'linear-gradient(135deg, var(--green-700), var(--green-600))' : 'linear-gradient(135deg, var(--navy), var(--navy))', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: isCourse ? 'var(--shadow-green)' : 'var(--shadow-sm)' }}>Entrar â†’</Link>
                 </div>
               );
@@ -366,7 +366,7 @@ function AdminPortal({ getDiplomadoLink }) {
       <div className="portal-layout">
         <div className="portal-main">
           
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>CatÃƒÂ¡logo de Diplomados</h2>
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>CatÃƒ¡logo de Diplomados</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
             
             {diplomas.filter(d => d.program_type !== 'curso').map(dip => (
@@ -388,7 +388,7 @@ function AdminPortal({ getDiplomadoLink }) {
             </div>
           </div>
 
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>CatÃƒÂ¡logo de Cursos Cortos</h2>
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>CatÃƒ¡logo de Cursos Cortos</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
             
             {diplomas.filter(d => d.program_type === 'curso').map(dip => (
@@ -526,10 +526,10 @@ export default function Portal() {
     </div>
   );
 }
-
-
-
-
-
-
-
+
+
+
+
+
+
+
