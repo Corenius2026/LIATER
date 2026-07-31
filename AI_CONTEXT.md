@@ -1,43 +1,78 @@
-# Contexto General del Proyecto LIATER (LMS)
+# Contexto Exhaustivo del Proyecto LIATER (LMS)
 
-## 1. ¿De qué trata el proyecto?
-LIATER es una plataforma de gestión de aprendizaje (LMS - Learning Management System) diseñada para administrar diplomados y cursos (actualmente enfocada en un "Diplomado Internacional en Tecnologías de la Información" y "Sistemas Fotovoltaicos").
-La plataforma permite la interacción de tres tipos de roles:
-- **Administrador**: Tiene control total. Puede crear usuarios en un entorno global, asignar roles, gestionar inscripciones a programas (diplomados), y administrar la estructura de los cursos (módulos, subtemas, clases, profesores, recursos y anuncios).
-- **Profesor**: Tiene acceso a un panel docente ("Mi Panel") donde puede gestionar las clases que se le han asignado, subir material de apoyo (recursos) y publicar anuncios para los estudiantes.
-- **Estudiante**: Accede a un "Inicio del Curso" (Dashboard) donde puede ver los módulos, acceder al contenido de las clases, ver los recursos disponibles y conocer a sus profesores.
+## 1. Naturaleza y Propósito del Proyecto
+**LIATER** es una plataforma integral de tipo Learning Management System (LMS) orientada a la gestión y entrega de programas académicos (Diplomados, Cursos, etc.). Actualmente, el sistema está siendo configurado alrededor de programas clave como el "Diplomado Internacional en Tecnologías de la Información" y "Sistemas Fotovoltaicos".
 
-## 2. Stack Tecnológico
-- **Frontend**: React.js construido con Vite.
-- **Estilos**: CSS puro (`index.css`, `App.css`, y CSS Modules/archivos por componente). No se utiliza TailwindCSS. Se prioriza un diseño moderno, responsivo, con micro-animaciones y "glassmorphism".
-- **Backend / Base de Datos**: Supabase (PostgreSQL). Se encarga de la Autenticación (Supabase Auth) y de la base de datos relacional.
-- **Enrutamiento**: React Router DOM (`react-router-dom`).
-- **Iconografía**: Lucide React (`lucide-react`).
+El núcleo de LIATER es proveer un entorno estructurado donde tres tipos de actores (Administradores, Profesores y Estudiantes) puedan coexistir en un mismo ecosistema sin interferir con los permisos del otro, todo gestionado bajo un flujo centralizado de autenticación.
 
-## 3. Arquitectura de la Base de Datos (Supabase)
-Las tablas principales son:
-1. `users_profile`: Almacena la información extendida de todos los usuarios (ID vinculado a Auth, nombre, email, rol `admin|teacher|student`, estado activo/inactivo).
-2. `diploma_programs`: Programas o diplomados disponibles en la plataforma.
-3. `modules` y `subtopics`: Estructura jerárquica del contenido académico.
-4. `teacher_profiles`: Perfiles públicos de los profesores.
-5. `class_sessions`: Clases programadas vinculadas a un subtema y a un profesor.
-6. `resources`: Material de apoyo (PDFs, links) subido por administradores o profesores.
-7. `announcements`: Avisos creados por profesores para los alumnos.
-8. `enrollments`: Tabla pivote que maneja las inscripciones, conectando a un estudiante (`student_id` en `users_profile`) con un programa (`diploma_id`).
+## 2. Stack Tecnológico y Arquitectura
+- **Frontend Core**: `React.js` (versión 18+), inicializado y construido utilizando `Vite` para empaquetado rápido y Hot Module Replacement (HMR).
+- **Enrutamiento**: `react-router-dom` v6. Se utiliza un enrutador basado en componentes `<Routes>` y un sistema de rutas protegidas mediante un componente wrapper `<ProtectedRoute>`.
+- **Manejo de Estado Global**: Context API nativo de React (`AuthContext.jsx`), utilizado principalmente para propagar el estado de autenticación (el usuario logueado `currentUser` y su rol).
+- **Backend / Database as a Service**: **Supabase**. Se aprovechan tres grandes módulos de Supabase:
+  1. *Supabase Auth*: Para registro, inicio de sesión y persistencia de sesión segura (Tokens JWT).
+  2. *Supabase Database (PostgreSQL)*: Para almacenamiento de datos relacionales.
+  3. *Row Level Security (RLS)*: Para asegurar que desde el frontend nadie pueda consultar o modificar datos que no le corresponden según su rol.
+- **Estilos y UI**:
+  - CSS nativo (`App.css`, `index.css`). No se utilizan frameworks utilitarios como TailwindCSS ni librerías de componentes prefabricadas (Material UI, Bootstrap).
+  - Se emplea una estética moderna y "premium": Glassmorphism, degradados sutiles, micro-animaciones (hover, transiciones `all 0.3s ease`), variables CSS para la paleta de colores.
+  - **Iconografía**: `lucide-react` para iconos vectoriales consistentes y modernos.
 
-*Nota de Seguridad:* Todas las tablas manejan Row Level Security (RLS) en Supabase para proteger los datos según el rol del usuario.
+## 3. Arquitectura de Base de Datos (Esquema PostgreSQL)
+La base de datos está normalizada y conectada por llaves foráneas (`UUID`). Las tablas principales son:
 
-## 4. Estado Actual y Avances (Historial)
-- **Gestión de Usuarios Global**: Se extrajo la gestión de usuarios del panel específico de un curso hacia un entorno global (`/users`). Los administradores pueden registrar usuarios, buscar por nombre o correo, visualizar las listas separadas por rol (Alumnos, Profesores, Admins) y gestionar inscripciones.
-- **Navegación Dinámica (Sidebar)**: La barra lateral se adapta al contexto. En rutas globales (`/portal`, `/users`, `/perfil`, `/soporte`) muestra menús generales. Al entrar al detalle de un curso, cambia para mostrar el menú específico de aprendizaje/administración del curso.
-- **Panel de Administración**: 
-  - Muestra un "Resumen" con tarjetas estadísticas. Ahora la tarjeta de "Alumnos" refleja correctamente la cantidad de alumnos *inscritos* al programa en particular (leyendo de `enrollments`), no el total global.
-  - Cuenta con pestañas independientes para Alumnos (inscritos al curso), Profesores, Módulos, Subtemas, Clases, Recursos y Anuncios.
-  - Se utiliza `Promise.all` para cargar todos los datos de forma síncrona en el panel del administrador.
-- **Portal Principal (`/portal`)**: Después del Login, los usuarios llegan a una vista global donde ven a qué programas tienen acceso y un resumen de las próximas clases en agenda.
+### 3.1 Gestión de Usuarios
+- `users_profile`: Es la tabla central. Se vincula 1 a 1 con la tabla interna `auth.users` de Supabase a través de `auth_user_id`. Contiene:
+  - `id` (UUID, llave primaria).
+  - `full_name`, `email` (copia para lectura rápida).
+  - `role` (Restringido por constraint `CHECK` a: `'admin'`, `'teacher'`, `'student'`).
+  - `is_active` (Booleano para suspensión suave).
+- `teacher_profiles`: Extensión del perfil para profesores. Se usa para vincular a los profesores con clases específicas sin comprometer la tabla de usuarios genérica.
+  - `id` (UUID).
+  - `user_id` (FK a `users_profile`).
+  - `name`, `bio`, `specialty`, `avatar_url`.
 
-## 5. Instrucciones para la IA (Continuidad)
-- **Diseño**: Mantén un diseño premium. Siempre usa colores modernos, tipografías legibles y asegúrate de que las nuevas interfaces hagan "match" con el estilo actual (tarjetas con bordes sutiles, sombras suaves, estados `:hover`).
-- **Supabase**: Al hacer cambios en la base de datos, asegúrate de actualizar el archivo `database/schema.sql`. Si creas tablas nuevas, verifica siempre implementar y documentar las políticas RLS (`Row Level Security`).
-- **Contexto**: Antes de implementar una funcionalidad, revisa este archivo y `App.jsx` para entender el árbol de rutas.
-- **Git**: Cada vez que se solicite un `commit`, actualiza la sección "Estado Actual y Avances" de este archivo antes de subir el código.
+### 3.2 Estructura Académica (El Contenido)
+- `diploma_programs`: Los programas principales (Ej. Diplomado en Energía Solar).
+- `modules`: Módulos que pertenecen a un diplomado (`diploma_id`). Tienen un `order_index` para ordenamiento.
+- `subtopics`: Subtemas que pertenecen a un módulo (`module_id`). Tienen `order_index`.
+- `class_sessions`: Representan las clases físicas o en vivo. Se vinculan a un `subtopic_id` y a un `teacher_id`. Contienen título, descripción, `class_date`, `duration`, `meeting_url` y `recording_url`.
+
+### 3.3 Relaciones e Interacciones
+- `enrollments`: Tabla pivote. Conecta un `student_id` (FK a `users_profile`) con un `diploma_id` (FK a `diploma_programs`). Si un alumno no está en esta tabla, no tiene acceso a los cursos.
+- `resources`: Archivos o enlaces subidos por administradores o profesores. Se enlazan opcionalmente a un `module_id`, `subtopic_id` o `class_id`.
+- `announcements`: Avisos globales o urgentes emitidos por un profesor (`teacher_id`) para los alumnos.
+
+*Todas las tablas tienen políticas estrictas de `RLS` activadas. Por ejemplo: `enrollments` permite `SELECT`, `INSERT` y `DELETE` para cualquier autenticado temporalmente por requerimientos del admin, pero la base general restringe mutaciones solo a roles administradores.*
+
+## 4. Flujo de Navegación y Vistas (Rutas)
+El archivo `App.jsx` define el mapa de navegación:
+
+1. **Rutas Públicas**:
+   - `/`: Landing page (`Home.jsx`).
+   - `/login`: Pantalla de inicio de sesión (`Login.jsx`).
+   - `/update-password`: Recuperación/actualización de contraseña.
+
+2. **Rutas Privadas (Envueltas en `<Layout>` con el componente `Sidebar`)**:
+   - **Rutas Globales**:
+     - `/portal`: El punto de entrada tras hacer login. Muestra los programas a los que el usuario tiene acceso (como estudiante o profesor) y un resumen global.
+     - `/perfil`: Vista del perfil personal del usuario logueado.
+     - `/soporte`: Área de ayuda técnica.
+     - `/users` (Exclusivo Admin): Área de **Gestión de Usuarios Global**. Permite crear alumnos, profesores y admins de forma aislada, buscar por texto, y gestionar a qué diplomados están inscritos (`enrollments`).
+   
+   - **Rutas de Contexto de Curso**: Cuando el usuario navega hacia el interior de un curso, la barra lateral (`Sidebar`) cambia dinámicamente, ocultando las opciones globales y mostrando las opciones de aprendizaje o administración.
+     - *Para Estudiantes*: `/dashboard` (Inicio del curso), `/modules` (Lista de módulos), `/modules/:id`, `/class/:id`, `/teachers`.
+     - *Para Profesores*: `/dashboard/profesor` (Panel docente), `/resources` (Gestión de recursos).
+     - *Para Administradores*: `/dashboard/admin` (Panel de administración del curso), `/classes`, `/settings`.
+
+## 5. Decisiones Arquitectónicas Clave (Historial de Refactorización)
+1. **Desacoplamiento de Gestión de Usuarios**: Inicialmente, la gestión de usuarios residía dentro del Panel de Administración del curso (`/dashboard/admin`). Se detectó que conceptualmente esto era un error, ya que los usuarios existen a nivel de plataforma, no de curso. **Solución**: Se extrajo todo el código a `UserManagement.jsx` en la ruta global `/users`.
+2. **Cliente Secundario de Supabase para Creación de Usuarios**: Para que el Administrador pudiera registrar nuevos usuarios usando `supabase.auth.signUp()` sin que Supabase sobreescribiera la sesión actual del administrador (lo que lo deslogueaba), se instanció un `supabaseCreator` secundario (`createClient` con configuración para no persistir sesión).
+3. **Métricas de Inscripción Precisas**: En el Panel de Administración del curso (`AdminPanel.jsx`), el dashboard ahora muestra "Alumnos Inscritos" calculando específicamente el tamaño del arreglo de `enrollments`, en lugar del número total global de la plataforma, reflejando así una estadística real.
+4. **Limpieza del Repositorio**: Se eliminaron carpetas huérfanas o no utilizadas (`src/data`, `src/auth`, mock files antiguos) para mantener el repositorio limpio y evitar confusiones en futuros desarrollos.
+
+## 6. Instrucciones Futuras para IAs (Code Guidelines)
+- **Mantén la Consistencia Visual**: El UI/UX es una prioridad alta para el usuario. No utilices estilos genéricos de navegador. Continúa empleando CSS modularizado, sombras `box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1)`, y esquemas de color definidos en `:root` (e.g. `--primary-color`).
+- **Seguridad y Permisos**: Siempre que se agregue una ruta nueva, envuélvela en `<ProtectedRoute allowedRoles={['...']}>` para prevenir escaladas de privilegios. Si alteras la base de datos, siempre asume que RLS está activo y proporciona el SQL correspondiente para dar acceso.
+- **Evita Mocks**: El sistema ya está 100% conectado a Supabase. Si necesitas mostrar listas, haz un `SELECT` a la tabla correspondiente.
+- **Git Flow**: Cada vez que se te pida subir cambios (commit/push), actualiza la sección 5 ("Decisiones Arquitectónicas Clave") de este archivo (`AI_CONTEXT.md`) para reflejar los últimos desarrollos importantes antes de pushear.
