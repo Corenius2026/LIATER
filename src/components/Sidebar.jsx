@@ -66,6 +66,11 @@ export default function Sidebar() {
               <HelpCircle size={20} />
               <span>Soporte Técnico</span>
             </NavLink>
+            
+            <NavLink to="/mock-course" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'} style={{ marginTop: '1rem', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+              <Video size={20} />
+              <span>Ver Diseño del Curso</span>
+            </NavLink>
 
           </>
         )}
@@ -87,10 +92,15 @@ export default function Sidebar() {
                   <Home size={20} />
                   <span>Inicio {activeProgramType === 'curso' ? 'del Curso' : 'del Diplomado'}</span>
                 </NavLink>
-                {activeProgramType !== 'curso' && (
+                {activeProgramType !== 'curso' ? (
                   <NavLink to={`/modules/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                     <BookOpen size={20} />
                     <span>Módulos</span>
+                  </NavLink>
+                ) : (
+                  <NavLink to={`/syllabus/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+                    <ListTree size={20} />
+                    <span>Subtemas</span>
                   </NavLink>
                 )}
                 <NavLink to={`/teachers/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>

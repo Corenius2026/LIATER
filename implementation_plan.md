@@ -1,58 +1,34 @@
-# Soporte para "Cursos" (Sin Módulos) y Multiprograma
+# Diseño Visual del Entorno de Curso (Mockup)
 
-Actualmente, la plataforma está estructurada de forma rígida para manejar un solo "Diplomado" global (el Panel de Administrador, Profesor y Alumno no distinguen entre un programa y otro en la URL). Además, la base de datos exige que todo tema pertenezca a un "Módulo".
+El objetivo es crear una pantalla de visualización de cursos con estética **premium y moderna**, para que el estudiante consuma el contenido de forma inmersiva (al estilo de plataformas como Platzi, Udemy o MasterClass), antes de conectarlo definitivamente a Supabase.
 
-Para permitir crear "Cursos" más cortos (sin módulos) y sentar las bases para manejar múltiples programas a la vez, propongo la siguiente arquitectura (Enfoque Suave o "Soft Approach").
+## Propuesta de Diseño (CourseViewerMock)
 
-## User Review Required
+Construiremos un nuevo componente `CourseViewerMock.jsx` al que podrás acceder temporalmente mediante una ruta como `/mock-course`.
 
-> [!WARNING]
-> **Decisión Arquitectónica Importante**
-> Actualmente, cuando entras al Panel de Admin, no se filtra por qué programa estás viendo, se cargan todos los módulos. Si vamos a tener Diplomados y Cursos coexistiendo, **la plataforma necesita saber en cuál estás adentro**. 
-> Propongo cambiar las rutas para que incluyan el ID del programa (Ej: `/dashboard/admin/:programId`). ¿Estás de acuerdo con este cambio fundamental para poder administrar cada curso por separado?
+### Características de la Interfaz
+1. **Layout Principal (Grid/Flex)**:
+   - **Izquierda (70%)**: Reproductor de video inmersivo. Bordes redondeados, sombra sutil (`glassmorphism`).
+   - **Derecha (30%)**: Panel del currículum (Temario). Listado de Subtemas y Clases desplegables (Acordeones).
+2. **Estética y UI Premium**:
+   - Fondo de página sutilmente matizado (ej. `#f8fafc` o gradiente claro).
+   - Uso intensivo de íconos (Lucide-react) para representar el tipo de contenido (Video, Lectura, Recursos).
+   - Micro-animaciones en los elementos del temario al hacer *hover*.
+   - Indicadores de progreso (Checkmarks circulares, barras de progreso).
+3. **Pestañas Interactivas bajo el video**:
+   - *Resumen*: Descripción de la clase.
+   - *Recursos*: Archivos descargables simulados (PDFs, Enlaces).
+   - *Discusión*: Un área de comentarios simulada para interactuar con otros alumnos y el profesor.
 
-> [!TIP]
-> **El Enfoque del "Módulo Invisible" (Recomendado)**
-> En lugar de romper toda la base de datos creando tablas paralelas para cursos (`cursos`, `temas_cursos`, etc.), propongo agregar un campo `program_type` (`diplomado` o `curso`) a la tabla actual de programas.
-> Cuando el admin crea un "Curso", el sistema creará automáticamente bajo la mesa un **único módulo invisible** llamado "Contenido del Curso". 
-> En los Paneles (Admin, Profesor, Alumno), si el programa es de tipo `curso`, **ocultaremos por completo la pestaña y las referencias a "Módulos"**, conectando visualmente los "Subtemas" directamente al Curso. Esto ahorra semanas de desarrollo y mantiene la base de datos limpia y estable. ¿Te parece bien este enfoque?
+## Cambios Propuestos
+1. **[NUEVO]** `src/pages/CourseViewerMock.jsx`: El componente principal del mockup con datos quemados (simulados) muy realistas y atractivos.
+2. **[MODIFICAR]** `src/App.jsx`: Agregar la ruta `/mock-course` para que puedas visitarla y evaluar el diseño.
+3. **[MODIFICAR]** `src/components/Sidebar.jsx`: Agregar un botón temporal "Ver Diseño del Curso" apuntando a `/mock-course` para que puedas llegar a él con un solo clic.
 
-## Proposed Changes
+## Pasos de Verificación
+1. Crearé los archivos.
+2. Te notificaré para que inicies tu entorno de desarrollo (`npm run dev`).
+3. Podrás navegar a la vista simulada y darme feedback sobre colores, disposición y animaciones. Una vez lo apruebes, convertiremos este diseño estático en una página dinámica conectada a Supabase para los cursos reales.
 
-### Base de Datos (`database/schema.sql`)
-- Agregar una columna `program_type VARCHAR(50) DEFAULT 'diplomado'` a la tabla `diploma_programs`.
-- Generar el script SQL para que actualices tu Supabase.
-
-### Rutas (`App.jsx` y `Sidebar.jsx`)
-#### [MODIFY] src/App.jsx
-- Cambiar las rutas estáticas por rutas dinámicas que acepten el ID del programa:
-  - `/dashboard/admin/:programId`
-  - `/dashboard/profesor/:programId`
-  - `/dashboard/:programId` (Estudiantes)
-
-#### [MODIFY] src/components/Sidebar.jsx
-- Actualizar los enlaces laterales (Ej: "Inicio del Curso", "Módulos", "Profesores") para que usen el `programId` actual y mantengan al usuario dentro del contexto de ese curso en particular.
-
-### Portal Principal
-#### [MODIFY] src/pages/Portal.jsx
-- Actualizar el botón "Administrar" (y equivalentes de profesor/alumno) para que redirija a la URL correcta usando el ID del programa seleccionado (`/dashboard/admin/${dip.id}`).
-- Añadir un botón para **Crear Programa** (Diplomado o Curso) para que el Admin pueda generar nuevos cursos desde aquí.
-
-### Paneles de Curso (Admin, Profesor, Alumno)
-#### [MODIFY] src/pages/AdminPanel.jsx
-- Capturar el `programId` de la URL (`useParams`).
-- Filtrar todas las consultas a Supabase (`modules`, `subtopics`, `class_sessions`) para que solo traigan la información de ESE programa en específico.
-- **Lógica de Curso vs Diplomado**: Leer el `program_type`. Si es `'curso'`, ocultar por completo la pestaña de `Módulos` del panel. Al crear un "Subtema", asignarlo automáticamente al "Módulo Invisible" de ese curso.
-
-#### [MODIFY] src/pages/TeacherPanel.jsx y src/pages/Dashboard.jsx
-- Capturar el `programId` de la URL.
-- Si es un `'curso'`, saltarse la vista de selección de Módulos y mostrar directamente la lista de Subtemas (o Temas) y sus Clases.
-
-## Verification Plan
-
-### Manual Verification
-1. Entrar con rol Admin al `/portal`. Crear un "Curso" nuevo.
-2. Hacer clic en "Administrar" el nuevo curso. Verificar que la URL cambie a `/dashboard/admin/ID-DEL-CURSO`.
-3. Verificar que en la barra superior o pestañas NO exista la opción de crear "Módulos".
-4. Crear un "Subtema" y una "Clase" para el curso.
-5. Iniciar sesión como alumno inscrito a ese curso, entrar a su Dashboard y verificar que ve los temas directamente sin pasar por módulos.
+> [!IMPORTANT]
+> Revisa este plan. ¿Te parece bien esta distribución (video a la izquierda, temario a la derecha) o prefieres algún otro estilo específico para el reproductor del curso?

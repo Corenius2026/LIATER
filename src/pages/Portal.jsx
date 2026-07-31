@@ -149,18 +149,37 @@ function TeacherPortal({ getDiplomadoLink }) {
   return (
     <div className="portal-layout">
       <div className="portal-main">
-        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Programas Asignados</h2>
+        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Diplomados</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
           {classes.length > 0 && Array.from(new Set(classes.map(c => c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
             const program = classes.find(c => c.subtopics?.modules?.diploma_programs?.id === programId).subtopics.modules.diploma_programs;
+            if (program.program_type === 'curso') return null;
+            return (
+              <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#e0e7ff', border: '1px solid #bfdbfe', padding: '1.25rem' }}>
+                <div style={{ marginBottom: '1rem' }}>
+                  <span style={{ background: '#4f46e5', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
+                </div>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#1e3a8a', lineHeight: '1.3' }}>{program.title}</h3>
+                <p style={{ color: '#3730a3', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso al entorno del diplomado.</p>
+                <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#4f46e5', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
+              </div>
+            );
+          })}
+        </div>
+
+        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Cursos Cortos</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+          {classes.length > 0 && Array.from(new Set(classes.map(c => c.subtopics?.modules?.diploma_programs?.id))).filter(Boolean).map(programId => {
+            const program = classes.find(c => c.subtopics?.modules?.diploma_programs?.id === programId).subtopics.modules.diploma_programs;
+            if (program.program_type !== 'curso') return null;
             return (
               <div key={programId} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}>
-                  <span style={{ background: '#16a34a', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Docente</span>
+                  <span style={{ background: '#16a34a', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
                 </div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#14532d', lineHeight: '1.3' }}>{program.title}</h3>
-                <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso a gestión de material y clases.</p>
-                <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Gestionar Clases</Link>
+                <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Acceso directo a subtemas y clases.</p>
+                <Link to={getDiplomadoLink(programId)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
               </div>
             );
           })}
@@ -324,10 +343,10 @@ function AdminPortal({ getDiplomadoLink }) {
       <div className="portal-layout">
         <div className="portal-main">
           
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Catálogo de Programas</h2>
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Catálogo de Diplomados</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
             
-            {diplomas.map(dip => (
+            {diplomas.filter(d => d.program_type !== 'curso').map(dip => (
               <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#e0e7ff', border: 'none', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}><span style={{ background: '#4f46e5', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Activo</span></div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#1e3a8a', lineHeight: '1.3' }}>{dip.title}</h3>
@@ -336,12 +355,34 @@ function AdminPortal({ getDiplomadoLink }) {
               </div>
             ))}
 
-            <div onClick={() => setShowModal(true)} style={{textDecoration: 'none'}}>
+            <div onClick={() => { setNewProgram({...newProgram, program_type: 'diplomado'}); setShowModal(true); }} style={{textDecoration: 'none'}}>
               <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%', minHeight: '200px' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
                   <Plus size={24} color="#64748b" />
                 </div>
-                <span style={{ fontWeight: 600 }}>Crear Nuevo Programa</span>
+                <span style={{ fontWeight: 600 }}>Crear Nuevo Diplomado</span>
+              </div>
+            </div>
+          </div>
+
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Catálogo de Cursos Cortos</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+            
+            {diplomas.filter(d => d.program_type === 'curso').map(dip => (
+              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: 'none', padding: '1.25rem' }}>
+                <div style={{ marginBottom: '1rem' }}><span style={{ background: '#16a34a', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Activo</span></div>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#14532d', lineHeight: '1.3' }}>{dip.title}</h3>
+                <p style={{ color: '#166534', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción.'}</p>
+                <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: '#16a34a', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
+              </div>
+            ))}
+
+            <div onClick={() => { setNewProgram({...newProgram, program_type: 'curso'}); setShowModal(true); }} style={{textDecoration: 'none'}}>
+              <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px dashed #cbd5e1', background: '#f8fafc', boxShadow: 'none', padding: '1.25rem', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', height: '100%', minHeight: '200px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
+                  <Plus size={24} color="#64748b" />
+                </div>
+                <span style={{ fontWeight: 600 }}>Crear Nuevo Curso</span>
               </div>
             </div>
             

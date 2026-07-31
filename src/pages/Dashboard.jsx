@@ -118,8 +118,8 @@ export default function Dashboard() {
                 <PlayCircle size={20} /> {isCourse ? 'Ir al contenido' : 'Ir al primer módulo'}
               </Link>
             ) : (
-              <Link to={`/modules/${programId}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
-                <BookOpen size={20} /> Ver Temario
+              <Link to={isCourse ? `/syllabus/${programId}` : `/modules/${programId}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
+                <BookOpen size={20} /> {isCourse ? 'Ver Subtemas' : 'Ver Temario'}
               </Link>
             )}
           </div>
@@ -237,13 +237,13 @@ export default function Dashboard() {
       {/* --- ACCESOS RÁPIDOS --- */}
       <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Accesos Rápidos</h2>
       <div className="grid-3">
-        <Link to="/modules" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none' }}>
+        <Link to={isCourse ? `/syllabus/${programId}` : `/modules/${programId}`} className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none' }}>
           <div style={{ padding: '1rem', backgroundColor: '#e0e7ff', color: 'var(--primary-color)', borderRadius: 'var(--radius-md)' }}>
             <BookOpen size={24} />
           </div>
           <div>
-            <h4 style={{ fontWeight: 600, color: 'var(--text-dark)' }}>Ver Temario</h4>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Explora todos los módulos</p>
+            <h4 style={{ fontWeight: 600, color: 'var(--text-dark)' }}>{isCourse ? 'Ver Subtemas' : 'Ver Temario'}</h4>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{isCourse ? 'Explora el contenido del curso' : 'Explora todos los módulos'}</p>
           </div>
         </Link>
         <Link to="/teachers" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none' }}>

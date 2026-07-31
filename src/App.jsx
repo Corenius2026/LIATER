@@ -26,6 +26,8 @@ import TeacherPanel from './pages/TeacherPanel';
 import Portal from './pages/Portal';
 import Profile from './pages/Profile';
 import Support from './pages/Support';
+import CourseViewerMock from './pages/CourseViewerMock';
+import SyllabusRedirector from './pages/SyllabusRedirector';
 
 // --- Importación de Estilos Globales ---
 import './App.css';
@@ -54,12 +56,14 @@ function App() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/perfil" element={<Profile />} />
             <Route path="/soporte" element={<Support />} />
+            <Route path="/mock-course" element={<CourseViewerMock />} />
             
             <Route path="/dashboard/:programId" element={<ProtectedRoute allowedRoles={['student']}><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/profesor/:programId" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherPanel /></ProtectedRoute>} />
             <Route path="/dashboard/admin/:programId" element={<ProtectedRoute allowedRoles={['admin']}><AdminPanel /></ProtectedRoute>} />
             
             <Route path="/modules/:programId" element={<ModulesList />} />
+            <Route path="/syllabus/:programId" element={<SyllabusRedirector />} />
             <Route path="/module/:id" element={<ModuleDetail />} />
             <Route path="/class/:id" element={<ClassDetail />} />
             <Route path="/teachers/:programId" element={<Teachers />} />

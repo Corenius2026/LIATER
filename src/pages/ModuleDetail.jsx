@@ -80,8 +80,7 @@ export default function ModuleDetail() {
   if (!moduleData) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Módulo no encontrado</h2>
-        <Link to="/modules" className="btn btn-primary" style={{ marginTop: '1rem' }}>Volver a Módulos</Link>
+        <Link to="/portal" className="btn btn-primary" style={{ marginTop: '1rem' }}>Volver al Portal</Link>
       </div>
     );
   }
@@ -92,10 +91,12 @@ export default function ModuleDetail() {
     <div>
       {/* --- ENCABEZADO DEL MÓDULO --- */}
       <div className="page-header">
-        <Link to="/modules" style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
-          &larr; Volver a Módulos
-        </Link>
-        <h1 className="page-title">{moduleData.title}</h1>
+        {localStorage.getItem('activeProgramType') !== 'curso' && (
+          <Link to={`/modules/${moduleData.diploma_id}`} style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
+            &larr; Volver a Módulos
+          </Link>
+        )}
+        <h1 className="page-title">{localStorage.getItem('activeProgramType') === 'curso' ? 'Temario del Curso' : moduleData.title}</h1>
         <p className="page-description">{moduleData.description}</p>
       </div>
 
