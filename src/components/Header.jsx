@@ -26,14 +26,14 @@ export default function Header() {
 
   return (
     <header className="app-header">
-      <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-        <img src={unalLogo} alt="Universidad Nacional de Colombia" style={{ height: '72px', objectFit: 'contain' }} />
-        <div style={{ height: '48px', width: '2px', background: 'var(--border-color)' }} />
+      <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <img src={unalLogo} alt="Universidad Nacional de Colombia" style={{ height: '68px', objectFit: 'contain' }} />
+        <div style={{ height: '40px', width: '1.5px', background: 'var(--border-color)' }} />
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.2, letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: '0.90rem', fontWeight: 700, color: 'var(--navy)', lineHeight: 1.2 }}>
             Portal Educativo <span style={{ color: 'var(--gold-600)' }}>LIATER</span>
           </span>
-          <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.02em', marginTop: '2px' }}>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.03em', marginTop: '1px' }}>
             UNIVERSIDAD NACIONAL DE COLOMBIA
           </span>
         </div>
