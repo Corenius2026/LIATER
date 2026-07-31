@@ -168,7 +168,7 @@ export default function ClassDetail() {
                 borderRadius: 'var(--radius-md)',
                 display: 'flex',
                 alignItems: 'center',
-                justify-content: 'space-between',
+                justifyContent: 'space-between',
                 background: 'var(--surface-light)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
