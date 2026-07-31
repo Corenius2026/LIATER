@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabaseClient';
 import { Calendar, BookOpen, ArrowLeft, CheckCircle, Clock } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { fetchUpcomingPrograms } from '../services/programService';
@@ -12,7 +11,7 @@ export default function UpcomingPrograms() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadUpcoming = async () => {
+  const loadUpcoming = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -26,11 +25,11 @@ export default function UpcomingPrograms() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     loadUpcoming();
-  }, [currentUser?.id]);
+  }, [loadUpcoming]);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>

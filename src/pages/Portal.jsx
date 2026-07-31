@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { PlayCircle, Clock, BookOpen, User, Users, Activity, BarChart3, TrendingUp, Calendar, CheckCircle, GraduationCap, Plus, X, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
-import { formatClassDate, formatShortDate } from '../utils/dateUtils';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2 } from 'lucide-react';
+import { formatShortDate } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms } from '../services/programService';
 
 /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -21,7 +21,7 @@ function StudentPortal({ getDiplomadoLink }) {
   const [upcomingLoading, setUpcomingLoading] = useState(true);
   const [upcomingError, setUpcomingError] = useState(null);
 
-  const loadUpcoming = async () => {
+  const loadUpcoming = useCallback(async () => {
     setUpcomingLoading(true);
     setUpcomingError(null);
     try {
@@ -34,7 +34,7 @@ function StudentPortal({ getDiplomadoLink }) {
     } finally {
       setUpcomingLoading(false);
     }
-  };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     async function fetchDiplomas() {
@@ -81,7 +81,7 @@ function StudentPortal({ getDiplomadoLink }) {
       fetchDiplomas();
       loadUpcoming();
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, loadUpcoming]);
 
   const getButtonLabel = (progress) => {
     if (progress === 0) return 'Comenzar →';
@@ -595,8 +595,6 @@ function AdminPortal({ getDiplomadoLink }) {
     try {
       if (!newProgram.title) throw new Error("El título es obligatorio");
 
-      let imageUrl = null;
-
       // 1. Insertar el programa básico primero para obtener su ID
       const { data: progData, error: progError } = await supabase
         .from('diploma_programs')
@@ -651,13 +649,13 @@ function AdminPortal({ getDiplomadoLink }) {
     }
   };
 
-  const getRoleLabel = (role) => {
+  const _getRoleLabel = (role) => {
     if (role === 'admin') return 'Administrador';
     if (role === 'teacher') return 'Profesor';
     return 'Estudiante';
   };
 
-  const getInitials = (name) => {
+  const _getInitials = (name) => {
     if (!name) return '?';
     const parts = name.trim().split(' ');
     return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase();
