@@ -206,8 +206,8 @@ export default function UserManagement() {
     setDiplomas(dData || []);
     
     // Fetch student's enrollments
-    const { data: eData } = await supabase.from('enrollments').select('diploma_id').eq('student_id', user.id);
-    setStudentEnrollments(eData ? eData.map(e => e.diploma_id) : []);
+    const { data: eData } = await supabase.from('enrollments').select('program_id').eq('student_id', user.id);
+    setStudentEnrollments(eData ? eData.map(e => e.program_id) : []);
   };
 
   const handleToggleEnrollment = async (diplomaId) => {
@@ -215,11 +215,11 @@ export default function UserManagement() {
     setEnrollSubmitting(true);
     try {
       if (isEnrolled) {
-        const { error } = await supabase.from('enrollments').delete().eq('student_id', enrollStudent.id).eq('diploma_id', diplomaId);
+        const { error } = await supabase.from('enrollments').delete().eq('student_id', enrollStudent.id).eq('program_id', diplomaId);
         if (error) throw error;
         setStudentEnrollments(prev => prev.filter(id => id !== diplomaId));
       } else {
-        const { error } = await supabase.from('enrollments').insert([{ student_id: enrollStudent.id, diploma_id: diplomaId }]);
+        const { error } = await supabase.from('enrollments').insert([{ student_id: enrollStudent.id, program_id: diplomaId }]);
         if (error) throw error;
         setStudentEnrollments(prev => [...prev, diplomaId]);
       }

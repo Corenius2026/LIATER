@@ -17,7 +17,7 @@ export default function SyllabusRedirector() {
         const { data, error } = await supabase
           .from('modules')
           .select('id')
-          .eq('diploma_id', programId)
+          .eq('program_id', programId)
           .order('order_index', { ascending: true })
           .limit(1)
           .single();

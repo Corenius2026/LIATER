@@ -14,7 +14,7 @@ export default function ModulesList() {
         const { data, error } = await supabase
           .from('modules')
           .select('*')
-          .eq('diploma_id', programId)
+          .eq('program_id', programId)
           .order('order_index', { ascending: true });
         
         if (error) throw error;

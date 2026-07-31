@@ -32,15 +32,15 @@ export default function Dashboard() {
         const { data: modulesData } = await supabase
           .from('modules')
           .select('id')
-          .eq('diploma_id', programId)
+          .eq('program_id', programId)
           .order('order_index', { ascending: true });
 
         // 3. Obtener próximas clases (fecha > ahora)
         const now = new Date().toISOString();
         const { data: upcomingData } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date, duration, subtopics!inner(modules!inner(diploma_id))')
-          .eq('subtopics.modules.diploma_id', programId)
+          .select('id, title, class_date, duration, subtopics!inner(modules!inner(diploma_programs(id)))')
+          .eq('program_id', programId)
           .gte('class_date', now)
           .order('class_date', { ascending: true })
           .limit(3);
@@ -48,8 +48,8 @@ export default function Dashboard() {
         // 4. Obtener últimas grabaciones
         const { data: recordingsData } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date, subtopics!inner(modules!inner(diploma_id))')
-          .eq('subtopics.modules.diploma_id', programId)
+          .select('id, title, class_date, subtopics!inner(modules!inner(diploma_programs(id)))')
+          .eq('program_id', programId)
           .not('video_url', 'is', null)
           .order('class_date', { ascending: false })
           .limit(3);
@@ -58,7 +58,7 @@ export default function Dashboard() {
         const { data: announcementsData } = await supabase
           .from('announcements')
           .select('*, teacher_profiles(name)')
-          .eq('diploma_id', programId)
+          .eq('program_id', programId)
           .order('created_at', { ascending: false })
           .limit(5);
 

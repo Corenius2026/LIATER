@@ -92,7 +92,7 @@ export default function ModuleDetail() {
       {/* --- ENCABEZADO DEL MÓDULO --- */}
       <div className="page-header">
         {localStorage.getItem('activeProgramType') !== 'curso' && (
-          <Link to={`/modules/${moduleData.diploma_id}`} style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
+          <Link to={`/modules/${moduleData.program_id}`} style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
             &larr; Volver a Módulos
           </Link>
         )}

@@ -471,7 +471,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
     setTitle(m.title);
     setDescription(m.description || '');
     setOrderIndex(m.order_index || 1);
-    setDiplomaId(m.diploma_id);
+    setDiplomaId(m.program_id);
     setShowModal(true);
   };
 
@@ -539,7 +539,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
         title,
         description,
         order_index: parsedOrder,
-        diploma_id: diplomaId
+        program_id: diplomaId
       };
 
       let query;
@@ -693,7 +693,8 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
         title,
         description,
         order_index: parsedOrder,
-        module_id: moduleId
+        module_id: moduleId,
+        program_id: programId
       };
 
       let query;
@@ -902,7 +903,8 @@ function ClasesTab({ classes, loading, onRefresh }) {
         duration: duration ? parseInt(duration) : null,
         video_url: videoUrl || null,
         presentation_url: presentationUrl || null,
-        order_index: parseInt(orderIndex) || 0
+        order_index: parseInt(orderIndex) || 1,
+        program_id: programId
       };
 
       let query;
@@ -1139,7 +1141,8 @@ function RecursosTab({ resources, loading, onRefresh }) {
         provider,
         url: url || null,
         file_path: filePath || null,
-        is_visible: isVisible
+        is_visible: isVisible,
+        program_id: programId
       };
 
       let query;
@@ -1556,11 +1559,11 @@ export default function AdminPanel() {
         const [programRes, teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes, enrolledRes] = await Promise.all([
           supabase.from('diploma_programs').select('*').eq('id', programId).single(),
           supabase.from('teacher_profiles').select('*'),
-          supabase.from('modules').select('*').eq('diploma_id', programId).order('order_index', { ascending: true }),
-          supabase.from('subtopics').select('*, modules!inner(diploma_id)').eq('modules.diploma_id', programId).order('order_index', { ascending: true }),
-          supabase.from('class_sessions').select('*, teacher_profiles(name), subtopics!inner(modules!inner(diploma_id))').eq('subtopics.modules.diploma_id', programId).order('class_date', { ascending: true }),
-          supabase.from('resources').select('*'),
-          supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)').eq('diploma_id', programId)
+          supabase.from('modules').select('*').eq('program_id', programId).order('order_index', { ascending: true }),
+          supabase.from('subtopics').select('*').eq('program_id', programId).order('order_index', { ascending: true }),
+          supabase.from('class_sessions').select('*, teacher_profiles(name)').eq('program_id', programId).order('class_date', { ascending: true }),
+          supabase.from('resources').select('*').eq('program_id', programId),
+          supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)').eq('program_id', programId)
         ]);
 
         const now = new Date().toISOString();

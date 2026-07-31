@@ -292,7 +292,7 @@ function AdminPortal({ getDiplomadoLink }) {
         const { error: modError } = await supabase
           .from('modules')
           .insert([{
-            diploma_id: progData.id,
+            program_id: progData.id,
             title: 'Contenido del Curso',
             description: 'Módulo interno para mantener la estructura de la base de datos.',
             order_index: 0

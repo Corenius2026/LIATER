@@ -56,14 +56,14 @@ function ResumenTab({ onChangeTab }) {
         const { programId } = useTeacherContext();
         // Filtrar clases por programa
         const pClasses = supabase.from('class_sessions')
-          .select('class_date, subtopics!inner(modules!inner(diploma_id))')
+          .select('class_date, program_id')
           .eq('teacher_id', profile.id)
-          .eq('subtopics.modules.diploma_id', programId);
+          .eq('program_id', programId);
           
         const pAnnouncements = supabase.from('announcements')
           .select('*', { count: 'exact', head: true })
           .eq('teacher_id', profile.id)
-          .eq('diploma_id', programId); // assuming announcements have diploma_id or we filter it
+          .eq('program_id', programId);
         
         const [resClasses, resAnn] = await Promise.all([pClasses, pAnnouncements]);
         
@@ -436,9 +436,9 @@ function ClasesTab() {
         setLoading(true);
         const { data, error: fetchError } = await supabase
           .from('class_sessions')
-          .select('*, subtopics!inner(title, module_id, modules!inner(title, diploma_id))')
+          .select('*, subtopics!inner(title, module_id, modules!inner(title, program_id))')
           .eq('teacher_id', teacherId)
-          .eq('subtopics.modules.diploma_id', programId)
+          .eq('program_id', programId)
           .order('class_date', { ascending: true });
 
         if (fetchError) throw fetchError;
@@ -531,9 +531,9 @@ function SupportMaterialsTab() {
         setLoading(true);
         const { data } = await supabase
           .from('resources')
-          .select('*, class_sessions!inner(title, teacher_id, subtopics!inner(modules!inner(diploma_id)))')
+          .select('*, class_sessions!inner(title, teacher_id, program_id)')
           .eq('class_sessions.teacher_id', teacherId)
-          .eq('class_sessions.subtopics.modules.diploma_id', programId)
+          .eq('program_id', programId)
           .in('resource_type', ['presentation', 'pdf', 'link', 'file'])
           .order('created_at', { ascending: false });
         
@@ -603,9 +603,9 @@ function RecordingsTab() {
         setLoading(true);
         const { data } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date, duration, video_url, subtopics!inner(modules!inner(diploma_id))')
+          .select('id, title, class_date, duration, video_url, program_id')
           .eq('teacher_id', teacherId)
-          .eq('subtopics.modules.diploma_id', programId)
+          .eq('program_id', programId)
           .not('video_url', 'is', null)
           .order('class_date', { ascending: false });
         
@@ -684,7 +684,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
 
     const payload = {
       teacher_id: teacherId,
-      diploma_id: programId,
+      program_id: programId,
       title: title.trim(),
       body: body.trim(),
       tag
@@ -777,7 +777,7 @@ function AnunciosTab() {
         .from('announcements')
         .select('*')
         .eq('teacher_id', teacherId)
-        .eq('diploma_id', programId)
+        .eq('program_id', programId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
