@@ -183,6 +183,16 @@ function TeacherPortal({ getDiplomadoLink }) {
               </div>
             );
           })}
+          
+          {/* CURSO SIMULADO FAKE */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', background: '#fdf4ff', border: '1px dashed #f0abfc', padding: '1.25rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
+              <span style={{ background: '#c026d3', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Simulado (Mock)</span>
+            </div>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: '#701a75', lineHeight: '1.3' }}>Curso de Sistemas Fotovoltaicos</h3>
+            <p style={{ color: '#86198f', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>Explora un diseño 100% interactivo y visual del nuevo reproductor de cursos sin afectar la base de datos.</p>
+            <Link to="/mock-course" className="btn" style={{ background: '#c026d3', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Probar Entorno</Link>
+          </div>
         </div>
 
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>
