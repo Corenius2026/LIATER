@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { PlayCircle, BookOpen, Calendar, Video, Clock, User, Megaphone } from 'lucide-react';
@@ -28,14 +28,14 @@ export default function Dashboard() {
           .eq('id', programId)
           .maybeSingle();
 
-        // 2. Obtener conteo de módulos y el ID del primer módulo
+        // 2. Obtener conteo de mÃ³dulos y el ID del primer mÃ³dulo
         const { data: modulesData } = await supabase
           .from('modules')
           .select('id')
           .eq('program_id', programId)
           .order('order_index', { ascending: true });
 
-        // 3. Obtener próximas clases (fecha > ahora)
+        // 3. Obtener prÃ³ximas clases (fecha > ahora)
         const now = new Date().toISOString();
         const { data: upcomingData } = await supabase
           .from('class_sessions')
@@ -45,7 +45,7 @@ export default function Dashboard() {
           .order('class_date', { ascending: true })
           .limit(3);
 
-        // 4. Obtener últimas grabaciones
+        // 4. Obtener Ãºltimas grabaciones
         const { data: recordingsData } = await supabase
           .from('class_sessions')
           .select('id, title, class_date, subtopics!inner(modules!inner(diploma_programs(id)))')
@@ -63,7 +63,7 @@ export default function Dashboard() {
           .limit(5);
 
         setDashboardData({
-          diplomaTitle: diplomaData?.title || 'Programa en Formación',
+          diplomaTitle: diplomaData?.title || 'Programa en FormaciÃ³n',
           programType: diplomaData?.program_type || 'diplomado',
           modulesCount: modulesData?.length || 0,
           upcomingClasses: upcomingData || [],
@@ -97,7 +97,7 @@ export default function Dashboard() {
     <div>
       {/* --- ENCABEZADO --- */}
       <div className="page-header">
-        <h1 className="page-title">¡Hola, Estudiante!</h1>
+        <h1 className="page-title">Â¡Hola, Estudiante!</h1>
         <p className="page-description">
           Bienvenido a tu panel de control de <strong>{diplomaTitle}</strong>.
         </p>
@@ -110,12 +110,12 @@ export default function Dashboard() {
         <div className="card" style={{ background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%)', color: 'white', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '0.5rem', fontSize: '1.25rem' }}>Tu Progreso</h3>
           <p style={{ marginBottom: '1.5rem', opacity: 0.9, fontSize: '0.875rem' }}>
-            Los porcentajes se activarán próximamente. Por ahora, sigue explorando los módulos.
+            Los porcentajes se activarÃ¡n prÃ³ximamente. Por ahora, sigue explorando los mÃ³dulos.
           </p>
           <div style={{ marginTop: 'auto' }}>
             {firstModuleId ? (
               <Link to={`/module/${firstModuleId}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
-                <PlayCircle size={20} /> {isCourse ? 'Ir al contenido' : 'Ir al primer módulo'}
+                <PlayCircle size={20} /> {isCourse ? 'Ir al contenido' : 'Ir al primer mÃ³dulo'}
               </Link>
             ) : (
               <Link to={isCourse ? `/syllabus/${programId}` : `/modules/${programId}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', width: '100%', justifyContent: 'center' }}>
@@ -125,13 +125,13 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Tarjeta de Estadísticas del Diplomado */}
+        {/* Tarjeta de EstadÃ­sticas del Diplomado */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <h3 style={{ marginBottom: '1.5rem', fontSize: '1.125rem', color: 'var(--text-dark)' }}>Contenido del Programa</h3>
           <div style={{ display: 'flex', gap: '2rem' }}>
             <div>
               <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary-color)', lineHeight: 1 }}>{modulesCount}</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{isCourse ? 'Bloques de Contenido' : 'Módulos'}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{isCourse ? 'Bloques de Contenido' : 'MÃ³dulos'}</p>
             </div>
           </div>
         </div>
@@ -139,11 +139,11 @@ export default function Dashboard() {
       
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem', marginBottom: '2.5rem' }}>
         
-        {/* --- PRÓXIMAS CLASES --- */}
+        {/* --- PRÃ“XIMAS CLASES --- */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <Calendar size={20} color="var(--primary-color)" />
-            <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Próximas Clases en Vivo</h2>
+            <h2 style={{ fontSize: '1.25rem', margin: 0 }}>PrÃ³ximas Clases en Vivo</h2>
           </div>
           
           {upcomingClasses.length > 0 ? (
@@ -164,16 +164,16 @@ export default function Dashboard() {
             </div>
           ) : (
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', padding: '1rem 0' }}>
-              No hay clases programadas próximamente.
+              No hay clases programadas prÃ³ximamente.
             </p>
           )}
         </div>
 
-        {/* --- ÚLTIMAS GRABACIONES --- */}
+        {/* --- ÃšLTIMAS GRABACIONES --- */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <Video size={20} color="var(--primary-color)" />
-            <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Últimas Grabaciones</h2>
+            <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Ãšltimas Grabaciones</h2>
           </div>
           
           {latestRecordings.length > 0 ? (
@@ -194,7 +194,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', padding: '1rem 0' }}>
-              Aún no hay grabaciones disponibles.
+              AÃºn no hay grabaciones disponibles.
             </p>
           )}
         </div>
@@ -205,7 +205,7 @@ export default function Dashboard() {
       <div className="card" style={{ marginBottom: '2.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
           <Megaphone size={20} color="var(--primary-color)" />
-          <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Tablón de Anuncios</h2>
+          <h2 style={{ fontSize: '1.25rem', margin: 0 }}>TablÃ³n de Anuncios</h2>
         </div>
         
         {announcements.length > 0 ? (
@@ -222,7 +222,7 @@ export default function Dashboard() {
                   {a.body}
                 </p>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Publicado por: <strong>{a.teacher_profiles?.name || 'Administración'}</strong>
+                  Publicado por: <strong>{a.teacher_profiles?.name || 'AdministraciÃ³n'}</strong>
                 </div>
               </div>
             ))}
@@ -234,8 +234,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* --- ACCESOS RÁPIDOS --- */}
-      <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Accesos Rápidos</h2>
+      {/* --- ACCESOS RÃPIDOS --- */}
+      <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Accesos RÃ¡pidos</h2>
       <div className="grid-3">
         <Link to={isCourse ? `/syllabus/${programId}` : `/modules/${programId}`} className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none' }}>
           <div style={{ padding: '1rem', backgroundColor: '#e0e7ff', color: 'var(--primary-color)', borderRadius: 'var(--radius-md)' }}>
@@ -243,7 +243,7 @@ export default function Dashboard() {
           </div>
           <div>
             <h4 style={{ fontWeight: 600, color: 'var(--text-dark)' }}>{isCourse ? 'Ver Subtemas' : 'Ver Temario'}</h4>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{isCourse ? 'Explora el contenido del curso' : 'Explora todos los módulos'}</p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{isCourse ? 'Explora el contenido del curso' : 'Explora todos los mÃ³dulos'}</p>
           </div>
         </Link>
         <Link to="/teachers" className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none' }}>
@@ -260,3 +260,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+

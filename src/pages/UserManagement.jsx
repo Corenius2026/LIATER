@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { UserPlus, UserCog, Trash2, ShieldAlert, X, Plus, CheckCircle, BookOpen, Pencil } from 'lucide-react';
 import './AdminPanel.css'; // Reutilizamos estilos
 
-// Cliente secundario solo para crear usuarios sin sobreescribir la sesión del admin
+// Cliente secundario solo para crear usuarios sin sobreescribir la sesiÃ³n del admin
 const supabaseCreator = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -113,12 +113,12 @@ export default function UserManagement() {
     setError(''); setSuccess('');
 
     if (!name || !email || !role || !password) {
-      setError('Por favor completa todos los campos, incluyendo la contraseña.');
+      setError('Por favor completa todos los campos, incluyendo la contraseÃ±a.');
       return;
     }
 
     if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
+      setError('La contraseÃ±a debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -148,7 +148,7 @@ export default function UserManagement() {
 
       if (insertError) throw insertError;
 
-      // PASO 2.5: Si es profesor, crear su perfil público de profesor
+      // PASO 2.5: Si es profesor, crear su perfil pÃºblico de profesor
       if (role === 'teacher' && newUserProfile) {
         const { error: teacherInsertError } = await supabase
           .from('teacher_profiles')
@@ -162,7 +162,7 @@ export default function UserManagement() {
         }
       }
 
-      setSuccess(`Usuario creado. El usuario ya puede iniciar sesión con el correo ${email} y la contraseña que le asignaste.`);
+      setSuccess(`Usuario creado. El usuario ya puede iniciar sesiÃ³n con el correo ${email} y la contraseÃ±a que le asignaste.`);
       fetchUsers();
 
       setTimeout(() => {
@@ -224,7 +224,7 @@ export default function UserManagement() {
         setStudentEnrollments(prev => [...prev, diplomaId]);
       }
     } catch (err) {
-      setError('Error al actualizar inscripción: ' + err.message);
+      setError('Error al actualizar inscripciÃ³n: ' + err.message);
     } finally {
       setEnrollSubmitting(false);
     }
@@ -234,7 +234,7 @@ export default function UserManagement() {
     const isCurrentlyActive = user.is_active !== false;
     const actionText = isCurrentlyActive ? 'desactivar' : 'reactivar';
     
-    if (!window.confirm(`¿Estás seguro de que deseas ${actionText} este usuario?`)) return;
+    if (!window.confirm(`Â¿EstÃ¡s seguro de que deseas ${actionText} este usuario?`)) return;
     
     setLoading(true);
     try {
@@ -245,7 +245,7 @@ export default function UserManagement() {
         
       if (updateError) throw updateError;
       
-      setSuccess(`Usuario ${isCurrentlyActive ? 'desactivado' : 'reactivado'} con éxito.`);
+      setSuccess(`Usuario ${isCurrentlyActive ? 'desactivado' : 'reactivado'} con Ã©xito.`);
       fetchUsers();
     } catch (err) {
       setError(`Error al ${actionText} usuario: ` + err.message);
@@ -264,7 +264,7 @@ export default function UserManagement() {
     }
 
     if (!['student', 'teacher', 'admin'].includes(role)) {
-      setError('El rol seleccionado no es válido.');
+      setError('El rol seleccionado no es vÃ¡lido.');
       return;
     }
 
@@ -277,7 +277,7 @@ export default function UserManagement() {
       
       if (updateError) throw updateError;
       
-      setSuccess('Usuario actualizado con éxito.');
+      setSuccess('Usuario actualizado con Ã©xito.');
       fetchUsers();
       
       setTimeout(() => { 
@@ -295,8 +295,8 @@ export default function UserManagement() {
     <div>
       <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 className="page-title">Gestión de Usuarios Global</h1>
-          <p className="page-description">Crea usuarios en la base de datos central de LIATER y adminístralos.</p>
+          <h1 className="page-title">GestiÃ³n de Usuarios Global</h1>
+          <p className="page-description">Crea usuarios en la base de datos central de LIATER y adminÃ­stralos.</p>
         </div>
       </div>
 
@@ -320,15 +320,15 @@ export default function UserManagement() {
               <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Nombre Completo</label>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Juan Pérez" required />
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Juan PÃ©rez" required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico</label>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo ElectrÃ³nico</label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="juan@ejemplo.com" required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Contraseña Inicial</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Mínimo 6 caracteres" required />
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>ContraseÃ±a Inicial</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="MÃ­nimo 6 caracteres" required />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
@@ -361,9 +361,9 @@ export default function UserManagement() {
                   <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo Electrónico (Solo lectura)</label>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Correo ElectrÃ³nico (Solo lectura)</label>
                   <input type="email" value={editEmail} disabled style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#f3f4f6', color: '#9ca3af' }} />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>El correo está enlazado a la cuenta y no puede editarse aquí de forma segura.</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>El correo estÃ¡ enlazado a la cuenta y no puede editarse aquÃ­ de forma segura.</span>
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
@@ -474,11 +474,11 @@ export default function UserManagement() {
                       {user.is_active !== false ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : '—'}</td>
+                  <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : 'â€”'}</td>
                   <td>
                     <div className="action-btns">
                       {(user.role === 'student' || user.role === 'teacher') && (
-                        <button className="btn-icon" style={{color: '#4f46e5'}} title="Gestionar Inscripciones" onClick={() => openEnrollModal(user)}>
+                        <button className="btn-icon" style={{color: 'var(--primary-700)'}} title="Gestionar Inscripciones" onClick={() => openEnrollModal(user)}>
                           <BookOpen size={15} />
                         </button>
                       )}
@@ -497,3 +497,4 @@ export default function UserManagement() {
     </div>
   );
 }
+

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
-// Cliente secundario solo para crear usuarios sin sobreescribir la sesión del admin
+// Cliente secundario solo para crear usuarios sin sobreescribir la sesiÃ³n del admin
 const supabaseCreator = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -19,9 +19,9 @@ import './AdminPanel.css';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../utils/dateUtils';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    HELPERS (sin cambios)
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function RoleBadge({ role }) {
   const map = { admin: ['role-badge role-admin', 'Administrador'], teacher: ['role-badge role-teacher', 'Profesor'], student: ['role-badge role-student', 'Estudiante'] };
   const [cls, label] = map[role] ?? ['role-badge', role];
@@ -33,7 +33,7 @@ function StatusBadge({ status }) {
     active:    ['role-badge status-active', 'Activo'],
     inactive:  ['role-badge status-inactive', 'Inactivo'],
     completed: ['role-badge status-completed', 'Completada'],
-    upcoming:  ['role-badge status-upcoming', 'Próxima'],
+    upcoming:  ['role-badge status-upcoming', 'PrÃ³xima'],
     cancelled: ['role-badge status-inactive', 'Cancelada'],
   };
   const [cls, label] = map[status] ?? ['role-badge', status];
@@ -43,7 +43,7 @@ function StatusBadge({ status }) {
 function TypeBadge({ type }) {
   const map = {
     pdf:          ['role-badge type-pdf', 'PDF'],
-    presentation: ['role-badge type-presentation', 'Presentación'],
+    presentation: ['role-badge type-presentation', 'PresentaciÃ³n'],
     link:         ['role-badge type-link', 'Enlace'],
     file:         ['role-badge type-file', 'Archivo'],
     video:        ['role-badge type-presentation', 'Video'],
@@ -87,9 +87,9 @@ function EmptyRow({ cols, message }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   MODAL — Confirmación de Acción (Eliminar / Desvincular)
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   MODAL â€” ConfirmaciÃ³n de AcciÃ³n (Eliminar / Desvincular)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ConfirmModal({ isOpen, title, message, note, confirmText = 'Eliminar', cancelText = 'Cancelar', onConfirm, onClose, loading }) {
   if (!isOpen) return null;
 
@@ -164,9 +164,9 @@ function ConfirmModal({ isOpen, title, message, note, confirmText = 'Eliminar', 
   );
 }
 
-/* ─────────────────────────────────────────
-   MODAL — Inscribir Alumnos
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   MODAL â€” Inscribir Alumnos
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function InscribirModal({ programId, programTitle, enrolledStudents, onClose, onRefresh }) {
   const [allStudents, setAllStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -201,7 +201,7 @@ function InscribirModal({ programId, programTitle, enrolledStudents, onClose, on
     fetchStudents();
   }, []);
 
-  // Solo mostrar estudiantes que NO estén ya inscritos en este programa
+  // Solo mostrar estudiantes que NO estÃ©n ya inscritos en este programa
   const unenrolled = allStudents.filter(s => !enrolledIds.has(s.id));
 
   const filtered = unenrolled.filter(s => {
@@ -218,7 +218,7 @@ function InscribirModal({ programId, programTitle, enrolledStudents, onClose, on
         program_id: programId,
       }]);
       if (error) throw error;
-      setSuccessMsg(`✓ ${student.full_name} inscrito correctamente.`);
+      setSuccessMsg(`âœ“ ${student.full_name} inscrito correctamente.`);
       // Refrescar la lista local inmediatamente
       setAllStudents(prev => prev.filter(s => s.id !== student.id));
       if (onRefresh) onRefresh();
@@ -240,7 +240,7 @@ function InscribirModal({ programId, programTitle, enrolledStudents, onClose, on
           <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.35rem' }}>Inscribir Alumnos</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Selecciona estudiantes para inscribir en <strong>{programTitle}</strong>.
-            Solo se muestran los que aún no están inscritos.
+            Solo se muestran los que aÃºn no estÃ¡n inscritos.
           </p>
         </div>
 
@@ -264,7 +264,7 @@ function InscribirModal({ programId, programTitle, enrolledStudents, onClose, on
           ) : filtered.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
               {unenrolled.length === 0
-                ? '✓ Todos los estudiantes de la plataforma ya están inscritos en este programa.'
+                ? 'âœ“ Todos los estudiantes de la plataforma ya estÃ¡n inscritos en este programa.'
                 : 'No se encontraron estudiantes con ese nombre o correo.'}
             </p>
           ) : (
@@ -296,16 +296,16 @@ function InscribirModal({ programId, programTitle, enrolledStudents, onClose, on
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB — Alumnos Inscritos
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB â€” Alumnos Inscritos
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showInscribirModal, setShowInscribirModal] = useState(false);
   const [studentToUnenroll, setStudentToUnenroll] = useState(null);
   const [unenrolling, setUnenrolling] = useState(false);
 
-  // CORRECCIÓN: Solo mostrar usuarios con role=student en esta tabla
+  // CORRECCIÃ“N: Solo mostrar usuarios con role=student en esta tabla
   const onlyStudents = enrolledStudents.filter(e => e.users_profile?.role === 'student');
 
   const filtered = onlyStudents.filter(e => {
@@ -364,12 +364,12 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
             <tr>
               <th>Alumno</th>
               <th>Programa</th>
-              <th>Fecha de Inscripción</th>
+              <th>Fecha de InscripciÃ³n</th>
               <th style={{ width: '100px', textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? <EmptyRow cols={4} message="No hay alumnos inscritos que coincidan con la búsqueda." /> :
+            {filtered.length === 0 ? <EmptyRow cols={4} message="No hay alumnos inscritos que coincidan con la bÃºsqueda." /> :
              filtered.map(enroll => (
               <tr key={enroll.id}>
                 <td>
@@ -413,7 +413,7 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
       <ConfirmModal
         isOpen={!!studentToUnenroll}
         title="Desvincular Alumno"
-        message={`¿Estás seguro de que deseas desvincular a "${studentToUnenroll?.users_profile?.full_name}" de este programa?`}
+        message={`Â¿EstÃ¡s seguro de que deseas desvincular a "${studentToUnenroll?.users_profile?.full_name}" de este programa?`}
         confirmText="Desvincular"
         cancelText="Cancelar"
         loading={unenrolling}
@@ -424,23 +424,23 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB 1 — Resumen General
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB 1 â€” Resumen General
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ResumenTab({ counts, upcomingClasses, isCourse }) {
   const { users } = useAuth();
 
   let stats = [
     { label: 'Alumnos Inscritos',  value: counts.usuarios,  color: '#6366f1', bg: '#eef2ff', icon: <Users size={22} color="#6366f1" /> },
     { label: 'Profesores',      value: counts.profesores, color: '#0ea5e9', bg: '#e0f2fe', icon: <GraduationCap size={22} color="#0ea5e9" /> },
-    { label: 'Módulos',         value: counts.modulos,    color: '#10b981', bg: '#d1fae5', icon: <BookOpen size={22} color="#10b981" /> },
+    { label: 'MÃ³dulos',         value: counts.modulos,    color: '#10b981', bg: '#d1fae5', icon: <BookOpen size={22} color="#10b981" /> },
     { label: 'Subtemas',        value: counts.subtemas,   color: '#f59e0b', bg: '#fef3c7', icon: <ListTree size={22} color="#f59e0b" /> },
     { label: 'Clases',          value: counts.clases,     color: '#ef4444', bg: '#fee2e2', icon: <Video size={22} color="#ef4444" /> },
     { label: 'Recursos',        value: counts.recursos,   color: '#8b5cf6', bg: '#ede9fe', icon: <FileText size={22} color="#8b5cf6" /> },
   ];
 
   if (isCourse) {
-    stats = stats.filter(s => s.label !== 'Módulos');
+    stats = stats.filter(s => s.label !== 'MÃ³dulos');
   }
 
   return (
@@ -449,7 +449,7 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
         {stats.map(s => (
           <div className="stat-card" key={s.label}>
             <div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div>
-            <div className="stat-number">{s.value ?? '—'}</div>
+            <div className="stat-number">{s.value ?? 'â€”'}</div>
             <div className="stat-label">{s.label}</div>
           </div>
         ))}
@@ -462,7 +462,7 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {[
               { label: 'Total Clases',   value: counts.clases,   total: counts.clases,   color: '#10b981' },
-              !isCourse && { label: 'Total Módulos',  value: counts.modulos,  total: counts.modulos,  color: '#6366f1' },
+              !isCourse && { label: 'Total MÃ³dulos',  value: counts.modulos,  total: counts.modulos,  color: '#6366f1' },
               { label: 'Total Recursos', value: counts.recursos, total: counts.recursos, color: '#f59e0b' },
             ].filter(Boolean).map(item => (
               <div key={item.label}>
@@ -478,11 +478,11 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
           </div>
         </div>
 
-        {/* Próximas clases */}
+        {/* PrÃ³ximas clases */}
         <div className="admin-table-wrapper" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '0.95rem', color: 'var(--text-dark)' }}>Próximas Clases</h3>
+          <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '0.95rem', color: 'var(--text-dark)' }}>PrÃ³ximas Clases</h3>
           {upcomingClasses.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No hay clases próximas.</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No hay clases prÃ³ximas.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {upcomingClasses.map(cls => (
@@ -506,9 +506,9 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   MODAL — Asignar Profesor
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   MODAL â€” Asignar Profesor
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClose, onRefresh }) {
   const [allTeachers, setAllTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -552,7 +552,7 @@ function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClo
         program_id: programId,
       }]);
       if (error) throw error;
-      setSuccessMsg(`✓ Profesor ${teacher.name} asignado correctamente.`);
+      setSuccessMsg(`âœ“ Profesor ${teacher.name} asignado correctamente.`);
       setAllTeachers(prev => prev.filter(t => t.id !== teacher.id));
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -573,7 +573,7 @@ function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClo
           <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.35rem' }}>Asignar Profesor al Programa</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Selecciona un profesor para asignarlo a <strong>{programTitle}</strong>.
-            Solo se muestran los que aún no están asignados.
+            Solo se muestran los que aÃºn no estÃ¡n asignados.
           </p>
         </div>
 
@@ -585,7 +585,7 @@ function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClo
 
         <input
           type="text"
-          placeholder="Buscar profesor por nombre o área..."
+          placeholder="Buscar profesor por nombre o Ã¡rea..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
           style={{ padding: '0.6rem 1rem', border: '1px solid var(--border-color)', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.9rem' }}
@@ -597,8 +597,8 @@ function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClo
           ) : filtered.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
               {unassigned.length === 0
-                ? '✓ Todos los profesores de la plataforma ya están asignados a este programa.'
-                : 'No se encontraron profesores con ese nombre o área.'}
+                ? 'âœ“ Todos los profesores de la plataforma ya estÃ¡n asignados a este programa.'
+                : 'No se encontraron profesores con ese nombre o Ã¡rea.'}
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -629,9 +629,9 @@ function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClo
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB 3 — Profesores (Supabase)
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB 3 â€” Profesores (Supabase)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }) {
   const [showAsignarModal, setShowAsignarModal] = useState(false);
   const [teacherToUnassign, setTeacherToUnassign] = useState(null);
@@ -702,7 +702,7 @@ function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{t.area}</div>
               </div>
             </div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 0 }}>{t.bio || 'Sin biografía.'}</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 0 }}>{t.bio || 'Sin biografÃ­a.'}</p>
           </div>
         ))}
       </div>
@@ -720,7 +720,7 @@ function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }
       <ConfirmModal
         isOpen={!!teacherToUnassign}
         title="Desvincular Profesor"
-        message={`¿Estás seguro de que deseas desvincular al profesor "${teacherToUnassign?.name}" de este programa?`}
+        message={`Â¿EstÃ¡s seguro de que deseas desvincular al profesor "${teacherToUnassign?.name}" de este programa?`}
         confirmText="Desvincular"
         cancelText="Cancelar"
         loading={unassigning}
@@ -731,9 +731,9 @@ function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB 4 — Módulos (Supabase)
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB 4 â€” MÃ³dulos (Supabase)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ModulosTab({ modules, loading, onRefresh, programId }) {
   const [showModal, setShowModal] = useState(false);
   const [editModuleId, setEditModuleId] = useState(null);
@@ -744,17 +744,17 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Limpiar el formulario al abrir modal de creación
+  // Limpiar el formulario al abrir modal de creaciÃ³n
   const openCreateModal = () => {
     setEditModuleId(null);
     setTitle('');
     setDescription('');
     setOrderIndex(1);
-    // diplomaId se setea en el useEffect si está vacío
+    // diplomaId se setea en el useEffect si estÃ¡ vacÃ­o
     setShowModal(true);
   };
 
-  // Llenar el formulario al abrir modal de edición
+  // Llenar el formulario al abrir modal de ediciÃ³n
   const openEditModal = (m) => {
     setEditModuleId(m.id);
     setTitle(m.title);
@@ -764,7 +764,7 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
   };
 
   const handleDelete = async (m) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${m.title}"?`)) return;
+    if (!window.confirm(`Â¿EstÃ¡s seguro de que deseas eliminar el mÃ³dulo "${m.title}"?`)) return;
 
     try {
       // Verificar si tiene subtemas asociados
@@ -776,11 +776,11 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
       if (countError) throw countError;
 
       if (count && count > 0) {
-        alert(`Operación denegada:\n\nNo se puede eliminar el módulo "${m.title}" porque tiene ${count} subtema(s) asociado(s).\n\nPara eliminarlo de forma segura, primero debes reasignar o eliminar esos subtemas.`);
+        alert(`OperaciÃ³n denegada:\n\nNo se puede eliminar el mÃ³dulo "${m.title}" porque tiene ${count} subtema(s) asociado(s).\n\nPara eliminarlo de forma segura, primero debes reasignar o eliminar esos subtemas.`);
         return;
       }
 
-      // Eliminar el módulo
+      // Eliminar el mÃ³dulo
       const { error: deleteError } = await supabase
         .from('modules')
         .delete()
@@ -788,11 +788,11 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
 
       if (deleteError) throw deleteError;
 
-      alert('Módulo eliminado exitosamente.');
+      alert('MÃ³dulo eliminado exitosamente.');
       if (onRefresh) onRefresh();
 
     } catch (err) {
-      alert('Error al eliminar el módulo: ' + err.message);
+      alert('Error al eliminar el mÃ³dulo: ' + err.message);
     }
   };
 
@@ -800,15 +800,15 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
     e.preventDefault();
     setError(''); setSuccess('');
     if (!title || !programId) {
-      setError('El título del módulo y el programa son obligatorios.');
+      setError('El tÃ­tulo del mÃ³dulo y el programa son obligatorios.');
       return;
     }
     
     const parsedOrder = parseInt(orderIndex) || 0;
     
-    // Validar orden duplicado (ignorando el módulo actual si estamos editando)
+    // Validar orden duplicado (ignorando el mÃ³dulo actual si estamos editando)
     if (modules.some(m => m.order_index === parsedOrder && m.id !== editModuleId)) {
-      setError(`Ya existe un módulo con el orden ${parsedOrder}. Por favor elige otro número.`);
+      setError(`Ya existe un mÃ³dulo con el orden ${parsedOrder}. Por favor elige otro nÃºmero.`);
       return;
     }
     
@@ -831,7 +831,7 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
       const { error: opError } = await query;
       if (opError) throw opError;
       
-      setSuccess(editModuleId ? 'Módulo actualizado con éxito.' : 'Módulo creado con éxito.');
+      setSuccess(editModuleId ? 'MÃ³dulo actualizado con Ã©xito.' : 'MÃ³dulo creado con Ã©xito.');
       setTitle(''); setDescription('');
       if (onRefresh) onRefresh();
       
@@ -840,7 +840,7 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
         setSuccess('');
       }, 1500);
     } catch (err) {
-      setError('Error al crear módulo: ' + err.message);
+      setError('Error al crear mÃ³dulo: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -849,9 +849,9 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
   return (
     <div>
       <div className="section-header-row">
-        <span className="section-title">Módulos del programa ({modules.length})</span>
+        <span className="section-title">MÃ³dulos del programa ({modules.length})</span>
         <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Módulo
+          <Plus size={16} /> Crear MÃ³dulo
         </button>
       </div>
 
@@ -861,24 +861,24 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
             <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editModuleId ? 'Editar Módulo' : 'Crear Nuevo Módulo'}</h3>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editModuleId ? 'Editar MÃ³dulo' : 'Crear Nuevo MÃ³dulo'}</h3>
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Módulo</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>TÃ­tulo del MÃ³dulo</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Fundamentos de Frontend" required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden (Número)</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden (NÃºmero)</label>
                 <input type="number" value={orderIndex} onChange={e => setOrderIndex(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="1" required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (opcional)</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '80px', fontFamily: 'inherit' }} placeholder="Descripción corta del módulo..." />
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>DescripciÃ³n (opcional)</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '80px', fontFamily: 'inherit' }} placeholder="DescripciÃ³n corta del mÃ³dulo..." />
               </div>
               <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
-                {submitting ? 'Guardando...' : 'Guardar Módulo'}
+                {submitting ? 'Guardando...' : 'Guardar MÃ³dulo'}
               </button>
             </form>
           </div>
@@ -888,11 +888,11 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
-            <tr><th>#</th><th>Título</th><th>Descripción</th><th>Acciones</th></tr>
+            <tr><th>#</th><th>TÃ­tulo</th><th>DescripciÃ³n</th><th>Acciones</th></tr>
           </thead>
           <tbody>
             {loading ? <LoadingRow cols={4} /> :
-             modules.length === 0 ? <EmptyRow cols={4} message="No hay módulos registrados." /> :
+             modules.length === 0 ? <EmptyRow cols={4} message="No hay mÃ³dulos registrados." /> :
              modules.map((m, i) => (
               <tr key={m.id}>
                 <td><div className="order-badge">{m.order_index ?? i + 1}</div></td>
@@ -908,9 +908,9 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB 5 — Subtemas (Supabase)
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB 5 â€” Subtemas (Supabase)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse }) {
   const [showModal, setShowModal] = useState(false);
   const [editSubtopicId, setEditSubtopicId] = useState(null);
@@ -951,7 +951,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
     setError(''); setSuccess('');
     
     if (!title || !moduleId) {
-      setError('El título y el módulo asociado son obligatorios.');
+      setError('El tÃ­tulo y el mÃ³dulo asociado son obligatorios.');
       return;
     }
     
@@ -978,7 +978,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
       const { error: opError } = await query;
       if (opError) throw opError;
       
-      setSuccess(editSubtopicId ? 'Subtema actualizado con éxito.' : 'Subtema creado con éxito.');
+      setSuccess(editSubtopicId ? 'Subtema actualizado con Ã©xito.' : 'Subtema creado con Ã©xito.');
       setTitle(''); setDescription('');
       if (onRefresh) onRefresh();
       
@@ -994,7 +994,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
   };
 
   const handleDelete = async (st) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el subtema "${st.title}"?`)) return;
+    if (!window.confirm(`Â¿EstÃ¡s seguro de que deseas eliminar el subtema "${st.title}"?`)) return;
 
     try {
       const { count, error: countError } = await supabase
@@ -1043,26 +1043,26 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Subtema</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Introducción a HTML" required />
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>TÃ­tulo del Subtema</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: IntroducciÃ³n a HTML" required />
               </div>
               {!isCourse && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Módulo Asociado</label>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>MÃ³dulo Asociado</label>
                   <select value={moduleId} onChange={e => setModuleId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                    {modulesProp.length === 0 ? <option value="">Cargando módulos...</option> : modulesProp.map(m => (
+                    {modulesProp.length === 0 ? <option value="">Cargando mÃ³dulos...</option> : modulesProp.map(m => (
                       <option key={m.id} value={m.id}>{m.title}</option>
                     ))}
                   </select>
                 </div>
               )}
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden (Número)</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden (NÃºmero)</label>
                 <input type="number" value={orderIndex} onChange={e => setOrderIndex(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="1" required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (opcional)</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '80px', fontFamily: 'inherit' }} placeholder="Descripción corta del subtema..." />
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>DescripciÃ³n (opcional)</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '80px', fontFamily: 'inherit' }} placeholder="DescripciÃ³n corta del subtema..." />
               </div>
               <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
                 {submitting ? 'Guardando...' : 'Guardar Subtema'}
@@ -1074,7 +1074,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
-            <tr><th>#</th><th>Título</th><th>Descripción</th><th>Acciones</th></tr>
+            <tr><th>#</th><th>TÃ­tulo</th><th>DescripciÃ³n</th><th>Acciones</th></tr>
           </thead>
           <tbody>
             {loading ? <LoadingRow cols={4} /> :
@@ -1094,9 +1094,9 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB 6 — Clases (Supabase)
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB 6 â€” Clases (Supabase)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ClasesTab({ classes, teachers, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
   const [editClassId, setEditClassId] = useState(null);
@@ -1155,7 +1155,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
     setError(''); setSuccess('');
     
     if (!title || !subtopicId || !teacherId) {
-      setError('El título, subtema y profesor son obligatorios.');
+      setError('El tÃ­tulo, subtema y profesor son obligatorios.');
       return;
     }
     
@@ -1184,7 +1184,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
       const { error: opError } = await query;
       if (opError) throw opError;
       
-      setSuccess(editClassId ? 'Clase actualizada con éxito.' : 'Clase creada con éxito.');
+      setSuccess(editClassId ? 'Clase actualizada con Ã©xito.' : 'Clase creada con Ã©xito.');
       if (onRefresh) onRefresh();
       
       setTimeout(() => {
@@ -1199,7 +1199,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
   };
 
   const handleDelete = async (c) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar la clase "${c.title}"?`)) return;
+    if (!window.confirm(`Â¿EstÃ¡s seguro de que deseas eliminar la clase "${c.title}"?`)) return;
 
     try {
       const { count, error: countError } = await supabase
@@ -1210,7 +1210,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
       if (countError) throw countError;
 
       if (count && count > 0) {
-        alert('Esta clase tiene recursos asociados. Elimina primero los recursos o confirma una eliminación completa si se implementa más adelante.');
+        alert('Esta clase tiene recursos asociados. Elimina primero los recursos o confirma una eliminaciÃ³n completa si se implementa mÃ¡s adelante.');
         return;
       }
 
@@ -1249,7 +1249,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
             <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título de la Clase</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>TÃ­tulo de la Clase</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Bases de React" required />
               </div>
 
@@ -1277,17 +1277,17 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Duración (minutos)</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>DuraciÃ³n (minutos)</label>
                 <input type="number" value={duration} onChange={e => setDuration(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: 90" />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Grabación</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de GrabaciÃ³n</label>
                 <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Presentación</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de PresentaciÃ³n</label>
                 <input type="url" value={presentationUrl} onChange={e => setPresentationUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
               </div>
 
@@ -1297,7 +1297,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>DescripciÃ³n</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }} />
               </div>
 
@@ -1313,7 +1313,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
-            <tr><th>Título</th><th>Profesor</th><th>Fecha</th><th>Duración</th><th>Estado</th><th>Grabación</th><th>Acciones</th></tr>
+            <tr><th>TÃ­tulo</th><th>Profesor</th><th>Fecha</th><th>DuraciÃ³n</th><th>Estado</th><th>GrabaciÃ³n</th><th>Acciones</th></tr>
           </thead>
           <tbody>
             {loading ? <LoadingRow cols={7} /> :
@@ -1321,9 +1321,9 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
              classes.map(cls => (
               <tr key={cls.id}>
                 <td style={{ fontWeight: 600 }}>{cls.title}</td>
-                <td>{cls.teacher_profiles?.name || '—'}</td>
+                <td>{cls.teacher_profiles?.name || 'â€”'}</td>
                 <td>{formatShortDate(cls.class_date)}</td>
-                <td>{cls.duration ? `${cls.duration} min` : '—'}</td>
+                <td>{cls.duration ? `${cls.duration} min` : 'â€”'}</td>
                 <td><StatusBadge status={cls.status} /></td>
                 <td>
                   {cls.video_url || cls.presentation_url
@@ -1341,9 +1341,9 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB 7 — Recursos (Supabase)
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB 7 â€” Recursos (Supabase)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function RecursosTab({ resources, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
   const [editResourceId, setEditResourceId] = useState(null);
@@ -1395,7 +1395,7 @@ function RecursosTab({ resources, loading, onRefresh }) {
     setError(''); setSuccess('');
     
     if (!title || !classId) {
-      setError('El título y la clase son obligatorios.');
+      setError('El tÃ­tulo y la clase son obligatorios.');
       return;
     }
     
@@ -1422,7 +1422,7 @@ function RecursosTab({ resources, loading, onRefresh }) {
       const { error: opError } = await query;
       if (opError) throw opError;
       
-      setSuccess(editResourceId ? 'Recurso actualizado con éxito.' : 'Recurso agregado con éxito.');
+      setSuccess(editResourceId ? 'Recurso actualizado con Ã©xito.' : 'Recurso agregado con Ã©xito.');
       if (onRefresh) onRefresh();
       
       setTimeout(() => {
@@ -1437,11 +1437,11 @@ function RecursosTab({ resources, loading, onRefresh }) {
   };
 
   const handleDelete = async (r) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el recurso "${r.title}"?`)) return;
+    if (!window.confirm(`Â¿EstÃ¡s seguro de que deseas eliminar el recurso "${r.title}"?`)) return;
 
     try {
       if (r.provider === 'supabase' && r.file_path) {
-        console.log('Documentado: Falta eliminar el archivo físico de Supabase Storage para', r.file_path);
+        console.log('Documentado: Falta eliminar el archivo fÃ­sico de Supabase Storage para', r.file_path);
       }
 
       const { error: deleteError } = await supabase
@@ -1478,7 +1478,7 @@ function RecursosTab({ resources, loading, onRefresh }) {
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
             <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Recurso</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>TÃ­tulo del Recurso</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Diapositivas de la Clase 1" required />
               </div>
               
@@ -1495,7 +1495,7 @@ function RecursosTab({ resources, loading, onRefresh }) {
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Tipo de Recurso</label>
                 <select value={resourceType} onChange={e => setResourceType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
                   <option value="video">Video</option>
-                  <option value="presentation">Presentación / Diapositivas</option>
+                  <option value="presentation">PresentaciÃ³n / Diapositivas</option>
                   <option value="pdf">Documento PDF</option>
                   <option value="link">Enlace externo</option>
                   <option value="file">Otro Archivo</option>
@@ -1563,9 +1563,9 @@ function RecursosTab({ resources, loading, onRefresh }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   TAB 8 — Anuncios
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   TAB 8 â€” Anuncios
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function AnnouncementModal({ announcement, onClose, onRefresh }) {
   const [title, setTitle] = useState(announcement?.title || '');
   const [body, setBody] = useState(announcement?.body || '');
@@ -1576,7 +1576,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
-      setError('El título y el mensaje son obligatorios.');
+      setError('El tÃ­tulo y el mensaje son obligatorios.');
       return;
     }
 
@@ -1626,14 +1626,14 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
           {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <label className="form-label">Título del anuncio</label>
+              <label className="form-label">TÃ­tulo del anuncio</label>
               <input type="text" className="form-input" value={title} onChange={e => setTitle(e.target.value)} required />
             </div>
             <div>
               <label className="form-label">Etiqueta de importancia</label>
               <select className="form-select" value={tag} onChange={e => setTag(e.target.value)}>
                 <option value="general">General</option>
-                <option value="info">Información</option>
+                <option value="info">InformaciÃ³n</option>
                 <option value="urgent">Urgente</option>
               </select>
             </div>
@@ -1691,7 +1691,7 @@ function AnunciosTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio?')) return;
+    if (!window.confirm('Â¿EstÃ¡s seguro de que deseas eliminar este anuncio?')) return;
     try {
       const { error } = await supabase.from('announcements').delete().eq('id', id);
       if (error) throw error;
@@ -1719,7 +1719,7 @@ function AnunciosTab() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Título</th>
+                <th>TÃ­tulo</th>
                 <th>Publicado por</th>
                 <th>Etiqueta</th>
                 <th>Fecha</th>
@@ -1730,7 +1730,7 @@ function AnunciosTab() {
               {announcements.map(a => (
                 <tr key={a.id}>
                   <td style={{ fontWeight: 500 }}>{a.title}</td>
-                  <td>{a.teacher_profiles?.name || 'Administración'}</td>
+                  <td>{a.teacher_profiles?.name || 'AdministraciÃ³n'}</td>
                   <td>
                     <span className={`role-badge`} style={{
                       backgroundColor: a.tag === 'urgent' ? '#fee2e2' : a.tag === 'info' ? '#dbeafe' : '#f1f5f9',
@@ -1764,14 +1764,14 @@ function AnunciosTab() {
   );
 }
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    COMPONENTE PRINCIPAL
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const TABS = [
   { id: 'resumen',    label: 'Resumen',    icon: <LayoutDashboard size={16} /> },
   { id: 'alumnos',    label: 'Alumnos',    icon: <Users size={16} /> },
   { id: 'profesores',label: 'Profesores', icon: <GraduationCap size={16} /> },
-  { id: 'modulos',   label: 'Módulos',    icon: <BookOpen size={16} /> },
+  { id: 'modulos',   label: 'MÃ³dulos',    icon: <BookOpen size={16} /> },
   { id: 'subtemas',  label: 'Subtemas',   icon: <ListTree size={16} /> },
   { id: 'clases',    label: 'Clases',     icon: <Video size={16} /> },
   { id: 'recursos',  label: 'Recursos',   icon: <FileText size={16} /> },
@@ -1792,7 +1792,7 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState(tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : 'resumen');
   const role = currentUser?.role;
 
-  // Actualizar la pestaña activa si cambia la URL
+  // Actualizar la pestaÃ±a activa si cambia la URL
   useEffect(() => {
     const currentTab = queryParams.get('tab');
     if (currentTab && currentTab !== activeTab && TABS.some(t => t.id === currentTab)) {
@@ -1800,7 +1800,7 @@ export default function AdminPanel() {
     }
   }, [location.search]);
 
-  // Actualizar la URL cuando cambia la pestaña
+  // Actualizar la URL cuando cambia la pestaÃ±a
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     navigate(`/dashboard/admin/${programId}?tab=${tabId}`, { replace: true });
@@ -1898,7 +1898,7 @@ export default function AdminPanel() {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
+        <h1 className="page-title">Panel de AdministraciÃ³n: {data.program?.title || 'Cargando...'}</h1>
         <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
       </div>
 
@@ -1926,3 +1926,6 @@ export default function AdminPanel() {
     </div>
   );
 }
+
+
+

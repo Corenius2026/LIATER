@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { 
   PlayCircle, 
   CheckCircle2, 
@@ -19,34 +19,34 @@ const MOCK_DATA = {
   subtopics: [
     {
       id: 1,
-      title: "Tema 1: Fundamentos de Energía Solar",
+      title: "Tema 1: Fundamentos de EnergÃ­a Solar",
       classes: [
-        { id: 101, title: "Clase 1: Introducción a la Radiación Solar", duration: "1h 45m", date: "02 de Oct", type: "video", completed: true, isCurrent: false },
+        { id: 101, title: "Clase 1: IntroducciÃ³n a la RadiaciÃ³n Solar", duration: "1h 45m", date: "02 de Oct", type: "video", completed: true, isCurrent: false },
         { id: 102, title: "Clase 2: Tipos de Paneles Fotovoltaicos", duration: "2h 10m", date: "04 de Oct", type: "video", completed: true, isCurrent: false },
         { id: 103, title: "Material de Apoyo", duration: "PDF", type: "document", completed: true, isCurrent: false },
       ]
     },
     {
       id: 2,
-      title: "Tema 2: Diseño y Dimensionamiento",
+      title: "Tema 2: DiseÃ±o y Dimensionamiento",
       classes: [
-        { id: 201, title: "Clase 3: Cálculo de Consumo Energético", duration: "2h 05m", date: "09 de Oct", type: "video", completed: false, isCurrent: true },
-        { id: 202, title: "Clase 4: Selección de Inversores", duration: "Próximamente", date: "11 de Oct", type: "video", completed: false, isCurrent: false, locked: true },
+        { id: 201, title: "Clase 3: CÃ¡lculo de Consumo EnergÃ©tico", duration: "2h 05m", date: "09 de Oct", type: "video", completed: false, isCurrent: true },
+        { id: 202, title: "Clase 4: SelecciÃ³n de Inversores", duration: "PrÃ³ximamente", date: "11 de Oct", type: "video", completed: false, isCurrent: false, locked: true },
       ]
     },
     {
       id: 3,
-      title: "Tema 3: Instalación y Mantenimiento",
+      title: "Tema 3: InstalaciÃ³n y Mantenimiento",
       classes: [
-        { id: 301, title: "Clase 5: Normativas de Seguridad", duration: "Próximamente", date: "16 de Oct", type: "video", completed: false, isCurrent: false, locked: true },
+        { id: 301, title: "Clase 5: Normativas de Seguridad", duration: "PrÃ³ximamente", date: "16 de Oct", type: "video", completed: false, isCurrent: false, locked: true },
       ]
     }
   ],
   currentClass: {
-    title: "Clase 3: Cálculo de Consumo Energético (Grabación)",
-    description: "Grabación de la sesión virtual en vivo del 09 de Octubre. En esta clase aprendimos a calcular el consumo energético de una vivienda o comercio para dimensionar adecuadamente el sistema fotovoltaico. Discutimos conceptos de potencia nominal, horas pico solar y respondimos las dudas en vivo.",
+    title: "Clase 3: CÃ¡lculo de Consumo EnergÃ©tico (GrabaciÃ³n)",
+    description: "GrabaciÃ³n de la sesiÃ³n virtual en vivo del 09 de Octubre. En esta clase aprendimos a calcular el consumo energÃ©tico de una vivienda o comercio para dimensionar adecuadamente el sistema fotovoltaico. Discutimos conceptos de potencia nominal, horas pico solar y respondimos las dudas en vivo.",
     teacher: {
-      name: "Ing. Roberto Martínez",
+      name: "Ing. Roberto MartÃ­nez",
       avatar: "https://i.pravatar.cc/150?img=11"
     }
   }
@@ -54,7 +54,7 @@ const MOCK_DATA = {
 
 export default function CourseViewerMock() {
   const navigate = useNavigate();
-  const [expandedSubtopics, setExpandedSubtopics] = useState([2]); // El subtema 2 está expandido por defecto
+  const [expandedSubtopics, setExpandedSubtopics] = useState([2]); // El subtema 2 estÃ¡ expandido por defecto
   const [activeTab, setActiveTab] = useState('resumen');
 
   const toggleSubtopic = (id) => {
@@ -101,7 +101,7 @@ export default function CourseViewerMock() {
         <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#0f172a' }}>
           {/* VIDEO PLAYER AREA */}
           <div style={{ width: '100%', backgroundColor: '#000', aspectRatio: '16/9', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* Simulación del reproductor */}
+            {/* SimulaciÃ³n del reproductor */}
             <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.8))', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
               <button style={{ 
                 width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'rgba(99, 102, 241, 0.9)', 
@@ -119,7 +119,7 @@ export default function CourseViewerMock() {
               <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: '2px', position: 'absolute', top: 0, left: 0 }}>
                 <div style={{ width: '35%', height: '100%', backgroundColor: '#6366f1', borderRadius: '2px' }}></div>
               </div>
-              <span style={{ color: 'white', fontSize: '0.85rem', marginTop: '8px', fontWeight: 500 }}>Grabación de Sesión en Vivo (2h 05m)</span>
+              <span style={{ color: 'white', fontSize: '0.85rem', marginTop: '8px', fontWeight: 500 }}>GrabaciÃ³n de SesiÃ³n en Vivo (2h 05m)</span>
             </div>
           </div>
 
@@ -134,7 +134,7 @@ export default function CourseViewerMock() {
               {[
                 { id: 'resumen', label: 'Resumen', icon: <FileText size={18} /> },
                 { id: 'recursos', label: 'Recursos', icon: <Download size={18} /> },
-                { id: 'discusion', label: 'Discusión', icon: <MessageSquare size={18} /> }
+                { id: 'discusion', label: 'DiscusiÃ³n', icon: <MessageSquare size={18} /> }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -175,9 +175,9 @@ export default function CourseViewerMock() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', backgroundColor: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <FileText color="#6366f1" size={24} />
-                        <span>Presentación_Calculo_Consumo.pdf</span>
+                        <span>PresentaciÃ³n_Calculo_Consumo.pdf</span>
                       </div>
-                      <button style={{ background: '#4f46e5', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button style={{ background: 'var(--primary-700)', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Download size={16} /> Descargar
                       </button>
                     </div>
@@ -186,7 +186,7 @@ export default function CourseViewerMock() {
                         <FileText color="#10b981" size={24} />
                         <span>Plantilla_Excel_Dimensionamiento.xlsx</span>
                       </div>
-                      <button style={{ background: '#4f46e5', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button style={{ background: 'var(--primary-700)', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Download size={16} /> Descargar
                       </button>
                     </div>
@@ -197,7 +197,7 @@ export default function CourseViewerMock() {
                 <div style={{ animation: 'fadeIn 0.3s ease' }}>
                   <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
-                      TÚ
+                      TÃš
                     </div>
                     <div style={{ flex: 1 }}>
                       <textarea 
@@ -205,14 +205,14 @@ export default function CourseViewerMock() {
                         style={{ width: '100%', padding: '1rem', borderRadius: '8px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#f8fafc', minHeight: '100px', resize: 'vertical' }}
                       />
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                        <button style={{ background: '#4f46e5', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}>
+                        <button style={{ background: 'var(--primary-700)', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}>
                           Publicar Comentario
                         </button>
                       </div>
                     </div>
                   </div>
                   <hr style={{ borderColor: '#334155', margin: '2rem 0' }} />
-                  <p style={{ textAlign: 'center', color: '#64748b' }}>No hay comentarios aún. ¡Sé el primero en participar!</p>
+                  <p style={{ textAlign: 'center', color: '#64748b' }}>No hay comentarios aÃºn. Â¡SÃ© el primero en participar!</p>
                 </div>
               )}
             </div>
@@ -276,8 +276,8 @@ export default function CourseViewerMock() {
                             {cls.title}
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#64748b' }}>
-                            {cls.type === 'video' && <span>Grabación • {cls.duration}</span>}
-                            {cls.type === 'document' && <span>Recurso • {cls.duration}</span>}
+                            {cls.type === 'video' && <span>GrabaciÃ³n â€¢ {cls.duration}</span>}
+                            {cls.type === 'document' && <span>Recurso â€¢ {cls.duration}</span>}
                             {cls.date && <span style={{ marginLeft: '4px' }}>| {cls.date}</span>}
                           </div>
                         </div>
@@ -303,3 +303,4 @@ export default function CourseViewerMock() {
     </div>
   );
 }
+
