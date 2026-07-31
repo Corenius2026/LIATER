@@ -6,7 +6,7 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Home, BookOpen, Users, LogOut, Settings, LayoutDashboard, GraduationCap, UserCircle, HelpCircle, ListTree } from 'lucide-react';
-import liaterLogo from '../assets/liater-logo.png';
+import liaterLogoWhite from '../assets/liater-logo-white.png';
 import unalLogoWhite from '../assets/unal-logo-white.png';
 
 export default function Sidebar() {
@@ -31,7 +31,7 @@ export default function Sidebar() {
 
       {/* --- SECCIÓN 1: Logo LIATER --- */}
       <div className="sidebar-logo" onClick={() => navigate('/portal')}>
-        <img src={liaterLogo} alt="LIATER" className="sidebar-logo-img" />
+        <img src={liaterLogoWhite} alt="LIATER" className="sidebar-logo-img" />
       </div>
 
       {/* --- SECCIÓN 2: Menú de Navegación Principal --- */}
