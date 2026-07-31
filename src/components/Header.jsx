@@ -54,37 +54,6 @@ export default function Header() {
               </div>
             )}
           </div>
-
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              color: 'var(--text-muted)',
-              fontSize: '0.8rem',
-              fontWeight: 500,
-              padding: '0.45rem 0.875rem',
-              borderRadius: 'var(--radius-md)',
-              border: '1.5px solid var(--border-color)',
-              transition: 'var(--transition)',
-              background: 'transparent',
-              cursor: 'pointer',
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = '#fee2e2';
-              e.currentTarget.style.color = '#dc2626';
-              e.currentTarget.style.borderColor = '#fca5a5';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-muted)';
-              e.currentTarget.style.borderColor = 'var(--border-color)';
-            }}
-          >
-            <LogOut size={15} />
-            <span>Cerrar Sesión</span>
-          </button>
         </div>
       )}
     </header>

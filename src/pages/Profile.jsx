@@ -1,65 +1,501 @@
-﻿import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Camera, Shield, Save } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
+import {
+  User, Mail, Phone, Globe, Camera, Shield, Save,
+  BookOpen, Lock, CheckCircle2, Award, Briefcase
+} from 'lucide-react';
 
 export default function Profile() {
   const { currentUser } = useAuth();
+  const role = currentUser?.role;
+  const isTeacher = role === 'teacher';
+
+  const [activeTab, setActiveTab] = useState('personal');
+
+  // Datos personales (users_profile)
+  const [personalData, setPersonalData] = useState({
+    full_name: currentUser?.name || '',
+    email: currentUser?.email || '',
+    phone: '',
+    country: 'Colombia',
+    avatar_url: ''
+  });
+
+  // Datos académicos (teacher_profiles)
+  const [academicData, setAcademicData] = useState({
+    area: '',
+    bio: '',
+    title_role: 'Profesor Titular',
+    experience: ''
+  });
+
+  // Programas en los que participa
+  const [myPrograms, setMyPrograms] = useState([]);
   
-  // Nombres simulados según el rol
-  const getDisplayName = () => {
-    if (currentUser?.role === 'admin') return 'Administrador LIATER';
-    if (currentUser?.role === 'teacher') return 'Profesor LIATER';
-    return 'Estudiante LIATER';
+  // Seguridad
+  const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+
+  useEffect(() => {
+    async function loadProfileData() {
+      if (!currentUser?.id) return;
+      try {
+        // 1. Cargar users_profile
+        const { data: uProfile } = await supabase
+          .from('users_profile')
+          .select('*')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+          
+        if (uProfile) {
+          setPersonalData({
+            full_name: uProfile.full_name || currentUser.name || '',
+            email: currentUser.email || '',
+            phone: uProfile.phone || '',
+            country: uProfile.country || 'Colombia',
+            avatar_url: uProfile.avatar_url || ''
+          });
+        }
+
+        // 2. Si es profesor, cargar teacher_profiles y diploma_programs
+        if (isTeacher) {
+          const { data: tProfile } = await supabase
+            .from('teacher_profiles')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+
+          if (tProfile) {
+            setAcademicData({
+              area: tProfile.area || '',
+              bio: tProfile.bio || '',
+              title_role: tProfile.title_role || 'Profesor Titular',
+              experience: tProfile.experience || ''
+            });
+          }
+
+          // Cargar programas
+          const { data: progs } = await supabase
+            .from('diploma_programs')
+            .select('*')
+            .order('title', { ascending: true });
+          if (progs) setMyPrograms(progs);
+        }
+      } catch (err) {
+        console.error('Error al cargar perfil:', err);
+      }
+    }
+    loadProfileData();
+  }, [currentUser?.id, isTeacher]);
+
+  const handleSavePersonal = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setMsg({ type: '', text: '' });
+    try {
+      const { error } = await supabase
+        .from('users_profile')
+        .update({
+          full_name: personalData.full_name,
+          phone: personalData.phone,
+          country: personalData.country
+        })
+        .eq('id', currentUser.id);
+
+      if (error) throw error;
+      setMsg({ type: 'success', text: 'Perfil personal actualizado con éxito.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Error al actualizar perfil: ' + err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAcademic = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setMsg({ type: '', text: '' });
+    try {
+      const { data: tProfile } = await supabase
+        .from('teacher_profiles')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if (tProfile) {
+        const { error } = await supabase
+          .from('teacher_profiles')
+          .update({
+            area: academicData.area,
+            bio: academicData.bio,
+            title_role: academicData.title_role,
+            experience: academicData.experience
+          })
+          .eq('id', tProfile.id);
+
+        if (error) throw error;
+      }
+      setMsg({ type: 'success', text: 'Perfil académico actualizado con éxito.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Error al actualizar perfil académico: ' + err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveSecurity = async (e) => {
+    e.preventDefault();
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setMsg({ type: 'error', text: 'Las contraseñas no coinciden.' });
+      return;
+    }
+    if (passwordData.newPassword.length < 6) {
+      setMsg({ type: 'error', text: 'La contraseña debe tener al menos 6 caracteres.' });
+      return;
+    }
+
+    setSaving(true);
+    setMsg({ type: '', text: '' });
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordData.newPassword });
+      if (error) throw error;
+      setMsg({ type: 'success', text: 'Contraseña actualizada con éxito.' });
+      setPasswordData({ newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Error al cambiar contraseña: ' + err.message });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto' }}>
-      <h1 style={{ color: 'var(--text-dark)', fontSize: '2rem', fontWeight: 'bold', marginBottom: '2rem' }}>Mi Perfil</h1>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-        
-        {/* Cabecera de Perfil */}
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '2rem', padding: '2rem' }}>
-          <div style={{ position: 'relative' }}>
-            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-              <User size={60} />
-            </div>
-            <button style={{ position: 'absolute', bottom: '0', right: '0', background: 'white', border: '1px solid #e2e8f0', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-              <Camera size={18} color="var(--text-dark)" />
-            </button>
-          </div>
-          <div>
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{getDisplayName()}</h2>
-            <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <Mail size={16} /> {currentUser?.email || 'usuario@liater.com'}
-            </p>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dark)' }}>
-              <Shield size={14} /> 
-              {currentUser?.role === 'admin' ? 'Administrador' : currentUser?.role === 'teacher' ? 'Profesor' : 'Estudiante'}
-            </span>
+      <h1 style={{ color: 'var(--navy)', fontSize: '2rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>
+        Mi Perfil
+      </h1>
+
+      {msg.text && (
+        <div style={{
+          padding: '0.85rem 1.25rem',
+          borderRadius: '8px',
+          marginBottom: '1.5rem',
+          fontSize: '0.9rem',
+          fontWeight: 600,
+          background: msg.type === 'error' ? '#fef2f2' : '#f0fdf4',
+          color: msg.type === 'error' ? '#dc2626' : '#16a34a',
+          border: `1px solid ${msg.type === 'error' ? '#fca5a5' : '#bbf7d0'}`
+        }}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* CABECERA RESUMIDA DEL USUARIO */}
+      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '2rem', padding: '2rem', marginBottom: '2rem', background: 'var(--white)' }}>
+        <div style={{ position: 'relative' }}>
+          <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '2.5rem', flexShrink: 0 }}>
+            {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'U'}
           </div>
         </div>
+        <div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '0.25rem' }}>
+            {personalData.full_name || 'Usuario LIATER'}
+          </h2>
+          <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+            <Mail size={16} /> {personalData.email}
+          </p>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(20, 33, 61, 0.08)', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)' }}>
+            <Shield size={14} color="var(--navy)" /> 
+            {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Profesor' : 'Estudiante'}
+          </span>
+        </div>
+      </div>
 
-        {/* Formulario Simulado */}
-        <div className="card" style={{ padding: '2rem' }}>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>Información Personal</h3>
+      {/* SI ES PROFESOR, PESTAÑAS DEDICADAS */}
+      {isTeacher ? (
+        <div>
+          {/* BOTONES DE PESTAÑAS DEL PERFIL */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+            <button
+              onClick={() => setActiveTab('personal')}
+              style={{
+                padding: '0.6rem 1.25rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                background: activeTab === 'personal' ? 'var(--navy)' : 'transparent',
+                color: activeTab === 'personal' ? 'var(--white)' : 'var(--text-muted)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <User size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+              Perfil personal
+            </button>
+
+            <button
+              onClick={() => setActiveTab('academic')}
+              style={{
+                padding: '0.6rem 1.25rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                background: activeTab === 'academic' ? 'var(--navy)' : 'transparent',
+                color: activeTab === 'academic' ? 'var(--white)' : 'var(--text-muted)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Award size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+              Perfil académico público
+            </button>
+
+            <button
+              onClick={() => setActiveTab('security')}
+              style={{
+                padding: '0.6rem 1.25rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                background: activeTab === 'security' ? 'var(--navy)' : 'transparent',
+                color: activeTab === 'security' ? 'var(--white)' : 'var(--text-muted)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Lock size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+              Seguridad de la cuenta
+            </button>
+          </div>
+
+          {/* CONTENIDO DE PESTAÑA: PERFIL PERSONAL */}
+          {activeTab === 'personal' && (
+            <form onSubmit={handleSavePersonal} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
+              <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                Perfil Personal
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Nombre Completo</label>
+                  <input 
+                    type="text" 
+                    value={personalData.full_name} 
+                    onChange={e => setPersonalData({ ...personalData, full_name: e.target.value })} 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} 
+                    required 
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Correo Electrónico</label>
+                  <input 
+                    type="email" 
+                    value={personalData.email} 
+                    disabled 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)' }} 
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Teléfono</label>
+                  <input 
+                    type="tel" 
+                    value={personalData.phone} 
+                    onChange={e => setPersonalData({ ...personalData, phone: e.target.value })} 
+                    placeholder="+57 300 000 0000" 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} 
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>País</label>
+                  <select 
+                    value={personalData.country} 
+                    onChange={e => setPersonalData({ ...personalData, country: e.target.value })} 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}
+                  >
+                    <option value="Colombia">Colombia</option>
+                    <option value="México">México</option>
+                    <option value="Perú">Perú</option>
+                    <option value="Chile">Chile</option>
+                    <option value="Argentina">Argentina</option>
+                    <option value="España">España</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontWeight: 700 }}>
+                  <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* CONTENIDO DE PESTAÑA: PERFIL ACADÉMICO PÚBLICO */}
+          {activeTab === 'academic' && (
+            <form onSubmit={handleSaveAcademic} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
+              <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                Perfil Académico Público
+              </h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Especialidad o Área</label>
+                  <input 
+                    type="text" 
+                    value={academicData.area} 
+                    onChange={e => setAcademicData({ ...academicData, area: e.target.value })} 
+                    placeholder="Ej. Inteligencia Artificial, Redes de Datos" 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Cargo</label>
+                  <input 
+                    type="text" 
+                    value={academicData.title_role} 
+                    onChange={e => setAcademicData({ ...academicData, title_role: e.target.value })} 
+                    placeholder="Ej. Profesor Titular, Docente Investigador" 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Biografía Corta</label>
+                <textarea 
+                  rows={3} 
+                  value={academicData.bio} 
+                  onChange={e => setAcademicData({ ...academicData, bio: e.target.value })} 
+                  placeholder="Resumen profesional de tu trayectoria académica para la comunidad..." 
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
+                />
+              </div>
+
+              <div style={{ marginBottom: '2rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Formación o Experiencia</label>
+                <textarea 
+                  rows={3} 
+                  value={academicData.experience} 
+                  onChange={e => setAcademicData({ ...academicData, experience: e.target.value })} 
+                  placeholder="Detalles sobre títulos universitarios, reconocimientos y experiencia docente..." 
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
+                />
+              </div>
+
+              {/* LISTA DE PROGRAMAS EN LOS QUE PARTICIPA */}
+              <div style={{ marginBottom: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem' }}>
+                  Programas en los que participa
+                </h4>
+                {myPrograms.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No hay programas asignados por el momento.</p>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                    {myPrograms.map(prog => (
+                      <div key={prog.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--bg-light)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                        <BookOpen size={18} color="var(--navy)" />
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>{prog.title}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{prog.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontWeight: 700 }}>
+                  <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios Académicos'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* CONTENIDO DE PESTAÑA: SEGURIDAD */}
+          {activeTab === 'security' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <form onSubmit={handleSaveSecurity} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
+                <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                  Cambio de Contraseña
+                </h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Nueva Contraseña</label>
+                    <input 
+                      type="password" 
+                      value={passwordData.newPassword} 
+                      onChange={e => setPasswordData({ ...passwordData, newPassword: e.target.value })} 
+                      placeholder="Mínimo 6 caracteres" 
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
+                      required 
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Confirmar Contraseña</label>
+                    <input 
+                      type="password" 
+                      value={passwordData.confirmPassword} 
+                      onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} 
+                      placeholder="Repite la nueva contraseña" 
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
+                      required 
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontWeight: 700 }}>
+                    <Lock size={18} /> {saving ? 'Actualizando...' : 'Actualizar Contraseña'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="card" style={{ padding: '1.5rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
+                  Gestión Básica de Acceso
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  Tu cuenta cuenta con privilegios de **Profesor**. Si requieres cambios de rol o permisos avanzados en la plataforma LIATER, por favor contacta al Administrador del sistema.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* VISTA ESTÁNDAR PARA OTROS ROLES (ESTUDIANTE / ADMIN) */
+        <form onSubmit={handleSavePersonal} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', color: 'var(--navy)', fontWeight: 700 }}>
+            Información Personal
+          </h3>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Nombre Completo</label>
-              <input type="text" defaultValue={getDisplayName()} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f8fafc' }} />
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>Nombre Completo</label>
+              <input type="text" value={personalData.full_name} onChange={e => setPersonalData({...personalData, full_name: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Correo Electrónico</label>
-              <input type="email" defaultValue={currentUser?.email || ''} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#94a3b8' }} />
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>Correo Electrónico</label>
+              <input type="email" value={personalData.email} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Teléfono</label>
-              <input type="tel" placeholder="+57 300 000 0000" style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f8fafc' }} />
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>Teléfono</label>
+              <input type="tel" value={personalData.phone} onChange={e => setPersonalData({...personalData, phone: e.target.value})} placeholder="+57 300 000 0000" style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>País</label>
-              <select style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>País</label>
+              <select value={personalData.country} onChange={e => setPersonalData({...personalData, country: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>
                 <option>Colombia</option>
                 <option>México</option>
                 <option>Perú</option>
@@ -69,14 +505,13 @@ export default function Profile() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn" style={{ background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', border: 'none' }}>
-              <Save size={18} /> Guardar Cambios
+            <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem' }}>
+              <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
-        </div>
+        </form>
+      )}
 
-      </div>
     </div>
   );
 }
-
