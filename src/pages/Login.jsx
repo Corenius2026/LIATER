@@ -49,11 +49,11 @@ export default function Login() {
             src={liaterLogo}
             alt="LIATER"
             style={{
-              height: '95px',
+              height: '130px',
               objectFit: 'contain',
             }}
           />
-          <p style={{ color: '#6b7280', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.25rem' }}>
+          <p style={{ color: '#6b7280', fontSize: '0.82rem', fontWeight: 600, marginTop: '0.35rem' }}>
             Portal Educativo
           </p>
         </div>
