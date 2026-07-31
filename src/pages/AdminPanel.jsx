@@ -262,7 +262,6 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
                 <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t.name}</div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{t.area}</div>
               </div>
-              </div>
             </div>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 0 }}>{t.bio || 'Sin biografía.'}</p>
           </div>
@@ -638,7 +637,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
 /* ─────────────────────────────────────────
    TAB 6 — Clases (Supabase)
 ───────────────────────────────────────── */
-function ClasesTab({ classes, loading, onRefresh }) {
+function ClasesTab({ classes, teachers, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
   const [editClassId, setEditClassId] = useState(null);
   
@@ -653,7 +652,6 @@ function ClasesTab({ classes, loading, onRefresh }) {
   const [orderIndex, setOrderIndex] = useState(1);
   
   const [subtopicsList, setSubtopicsList] = useState([]);
-  const [teachersList, setTeachersList] = useState([]);
   
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -683,17 +681,14 @@ function ClasesTab({ classes, loading, onRefresh }) {
 
   useEffect(() => {
     if (showModal && subtopicsList.length === 0) {
-      Promise.all([
-        supabase.from('subtopics').select('id, title').order('order_index', { ascending: true }),
-        supabase.from('teacher_profiles').select('id, name').order('name', { ascending: true })
-      ]).then(([stRes, tRes]) => {
-        setSubtopicsList(stRes.data || []);
-        setTeachersList(tRes.data || []);
-        if (stRes.data && stRes.data.length > 0 && !editClassId) setSubtopicId(stRes.data[0].id);
-        if (tRes.data && tRes.data.length > 0 && !editClassId) setTeacherId(tRes.data[0].id);
-      });
+      supabase.from('subtopics').select('id, title').order('order_index', { ascending: true })
+        .then(({ data }) => {
+          setSubtopicsList(data || []);
+          if (data && data.length > 0 && !editClassId) setSubtopicId(data[0].id);
+          if (teachers && teachers.length > 0 && !editClassId) setTeacherId(teachers[0].id);
+        });
     }
-  }, [showModal, subtopicsList.length, editClassId]);
+  }, [showModal, subtopicsList.length, editClassId, teachers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -810,7 +805,7 @@ function ClasesTab({ classes, loading, onRefresh }) {
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Profesor Asignado</label>
                 <select value={teacherId} onChange={e => setTeacherId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  {teachersList.length === 0 ? <option value="">Cargando profesores...</option> : teachersList.map(t => (
+                  {teachers.length === 0 ? <option value="">No hay profesores asignados</option> : teachers.map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
@@ -1433,7 +1428,7 @@ export default function AdminPanel() {
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} programId={programId} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} modulesProp={data.modules} isCourse={isCourse} />;
-      case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
+      case 'clases':     return <ClasesTab classes={data.classes} teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} onRefresh={refreshData} />;
       case 'anuncios':   return <AnunciosTab />;
       default:           return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
