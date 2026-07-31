@@ -1106,7 +1106,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    TAB 6 — Clases (Supabase)
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function ClasesTab({ classes, teachers, loading, onRefresh }) {
+function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const [showModal, setShowModal] = useState(false);
   const [editClassId, setEditClassId] = useState(null);
   
@@ -1129,6 +1129,8 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
   const openCreateModal = () => {
     setEditClassId(null);
     setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl(''); setOrderIndex(1);
+    if (subtopicsList.length > 0) setSubtopicId(subtopicsList[0].id);
+    if (teachers && teachers.length > 0) setTeacherId(teachers[0].id);
     setShowModal(true);
     setError(''); setSuccess('');
   };
@@ -1138,7 +1140,8 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
     setTitle(c.title);
     setDescription(c.description || '');
     setSubtopicId(c.subtopic_id);
-    setTeacherId(c.teacher_id);
+    const matchedT = teachers.find(t => t.id === c.teacher_id || t.user_id === c.teacher_id);
+    setTeacherId(matchedT ? matchedT.id : (c.teacher_id || (teachers[0]?.id || '')));
     setClassDate(toLocalDatetimeString(c.class_date));
     setDuration(c.duration || '');
     setVideoUrl(c.video_url || '');
@@ -1149,15 +1152,18 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
   };
 
   useEffect(() => {
-    if (showModal && subtopicsList.length === 0) {
-      supabase.from('subtopics').select('id, title').order('order_index', { ascending: true })
-        .then(({ data }) => {
-          setSubtopicsList(data || []);
-          if (data && data.length > 0 && !editClassId) setSubtopicId(data[0].id);
-          if (teachers && teachers.length > 0 && !editClassId) setTeacherId(teachers[0].id);
-        });
+    if (showModal) {
+      let query = supabase.from('subtopics').select('id, title').order('order_index', { ascending: true });
+      if (programId) query = query.eq('program_id', programId);
+      
+      query.then(({ data }) => {
+        const list = data || [];
+        setSubtopicsList(list);
+        if (list.length > 0 && !editClassId && !subtopicId) setSubtopicId(list[0].id);
+        if (teachers && teachers.length > 0 && !editClassId && !teacherId) setTeacherId(teachers[0].id);
+      });
     }
-  }, [showModal, subtopicsList.length, editClassId, teachers]);
+  }, [showModal, programId, editClassId, teachers, subtopicId, teacherId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1327,10 +1333,13 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
           <tbody>
             {loading ? <LoadingRow cols={7} /> :
              classes.length === 0 ? <EmptyRow cols={7} message="No hay clases registradas." /> :
-             classes.map(cls => (
+             classes.map(cls => {
+              const matchedTeacher = teachers.find(t => t.id === cls.teacher_id || t.user_id === cls.teacher_id);
+              const teacherName = cls.teacher_profiles?.name || matchedTeacher?.name || '—';
+              return (
               <tr key={cls.id}>
                 <td style={{ fontWeight: 600 }}>{cls.title}</td>
-                <td>{cls.teacher_profiles?.name || '—'}</td>
+                <td>{teacherName}</td>
                 <td>{formatShortDate(cls.class_date)}</td>
                 <td>{cls.duration ? `${cls.duration} min` : '—'}</td>
                 <td><StatusBadge status={cls.status} /></td>
@@ -1342,7 +1351,8 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
                 </td>
                 <td><ActionBtns onEdit={() => openEditModal(cls)} onDelete={() => handleDelete(cls)} /></td>
               </tr>
-            ))}
+            );
+          })}
           </tbody>
         </table>
       </div>
@@ -1846,11 +1856,11 @@ export default function AdminPanel() {
         const upcoming = (classesRes.data || []).filter(c => c.class_date && c.class_date > now).slice(0, 4);
 
         const enrolledIds = (enrolledRes.data || []).map(e => e.student_id);
-        const teachersAssigned = (teachersRes.data || []).filter(t => enrolledIds.includes(t.user_id));
+        const allTeachers = teachersRes.data || [];
 
         setData({
           program: programRes.data,
-          teachers: teachersAssigned,
+          teachers: allTeachers,
           modules: modulesRes.data || [],
           subtopics: subtopicsRes.data || [],
           classes: classesRes.data || [],
@@ -1859,7 +1869,7 @@ export default function AdminPanel() {
           enrolledStudents: enrolledRes.data || [],
           counts: {
             usuarios: (enrolledRes.data || []).length,
-            profesores: teachersAssigned.length,
+            profesores: allTeachers.length,
             modulos: (modulesRes.data || []).length,
             subtemas: (subtopicsRes.data || []).length,
             clases: (classesRes.data || []).length,

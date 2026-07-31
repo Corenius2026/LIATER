@@ -55,15 +55,17 @@ function ResumenTab({ onChangeTab }) {
       try {
         const { programId } = useTeacherContext();
         // Filtrar clases por programa
+        const teacherFilters = [profile.id, profile.user_id].filter(Boolean).map(id => `teacher_id.eq.${id}`).join(',');
+
         const pClasses = supabase.from('class_sessions')
           .select('class_date, program_id')
-          .eq('teacher_id', profile.id)
-          .eq('program_id', programId);
+          .eq('program_id', programId)
+          .or(teacherFilters);
           
         const pAnnouncements = supabase.from('announcements')
           .select('*', { count: 'exact', head: true })
-          .eq('teacher_id', profile.id)
-          .eq('program_id', programId);
+          .eq('program_id', programId)
+          .or(teacherFilters);
         
         const [resClasses, resAnn] = await Promise.all([pClasses, pAnnouncements]);
         
@@ -647,8 +649,9 @@ function ClasesTab() {
           .eq('program_id', programId)
           .order('class_date', { ascending: true });
 
-        if (teacherId) {
-          query = query.eq('teacher_id', teacherId);
+        if (teacherId || profile?.user_id) {
+          const teacherFilters = [teacherId, profile?.user_id].filter(Boolean).map(id => `teacher_id.eq.${id}`).join(',');
+          query = query.or(teacherFilters);
         }
 
         const { data, error: fetchError } = await query;
