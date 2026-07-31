@@ -218,19 +218,29 @@ function ResumenTab({ onChangeTab }) {
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    MODAL DE DETALLE DE CLASE Y MATERIALES
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─────────────────────────────────────────
+   MODAL DE DETALLE Y GESTIÓN DE CLASE
+───────────────────────────────────────── */
 function ClassDetailModal({ selectedClass, onClose }) {
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Form state
+  // 1. Estado para Información de la Clase
+  const [classTitle, setClassTitle] = useState(selectedClass?.title || '');
+  const [classDesc, setClassDesc] = useState(selectedClass?.description || '');
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [infoMsg, setInfoMsg] = useState('');
+
+  // 2. Estado para Presentación y Materiales
   const [editId, setEditId] = useState(null);
-  const [title, setTitle] = useState('');
-  const [type, setType] = useState('presentation');
-  const [provider, setProvider] = useState('external');
-  const [url, setUrl] = useState('');
+  const [matTitle, setMatTitle] = useState('');
+  const [matType, setMatType] = useState('presentation'); // 'presentation' | 'file' | 'pdf' | 'link'
+  const [matProvider, setMatProvider] = useState('drive'); // 'drive' | 'pc' | 'external'
+  const [matUrl, setMatUrl] = useState('');
   const [isVisible, setIsVisible] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [activeAddSection, setActiveAddSection] = useState(null); // 'presentation' | 'complementary' | null
 
   const fetchMaterials = async () => {
     try {
@@ -239,7 +249,6 @@ function ClassDetailModal({ selectedClass, onClose }) {
         .from('resources')
         .select('*')
         .eq('class_id', selectedClass.id)
-        .in('resource_type', ['presentation', 'pdf', 'link', 'file'])
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -252,45 +261,77 @@ function ClassDetailModal({ selectedClass, onClose }) {
   };
 
   useEffect(() => {
-    if (selectedClass) fetchMaterials();
+    if (selectedClass) {
+      setClassTitle(selectedClass.title || '');
+      setClassDesc(selectedClass.description || '');
+      fetchMaterials();
+    }
   }, [selectedClass]);
 
-  const handleEdit = (p) => {
+  // Guardar Información de la clase
+  const handleSaveInfo = async (e) => {
+    e.preventDefault();
+    setSavingInfo(true);
+    setInfoMsg('');
+    try {
+      const { error: updateErr } = await supabase
+        .from('class_sessions')
+        .update({
+          title: classTitle.trim(),
+          description: classDesc.trim()
+        })
+        .eq('id', selectedClass.id);
+      if (updateErr) throw updateErr;
+      selectedClass.title = classTitle.trim();
+      selectedClass.description = classDesc.trim();
+      setInfoMsg('Información de la clase actualizada con éxito.');
+    } catch (err) {
+      setInfoMsg('Error al actualizar información: ' + err.message);
+    } finally {
+      setSavingInfo(false);
+    }
+  };
+
+  const handleEditResource = (p) => {
     setEditId(p.id);
-    setTitle(p.title);
-    setType(p.resource_type);
-    setProvider(p.provider);
-    setUrl(p.url || '');
+    setMatTitle(p.title);
+    setMatType(p.resource_type);
+    setMatProvider(p.provider || 'drive');
+    setMatUrl(p.url || '');
     setIsVisible(p.is_visible);
+    setActiveAddSection(p.resource_type === 'presentation' ? 'presentation' : 'complementary');
     setError('');
   };
 
   const handleCancelEdit = () => {
     setEditId(null);
-    setTitle('');
-    setType('presentation');
-    setProvider('external');
-    setUrl('');
+    setMatTitle('');
+    setMatType('presentation');
+    setMatProvider('drive');
+    setMatUrl('');
     setIsVisible(true);
+    setActiveAddSection(null);
     setError('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmitResource = async (e, sectionType) => {
     e.preventDefault();
-    if (!title.trim() || !url.trim()) {
-      setError('El título y el enlace son obligatorios.');
+    if (!matTitle.trim() || !matUrl.trim()) {
+      setError('El título y el enlace o archivo son obligatorios.');
       return;
     }
 
     setSubmitting(true);
     setError('');
 
+    const targetType = sectionType === 'presentation' ? 'presentation' : (matType === 'presentation' ? 'file' : matType);
+
     const payload = {
       class_id: selectedClass.id,
-      title: title.trim(),
-      resource_type: type,
-      provider,
-      url: url.trim(),
+      title: matTitle.trim(),
+      resource_type: targetType,
+      provider: matProvider,
+      url: matUrl.trim(),
       is_visible: isVisible
     };
 
@@ -312,14 +353,14 @@ function ClassDetailModal({ selectedClass, onClose }) {
       handleCancelEdit();
       await fetchMaterials();
     } catch (err) {
-      setError('Error al guardar: ' + err.message);
+      setError('Error al guardar recurso: ' + err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este material de apoyo?')) return;
+  const handleDeleteResource = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este material?')) return;
     try {
       const { error: deleteError } = await supabase
         .from('resources')
@@ -333,127 +374,252 @@ function ClassDetailModal({ selectedClass, onClose }) {
     }
   };
 
+  const presentations = materials.filter(m => m.resource_type === 'presentation');
+  const complementaryMaterials = materials.filter(m => m.resource_type !== 'presentation');
+
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto', background: 'white', position: 'relative', padding: '2rem' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20, 33, 61, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(4px)' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--white)', position: 'relative', padding: '2.5rem', borderRadius: '12px' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
           <X size={24} />
         </button>
         
-        <h2 style={{ marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.4rem' }}>{selectedClass.title}</h2>
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Layers size={14} /> {selectedClass.subtopics?.modules?.title || 'Sin módulo'}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><BookOpen size={14} /> {selectedClass.subtopics?.title || 'Sin subtema'}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CalendarDays size={14} /> {formatClassDate(selectedClass.class_date, false)}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Timer size={14} /> {selectedClass.duration || 0} min</span>
+        {/* ENCABEZADO DE LA CLASE */}
+        <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+          <span className="badge badge-navy" style={{ textTransform: 'uppercase', fontSize: '0.7rem', marginBottom: '0.5rem', display: 'inline-block' }}>
+            Gestión de Clase
+          </span>
+          <h2 style={{ marginBottom: '0.5rem', fontWeight: 800, fontSize: '1.5rem', color: 'var(--navy)' }}>{selectedClass.title}</h2>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Layers size={14} /> {selectedClass.subtopics?.modules?.title || 'Sin módulo'}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><BookOpen size={14} /> {selectedClass.subtopics?.title || 'Sin subtema'}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CalendarDays size={14} /> {formatClassDate(selectedClass.class_date, false)}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Timer size={14} /> {selectedClass.duration || 0} min</span>
+          </div>
         </div>
 
-        {/* Grabación oficial (Solo lectura) */}
-        <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Video size={20} color={selectedClass.video_url ? "var(--green-600)" : "#94a3b8"} />
+        {error && <div style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', padding: '0.75rem', borderRadius: '6px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>{error}</div>}
+
+        {/* ─── SECCIÓN 1: INFORMACIÓN DE LA CLASE ─── */}
+        <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Info size={18} color="var(--navy)" /> 1. Información de la Clase
+          </h3>
+          {infoMsg && <div style={{ fontSize: '0.82rem', marginBottom: '0.75rem', color: infoMsg.includes('Error') ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{infoMsg}</div>}
+          <form onSubmit={handleSaveInfo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <div style={{ fontWeight: 600 }}>Grabación Oficial</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {selectedClass.video_url ? 'Disponible para los estudiantes' : 'No se ha subido la grabación aún (solo admin)'}
-              </div>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)' }}>Título de la Clase</label>
+              <input type="text" value={classTitle} onChange={e => setClassTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--white)' }} required />
             </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)' }}>Pequeña Descripción</label>
+              <textarea rows={2} value={classDesc} onChange={e => setClassDesc(e.target.value)} placeholder="Breve resumen o temas principales a abordar en esta sesión..." style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--white)' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" disabled={savingInfo} className="btn btn-navy" style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', fontWeight: 700 }}>
+                {savingInfo ? 'Guardando...' : 'Guardar Información'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* ─── SECCIÓN 2: PRESENTACIÓN DE LA CLASE ─── */}
+        <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Presentation size={18} color="var(--navy)" /> 2. Presentación de la Clase
+            </h3>
+            <button 
+              onClick={() => {
+                if (activeAddSection === 'presentation' && !editId) {
+                  setActiveAddSection(null);
+                } else {
+                  handleCancelEdit();
+                  setActiveAddSection('presentation');
+                }
+              }} 
+              className="btn btn-navy"
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+            >
+              <Plus size={15} /> {activeAddSection === 'presentation' ? 'Cerrar Formulario' : 'Cargar Presentación (PC / Drive)'}
+            </button>
           </div>
-          {selectedClass.video_url && (
-            <a href={selectedClass.video_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ fontSize: '0.85rem' }}>
-              <Play size={14} style={{ display: 'inline', marginRight: '4px' }}/> Reproducir
-            </a>
+
+          {/* Formulario de Presentación */}
+          {activeAddSection === 'presentation' && (
+            <form onSubmit={e => handleSubmitResource(e, 'presentation')} style={{ background: 'var(--white)', padding: '1.25rem', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid var(--border-color)' }}>
+              <h4 style={{ margin: '0 0 0.85rem 0', color: 'var(--navy)', fontSize: '0.9rem', fontWeight: 700 }}>
+                {editId ? 'Editar Presentación' : 'Cargar Nueva Presentación'}
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Título del archivo / diapositivas</label>
+                  <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Presentación Módulo 1 - Diapositivas" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Origen / Proveedor</label>
+                  <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                    <option value="drive">Google Drive / OneDrive</option>
+                    <option value="pc">Archivo de PC (Enlace)</option>
+                    <option value="external">Otro Enlace Externo</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: '0.85rem' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>URL del archivo o enlace de compartir</label>
+                <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button type="button" onClick={handleCancelEdit} className="btn" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Cancelar</button>
+                <button type="submit" disabled={submitting} className="btn btn-navy" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700 }}>
+                  {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Cargar Presentación')}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Lista de Presentaciones */}
+          {presentations.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>No hay presentaciones vinculadas a esta clase.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {presentations.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Presentation size={18} color="var(--navy)" />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>{p.title}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Origen: {p.provider}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <a href={p.url} target="_blank" rel="noreferrer" className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', textDecoration: 'none', color: 'var(--navy)' }}>Ver</a>
+                    <button onClick={() => handleEditResource(p)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Editar</button>
+                    <button onClick={() => handleDeleteResource(p.id)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid #fca5a5', color: '#dc2626', background: '#fef2f2' }}>Eliminar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
-        <h3 style={{ fontWeight: 600, fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Materiales de Apoyo</h3>
-        
-        {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
-
-        <form onSubmit={handleSubmit} style={{ background: '#f0fdf4', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid #bbf7d0' }}>
-          <h4 style={{ marginBottom: '1rem', color: 'var(--green-600)' }}>{editId ? 'Editar Material' : 'Añadir Material (Enlace)'}</h4>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Título del material</label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-            </div>
+        {/* ─── SECCIÓN 3: GRABACIÓN DE LA CLASE ─── */}
+        <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Video size={18} color="var(--navy)" /> 3. Grabación de la Clase
+          </h3>
+          <div style={{ background: 'var(--white)', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Tipo</label>
-              <select value={type} onChange={e => setType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                <option value="presentation">Presentación</option>
-                <option value="pdf">PDF</option>
-                <option value="link">Enlace web</option>
-              </select>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>
+                {selectedClass.video_url ? 'Grabación Oficial Disponible' : 'Grabación Pendiente'}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {selectedClass.video_url 
+                  ? 'La grabación de esta sesión ha sido publicada por el Administrador.' 
+                  : 'El enlace de la grabación debe ser registrado por el Administrador al finalizar la clase en vivo.'}
+              </div>
             </div>
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Proveedor</label>
-              <select value={provider} onChange={e => setProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                <option value="drive">Google Drive / OneDrive</option>
-                <option value="external">Otro Enlace</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>URL del archivo/sitio</label>
-              <input type="url" value={url} onChange={e => setUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." required />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-            <input type="checkbox" id="isVisible" checked={isVisible} onChange={e => setIsVisible(e.target.checked)} />
-            <label htmlFor="isVisible" style={{ fontSize: '0.85rem' }}>Visible para los estudiantes</label>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="submit" disabled={submitting} className="btn btn-primary" style={{ flex: 1, background: 'var(--green-600)', borderColor: 'var(--green-600)' }}>
-              {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Añadir Material')}
-            </button>
-            {editId && (
-              <button type="button" onClick={handleCancelEdit} className="btn btn-outline">Cancelar</button>
+            {selectedClass.video_url && (
+              <a href={selectedClass.video_url} target="_blank" rel="noreferrer" className="btn btn-navy" style={{ fontSize: '0.82rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                <Play size={14} /> Reproducir Grabación
+              </a>
             )}
           </div>
-        </form>
+        </div>
 
-        <h4 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '1rem' }}>Materiales guardados</h4>
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando materiales...</p>
-        ) : materials.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No hay materiales asociados a esta clase.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {materials.map(p => (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ background: '#f8fafc', padding: '0.5rem', borderRadius: '8px', color: '#64748b' }}>
-                    <FileText size={20} />
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{p.title}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px' }}>
-                      <TypePill type={p.resource_type} />
-                      <span>{p.provider}</span>
-                      {!p.is_visible && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', fontWeight: 600 }}>Oculto</span>}
-                    </div>
-                  </div>
+        {/* ─── SECCIÓN 4: MATERIAL COMPLEMENTARIO ─── */}
+        <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FileText size={18} color="var(--navy)" /> 4. Material Complementario
+            </h3>
+            <button 
+              onClick={() => {
+                if (activeAddSection === 'complementary' && !editId) {
+                  setActiveAddSection(null);
+                } else {
+                  handleCancelEdit();
+                  setActiveAddSection('complementary');
+                }
+              }} 
+              className="btn btn-navy"
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+            >
+              <Plus size={15} /> {activeAddSection === 'complementary' ? 'Cerrar Formulario' : 'Agregar Material (PC / Drive)'}
+            </button>
+          </div>
+
+          {/* Formulario de Material Complementario */}
+          {activeAddSection === 'complementary' && (
+            <form onSubmit={e => handleSubmitResource(e, 'complementary')} style={{ background: 'var(--white)', padding: '1.25rem', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid var(--border-color)' }}>
+              <h4 style={{ margin: '0 0 0.85rem 0', color: 'var(--navy)', fontSize: '0.9rem', fontWeight: 700 }}>
+                {editId ? 'Editar Material Complementario' : 'Añadir Material Complementario'}
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Título del recurso</label>
+                  <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Lectura recomendada, Guía PDF" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <a href={p.url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }} title="Abrir">
-                    <Eye size={16} />
-                  </a>
-                  <button onClick={() => handleEdit(p)} className="btn btn-outline" style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }} title="Editar">
-                    <Pencil size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(p.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'var(--danger)' }} title="Eliminar">
-                    <Trash2 size={16} />
-                  </button>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Tipo de Recurso</label>
+                  <select value={matType} onChange={e => setMatType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                    <option value="pdf">Documento PDF</option>
+                    <option value="link">Enlace Web</option>
+                    <option value="file">Archivo General</option>
+                  </select>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Origen / Proveedor</label>
+                  <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                    <option value="drive">Google Drive / OneDrive</option>
+                    <option value="pc">Archivo de PC (Enlace)</option>
+                    <option value="external">Otro Enlace Externo</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>URL del archivo o enlace de lectura</label>
+                  <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button type="button" onClick={handleCancelEdit} className="btn" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Cancelar</button>
+                <button type="submit" disabled={submitting} className="btn btn-navy" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700 }}>
+                  {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Agregar Material')}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Lista de Material Complementario */}
+          {complementaryMaterials.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>No hay material complementario asociado a esta clase.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {complementaryMaterials.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <FileText size={18} color="var(--navy)" />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>{p.title}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px' }}>
+                        <TypePill type={p.resource_type} />
+                        <span>Origen: {p.provider}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <a href={p.url} target="_blank" rel="noreferrer" className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', textDecoration: 'none', color: 'var(--navy)' }}>Ver</a>
+                    <button onClick={() => handleEditResource(p)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Editar</button>
+                    <button onClick={() => handleDeleteResource(p.id)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid #fca5a5', color: '#dc2626', background: '#fef2f2' }}>Eliminar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
