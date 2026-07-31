@@ -2,7 +2,7 @@
    ADMIN PANEL - Estilos globales
    ================================================ */
 
-/* Tabs de navegaciÃ³n */
+/* Tabs de navegación */
 .admin-tabs {
   display: flex;
   gap: 0.5rem;
@@ -108,7 +108,7 @@
   font-weight: 500;
 }
 
-/* Tabla de administraciÃ³n */
+/* Tabla de administración */
 .admin-table-wrapper {
   background: var(--white);
   border: 1px solid var(--border-color);
@@ -189,7 +189,7 @@
 .type-link         { background: #f0fdf4; color: #16a34a; }
 .type-file         { background: #fef9c3; color: #ca8a04; }
 
-/* Botones de acciÃ³n */
+/* Botones de acción */
 .action-btns {
   display: flex;
   gap: 0.5rem;

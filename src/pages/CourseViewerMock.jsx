@@ -197,7 +197,7 @@ export default function CourseViewerMock() {
                 <div style={{ animation: 'fadeIn 0.3s ease' }}>
                   <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', flexShrink: 0 }}>
-                      TÃš
+                      TÚ
                     </div>
                     <div style={{ flex: 1 }}>
                       <textarea 

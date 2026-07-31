@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
@@ -85,7 +85,7 @@ function StudentPortal({ getDiplomadoLink }) {
                   </div>
                   <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: isCourse ? 'var(--green-700)' : 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción'}</p>
-                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'linear-gradient(135deg, var(--green-700), var(--green-600))' : 'linear-gradient(135deg, var(--navy), var(--navy))', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: isCourse ? 'var(--shadow-green)' : 'var(--shadow-sm)' }}>Entrar â†’</Link>
+                  <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: isCourse ? 'linear-gradient(135deg, var(--green-700), var(--green-600))' : 'linear-gradient(135deg, var(--navy), var(--navy))', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.6rem', fontWeight: 700, borderRadius: 'var(--radius-md)', boxShadow: isCourse ? 'var(--shadow-green)' : 'var(--shadow-sm)' }}>Entrar →</Link>
                 </div>
               );
             })
@@ -208,11 +208,11 @@ function TeacherPortal({ getDiplomadoLink }) {
           )}
         </div>
 
-        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>PrÃƒÂ³ximas Clases en Agenda</h2>
+        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Cargando agenda...</p>
         ) : upcomingClasses.length === 0 ? (
-           <p style={{ color: 'var(--text-muted)' }}>No tienes clases prÃƒÂ³ximas programadas.</p>
+           <p style={{ color: 'var(--text-muted)' }}>No tienes clases próximas programadas.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {upcomingClasses.map(cls => {
@@ -246,7 +246,7 @@ function TeacherPortal({ getDiplomadoLink }) {
               <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{classes.length}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>PrÃƒÂ³ximas Clases</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Próximas Clases</span>
               <span style={{ fontWeight: 'bold', color: '#e11d48' }}>{upcomingClasses.length} Pendientes</span>
             </div>
           </div>
@@ -296,7 +296,7 @@ function AdminPortal({ getDiplomadoLink }) {
     setError('');
     setSubmitting(true);
     try {
-      if (!newProgram.title) throw new Error("El tÃƒÂ­tulo es obligatorio");
+      if (!newProgram.title) throw new Error("El título es obligatorio");
 
       // Insertar el programa
       const { data: progData, error: progError } = await supabase
@@ -311,14 +311,14 @@ function AdminPortal({ getDiplomadoLink }) {
 
       if (progError) throw progError;
 
-      // Si es un curso, creamos un MÃƒÂ³dulo Invisible
+      // Si es un curso, creamos un Módulo Invisible
       if (newProgram.program_type === 'curso') {
         const { error: modError } = await supabase
           .from('modules')
           .insert([{
             program_id: progData.id,
             title: 'Contenido del Curso',
-            description: 'MÃƒÂ³dulo interno para mantener la estructura de la base de datos.',
+            description: 'Módulo interno para mantener la estructura de la base de datos.',
             order_index: 0
           }]);
         if (modError) throw modError;
@@ -373,7 +373,7 @@ function AdminPortal({ getDiplomadoLink }) {
               <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--gold-subtle)', border: 'none', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}><span style={{ background: 'var(--navy)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Activo</span></div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3' }}>{dip.title}</h3>
-                <p style={{ color: 'var(--navy-light)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripciÃƒÂ³n.'}</p>
+                <p style={{ color: 'var(--navy-light)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción.'}</p>
                 <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: 'var(--navy)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
               </div>
             ))}
@@ -395,7 +395,7 @@ function AdminPortal({ getDiplomadoLink }) {
               <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: 'none', padding: '1.25rem' }}>
                 <div style={{ marginBottom: '1rem' }}><span style={{ background: 'var(--green-600)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Activo</span></div>
                 <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--green-700)', lineHeight: '1.3' }}>{dip.title}</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripciÃƒÂ³n.'}</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{dip.description || 'Sin descripción.'}</p>
                 <Link onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }} to={getDiplomadoLink(dip.id)} className="btn" style={{ background: 'var(--green-600)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Administrar</Link>
               </div>
             ))}
@@ -454,23 +454,23 @@ function AdminPortal({ getDiplomadoLink }) {
                   onChange={e => setNewProgram({...newProgram, program_type: e.target.value})}
                   style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}
                 >
-                  <option value="diplomado">Diplomado (Estructura con MÃƒÂ³dulos)</option>
+                  <option value="diplomado">Diplomado (Estructura con Módulos)</option>
                   <option value="curso">Curso Corto (Solo Temas y Clases)</option>
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>TÃƒÂ­tulo del Programa</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Programa</label>
                 <input 
                   type="text" 
                   value={newProgram.title} 
                   onChange={e => setNewProgram({...newProgram, title: e.target.value})} 
-                  placeholder="Ej: Curso de EnergÃƒÂ­a Solar"
+                  placeholder="Ej: Curso de Energía Solar"
                   style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} 
                   required 
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>DescripciÃƒÂ³n (Opcional)</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (Opcional)</label>
                 <textarea 
                   value={newProgram.description} 
                   onChange={e => setNewProgram({...newProgram, description: e.target.value})} 
@@ -513,11 +513,11 @@ export default function Portal() {
           {role === 'admin' ? 'Panel de Control LIATER' : 'Mis Programas'}
         </h1>
         <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Hola, {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Profesor' : 'Estudiante'} Ã°Å¸â€˜â€¹
+          Hola, {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Profesor' : 'Estudiante'} 👋
         </span>
       </div>
 
-      {/* RENDERIZADO DINÃƒÂMICO SEGÃƒÅ¡N ROL */}
+      {/* RENDERIZADO DINÁMICO SEGÚN ROL */}
       {role === 'admin' && <AdminPortal getDiplomadoLink={getDiplomadoLink} />}
       {role === 'teacher' && <TeacherPortal getDiplomadoLink={getDiplomadoLink} />}
       {role === 'student' && <StudentPortal getDiplomadoLink={getDiplomadoLink} />}

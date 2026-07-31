@@ -37,7 +37,7 @@ function TypePill({ type }) {
 
 function TagPill({ tag }) {
   const map = { general: 'tag-general', urgent: 'tag-urgent', info: 'tag-info' };
-  const labels = { general: 'General', urgent: 'âš  Urgente', info: '✓ Aviso' };
+  const labels = { general: 'General', urgent: '⚠️ Urgente', info: '✓ Aviso' };
   return <span className={`announcement-tag ${map[tag] ?? 'tag-general'}`}>{labels[tag] ?? tag}</span>;
 }
 
