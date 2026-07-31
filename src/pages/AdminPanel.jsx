@@ -443,14 +443,12 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
 /* ─────────────────────────────────────────
    TAB 4 — Módulos (Supabase)
 ───────────────────────────────────────── */
-function ModulosTab({ modules, loading, onRefresh }) {
+function ModulosTab({ modules, loading, onRefresh, programId }) {
   const [showModal, setShowModal] = useState(false);
   const [editModuleId, setEditModuleId] = useState(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [orderIndex, setOrderIndex] = useState(1);
-  const [diplomaId, setDiplomaId] = useState('');
-  const [diplomas, setDiplomas] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -471,18 +469,8 @@ function ModulosTab({ modules, loading, onRefresh }) {
     setTitle(m.title);
     setDescription(m.description || '');
     setOrderIndex(m.order_index || 1);
-    setDiplomaId(m.program_id);
     setShowModal(true);
   };
-
-  useEffect(() => {
-    if (showModal && diplomas.length === 0) {
-      supabase.from('diploma_programs').select('id, title').then(({ data }) => {
-        setDiplomas(data || []);
-        if (data && data.length > 0) setDiplomaId(data[0].id);
-      });
-    }
-  }, [showModal]);
 
   const handleDelete = async (m) => {
     if (!window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${m.title}"?`)) return;
@@ -520,8 +508,8 @@ function ModulosTab({ modules, loading, onRefresh }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
-    if (!title || !diplomaId) {
-      setError('El título y el diplomado son obligatorios.');
+    if (!title || !programId) {
+      setError('El título del módulo y el programa son obligatorios.');
       return;
     }
     
@@ -539,7 +527,7 @@ function ModulosTab({ modules, loading, onRefresh }) {
         title,
         description,
         order_index: parsedOrder,
-        program_id: diplomaId
+        program_id: programId
       };
 
       let query;
@@ -589,14 +577,6 @@ function ModulosTab({ modules, loading, onRefresh }) {
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Módulo</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Fundamentos de Frontend" required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Diplomado Asociado</label>
-                <select value={diplomaId} onChange={e => setDiplomaId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  {diplomas.length === 0 ? <option value="">Cargando diplomados...</option> : diplomas.map(d => (
-                    <option key={d.id} value={d.id}>{d.title}</option>
-                  ))}
-                </select>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden (Número)</label>
@@ -1616,7 +1596,7 @@ export default function AdminPanel() {
       case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
       case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} />;
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
-      case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} />;
+      case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} programId={programId} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} modulesProp={data.modules} isCourse={isCourse} />;
       case 'clases':     return <ClasesTab classes={data.classes} loading={loading} onRefresh={refreshData} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} onRefresh={refreshData} />;
