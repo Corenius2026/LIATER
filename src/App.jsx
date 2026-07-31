@@ -29,6 +29,7 @@ import Support from './pages/Support';
 import CourseViewerMock from './pages/CourseViewerMock';
 import SyllabusRedirector from './pages/SyllabusRedirector';
 import UpcomingPrograms from './pages/UpcomingPrograms';
+import PendingActivities from './pages/PendingActivities';
 
 // --- Importación de Estilos Globales ---
 import './App.css';
@@ -58,6 +59,7 @@ function App() {
             <Route path="/perfil" element={<Profile />} />
             <Route path="/soporte" element={<Support />} />
             <Route path="/proximos-programas" element={<UpcomingPrograms />} />
+            <Route path="/pendientes" element={<PendingActivities />} />
             <Route path="/mock-course" element={<CourseViewerMock />} />
             
             <Route path="/dashboard/:programId" element={<ProtectedRoute allowedRoles={['student']}><Dashboard /></ProtectedRoute>} />

@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
 import { Clock, AlertCircle, FileText, CheckCircle2, Video, Bell, ChevronRight, RefreshCw } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
+import { fetchStudentPendingActivities } from '../services/activityService';
 
 /**
  * Componente: PendingActivitiesCard
- * Reemplaza completamente a "Tu progreso" en la barra lateral del estudiante.
- * Muestra hasta 4 actividades pendientes (Sesiones en vivo, Entregas, Cuestionarios, Anuncios).
+ * Muestra las actividades pendientes reales del estudiante autenticado desde Supabase.
+ * Soporta Tareas (assignments), Cuestionarios (quizzes), Sesiones en vivo y Anuncios importantes.
  */
 export default function PendingActivitiesCard({ studentId }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchPendingActivities = useCallback(async () => {
+  const loadPending = useCallback(async () => {
     if (!studentId) {
       setLoading(false);
       return;
@@ -22,110 +22,19 @@ export default function PendingActivitiesCard({ studentId }) {
     setLoading(true);
     setError(null);
 
-    try {
-      // 1. Obtener programas inscritos por el estudiante
-      const { data: enrollments, error: enrollErr } = await supabase
-        .from('enrollments')
-        .select('diploma_id, diploma_programs(title)')
-        .eq('student_id', studentId);
+    const { activities: data, error: err } = await fetchStudentPendingActivities(studentId, 4);
 
-      if (enrollErr) throw enrollErr;
-
-      const programMap = {};
-      const programIds = (enrollments || []).map(e => {
-        if (e.diploma_id && e.diploma_programs) {
-          programMap[e.diploma_id] = e.diploma_programs.title;
-        }
-        return e.diploma_id;
-      }).filter(Boolean);
-
-      if (programIds.length === 0) {
-        setActivities([]);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Consultar próximas sesiones de clase para estos programas
-      const { data: classes, error: classErr } = await supabase
-        .from('class_sessions')
-        .select('id, title, class_date, subtopics(module_id, modules(program_id))')
-        .order('class_date', { ascending: true })
-        .limit(10);
-
-      if (classErr && classErr.code !== 'PGRST116') {
-        console.warn('Advertencia al consultar clases pendientes:', classErr);
-      }
-
-      const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
-
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-      const pendingList = [];
-
-      // Procesar sesiones de clase
-      (classes || []).forEach(cls => {
-        if (!cls.class_date) return;
-        const clsDate = new Date(cls.class_date);
-        const clsDateStr = clsDate.toISOString().split('T')[0];
-
-        // Determinar programa al que pertenece la clase
-        const progId = cls.subtopics?.modules?.program_id;
-        const programTitle = programMap[progId] || 'Programa Inscrito';
-
-        let urgency = 'upcoming'; // 'overdue', 'today', 'tomorrow', 'upcoming'
-        let statusLabel = 'Próxima';
-
-        if (clsDateStr === todayStr) {
-          urgency = 'today';
-          statusLabel = 'Hoy';
-        } else if (clsDateStr === tomorrowStr) {
-          urgency = 'tomorrow';
-          statusLabel = 'Mañana';
-        } else if (clsDate < now) {
-          urgency = 'overdue';
-          statusLabel = 'Vencida';
-        } else {
-          urgency = 'upcoming';
-          statusLabel = 'Próxima';
-        }
-
-        pendingList.push({
-          id: cls.id,
-          title: cls.title,
-          type: 'Sesión en vivo',
-          iconType: 'video',
-          programTitle,
-          date: cls.class_date,
-          urgency,
-          statusLabel,
-          link: `/class/${cls.id}`
-        });
-      });
-
-      // Si hay menos de 4, agregamos avisos u otros compromisos de ejemplo para enriquecer
-      if (pendingList.length === 0) {
-        // En caso de que no existan clases con fechas configuradas en la BD
-        setActivities([]);
-      } else {
-        // Ordenar por urgencia (vencida -> hoy -> mañana -> próxima) y tomar máximo 4
-        const urgencyWeight = { overdue: 1, today: 2, tomorrow: 3, upcoming: 4 };
-        pendingList.sort((a, b) => urgencyWeight[a.urgency] - urgencyWeight[b.urgency]);
-        setActivities(pendingList.slice(0, 4));
-      }
-    } catch (err) {
-      console.error('Error cargando actividades pendientes:', err);
-      setError('No se pudieron obtener los pendientes.');
-    } finally {
-      setLoading(false);
+    if (err) {
+      setError(err);
+    } else {
+      setActivities(data || []);
     }
+    setLoading(false);
   }, [studentId]);
 
   useEffect(() => {
-    fetchPendingActivities();
-  }, [fetchPendingActivities]);
+    loadPending();
+  }, [loadPending]);
 
   const getUrgencyStyles = (urgency) => {
     switch (urgency) {
@@ -170,14 +79,14 @@ export default function PendingActivitiesCard({ studentId }) {
 
   return (
     <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
-      {/* ENCABEZADO DE LA TARJETA DE PENDIENTES */}
+      {/* ENCABEZADO DE LA TARJETA */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
         <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>
           Pendientes y próximas fechas
         </h3>
-        <span style={{ fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 700, cursor: 'pointer' }}>
+        <Link to="/pendientes" style={{ fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
           Ver todos
-        </span>
+        </Link>
       </div>
 
       {/* ESTADO DE CARGA SKELETON */}
@@ -201,14 +110,14 @@ export default function PendingActivitiesCard({ studentId }) {
             <span>{error}</span>
           </div>
           <button
-            onClick={fetchPendingActivities}
+            onClick={loadPending}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#dc2626', color: '#ffffff', border: 'none', padding: '0.35rem 0.75rem', borderRadius: '4px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}
           >
             <RefreshCw size={12} /> Reintentar
           </button>
         </div>
       ) : activities.length === 0 ? (
-        /* ESTADO VACÍO CUANDO NO HAY PENDIENTES */
+        /* ESTADO VACÍO CUANDO EL ESTUDIANTE ESTÁ AL DÍA */
         <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem' }}>
           <CheckCircle2 size={38} color="var(--green-600)" style={{ marginBottom: '0.6rem', opacity: 0.85 }} />
           <h4 style={{ fontSize: '0.95rem', color: 'var(--navy)', fontWeight: 700, margin: '0 0 0.25rem 0' }}>
@@ -257,7 +166,7 @@ export default function PendingActivitiesCard({ studentId }) {
                       {item.type}
                     </span>
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '999px', background: urgencyStyle.badgeBg, color: urgencyStyle.badgeColor }}>
-                      {urgencyStyle.label}
+                      {item.statusLabel || urgencyStyle.label}
                     </span>
                   </div>
 
