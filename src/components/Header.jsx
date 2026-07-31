@@ -2,7 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import unalLogo from '../assets/unal-logo.png';
+import unalPillNavyLogo from '../assets/unal-pill-navy-logo.png';
 
 export default function Header() {
   const { currentUser, logout } = useAuth();
@@ -27,7 +27,7 @@ export default function Header() {
   return (
     <header className="app-header">
       <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <img src={unalLogo} alt="Universidad Nacional de Colombia" style={{ height: '68px', objectFit: 'contain' }} />
+        <img src={unalPillNavyLogo} alt="Universidad Nacional de Colombia" style={{ height: '68px', objectFit: 'contain' }} />
         <div style={{ height: '40px', width: '1.5px', background: 'var(--border-color)' }} />
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ fontSize: '0.90rem', fontWeight: 700, color: 'var(--navy)', lineHeight: 1.2 }}>
