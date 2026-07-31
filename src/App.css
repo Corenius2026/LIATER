@@ -27,8 +27,9 @@
 .sidebar-logo:hover { background: var(--sidebar-item-hover); }
 
 .sidebar-logo-img {
-  width: 42px; height: 42px;
+  width: 58px; height: 58px;
   object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(252,163,17,0.35));
   animation: logoFloat 4s ease-in-out infinite;
   flex-shrink: 0;
 }
