@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Download, PlayCircle, FileText, Video, Calendar, User, ExternalLink, Paperclip, Presentation } from 'lucide-react';
@@ -25,7 +25,7 @@ export default function ClassDetail() {
         if (classError) throw classError;
         setClsData(classData);
 
-        // 2. Obtener el módulo al que pertenece para el botón "Volver"
+        // 2. Obtener el mÃ³dulo al que pertenece para el botÃ³n "Volver"
         if (classData && classData.subtopic_id) {
           const { data: subData } = await supabase
             .from('subtopics')
@@ -75,13 +75,13 @@ export default function ClassDetail() {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
         <h2>Clase no encontrada</h2>
-        <Link to="/modules" className="btn btn-primary" style={{ marginTop: '1rem' }}>Ir a Módulos</Link>
+        <Link to="/modules" className="btn btn-primary" style={{ marginTop: '1rem' }}>Ir a MÃ³dulos</Link>
       </div>
     );
   }
 
   const teacher = clsData.teacher_profiles || {};
-  // Si tiene video_url o la fecha ya pasó, asumimos que no es en vivo próximamente
+  // Si tiene video_url o la fecha ya pasÃ³, asumimos que no es en vivo prÃ³ximamente
   const isUpcoming = isUpcomingClass(clsData.class_date);
   const hasVideo = !!clsData.video_url;
 
@@ -91,7 +91,7 @@ export default function ClassDetail() {
       case 'pdf': return <FileText size={18} />;
       case 'link': return <ExternalLink size={18} />;
       case 'video': return <Video size={18} />;
-      default: return <Paperclip size={18} />; // file genérico
+      default: return <Paperclip size={18} />; // file genÃ©rico
     }
   };
 
@@ -101,17 +101,17 @@ export default function ClassDetail() {
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
         {moduleId ? (
           <Link to={`/modules/${moduleId}`} style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
-            &larr; Volver al Módulo
+            &larr; Volver al MÃ³dulo
           </Link>
         ) : (
           <Link to="/modules" style={{ color: 'var(--primary-light)', fontSize: '0.875rem', marginBottom: '1rem', display: 'inline-block' }}>
-            &larr; Volver a Módulos
+            &larr; Volver a MÃ³dulos
           </Link>
         )}
         <h1 className="page-title">{clsData.title}</h1>
-        {/* Etiqueta que identifica si es sesión en vivo o grabada */}
+        {/* Etiqueta que identifica si es sesiÃ³n en vivo o grabada */}
         <span className="badge" style={{ marginTop: '0.5rem', backgroundColor: isUpcoming ? '#fef3c7' : '#e0e7ff', color: isUpcoming ? '#d97706' : 'var(--primary-color)' }}>
-          {isUpcoming ? 'Próximamente en Vivo' : 'Clase Grabada'}
+          {isUpcoming ? 'PrÃ³ximamente en Vivo' : 'Clase Grabada'}
         </span>
       </div>
 
@@ -121,10 +121,10 @@ export default function ClassDetail() {
         <div>
           {isUpcoming && !hasVideo ? (
             
-            // Render si la clase es EN VIVO próximamente
+            // Render si la clase es EN VIVO prÃ³ximamente
             <div style={{ width: '100%', aspectRatio: '16/9', backgroundColor: '#f8fafc', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
               <Calendar size={64} style={{ color: 'var(--primary-light)', marginBottom: '1rem' }} />
-              <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-dark)' }}>Esta clase será transmitida en vivo</h3>
+              <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-dark)' }}>Esta clase serÃ¡ transmitida en vivo</h3>
               <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
                 {formatClassDate(clsData.class_date)}
               </p>
@@ -141,30 +141,30 @@ export default function ClassDetail() {
             
           ) : (
             
-            // Render si la clase está GRABADA (Muestra visor)
+            // Render si la clase estÃ¡ GRABADA (Muestra visor)
             hasVideo ? (
               <a href={clsData.video_url} target="_blank" rel="noreferrer" style={{ display: 'block', textDecoration: 'none' }}>
                 <div style={{ width: '100%', aspectRatio: '16/9', backgroundColor: '#0f172a', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1.5rem', position: 'relative', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
                   <PlayCircle size={64} style={{ opacity: 0.9, color: 'var(--primary-light)' }} />
-                  <span style={{ position: 'absolute', bottom: '1rem', left: '1rem', fontSize: '0.875rem', opacity: 0.8 }}>Clic para abrir grabación externa</span>
+                  <span style={{ position: 'absolute', bottom: '1rem', left: '1rem', fontSize: '0.875rem', opacity: 0.8 }}>Clic para abrir grabaciÃ³n externa</span>
                 </div>
               </a>
             ) : (
               <div style={{ width: '100%', aspectRatio: '16/9', backgroundColor: '#f1f5f9', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
                 <div style={{ textAlign: 'center' }}>
                   <Video size={48} style={{ opacity: 0.5, marginBottom: '1rem', margin: '0 auto' }} />
-                  <p>La grabación aún no está disponible.</p>
+                  <p>La grabaciÃ³n aÃºn no estÃ¡ disponible.</p>
                 </div>
               </div>
             )
             
           )}
           
-          {/* Descripción de la clase (desde BD) */}
+          {/* DescripciÃ³n de la clase (desde BD) */}
           <div className="card">
             <h3 style={{ marginBottom: '1rem', color: 'var(--text-dark)' }}>Acerca de esta clase</h3>
             <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              {clsData.description || 'No hay descripción disponible para esta clase.'}
+              {clsData.description || 'No hay descripciÃ³n disponible para esta clase.'}
             </p>
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function ClassDetail() {
             {clsData.presentation_url && (
               <a href={clsData.presentation_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block', marginBottom: '0.5rem' }}>
                 <button className="btn btn-outline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '1rem', cursor: 'pointer' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Presentation size={18} /> Presentación (Principal)</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Presentation size={18} /> PresentaciÃ³n (Principal)</span>
                   <Download size={18} />
                 </button>
               </a>
@@ -234,3 +234,4 @@ export default function ClassDetail() {
     </div>
   );
 }
+

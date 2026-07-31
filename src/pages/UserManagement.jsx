@@ -408,7 +408,7 @@ export default function UserManagement() {
                             padding: '0.4rem 0.8rem', 
                             fontSize: '0.75rem', 
                             backgroundColor: isEnrolled ? '#fee2e2' : '#dcfce7', 
-                            color: isEnrolled ? '#991b1b' : '#166534',
+                            color: isEnrolled ? '#991b1b' : 'var(--text-muted)',
                             border: 'none',
                             minWidth: '90px'
                           }}
@@ -469,7 +469,7 @@ export default function UserManagement() {
                       fontSize: '0.75rem', 
                       fontWeight: 'bold', 
                       backgroundColor: user.is_active !== false ? '#dcfce7' : '#fee2e2', 
-                      color: user.is_active !== false ? '#166534' : '#991b1b' 
+                      color: user.is_active !== false ? 'var(--text-muted)' : '#991b1b' 
                     }}>
                       {user.is_active !== false ? 'Activo' : 'Inactivo'}
                     </span>
@@ -478,7 +478,7 @@ export default function UserManagement() {
                   <td>
                     <div className="action-btns">
                       {(user.role === 'student' || user.role === 'teacher') && (
-                        <button className="btn-icon" style={{color: 'var(--primary-700)'}} title="Gestionar Inscripciones" onClick={() => openEnrollModal(user)}>
+                        <button className="btn-icon" style={{color: 'var(--navy)'}} title="Gestionar Inscripciones" onClick={() => openEnrollModal(user)}>
                           <BookOpen size={15} />
                         </button>
                       )}
@@ -497,4 +497,5 @@ export default function UserManagement() {
     </div>
   );
 }
+
 

@@ -1,8 +1,8 @@
-/* ================================================
+﻿/* ================================================
    ADMIN PANEL - Estilos globales
    ================================================ */
 
-/* Tabs de navegación */
+/* Tabs de navegaciÃ³n */
 .admin-tabs {
   display: flex;
   gap: 0.5rem;
@@ -108,7 +108,7 @@
   font-weight: 500;
 }
 
-/* Tabla de administración */
+/* Tabla de administraciÃ³n */
 .admin-table-wrapper {
   background: var(--white);
   border: 1px solid var(--border-color);
@@ -189,7 +189,7 @@
 .type-link         { background: #f0fdf4; color: #16a34a; }
 .type-file         { background: #fef9c3; color: #ca8a04; }
 
-/* Botones de acción */
+/* Botones de acciÃ³n */
 .action-btns {
   display: flex;
   gap: 0.5rem;
@@ -212,7 +212,7 @@
 
 .btn-icon:hover { background: var(--bg-color); }
 .btn-icon.edit  { color: #1d4ed8; }
-.btn-icon.edit:hover { background: #eff6ff; border-color: #93c5fd; }
+.btn-icon.edit:hover { background: #eff6ff; border-color: rgba(252,163,17,0.3); }
 .btn-icon.del   { color: #dc2626; }
 .btn-icon.del:hover  { background: #fef2f2; border-color: #fca5a5; }
 
@@ -232,17 +232,11 @@
 }
 
 .user-avatar-initials {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--navy);
+  color: var(--gold);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
 }
 
 .user-name { font-weight: 600; font-size: 0.875rem; }
@@ -300,7 +294,7 @@
   display: block;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--primary-color);
+  color: var(--navy);
 }
 
 .teacher-card-stat span:last-child {
@@ -343,3 +337,4 @@
   color: var(--text-muted);
   flex-shrink: 0;
 }
+

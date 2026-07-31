@@ -177,7 +177,7 @@ export default function CourseViewerMock() {
                         <FileText color="#6366f1" size={24} />
                         <span>PresentaciÃ³n_Calculo_Consumo.pdf</span>
                       </div>
-                      <button style={{ background: 'var(--primary-700)', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Download size={16} /> Descargar
                       </button>
                     </div>
@@ -186,7 +186,7 @@ export default function CourseViewerMock() {
                         <FileText color="#10b981" size={24} />
                         <span>Plantilla_Excel_Dimensionamiento.xlsx</span>
                       </div>
-                      <button style={{ background: 'var(--primary-700)', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Download size={16} /> Descargar
                       </button>
                     </div>
@@ -205,7 +205,7 @@ export default function CourseViewerMock() {
                         style={{ width: '100%', padding: '1rem', borderRadius: '8px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#f8fafc', minHeight: '100px', resize: 'vertical' }}
                       />
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                        <button style={{ background: 'var(--primary-700)', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}>
+                        <button style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}>
                           Publicar Comentario
                         </button>
                       </div>
@@ -303,4 +303,5 @@ export default function CourseViewerMock() {
     </div>
   );
 }
+
 

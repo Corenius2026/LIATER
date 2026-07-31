@@ -21,8 +21,8 @@ const useTeacherContext = () => React.useContext(TeacherContext);
 
 const TYPE_CONFIG = {
   pdf:          { bg: '#fef2f2', color: '#dc2626', label: 'PDF' },
-  presentation: { bg: '#eff6ff', color: '#1d4ed8', label: 'PresentaciÃ³n' },
-  link:         { bg: '#f0fdf4', color: '#16a34a', label: 'Enlace' },
+  presentation: { bg: '#eff6ff', color: 'var(--navy)', label: 'PresentaciÃ³n' },
+  link:         { bg: '#f0fdf4', color: 'var(--green-600)', label: 'Enlace' },
   file:         { bg: '#fef9c3', color: '#ca8a04', label: 'Archivo' },
 };
 
@@ -146,9 +146,9 @@ function ResumenTab({ onChangeTab }) {
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', borderRadius: 'var(--radius-md)', background: '#eff6ff', border: '1px solid #bfdbfe', cursor: 'pointer', textAlign: 'left' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Video size={20} color="#1d4ed8" />
+                <Video size={20} color="var(--navy)" />
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--primary-900)' }}>Mis Clases</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--navy)' }}>Mis Clases</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--primary-600)' }}>Consulta tus prÃ³ximas sesiones</div>
                 </div>
               </div>
@@ -160,7 +160,7 @@ function ResumenTab({ onChangeTab }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <FileText size={20} color="#15803d" />
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#14532d' }}>Materiales de Apoyo</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--green-700)' }}>Materiales de Apoyo</div>
                   <div style={{ fontSize: '0.75rem', color: '#22c55e' }}>Sube o revisa tus recursos</div>
                 </div>
               </div>
@@ -310,7 +310,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
         {/* GrabaciÃ³n oficial (Solo lectura) */}
         <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Video size={20} color={selectedClass.video_url ? "#16a34a" : "#94a3b8"} />
+            <Video size={20} color={selectedClass.video_url ? "var(--green-600)" : "#94a3b8"} />
             <div>
               <div style={{ fontWeight: 600 }}>GrabaciÃ³n Oficial</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -330,7 +330,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
         {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={{ background: '#f0fdf4', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid #bbf7d0' }}>
-          <h4 style={{ marginBottom: '1rem', color: '#16a34a' }}>{editId ? 'Editar Material' : 'AÃ±adir Material (Enlace)'}</h4>
+          <h4 style={{ marginBottom: '1rem', color: 'var(--green-600)' }}>{editId ? 'Editar Material' : 'AÃ±adir Material (Enlace)'}</h4>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div style={{ gridColumn: 'span 2' }}>
@@ -367,7 +367,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="submit" disabled={submitting} className="btn btn-primary" style={{ flex: 1, background: '#16a34a', borderColor: '#16a34a' }}>
+            <button type="submit" disabled={submitting} className="btn btn-primary" style={{ flex: 1, background: 'var(--green-600)', borderColor: 'var(--green-600)' }}>
               {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'AÃ±adir Material')}
             </button>
             {editId && (
@@ -625,7 +625,7 @@ function RecordingsTab() {
         <span style={{ fontWeight: 600, fontSize: '1rem' }}>Grabaciones disponibles ({classes.length})</span>
       </div>
 
-      <div style={{ background: '#f0fdf4', color: '#166534', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+      <div style={{ background: '#f0fdf4', color: 'var(--text-muted)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
         <Info size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div style={{ fontSize: '0.85rem' }}>
           <strong style={{ display: 'block', marginBottom: '4px' }}>Modo de solo lectura</strong>
@@ -642,14 +642,14 @@ function RecordingsTab() {
           {classes.map(c => (
             <div className="resource-row" key={c.id}>
               <div className="resource-icon-box" style={{ background: '#f0fdf4' }}>
-                <Video size={20} color="#16a34a" />
+                <Video size={20} color="var(--green-600)" />
               </div>
               <div className="resource-row-body">
                 <div className="resource-row-title">{c.title}</div>
                 <div className="resource-row-meta">{formatClassDate(c.class_date, false)} Â· {c.duration || 0} min</div>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <a href={c.video_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ background:'#f0fdf4', color:'#16a34a', borderColor:'#bbf7d0', fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}>
+                <a href={c.video_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ background:'#f0fdf4', color:'var(--green-600)', borderColor:'#bbf7d0', fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}>
                   <Play size={13} style={{display:'inline', marginRight:'4px'}}/> Reproducir
                 </a>
               </div>
@@ -1083,6 +1083,7 @@ export default function TeacherPanel() {
     </TeacherContext.Provider>
   );
 }
+
 
 
 

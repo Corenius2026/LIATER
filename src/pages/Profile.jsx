@@ -1,11 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Camera, Shield, Save } from 'lucide-react';
 
 export default function Profile() {
   const { currentUser } = useAuth();
   
-  // Nombres simulados según el rol
+  // Nombres simulados segÃºn el rol
   const getDisplayName = () => {
     if (currentUser?.role === 'admin') return 'Administrador LIATER';
     if (currentUser?.role === 'teacher') return 'Profesor LIATER';
@@ -42,7 +42,7 @@ export default function Profile() {
 
         {/* Formulario Simulado */}
         <div className="card" style={{ padding: '2rem' }}>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>Información Personal</h3>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>InformaciÃ³n Personal</h3>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
             <div>
@@ -50,19 +50,19 @@ export default function Profile() {
               <input type="text" defaultValue={getDisplayName()} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f8fafc' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Correo Electrónico</label>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Correo ElectrÃ³nico</label>
               <input type="email" defaultValue={currentUser?.email || ''} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#94a3b8' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Teléfono</label>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>TelÃ©fono</label>
               <input type="tel" placeholder="+57 300 000 0000" style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f8fafc' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>País</label>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.5rem' }}>PaÃ­s</label>
               <select style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
                 <option>Colombia</option>
-                <option>México</option>
-                <option>Perú</option>
+                <option>MÃ©xico</option>
+                <option>PerÃº</option>
                 <option>Otro</option>
               </select>
             </div>
@@ -79,3 +79,4 @@ export default function Profile() {
     </div>
   );
 }
+

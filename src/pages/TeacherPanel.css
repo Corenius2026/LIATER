@@ -1,5 +1,5 @@
-/* ================================================
-   TEACHER PANEL - Estilos con nuevo sistema de diseño LIATER
+﻿/* ================================================
+   TEACHER PANEL - Estilos con nuevo sistema de diseÃ±o LIATER
    Navy Profundo + Dorado + Verde UNAL
    ================================================ */
 
@@ -111,7 +111,7 @@
   opacity: 0.7;
 }
 
-/* Cards de módulo */
+/* Cards de mÃ³dulo */
 .module-card-teacher {
   background: var(--white);
   border: 1px solid var(--border-color);
@@ -338,3 +338,4 @@
   border-color: var(--gold-400);
   background: var(--gold-subtle);
 }
+

@@ -1327,7 +1327,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh }) {
                 <td><StatusBadge status={cls.status} /></td>
                 <td>
                   {cls.video_url || cls.presentation_url
-                    ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontSize: '0.8rem', fontWeight: 500 }}><CheckCircle2 size={14} />Disponible</span>
+                    ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--green-600)', fontSize: '0.8rem', fontWeight: 500 }}><CheckCircle2 size={14} />Disponible</span>
                     : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Pendiente</span>
                   }
                 </td>
@@ -1926,6 +1926,7 @@ export default function AdminPanel() {
     </div>
   );
 }
+
 
 
 
