@@ -631,7 +631,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
    TAB 3 — Mis Clases
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ClasesTab() {
-  const { id: teacherId, programId } = useTeacherContext();
+  const { id: teacherId, profile, programId } = useTeacherContext();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -643,18 +643,12 @@ function ClasesTab() {
     async function fetchMyClasses() {
       try {
         setLoading(true);
-        let query = supabase
+        // Fetch all classes for this program — teacher can see all classes assigned to the program
+        const { data, error: fetchError } = await supabase
           .from('class_sessions')
           .select('*, subtopics(title, module_id, modules(title, program_id))')
           .eq('program_id', programId)
           .order('class_date', { ascending: true });
-
-        if (teacherId || profile?.user_id) {
-          const teacherFilters = [teacherId, profile?.user_id].filter(Boolean).map(id => `teacher_id.eq.${id}`).join(',');
-          query = query.or(teacherFilters);
-        }
-
-        const { data, error: fetchError } = await query;
 
         if (fetchError) throw fetchError;
         setClasses(data || []);
@@ -666,7 +660,7 @@ function ClasesTab() {
     }
 
     fetchMyClasses();
-  }, [teacherId, programId]);
+  }, [programId]);
 
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando tus clases asignadas...</div>;
