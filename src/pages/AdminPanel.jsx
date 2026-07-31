@@ -88,6 +88,94 @@ function EmptyRow({ cols, message }) {
 }
 
 /* ─────────────────────────────────────────
+   MODAL — Confirmación de Acción (Eliminar / Desvincular)
+───────────────────────────────────────── */
+function ConfirmModal({ isOpen, title, message, note, confirmText = 'Eliminar', cancelText = 'Cancelar', onConfirm, onClose, loading }) {
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(15, 23, 42, 0.65)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1200
+    }}>
+      <div className="card" style={{
+        width: '100%', maxWidth: '440px', background: '#ffffff',
+        padding: '1.75rem', borderRadius: '16px', position: 'relative',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        border: '1px solid #e2e8f0'
+      }}>
+        <button onClick={onClose} style={{
+          position: 'absolute', top: '1.25rem', right: '1.25rem',
+          background: 'none', border: 'none', cursor: 'pointer', color: '#64748b',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '4px', borderRadius: '50%', transition: 'all 0.2s'
+        }}>
+          <X size={20} />
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.25rem' }}>
+          <div style={{
+            width: '46px', height: '46px', borderRadius: '50%',
+            backgroundColor: '#fee2e2', color: '#dc2626',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+          }}>
+            <Trash2 size={24} />
+          </div>
+          <div>
+            <h3 style={{ fontWeight: 700, fontSize: '1.1rem', color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+              {title}
+            </h3>
+            <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: '1.45', margin: 0 }}>
+              {message}
+            </p>
+          </div>
+        </div>
+
+        {note && (
+          <div style={{
+            background: '#f8fafc', borderLeft: '4px solid #94a3b8',
+            padding: '0.75rem 1rem', borderRadius: '0 8px 8px 0',
+            fontSize: '0.825rem', color: '#64748b', marginBottom: '1.5rem'
+          }}>
+            {note}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            style={{
+              padding: '0.6rem 1.25rem', borderRadius: '8px', border: '1px solid #cbd5e1',
+              background: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: '0.875rem',
+              cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            style={{
+              padding: '0.6rem 1.25rem', borderRadius: '8px', border: 'none',
+              background: '#dc2626', color: '#ffffff', fontWeight: 600, fontSize: '0.875rem',
+              cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)'
+            }}
+          >
+            {loading ? 'Procesando...' : confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    MODAL — Inscribir Alumnos
 ───────────────────────────────────────── */
 function InscribirModal({ programId, programTitle, enrolledStudents, onClose, onRefresh }) {
@@ -225,6 +313,8 @@ function InscribirModal({ programId, programTitle, enrolledStudents, onClose, on
 function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showInscribirModal, setShowInscribirModal] = useState(false);
+  const [studentToUnenroll, setStudentToUnenroll] = useState(null);
+  const [unenrolling, setUnenrolling] = useState(false);
 
   // CORRECCIÓN: Solo mostrar usuarios con role=student en esta tabla
   const onlyStudents = enrolledStudents.filter(e => e.users_profile?.role === 'student');
@@ -235,20 +325,22 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
     return e.users_profile.full_name?.toLowerCase().includes(term) || e.users_profile.email?.toLowerCase().includes(term);
   });
 
-  const handleUnenroll = async (enroll) => {
-    const studentName = enroll.users_profile?.full_name || 'este alumno';
-    if (!window.confirm(`¿Estás seguro de que deseas desvincular a "${studentName}" de este programa?\n\n(El estudiante seguirá existiendo en la gestión global de usuarios)`)) return;
-
+  const handleConfirmUnenroll = async () => {
+    if (!studentToUnenroll) return;
+    setUnenrolling(true);
     try {
       const { error } = await supabase
         .from('enrollments')
         .delete()
-        .eq('id', enroll.id);
+        .eq('id', studentToUnenroll.id);
 
       if (error) throw error;
+      setStudentToUnenroll(null);
       if (onRefresh) onRefresh();
     } catch (err) {
       alert('Error al desvincular alumno: ' + err.message);
+    } finally {
+      setUnenrolling(false);
     }
   };
 
@@ -305,7 +397,7 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
                 <td style={{ textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <button
-                      onClick={() => handleUnenroll(enroll)}
+                      onClick={() => setStudentToUnenroll(enroll)}
                       className="btn-icon del"
                       title="Desvincular alumno del programa"
                     >
@@ -328,6 +420,18 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
           onRefresh={() => { setShowInscribirModal(false); if (onRefresh) onRefresh(); }}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!studentToUnenroll}
+        title="Desvincular Alumno"
+        message={`¿Estás seguro de que deseas desvincular a "${studentToUnenroll?.users_profile?.full_name}" de este programa?`}
+        note="El estudiante seguirá existiendo en la gestión global de usuarios."
+        confirmText="Desvincular"
+        cancelText="Cancelar"
+        loading={unenrolling}
+        onConfirm={handleConfirmUnenroll}
+        onClose={() => setStudentToUnenroll(null)}
+      />
     </div>
   );
 }
@@ -542,21 +646,26 @@ function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClo
 ───────────────────────────────────────── */
 function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }) {
   const [showAsignarModal, setShowAsignarModal] = useState(false);
+  const [teacherToUnassign, setTeacherToUnassign] = useState(null);
+  const [unassigning, setUnassigning] = useState(false);
 
-  const handleUnassignTeacher = async (teacher) => {
-    if (!window.confirm(`¿Estás seguro de que deseas desvincular al profesor "${teacher.name}" de este programa?\n\n(El profesor seguirá existiendo en el directorio global de profesores)`)) return;
-
+  const handleConfirmUnassignTeacher = async () => {
+    if (!teacherToUnassign) return;
+    setUnassigning(true);
     try {
       const { error } = await supabase
         .from('enrollments')
         .delete()
         .eq('program_id', programId)
-        .eq('student_id', teacher.user_id);
+        .eq('student_id', teacherToUnassign.user_id);
 
       if (error) throw error;
+      setTeacherToUnassign(null);
       if (onRefresh) onRefresh();
     } catch (err) {
       alert('Error al desvincular profesor: ' + err.message);
+    } finally {
+      setUnassigning(false);
     }
   };
 
@@ -584,7 +693,7 @@ function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }
         ) : teachers.map(t => (
           <div className="teacher-admin-card" key={t.id} style={{ position: 'relative' }}>
             <button
-              onClick={() => handleUnassignTeacher(t)}
+              onClick={() => setTeacherToUnassign(t)}
               className="btn-icon del"
               title="Desvincular profesor del programa"
               style={{ position: 'absolute', top: '1rem', right: '1rem' }}
@@ -619,6 +728,18 @@ function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }
           onRefresh={() => { setShowAsignarModal(false); if (onRefresh) onRefresh(); }}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!teacherToUnassign}
+        title="Desvincular Profesor"
+        message={`¿Estás seguro de que deseas desvincular al profesor "${teacherToUnassign?.name}" de este programa?`}
+        note="El profesor seguirá existiendo en el directorio global de profesores."
+        confirmText="Desvincular"
+        cancelText="Cancelar"
+        loading={unassigning}
+        onConfirm={handleConfirmUnassignTeacher}
+        onClose={() => setTeacherToUnassign(null)}
+      />
     </div>
   );
 }
