@@ -88,12 +88,148 @@ function EmptyRow({ cols, message }) {
 }
 
 /* ─────────────────────────────────────────
+   MODAL — Inscribir Alumnos
+───────────────────────────────────────── */
+function InscribirModal({ programId, programTitle, enrolledStudents, onClose, onRefresh }) {
+  const [allStudents, setAllStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [enrolling, setEnrolling] = useState(null);
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // IDs de los alumnos ya inscritos (solo role=student)
+  const enrolledIds = new Set(
+    enrolledStudents
+      .filter(e => e.users_profile?.role === 'student')
+      .map(e => e.student_id || e.users_profile?.id)
+  );
+
+  useEffect(() => {
+    async function fetchStudents() {
+      try {
+        const { data, error } = await supabase
+          .from('users_profile')
+          .select('id, full_name, email, role, is_active')
+          .eq('role', 'student')
+          .eq('is_active', true)
+          .order('full_name', { ascending: true });
+        if (error) throw error;
+        setAllStudents(data || []);
+      } catch (err) {
+        console.error('Error cargando estudiantes:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStudents();
+  }, []);
+
+  // Solo mostrar estudiantes que NO estén ya inscritos en este programa
+  const unenrolled = allStudents.filter(s => !enrolledIds.has(s.id));
+
+  const filtered = unenrolled.filter(s => {
+    const term = searchTerm.toLowerCase();
+    return s.full_name?.toLowerCase().includes(term) || s.email?.toLowerCase().includes(term);
+  });
+
+  const handleEnroll = async (student) => {
+    setEnrolling(student.id);
+    setSuccessMsg('');
+    try {
+      const { error } = await supabase.from('enrollments').insert([{
+        student_id: student.id,
+        program_id: programId,
+      }]);
+      if (error) throw error;
+      setSuccessMsg(`✓ ${student.full_name} inscrito correctamente.`);
+      // Refrescar la lista local inmediatamente
+      setAllStudents(prev => prev.filter(s => s.id !== student.id));
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al inscribir: ' + err.message);
+    } finally {
+      setEnrolling(null);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+      <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'white', padding: '2rem', position: 'relative', borderRadius: '12px' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+          <X size={22} />
+        </button>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.35rem' }}>Inscribir Alumnos</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Selecciona estudiantes para inscribir en <strong>{programTitle}</strong>.
+            Solo se muestran los que aún no están inscritos.
+          </p>
+        </div>
+
+        {successMsg && (
+          <div style={{ background: '#d1fae5', color: '#065f46', padding: '0.6rem 1rem', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <CheckCircle size={16} /> {successMsg}
+          </div>
+        )}
+
+        <input
+          type="text"
+          placeholder="Buscar alumno por nombre o correo..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          style={{ padding: '0.6rem 1rem', border: '1px solid var(--border-color)', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.9rem' }}
+        />
+
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {loading ? (
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Cargando estudiantes...</p>
+          ) : filtered.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
+              {unenrolled.length === 0
+                ? '✓ Todos los estudiantes de la plataforma ya están inscritos en este programa.'
+                : 'No se encontraron estudiantes con ese nombre o correo.'}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {filtered.map(student => (
+                <div key={student.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#f8fafc' }}>
+                  <div className="user-cell" style={{ gap: '0.75rem' }}>
+                    <Initials name={student.full_name} />
+                    <div>
+                      <div className="user-name" style={{ fontSize: '0.9rem' }}>{student.full_name}</div>
+                      <div className="user-email">{student.email}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleEnroll(student)}
+                    disabled={enrolling === student.id}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 1rem', whiteSpace: 'nowrap', minWidth: '90px' }}
+                  >
+                    {enrolling === student.id ? 'Inscribiendo...' : '+ Inscribir'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    TAB — Alumnos Inscritos
 ───────────────────────────────────────── */
-function AlumnosTab({ enrolledStudents }) {
+function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const filtered = enrolledStudents.filter(e => {
+  const [showInscribirModal, setShowInscribirModal] = useState(false);
+
+  // CORRECCIÓN: Solo mostrar usuarios con role=student en esta tabla
+  const onlyStudents = enrolledStudents.filter(e => e.users_profile?.role === 'student');
+
+  const filtered = onlyStudents.filter(e => {
     if (!e.users_profile) return false;
     const term = searchTerm.toLowerCase();
     return e.users_profile.full_name?.toLowerCase().includes(term) || e.users_profile.email?.toLowerCase().includes(term);
@@ -104,15 +240,24 @@ function AlumnosTab({ enrolledStudents }) {
       <div className="section-header-row" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <span className="section-title" style={{ display: 'block' }}>Alumnos Inscritos ({filtered.length})</span>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Estudiantes que actualmente tienen acceso a los programas.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Estudiantes que actualmente tienen acceso al programa.</p>
         </div>
-        <input 
-          type="text" 
-          placeholder="Buscar por nombre o correo..." 
-          value={searchTerm} 
-          onChange={e => setSearchTerm(e.target.value)}
-          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: '4px', minWidth: '250px' }}
-        />
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            placeholder="Buscar por nombre o correo..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: '4px', minWidth: '220px' }}
+          />
+          <button
+            onClick={() => setShowInscribirModal(true)}
+            className="btn btn-primary"
+            style={{ fontSize: '0.85rem', padding: '0.55rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
+          >
+            <Plus size={16} /> Inscribir Alumno
+          </button>
+        </div>
       </div>
 
       <div className="admin-table-wrapper">
@@ -120,7 +265,7 @@ function AlumnosTab({ enrolledStudents }) {
           <thead>
             <tr>
               <th>Alumno</th>
-              <th>Diplomado</th>
+              <th>Programa</th>
               <th>Fecha de Inscripción</th>
             </tr>
           </thead>
@@ -137,13 +282,23 @@ function AlumnosTab({ enrolledStudents }) {
                     </div>
                   </div>
                 </td>
-                <td><span className="role-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{enroll.diploma_programs?.title || 'Programa Desconocido'}</span></td>
+                <td><span className="role-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{enroll.diploma_programs?.title || programTitle || 'Programa'}</span></td>
                 <td>{formatShortDate(enroll.created_at)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {showInscribirModal && (
+        <InscribirModal
+          programId={programId}
+          programTitle={programTitle}
+          enrolledStudents={enrolledStudents}
+          onClose={() => setShowInscribirModal(false)}
+          onRefresh={() => { setShowInscribirModal(false); if (onRefresh) onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -1424,7 +1579,7 @@ export default function AdminPanel() {
   const renderTab = () => {
     switch (activeTab) {
       case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
-      case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} />;
+      case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} programId={programId} programTitle={data.program?.title} onRefresh={refreshData} />;
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} programId={programId} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} modulesProp={data.modules} isCourse={isCourse} />;
