@@ -320,7 +320,7 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
   };
 
   const handleDelete = async (t) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar al profesor "${t.name}"?`)) return;
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente de la plataforma al profesor "${t.name}"?\n\nEsta acción es global y borrará su perfil de todos lados.`)) return;
 
     try {
       const { count, error: countError } = await supabase
@@ -331,7 +331,7 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
       if (countError) throw countError;
 
       if (count && count > 0) {
-        alert('No se puede eliminar este profesor porque tiene clases asignadas.');
+        alert(`No se puede eliminar el perfil del profesor "${t.name}" porque tiene clases asignadas en la plataforma (puede ser en este programa o en otro).\n\nRecuerda que este es un directorio global de profesores, por lo que borrar a un profesor afectaría a todos los cursos y diplomados donde imparta clase.`);
         return;
       }
 
