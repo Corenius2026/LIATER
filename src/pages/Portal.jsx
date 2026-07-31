@@ -122,13 +122,12 @@ function StudentPortal({ getDiplomadoLink }) {
           {/* ESTADO DE CARGA SKELETON */}
           {loading ? (
             Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', height: '360px', background: '#ffffff', border: '1px solid var(--border-color)' }}>
+              <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', minHeight: '300px', background: '#ffffff', border: '1px solid var(--border-color)' }}>
                 <div style={{ width: '100%', aspectRatio: '16 / 9', background: '#e2e8f0', animation: 'pulse 1.5s infinite' }} />
                 <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ width: '80px', height: '18px', borderRadius: '999px', background: '#cbd5e1' }} />
                   <div style={{ width: '90%', height: '22px', borderRadius: '4px', background: '#cbd5e1' }} />
-                  <div style={{ width: '100%', height: '14px', borderRadius: '4px', background: '#e2e8f0' }} />
-                  <div style={{ width: '100%', height: '14px', borderRadius: '4px', background: '#e2e8f0' }} />
+                  <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: '#e2e8f0', marginTop: '0.5rem' }} />
                   <div style={{ width: '100%', height: '38px', borderRadius: 'var(--radius-md)', background: '#e2e8f0', marginTop: 'auto' }} />
                 </div>
               </div>
@@ -210,31 +209,16 @@ function StudentPortal({ getDiplomadoLink }) {
                   <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                     
                     {/* 2. ETIQUETA DEL TIPO DE PROGRAMA */}
-                    <div style={{ marginBottom: '0.75rem' }}>
+                    <div style={{ marginBottom: '0.5rem' }}>
                       <span className={isCourse ? 'badge badge-green' : 'badge badge-navy'} style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         {badgeText}
                       </span>
                     </div>
 
                     {/* 3. TÍTULO DEL PROGRAMA */}
-                    <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem', lineHeight: '1.35' }}>
+                    <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.25rem', lineHeight: '1.35', flexGrow: 1 }}>
                       {dip.title}
                     </h3>
-
-                    {/* 4. DESCRIPCIÓN LIMITADA VISUALMENTE A MÁXIMO 3 LÍNEAS */}
-                    <p style={{ 
-                      display: '-webkit-box', 
-                      WebkitLineClamp: 3, 
-                      WebkitBoxOrient: 'vertical', 
-                      overflow: 'hidden', 
-                      color: 'var(--text-secondary)', 
-                      fontSize: '0.84rem', 
-                      marginBottom: '1.25rem', 
-                      lineHeight: '1.45', 
-                      flexGrow: 1 
-                    }}>
-                      {dip.description || 'Sin descripción detallada disponible.'}
-                    </p>
 
                     {/* 5. FILA DE TEXTO PROGRESO Y PORCENTAJE */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', marginBottom: '0.4rem', fontWeight: 700, color: 'var(--navy)' }}>
