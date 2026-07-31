@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { PlayCircle, Clock, BookOpen, User, Users, Activity, BarChart3, TrendingUp, Calendar, CheckCircle, GraduationCap, Plus, X, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 import { formatClassDate, formatShortDate } from '../utils/dateUtils';
-import { uploadProgramCover } from '../services/programService';
+import { uploadProgramCover, fetchUpcomingPrograms } from '../services/programService';
 
 /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
    SUB-COMPONENTE: Portal de Estudiante
@@ -15,6 +15,26 @@ function StudentPortal({ getDiplomadoLink }) {
   const filters = ['Todos', 'Diplomados', 'Cursos Cortos', 'Talleres'];
   const [diplomas, setDiplomas] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Estados para el bloque de Próximos Programas
+  const [upcomingPrograms, setUpcomingPrograms] = useState([]);
+  const [upcomingLoading, setUpcomingLoading] = useState(true);
+  const [upcomingError, setUpcomingError] = useState(null);
+
+  const loadUpcoming = async () => {
+    setUpcomingLoading(true);
+    setUpcomingError(null);
+    try {
+      const { programs: data, error: err } = await fetchUpcomingPrograms(currentUser?.id, 3);
+      if (err) throw err;
+      setUpcomingPrograms(data || []);
+    } catch (err) {
+      console.error('Error fetching upcoming programs:', err);
+      setUpcomingError('No se pudieron cargar los próximos programas.');
+    } finally {
+      setUpcomingLoading(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchDiplomas() {
@@ -56,7 +76,11 @@ function StudentPortal({ getDiplomadoLink }) {
         setLoading(false);
       }
     }
-    fetchDiplomas();
+
+    if (currentUser?.id) {
+      fetchDiplomas();
+      loadUpcoming();
+    }
   }, [currentUser?.id]);
 
   const getButtonLabel = (progress) => {
@@ -259,8 +283,10 @@ function StudentPortal({ getDiplomadoLink }) {
         </div>
       </div>
 
-      {/* COLUMNA DERECHA: PROGRESO GLOBAL */}
-      <div className="portal-sidebar">
+      {/* COLUMNA DERECHA: PROGRESO GLOBAL & PRÓXIMOS PROGRAMAS */}
+      <div className="portal-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        
+        {/* BLOQUE 1: TU PROGRESO */}
         <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Tu progreso</h3>
@@ -281,6 +307,104 @@ function StudentPortal({ getDiplomadoLink }) {
             ))
           )}
         </div>
+
+        {/* BLOQUE 2: PRÓXIMOS PROGRAMAS (BLOQUE INDEPENDIENTE UBICADO INMEDIATAMENTE DEBAJO) */}
+        <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
+            <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Próximos programas</h3>
+            <Link to="/proximos-programas" style={{ fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
+              Ver todos
+            </Link>
+          </div>
+
+          {/* SKELETON LOADER */}
+          {upcomingLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <div style={{ width: '80px', height: '56px', borderRadius: '6px', background: '#e2e8f0', flexShrink: 0 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flexGrow: 1 }}>
+                    <div style={{ width: '50px', height: '12px', background: '#cbd5e1', borderRadius: '999px' }} />
+                    <div style={{ width: '90%', height: '14px', background: '#cbd5e1', borderRadius: '4px' }} />
+                    <div style={{ width: '60%', height: '12px', background: '#e2e8f0', borderRadius: '4px' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : upcomingError ? (
+            /* ERROR Y REINTENTO */
+            <div style={{ padding: '0.75rem', background: '#fef2f2', borderRadius: '6px', color: '#dc2626', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <span>{upcomingError}</span>
+              <button 
+                onClick={loadUpcoming} 
+                style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600, width: 'fit-content' }}
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : upcomingPrograms.length === 0 ? (
+            /* ESTADO VACÍO DISCRETO */
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, padding: '0.25rem 0' }}>
+              No hay nuevos programas próximos por el momento.
+            </p>
+          ) : (
+            /* LISTADO COMPACTO HASTA 3 ELEMENTOS */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {upcomingPrograms.map(prog => {
+                const isOpen = prog.enrollment_start_date || prog.status === 'published';
+                const isCourse = prog.program_type === 'curso';
+
+                return (
+                  <div key={prog.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    {/* MINIATURA COMPACTA (80px x 56px) */}
+                    <div style={{ width: '80px', height: '56px', borderRadius: '6px', overflow: 'hidden', background: 'var(--navy)', flexShrink: 0, position: 'relative' }}>
+                      {prog.image_url ? (
+                        <img 
+                          src={prog.image_url} 
+                          alt={`Portada de ${prog.title}`}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                          }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        />
+                      ) : null}
+                      <div style={{ display: prog.image_url ? 'none' : 'flex', width: '100%', height: '100%', background: isCourse ? 'linear-gradient(135deg, #14213D 0%, #FCA311 100%)' : 'linear-gradient(135deg, #14213D 0%, #007a2e 100%)', alignItems: 'center', justifyContent: 'center' }}>
+                        <BookOpen size={20} color="#ffffff" />
+                      </div>
+                    </div>
+
+                    {/* DETALLES DEL PROGRAMA */}
+                    <div style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase' }}>
+                          {isCourse ? 'Curso' : 'Diplomado'}
+                        </span>
+                        <span style={{ fontSize: '0.66rem', fontWeight: 600, color: isOpen ? 'var(--green-700)' : 'var(--gold-dark)' }}>
+                          • {isOpen ? 'Inscripciones abiertas' : 'Próximamente'}
+                        </span>
+                      </div>
+
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {prog.title}
+                      </h4>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.15rem' }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                          {prog.start_date ? formatShortDate(prog.start_date) : 'Por definir'}
+                        </span>
+                        <Link to="/proximos-programas" style={{ fontSize: '0.74rem', color: 'var(--navy)', fontWeight: 700, textDecoration: 'none' }}>
+                          Ver detalles →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
