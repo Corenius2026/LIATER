@@ -13,7 +13,7 @@ const supabaseCreator = createClient(
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   ListTree, Video, FileText, Plus, Pencil, Trash2,
-  CheckCircle2, CheckCircle, Clock, Link as LinkIcon, ShieldAlert, X, Megaphone
+  CheckCircle2, CheckCircle, Clock, Link as LinkIcon, ShieldAlert, X, Megaphone, ArrowLeft
 } from 'lucide-react';
 import './AdminPanel.css';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../utils/dateUtils';
@@ -235,6 +235,23 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
     return e.users_profile.full_name?.toLowerCase().includes(term) || e.users_profile.email?.toLowerCase().includes(term);
   });
 
+  const handleUnenroll = async (enroll) => {
+    const studentName = enroll.users_profile?.full_name || 'este alumno';
+    if (!window.confirm(`¿Estás seguro de que deseas desvincular a "${studentName}" de este programa?\n\n(El estudiante seguirá existiendo en la gestión global de usuarios)`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('id', enroll.id);
+
+      if (error) throw error;
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al desvincular alumno: ' + err.message);
+    }
+  };
+
   return (
     <div>
       <div className="section-header-row" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
@@ -267,10 +284,11 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
               <th>Alumno</th>
               <th>Programa</th>
               <th>Fecha de Inscripción</th>
+              <th style={{ width: '100px', textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? <EmptyRow cols={3} message="No hay alumnos inscritos que coincidan con la búsqueda." /> :
+            {filtered.length === 0 ? <EmptyRow cols={4} message="No hay alumnos inscritos que coincidan con la búsqueda." /> :
              filtered.map(enroll => (
               <tr key={enroll.id}>
                 <td>
@@ -284,6 +302,17 @@ function AlumnosTab({ enrolledStudents, programId, programTitle, onRefresh }) {
                 </td>
                 <td><span className="role-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{enroll.diploma_programs?.title || programTitle || 'Programa'}</span></td>
                 <td>{formatShortDate(enroll.created_at)}</td>
+                <td style={{ textAlign: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={() => handleUnenroll(enroll)}
+                      className="btn-icon del"
+                      title="Desvincular alumno del programa"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -386,26 +415,184 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
 }
 
 /* ─────────────────────────────────────────
+   MODAL — Asignar Profesor
+───────────────────────────────────────── */
+function AsignarProfesorModal({ programId, programTitle, assignedTeachers, onClose, onRefresh }) {
+  const [allTeachers, setAllTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [assigning, setAssigning] = useState(null);
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const assignedUserIds = new Set(assignedTeachers.map(t => t.user_id));
+
+  useEffect(() => {
+    async function fetchTeachers() {
+      try {
+        const { data, error } = await supabase
+          .from('teacher_profiles')
+          .select('*')
+          .order('name', { ascending: true });
+        if (error) throw error;
+        setAllTeachers(data || []);
+      } catch (err) {
+        console.error('Error cargando profesores:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchTeachers();
+  }, []);
+
+  const unassigned = allTeachers.filter(t => !assignedUserIds.has(t.user_id));
+
+  const filtered = unassigned.filter(t => {
+    const term = searchTerm.toLowerCase();
+    return t.name?.toLowerCase().includes(term) || t.area?.toLowerCase().includes(term);
+  });
+
+  const handleAssign = async (teacher) => {
+    setAssigning(teacher.id);
+    setSuccessMsg('');
+    try {
+      const { error } = await supabase.from('enrollments').insert([{
+        student_id: teacher.user_id,
+        program_id: programId,
+      }]);
+      if (error) throw error;
+      setSuccessMsg(`✓ Profesor ${teacher.name} asignado correctamente.`);
+      setAllTeachers(prev => prev.filter(t => t.id !== teacher.id));
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al asignar profesor: ' + err.message);
+    } finally {
+      setAssigning(null);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+      <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'white', padding: '2rem', position: 'relative', borderRadius: '12px' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+          <X size={22} />
+        </button>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.35rem' }}>Asignar Profesor al Programa</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Selecciona un profesor para asignarlo a <strong>{programTitle}</strong>.
+            Solo se muestran los que aún no están asignados.
+          </p>
+        </div>
+
+        {successMsg && (
+          <div style={{ background: '#d1fae5', color: '#065f46', padding: '0.6rem 1rem', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <CheckCircle size={16} /> {successMsg}
+          </div>
+        )}
+
+        <input
+          type="text"
+          placeholder="Buscar profesor por nombre o área..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          style={{ padding: '0.6rem 1rem', border: '1px solid var(--border-color)', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.9rem' }}
+        />
+
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {loading ? (
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Cargando profesores...</p>
+          ) : filtered.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
+              {unassigned.length === 0
+                ? '✓ Todos los profesores de la plataforma ya están asignados a este programa.'
+                : 'No se encontraron profesores con ese nombre o área.'}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {filtered.map(teacher => (
+                <div key={teacher.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#f8fafc' }}>
+                  <div className="user-cell" style={{ gap: '0.75rem' }}>
+                    <Initials name={teacher.name} />
+                    <div>
+                      <div className="user-name" style={{ fontSize: '0.9rem' }}>{teacher.name}</div>
+                      <div className="user-email">{teacher.area || 'Profesor'}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleAssign(teacher)}
+                    disabled={assigning === teacher.id}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 1rem', whiteSpace: 'nowrap', minWidth: '90px' }}
+                  >
+                    {assigning === teacher.id ? 'Asignando...' : '+ Asignar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    TAB 3 — Profesores (Supabase)
 ───────────────────────────────────────── */
-function ProfesoresTab({ teachers, loading, onRefresh }) {
+function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }) {
+  const [showAsignarModal, setShowAsignarModal] = useState(false);
+
+  const handleUnassignTeacher = async (teacher) => {
+    if (!window.confirm(`¿Estás seguro de que deseas desvincular al profesor "${teacher.name}" de este programa?\n\n(El profesor seguirá existiendo en el directorio global de profesores)`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('program_id', programId)
+        .eq('student_id', teacher.user_id);
+
+      if (error) throw error;
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error al desvincular profesor: ' + err.message);
+    }
+  };
+
   return (
     <div>
-      <div className="section-header-row">
-        <span className="section-title">Profesores del programa ({teachers.length})</span>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          Directorio de profesores vinculados.
+      <div className="section-header-row" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <span className="section-title" style={{ display: 'block' }}>Profesores del programa ({teachers.length})</span>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Directorio de profesores vinculados a este programa.</p>
         </div>
+        <button
+          onClick={() => setShowAsignarModal(true)}
+          className="btn btn-primary"
+          style={{ fontSize: '0.85rem', padding: '0.55rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
+        >
+          <Plus size={16} /> Asignar Profesor
+        </button>
       </div>
 
       <div className="teacher-cards-grid">
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Cargando profesores...</p>
         ) : teachers.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>No hay profesores registrados.</p>
+          <p style={{ color: 'var(--text-muted)' }}>No hay profesores asignados a este programa.</p>
         ) : teachers.map(t => (
-          <div className="teacher-admin-card" key={t.id}>
-            <div className="teacher-card-top">
+          <div className="teacher-admin-card" key={t.id} style={{ position: 'relative' }}>
+            <button
+              onClick={() => handleUnassignTeacher(t)}
+              className="btn-icon del"
+              title="Desvincular profesor del programa"
+              style={{ position: 'absolute', top: '1rem', right: '1rem' }}
+            >
+              <Trash2 size={16} />
+            </button>
+
+            <div className="teacher-card-top" style={{ paddingRight: '2.5rem' }}>
               {t.photo || t.photo_url ? (
                 <img src={t.photo || t.photo_url} alt={t.name} className="teacher-card-img" />
               ) : (
@@ -422,6 +609,16 @@ function ProfesoresTab({ teachers, loading, onRefresh }) {
           </div>
         ))}
       </div>
+
+      {showAsignarModal && (
+        <AsignarProfesorModal
+          programId={programId}
+          programTitle={programTitle}
+          assignedTeachers={teachers}
+          onClose={() => setShowAsignarModal(false)}
+          onRefresh={() => { setShowAsignarModal(false); if (onRefresh) onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -1580,7 +1777,7 @@ export default function AdminPanel() {
     switch (activeTab) {
       case 'resumen':    return <ResumenTab counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
       case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} programId={programId} programTitle={data.program?.title} onRefresh={refreshData} />;
-      case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
+      case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} programTitle={data.program?.title} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} programId={programId} />;
       case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} modulesProp={data.modules} isCourse={isCourse} />;
       case 'clases':     return <ClasesTab classes={data.classes} teachers={data.teachers} loading={loading} onRefresh={refreshData} />;
@@ -1593,6 +1790,24 @@ export default function AdminPanel() {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+        <button
+          onClick={() => navigate('/dashboard/portal')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            background: 'none',
+            border: 'none',
+            color: 'var(--primary)',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            marginBottom: '0.75rem',
+            padding: 0
+          }}
+        >
+          <ArrowLeft size={18} /> Volver al Portal
+        </button>
         <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
         <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
       </div>
