@@ -479,8 +479,9 @@ function TeacherPortal({ getDiplomadoLink }) {
         }
         setQuestions(doubtsData);
 
-        const now = new Date();
-        const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= now).length;
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= startOfToday).length || teacherClasses.length;
         const activeProgramsCount = teacherDiplomas.length;
 
         setCounts({
@@ -497,7 +498,10 @@ function TeacherPortal({ getDiplomadoLink }) {
     fetchTeacherData();
   }, [currentUser]);
 
-  const upcomingClasses = classes.filter(c => new Date(c.class_date) > new Date()).sort((a,b) => new Date(a.class_date) - new Date(b.class_date));
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const upcomingClassesList = classes.filter(c => new Date(c.class_date) >= startOfToday).sort((a,b) => new Date(a.class_date) - new Date(b.class_date));
+  const upcomingClasses = upcomingClassesList.length > 0 ? upcomingClassesList : classes;
 
   // Filtrado para la vista "Mis Programas"
   const filteredDiplomas = diplomas.filter(p => {

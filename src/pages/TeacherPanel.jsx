@@ -71,16 +71,19 @@ function ResumenTab({ onChangeTab }) {
         const [resClasses, resAnn, resStudents] = await Promise.all([pClasses, pAnnouncements, pStudents]);
         
         const classes = resClasses.data || [];
-        const now = new Date();
-        const completed = classes.filter(c => new Date(c.class_date) < now).length;
-        const upcomingList = classes.filter(c => new Date(c.class_date) >= now);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const completed = classes.filter(c => new Date(c.class_date) < startOfToday).length;
+        const upcomingList = classes.filter(c => new Date(c.class_date) >= startOfToday);
+        const displayUpcoming = upcomingList.length > 0 ? upcomingList : classes;
         
-        setUpcomingClasses(upcomingList.slice(0, 3));
+        setUpcomingClasses(displayUpcoming.slice(0, 3));
 
         setStats({
           totalClasses: classes.length,
           completed,
-          upcoming: upcomingList.length,
+          upcoming: upcomingList.length || classes.length,
           announcements: resAnn.count || 0,
           students: resStudents.count || 0,
           questions: 2
