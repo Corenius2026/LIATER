@@ -1,163 +1,174 @@
 -- ====================================================================
--- SCRIPT SQL: Esquema Inicial - Plataforma del Diplomado
--- 
--- Descripción:
--- Este script crea las tablas necesarias para gestionar diplomados,
--- módulos, subtemas, clases, profesores y recursos.
+-- ESQUEMA OFICIAL DE BASE DE DATOS - PLATAFORMA LIATER UNAL (Supabase PostgreSQL)
 -- ====================================================================
 
--- Habilitar extensión para generar UUIDs automáticamente
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- --------------------------------------------------------------------
--- 1. Perfiles de Usuarios (users_profile)
--- Representa a todos los usuarios de la plataforma (estudiantes, profesores, admin)
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS users_profile (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    full_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('student', 'teacher', 'admin')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.users_profile (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  full_name character varying NOT NULL,
+  email character varying NOT NULL UNIQUE,
+  role character varying NOT NULL CHECK (role::text = ANY (ARRAY['student'::character varying, 'teacher'::character varying, 'admin'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  is_active boolean DEFAULT true,
+  auth_user_id uuid UNIQUE,
+  CONSTRAINT users_profile_pkey PRIMARY KEY (id),
+  CONSTRAINT users_profile_auth_user_id_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id)
 );
 
--- Índice para búsquedas rápidas por rol y email
-CREATE INDEX IF NOT EXISTS idx_users_profile_role ON users_profile(role);
-CREATE INDEX IF NOT EXISTS idx_users_profile_email ON users_profile(email);
-
--- --------------------------------------------------------------------
--- 2. Perfiles de Profesores (teacher_profiles)
--- Información pública y profesional de los usuarios con rol 'teacher'
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS teacher_profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users_profile(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    bio TEXT,
-    area VARCHAR(255),
-    photo_url TEXT,
-    linkedin_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.teacher_profiles (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  name character varying NOT NULL,
+  bio text,
+  area character varying,
+  photo_url text,
+  linkedin_url text,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT teacher_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT teacher_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users_profile(id) ON DELETE CASCADE
 );
 
--- Índice para la relación con el usuario
-CREATE INDEX IF NOT EXISTS idx_teacher_profiles_user_id ON teacher_profiles(user_id);
-
--- --------------------------------------------------------------------
--- 3. Programas de Diplomado (diploma_programs)
--- La entidad principal que agrupa todo el contenido académico
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS diploma_programs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    start_date DATE,
-    end_date DATE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.diploma_programs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  title character varying NOT NULL,
+  description text,
+  start_date date,
+  end_date date,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  program_type text DEFAULT 'diplomado'::text,
+  image_url text,
+  is_published boolean DEFAULT true,
+  status character varying DEFAULT 'published'::character varying CHECK (status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'upcoming'::character varying, 'completed'::character varying]::text[])),
+  enrollment_start_date timestamp with time zone,
+  enrollment_end_date timestamp with time zone,
+  CONSTRAINT diploma_programs_pkey PRIMARY KEY (id)
 );
 
--- --------------------------------------------------------------------
--- 4. Módulos (modules)
--- Divisiones principales de un diplomado
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS modules (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    diploma_id UUID NOT NULL REFERENCES diploma_programs(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    order_index INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.modules (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT modules_pkey PRIMARY KEY (id),
+  CONSTRAINT modules_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
 );
 
--- Índice para obtener los módulos de un diplomado ordenados
-CREATE INDEX IF NOT EXISTS idx_modules_diploma_id ON modules(diploma_id);
-CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(diploma_id, order_index);
-
--- --------------------------------------------------------------------
--- 5. Subtemas (subtopics)
--- Subdivisiones temáticas dentro de un módulo
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS subtopics (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    module_id UUID NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    order_index INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.subtopics (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  module_id uuid NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  program_id uuid,
+  CONSTRAINT subtopics_pkey PRIMARY KEY (id),
+  CONSTRAINT subtopics_module_id_fkey FOREIGN KEY (module_id) REFERENCES public.modules(id) ON DELETE CASCADE,
+  CONSTRAINT subtopics_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
 );
 
--- Índice para obtener los subtemas de un módulo ordenados
-CREATE INDEX IF NOT EXISTS idx_subtopics_module_id ON subtopics(module_id);
-CREATE INDEX IF NOT EXISTS idx_subtopics_order ON subtopics(module_id, order_index);
-
--- --------------------------------------------------------------------
--- 6. Sesiones de Clase (class_sessions)
--- Clases individuales que se dictan o están grabadas
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS class_sessions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    subtopic_id UUID NOT NULL REFERENCES subtopics(id) ON DELETE CASCADE,
-    teacher_id UUID REFERENCES teacher_profiles(id) ON DELETE SET NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    class_date TIMESTAMP WITH TIME ZONE,
-    duration INTEGER, -- duración en minutos
-    video_url TEXT,
-    presentation_url TEXT,
-    order_index INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.class_sessions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  subtopic_id uuid NOT NULL,
+  teacher_id uuid,
+  title character varying NOT NULL,
+  description text,
+  class_date timestamp with time zone,
+  duration integer,
+  video_url text,
+  presentation_url text,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  program_id uuid,
+  CONSTRAINT class_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT class_sessions_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE,
+  CONSTRAINT class_sessions_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(id) ON DELETE SET NULL,
+  CONSTRAINT class_sessions_subtopic_id_fkey FOREIGN KEY (subtopic_id) REFERENCES public.subtopics(id) ON DELETE CASCADE
 );
 
--- Índices para optimizar las consultas de clases por subtema o profesor
-CREATE INDEX IF NOT EXISTS idx_class_sessions_subtopic_id ON class_sessions(subtopic_id);
-CREATE INDEX IF NOT EXISTS idx_class_sessions_teacher_id ON class_sessions(teacher_id);
-CREATE INDEX IF NOT EXISTS idx_class_sessions_order ON class_sessions(subtopic_id, order_index);
-
--- --------------------------------------------------------------------
--- 7. Recursos Complementarios (resources)
--- Materiales adicionales para una clase (PDFs, enlaces, etc.)
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS resources (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    class_id UUID NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    resource_type VARCHAR(50) NOT NULL CHECK (resource_type IN ('presentation', 'pdf', 'link', 'video', 'file')),
-    provider TEXT NOT NULL DEFAULT 'external' CHECK (provider IN ('drive', 'youtube', 'supabase', 'external')),
-    url TEXT,
-    file_path TEXT,
-    is_visible BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.resources (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL,
+  title character varying NOT NULL,
+  resource_type character varying NOT NULL CHECK (resource_type::text = ANY (ARRAY['presentation'::character varying, 'pdf'::character varying, 'link'::character varying, 'video'::character varying, 'file'::character varying]::text[])),
+  url text,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  provider text DEFAULT 'external'::text CHECK (provider = ANY (ARRAY['drive'::text, 'youtube'::text, 'supabase'::text, 'external'::text])),
+  file_path text,
+  is_visible boolean DEFAULT true,
+  program_id uuid,
+  CONSTRAINT resources_pkey PRIMARY KEY (id),
+  CONSTRAINT resources_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT resources_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
 );
 
--- Índice para buscar los recursos de una clase específica
-CREATE INDEX IF NOT EXISTS idx_resources_class_id ON resources(class_id);
-
--- --------------------------------------------------------------------
--- 8. Anuncios (announcements)
--- Anuncios publicados por los profesores para sus estudiantes
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS announcements (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    teacher_id UUID REFERENCES teacher_profiles(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    body TEXT NOT NULL,
-    tag VARCHAR(50) DEFAULT 'general' CHECK (tag IN ('general', 'urgent', 'info')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  teacher_id uuid,
+  title character varying NOT NULL,
+  body text NOT NULL,
+  tag character varying DEFAULT 'general'::character varying CHECK (tag::text = ANY (ARRAY['general'::character varying, 'urgent'::character varying, 'info'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  program_id uuid,
+  CONSTRAINT announcements_pkey PRIMARY KEY (id),
+  CONSTRAINT announcements_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(id) ON DELETE CASCADE,
+  CONSTRAINT announcements_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_announcements_teacher_id ON announcements(teacher_id);
-
--- --------------------------------------------------------------------
--- 9. Inscripciones (enrollments)
--- Conecta a los estudiantes con los programas a los que tienen acceso
--- --------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS enrollments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID NOT NULL REFERENCES users_profile(id) ON DELETE CASCADE,
-    diploma_id UUID NOT NULL REFERENCES diploma_programs(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(student_id, diploma_id)
+CREATE TABLE IF NOT EXISTS public.enrollments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  student_id uuid NOT NULL,
+  program_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT enrollments_pkey PRIMARY KEY (id),
+  CONSTRAINT enrollments_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE,
+  CONSTRAINT enrollments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id);
-CREATE INDEX IF NOT EXISTS idx_enrollments_diploma_id ON enrollments(diploma_id);
+CREATE TABLE IF NOT EXISTS public.assignments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  due_date timestamp with time zone NOT NULL,
+  is_published boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT assignments_pkey PRIMARY KEY (id),
+  CONSTRAINT assignments_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.assignment_submissions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  assignment_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  file_url text,
+  comments text,
+  submitted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  status character varying DEFAULT 'submitted'::character varying CHECK (status::text = ANY (ARRAY['submitted'::character varying, 'graded'::character varying, 'returned'::character varying]::text[])),
+  CONSTRAINT assignment_submissions_pkey PRIMARY KEY (id),
+  CONSTRAINT assignment_submissions_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES public.assignments(id) ON DELETE CASCADE,
+  CONSTRAINT assignment_submissions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.quizzes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  due_date timestamp with time zone NOT NULL,
+  is_published boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT quizzes_pkey PRIMARY KEY (id),
+  CONSTRAINT quizzes_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.quiz_submissions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  quiz_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  score numeric,
+  completed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT quiz_submissions_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_submissions_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES public.quizzes(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_submissions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id) ON DELETE CASCADE
+);
