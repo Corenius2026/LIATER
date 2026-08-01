@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, ArrowRight } from 'lucide-react';
+import { BookOpen, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export default function ModulesList() {
   const { programId } = useParams();
@@ -67,6 +67,13 @@ export default function ModulesList() {
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+      {/* BOTÓN DE RETORNO */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <Link to={`/dashboard/${cleanProgramId}`} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
+          <ArrowLeft size={14} /> Volver al Inicio del Programa
+        </Link>
+      </div>
+
       <div className="page-header" style={{ marginBottom: '2rem' }}>
         <h1 className="page-title">Módulos del Programa</h1>
         <p className="page-description">Selecciona un módulo para explorar sus contenidos y clases en vivo.</p>

@@ -107,6 +107,13 @@ export default function ModuleDetail() {
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+      {/* BOTÓN DE RETORNO */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <Link to={moduleData?.program_id ? `/modules/${moduleData.program_id}` : '/portal'} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
+          <ArrowLeft size={14} /> {moduleData?.program_id ? 'Volver a Módulos' : 'Volver al Portal'}
+        </Link>
+      </div>
+
       {/* HEADER */}
       <div className="page-header" style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
