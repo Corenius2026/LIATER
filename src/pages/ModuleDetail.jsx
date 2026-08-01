@@ -29,6 +29,21 @@ export default function ModuleDetail() {
         setModuleData(modData);
 
         if (modData) {
+          // Actualizar contexto global para el Sidebar
+          if (modData.program_id) {
+            const { data: progData } = await supabase
+              .from('diploma_programs')
+              .select('program_type')
+              .eq('id', modData.program_id)
+              .maybeSingle();
+
+            localStorage.setItem('activeProgramId', modData.program_id);
+            if (progData?.program_type) {
+              localStorage.setItem('activeProgramType', progData.program_type);
+            }
+            window.dispatchEvent(new Event('programContextChanged'));
+          }
+
           // 2. Obtener los subtemas
           const { data: subData, error: subError } = await supabase
             .from('subtopics')

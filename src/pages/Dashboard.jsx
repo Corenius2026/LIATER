@@ -78,6 +78,13 @@ export default function Dashboard() {
           announcements: announcementsData || []
         });
 
+        // Actualizar contexto global para el Sidebar
+        localStorage.setItem('activeProgramId', cleanProgramId);
+        if (diplomaData?.program_type) {
+          localStorage.setItem('activeProgramType', diplomaData.program_type);
+        }
+        window.dispatchEvent(new Event('programContextChanged'));
+
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
       } finally {

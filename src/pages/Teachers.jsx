@@ -1,14 +1,31 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Globe, User } from 'lucide-react';
 
 export default function Teachers() {
+  const { programId } = useParams();
   const [teachersList, setTeachersList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchTeachers() {
       try {
+        if (programId) {
+          const cleanProgramId = decodeURIComponent(programId).replace(/\s+/g, '-').trim();
+          const { data: progData } = await supabase
+            .from('diploma_programs')
+            .select('program_type')
+            .eq('id', cleanProgramId)
+            .maybeSingle();
+
+          localStorage.setItem('activeProgramId', cleanProgramId);
+          if (progData?.program_type) {
+            localStorage.setItem('activeProgramType', progData.program_type);
+          }
+          window.dispatchEvent(new Event('programContextChanged'));
+        }
+
         const { data, error } = await supabase
           .from('teacher_profiles')
           .select('*');

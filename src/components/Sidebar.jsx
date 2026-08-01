@@ -4,6 +4,7 @@
  * Dark navy design con logo LIATER y acentos dorados.
  */
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   Home, BookOpen, Users, LogOut, Settings, LayoutDashboard,
@@ -17,8 +18,25 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const role = currentUser?.role;
-  const activeProgramId = localStorage.getItem('activeProgramId') || '';
-  const activeProgramType = localStorage.getItem('activeProgramType') || 'diplomado';
+  
+  const [activeProgramId, setActiveProgramId] = useState(localStorage.getItem('activeProgramId') || '');
+  const [activeProgramType, setActiveProgramType] = useState(localStorage.getItem('activeProgramType') || 'diplomado');
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setActiveProgramId(localStorage.getItem('activeProgramId') || '');
+      setActiveProgramType(localStorage.getItem('activeProgramType') || 'diplomado');
+    };
+
+    window.addEventListener('programContextChanged', handleStorageChange);
+    
+    // Sincronizar en caso de que cambie la ruta y el storage haya sido actualizado sin evento
+    handleStorageChange();
+
+    return () => {
+      window.removeEventListener('programContextChanged', handleStorageChange);
+    };
+  }, [location.pathname]);
 
   // Lista de rutas donde NO se debe mostrar el menú específico del curso
   const globalRoutes = ['/portal', '/perfil', '/soporte', '/users'];

@@ -26,6 +26,19 @@ export default function ModulesList() {
         
         if (error) throw error;
         setModulesList(data || []);
+
+        // Actualizar contexto global para el Sidebar
+        const { data: progData } = await supabase
+          .from('diploma_programs')
+          .select('program_type')
+          .eq('id', cleanProgramId)
+          .maybeSingle();
+
+        localStorage.setItem('activeProgramId', cleanProgramId);
+        if (progData?.program_type) {
+          localStorage.setItem('activeProgramType', progData.program_type);
+        }
+        window.dispatchEvent(new Event('programContextChanged'));
       } catch (err) {
         console.error('Error fetching modules:', err.message);
       } finally {

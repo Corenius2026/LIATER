@@ -30,16 +30,32 @@ export default function ClassDetail() {
         if (classError) console.error('Error fetching class session:', classError);
         setClsData(classData);
 
-        // 2. Obtener el módulo al que pertenece para el botón "Volver"
-        if (classData && classData.subtopic_id) {
-          const { data: subData } = await supabase
-            .from('subtopics')
-            .select('module_id')
-            .eq('id', classData.subtopic_id)
-            .maybeSingle();
-          
-          if (subData) {
-            setModuleId(subData.module_id);
+        // 2. Obtener el módulo al que pertenece para el botón "Volver" y actualizar contexto
+        if (classData) {
+          if (classData.subtopic_id) {
+            const { data: subData } = await supabase
+              .from('subtopics')
+              .select('module_id')
+              .eq('id', classData.subtopic_id)
+              .maybeSingle();
+            
+            if (subData) {
+              setModuleId(subData.module_id);
+            }
+          }
+
+          if (classData.program_id) {
+            const { data: progData } = await supabase
+              .from('diploma_programs')
+              .select('program_type')
+              .eq('id', classData.program_id)
+              .maybeSingle();
+
+            localStorage.setItem('activeProgramId', classData.program_id);
+            if (progData?.program_type) {
+              localStorage.setItem('activeProgramType', progData.program_type);
+            }
+            window.dispatchEvent(new Event('programContextChanged'));
           }
         }
 
