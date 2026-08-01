@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { Globe, User } from 'lucide-react';
+import { Globe, User, Award, BookOpen } from 'lucide-react';
 
 export default function Teachers() {
   const { programId } = useParams();
@@ -40,7 +40,7 @@ export default function Teachers() {
     }
 
     fetchTeachers();
-  }, []);
+  }, [programId]);
 
   if (loading) {
     return (
@@ -60,48 +60,130 @@ export default function Teachers() {
   }
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Cuerpo Docente</h1>
-        <p className="page-description">Conoce a los expertos que te acompañarán durante el diplomado.</p>
+    <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
+          Cuerpo Docente
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0' }}>
+          Conoce a los expertos que te acompañarán durante tu formación.
+        </p>
       </div>
 
-      <div className="grid-3">
-        {teachersList.map(teacher => (
-          <div key={teacher.id} className="card" style={{ textAlign: 'center', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ margin: '0 auto', marginBottom: '1rem' }}>
-              {teacher.photo_url || teacher.photo ? (
-                <img 
-                  src={teacher.photo_url || teacher.photo} 
-                  alt={teacher.name} 
-                  style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} 
-                />
-              ) : (
-                <div style={{ width: '100px', height: '100px', borderRadius: '50%', backgroundColor: 'var(--primary-light)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                  <User size={48} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+        {teachersList.map(teacher => {
+          const teacherInitials = teacher.name ? teacher.name.charAt(0).toUpperCase() : 'P';
+          const teacherRole = teacher.title_role || 'Profesor Titular';
+
+          return (
+            <div 
+              key={teacher.id} 
+              className="card" 
+              style={{ 
+                padding: '1.75rem', 
+                background: 'var(--white)', 
+                border: '1px solid var(--border-color)', 
+                borderTop: '4px solid var(--gold)',
+                borderRadius: 'var(--radius-lg)',
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '1.25rem',
+                boxShadow: '0 4px 14px rgba(20, 33, 61, 0.05)',
+                transition: 'all 200ms ease-in-out'
+              }}
+            >
+              {/* CABECERA: AVATAR Y NOMBRE */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {teacher.photo_url || teacher.photo ? (
+                  <img 
+                    src={teacher.photo_url || teacher.photo} 
+                    alt={teacher.name} 
+                    style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', flexShrink: 0 }} 
+                  />
+                ) : (
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '1.5rem', flexShrink: 0, border: '2px solid var(--gold)' }}>
+                    {teacherInitials}
+                  </div>
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {teacher.name || 'Profesor'}
+                  </h3>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '0.15rem' }}>
+                    {teacherRole}
+                  </div>
+                </div>
+              </div>
+
+              {/* ESPECIALIDAD */}
+              <div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                  Especialidad
+                </div>
+                {teacher.area && teacher.area.trim() ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#e0f2fe', color: '#0369a1', padding: '0.3rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: 700 }}>
+                    <Award size={14} />
+                    {teacher.area}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.7 }}>
+                    Especialidad no especificada
+                  </span>
+                )}
+              </div>
+
+              {/* BIOGRAFÍA */}
+              <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                  Biografía
+                </div>
+                <p style={{ fontSize: '0.85rem', color: teacher.bio && teacher.bio.trim() ? 'var(--navy)' : 'var(--text-muted)', margin: 0, lineHeight: 1.5, fontStyle: teacher.bio && teacher.bio.trim() ? 'normal' : 'italic' }}>
+                  {teacher.bio && teacher.bio.trim() ? teacher.bio : 'Sin biografía disponible.'}
+                </p>
+              </div>
+
+              {/* FORMACIÓN Y TRAYECTORIA (SI EXISTE) */}
+              {teacher.experience && teacher.experience.trim() && (
+                <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                    Formación y Trayectoria
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--navy)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                    {teacher.experience}
+                  </p>
+                </div>
+              )}
+
+              {/* ENLACES / LINKEDIN (SI EXISTE) */}
+              {(teacher.linkedin_url || teacher.linkedin) && String(teacher.linkedin_url || teacher.linkedin).trim().length > 0 && (
+                <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem', marginTop: 'auto' }}>
+                  <a 
+                    href={teacher.linkedin_url || teacher.linkedin} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="btn" 
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      justify: 'center', 
+                      gap: '0.5rem', 
+                      padding: '0.5rem 1rem', 
+                      background: 'var(--bg-light)', 
+                      color: 'var(--navy)', 
+                      borderRadius: '8px', 
+                      fontWeight: 700, 
+                      fontSize: '0.82rem',
+                      textDecoration: 'none',
+                      border: '1px solid var(--border-color)'
+                    }}
+                  >
+                    <Globe size={16} /> LinkedIn
+                  </a>
                 </div>
               )}
             </div>
-            
-            <h3 style={{ color: 'var(--text-dark)', marginBottom: '0.25rem' }}>{teacher.name}</h3>
-            <p style={{ color: 'var(--primary-light)', fontWeight: 500, fontSize: '0.875rem', marginBottom: '1rem' }}>{teacher.area || 'Docente'}</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem', flex: 1, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{teacher.bio || 'Sin biografía disponible.'}</p>
-            
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-              {(teacher.linkedin_url || teacher.linkedin) && String(teacher.linkedin_url || teacher.linkedin).trim().length > 0 && (
-                <a 
-                  href={teacher.linkedin_url || teacher.linkedin} 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  className="btn btn-outline" 
-                  style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: '0.5rem' }}
-                >
-                  <Globe size={18} /> LinkedIn
-                </a>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

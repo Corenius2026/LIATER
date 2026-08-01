@@ -186,36 +186,70 @@ export default function Profile() {
     setSaving(true);
     setMsg({ type: '', text: '' });
     try {
-      const { data: tProfile } = await supabase
+      const teacherName = personalData.full_name || currentUser?.name || 'Profesor';
+
+      // 1. Buscar el perfil de profesor por user_id (sea id de users_profile o auth_user_id)
+      const userOrClause = currentUser?.auth_user_id 
+        ? `user_id.eq.${currentUser.id},user_id.eq.${currentUser.auth_user_id}` 
+        : `user_id.eq.${currentUser.id}`;
+
+      const { data: existingProfiles } = await supabase
         .from('teacher_profiles')
-        .select('id')
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
+        .select('*')
+        .or(userOrClause);
+
+      const tProfile = existingProfiles && existingProfiles.length > 0 ? existingProfiles[0] : null;
+
+      // Intentar primero actualizar con todos los campos
+      const fullPayload = {
+        name: teacherName,
+        area: academicData.area,
+        bio: academicData.bio,
+        title_role: academicData.title_role,
+        experience: academicData.experience
+      };
 
       if (tProfile) {
-        const { error } = await supabase
+        let { error: updateErr } = await supabase
           .from('teacher_profiles')
-          .update({
-            area: academicData.area,
-            bio: academicData.bio,
-            title_role: academicData.title_role,
-            experience: academicData.experience
-          })
+          .update(fullPayload)
           .eq('id', tProfile.id);
 
-        if (error) throw error;
+        if (updateErr) {
+          // Si falla por columnas inexistentes en la BD (title_role / experience), reintentar con las columnas estándar
+          const fallbackPayload = {
+            name: teacherName,
+            area: academicData.area,
+            bio: academicData.bio
+          };
+          const { error: fallbackErr } = await supabase
+            .from('teacher_profiles')
+            .update(fallbackPayload)
+            .eq('id', tProfile.id);
+
+          if (fallbackErr) throw fallbackErr;
+        }
       } else {
-        const { error } = await supabase
+        let { error: insertErr } = await supabase
           .from('teacher_profiles')
           .insert({
             user_id: currentUser.id,
-            area: academicData.area,
-            bio: academicData.bio,
-            title_role: academicData.title_role,
-            experience: academicData.experience
+            ...fullPayload
           });
 
-        if (error) throw error;
+        if (insertErr) {
+          const fallbackPayload = {
+            user_id: currentUser.id,
+            name: teacherName,
+            area: academicData.area,
+            bio: academicData.bio
+          };
+          const { error: fallbackInsertErr } = await supabase
+            .from('teacher_profiles')
+            .insert(fallbackPayload);
+
+          if (fallbackInsertErr) throw fallbackInsertErr;
+        }
       }
 
       setInitialAcademicData({ ...academicData });
