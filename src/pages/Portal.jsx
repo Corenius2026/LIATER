@@ -410,43 +410,14 @@ function TeacherPortal({ getDiplomadoLink }) {
       try {
         const { data: profileData } = await supabase
           .from('teacher_profiles')
-          .select('id, name')
+          .select('id, name, user_id')
           .eq('user_id', currentUser.id)
           .maybeSingle();
 
         const name = profileData?.name || currentUser?.full_name || currentUser?.name || currentUser?.user_metadata?.full_name || 'Profesor';
         setTeacherName(name);
 
-        let teacherClasses = [];
         let teacherDiplomas = [];
-        let doubtsCount = 0;
-        let doubtsData = [];
-
-        if (profileData) {
-          const { data: classData } = await supabase
-            .from('class_sessions')
-            .select('*, diploma_programs(id, title, program_type, description), subtopics(modules(diploma_programs(id, title, program_type, description)))')
-            .eq('teacher_id', profileData.id)
-            .order('class_date', { ascending: true });
-            
-          teacherClasses = classData || [];
-          setClasses(teacherClasses);
-
-          try {
-            const { data: qData, count } = await supabase
-              .from('questions')
-              .select('*', { count: 'exact' })
-              .or(`teacher_id.eq.${profileData.id},teacher_id.is.null`)
-              .order('created_at', { ascending: false });
-            doubtsCount = count || (qData ? qData.length : 0);
-            doubtsData = qData || [];
-          } catch (e) {
-            doubtsCount = 0;
-            doubtsData = [];
-          }
-          setQuestions(doubtsData);
-        }
-
         const { data: enrollData } = await supabase
           .from('enrollments')
           .select('diploma_programs(*)')
@@ -457,6 +428,56 @@ function TeacherPortal({ getDiplomadoLink }) {
           teacherDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
           setDiplomas(teacherDiplomas);
         }
+
+        let teacherClasses = [];
+        let doubtsCount = 0;
+        let doubtsData = [];
+
+        const teacherIds = [profileData?.id, profileData?.user_id, currentUser?.id].filter(Boolean);
+        const teacherProgramIds = teacherDiplomas.map(p => p.id).filter(Boolean);
+
+        let classQuery = supabase
+          .from('class_sessions')
+          .select('*, diploma_programs(id, title, program_type, description), subtopics(modules(diploma_programs(id, title, program_type, description)))')
+          .order('class_date', { ascending: true });
+
+        const orConditions = [];
+        teacherIds.forEach(id => orConditions.push(`teacher_id.eq.${id}`));
+        teacherProgramIds.forEach(pid => orConditions.push(`program_id.eq.${pid}`));
+
+        if (orConditions.length > 0) {
+          classQuery = classQuery.or(orConditions.join(','));
+        }
+
+        const { data: classData } = await classQuery;
+        
+        if (classData) {
+          const seen = new Set();
+          teacherClasses = classData.filter(c => {
+            if (seen.has(c.id)) return false;
+            seen.add(c.id);
+            return true;
+          });
+        }
+        setClasses(teacherClasses);
+
+        try {
+          const teacherOrClause = teacherIds.length > 0 
+            ? teacherIds.map(id => `teacher_id.eq.${id}`).join(',') + ',teacher_id.is.null'
+            : 'teacher_id.is.null';
+
+          const { data: qData, count } = await supabase
+            .from('questions')
+            .select('*', { count: 'exact' })
+            .or(teacherOrClause)
+            .order('created_at', { ascending: false });
+          doubtsCount = count || (qData ? qData.length : 0);
+          doubtsData = qData || [];
+        } catch (e) {
+          doubtsCount = 0;
+          doubtsData = [];
+        }
+        setQuestions(doubtsData);
 
         const now = new Date();
         const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= now).length;

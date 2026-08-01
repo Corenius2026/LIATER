@@ -52,20 +52,16 @@ function ResumenTab({ onChangeTab }) {
 
   useEffect(() => {
     async function fetchStats() {
-      if (!profile?.id || !programId) return;
+      if (!programId) return;
       try {
-        const teacherFilters = [profile.id, profile.user_id].filter(Boolean).map(id => `teacher_id.eq.${id}`).join(',');
-
         const pClasses = supabase.from('class_sessions')
-          .select('id, title, class_date, program_id')
+          .select('id, title, class_date, program_id, duration, description')
           .eq('program_id', programId)
-          .order('class_date', { ascending: true })
-          .or(teacherFilters);
+          .order('class_date', { ascending: true });
           
         const pAnnouncements = supabase.from('announcements')
           .select('*', { count: 'exact', head: true })
-          .eq('program_id', programId)
-          .or(teacherFilters);
+          .eq('program_id', programId);
           
         const pStudents = supabase.from('enrollments')
           .select('student_id, users_profile!inner(role)', { count: 'exact', head: true })
@@ -87,7 +83,7 @@ function ResumenTab({ onChangeTab }) {
           upcoming: upcomingList.length,
           announcements: resAnn.count || 0,
           students: resStudents.count || 0,
-          questions: 2 // Mock de preguntas
+          questions: 2
         });
       } catch (err) {
         console.error('Error fetching teacher stats', err);
