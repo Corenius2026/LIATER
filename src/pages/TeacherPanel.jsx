@@ -1369,22 +1369,6 @@ export default function TeacherPanel() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {myPrograms.length > 1 && (
-              <select
-                value={programId}
-                onChange={(e) => {
-                  const newId = e.target.value;
-                  localStorage.setItem('activeProgramId', newId);
-                  navigate(`/dashboard/profesor/${newId}`);
-                }}
-                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', background: 'var(--white)', cursor: 'pointer' }}
-              >
-                {myPrograms.map(p => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
-              </select>
-            )}
-
             <Link
               to="/portal"
               style={{
@@ -1404,21 +1388,6 @@ export default function TeacherPanel() {
               ← Volver a mis programas
             </Link>
           </div>
-        </div>
-
-        {/* --- ENCABEZADO PRINCIPAL DEL PROGRAMA --- */}
-        <div className="page-header" style={{ marginBottom: '1.5rem', background: 'var(--white)', padding: '1.5rem 1.75rem', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
-            <span className="badge badge-navy" style={{ textTransform: 'uppercase', fontSize: '0.7rem' }}>
-              {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'}
-            </span>
-          </div>
-          <h1 className="page-title" style={{ fontSize: '1.6rem', color: 'var(--navy)', margin: 0, fontWeight: 800, lineHeight: 1.2 }}>
-            {currentProgram?.title || 'Mi Panel de Profesor'}
-          </h1>
-          <p className="page-description" style={{ marginTop: '0.4rem', marginBottom: 0, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            {currentProgram?.description || 'Gestiona las clases, recursos, dudas y anuncios de este programa.'}
-          </p>
         </div>
 
         {/* --- PESTAÑAS DEL PROGRAMA --- */}
