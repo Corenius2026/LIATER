@@ -65,10 +65,10 @@ export default function Sidebar() {
             <NavLink
               to="/portal"
               className={() => {
-                const isInicio = location.pathname === '/portal' && !location.search.includes('tab=programas') && !location.search.includes('tab=agenda');
+                const isInicio = location.pathname === '/portal' && (!location.search || (!location.search.includes('tab=programas') && !location.search.includes('tab=agenda') && !location.search.includes('tab=consultas')));
                 return isInicio ? 'nav-item active' : 'nav-item';
               }}
-              aria-current={(location.pathname === '/portal' && !location.search.includes('tab=programas') && !location.search.includes('tab=agenda')) ? 'page' : undefined}
+              aria-current={(location.pathname === '/portal' && (!location.search || (!location.search.includes('tab=programas') && !location.search.includes('tab=agenda') && !location.search.includes('tab=consultas')))) ? 'page' : undefined}
               end
             >
               <Home size={18} />
@@ -88,12 +88,12 @@ export default function Sidebar() {
             </NavLink>
 
             <NavLink
-              to="/soporte?tab=consultas"
+              to="/portal?tab=consultas"
               className={() => {
-                const isConsultas = location.pathname === '/soporte' && location.search.includes('tab=consultas');
+                const isConsultas = (location.pathname === '/portal' && location.search.includes('tab=consultas')) || location.pathname === '/consultas';
                 return isConsultas ? 'nav-item active' : 'nav-item';
               }}
-              aria-current={(location.pathname === '/soporte' && location.search.includes('tab=consultas')) ? 'page' : undefined}
+              aria-current={((location.pathname === '/portal' && location.search.includes('tab=consultas')) || location.pathname === '/consultas') ? 'page' : undefined}
             >
               <MessageSquare size={18} />
               <span>Bandeja de consultas</span>
@@ -129,10 +129,10 @@ export default function Sidebar() {
             <NavLink 
               to="/soporte" 
               className={() => {
-                const isSoporte = location.pathname === '/soporte' && !location.search.includes('tab=consultas');
+                const isSoporte = location.pathname === '/soporte';
                 return isSoporte ? 'nav-item active' : 'nav-item';
               }}
-              aria-current={(location.pathname === '/soporte' && !location.search.includes('tab=consultas')) ? 'page' : undefined}
+              aria-current={location.pathname === '/soporte' ? 'page' : undefined}
             >
               <HelpCircle size={18} />
               <span>Soporte técnico</span>
