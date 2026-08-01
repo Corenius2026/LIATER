@@ -46,28 +46,48 @@ export default function Sidebar() {
             <div className="sidebar-section-label">INICIO</div>
             <NavLink
               to="/portal"
-              className={({isActive}) => (isActive && location.pathname === '/portal') ? 'nav-item active' : 'nav-item'}
+              className={() => {
+                const isInicio = location.pathname === '/portal' && !location.search.includes('tab=programas') && !location.search.includes('tab=agenda');
+                return isInicio ? 'nav-item active' : 'nav-item';
+              }}
+              aria-current={(location.pathname === '/portal' && !location.search.includes('tab=programas') && !location.search.includes('tab=agenda')) ? 'page' : undefined}
+              end
             >
               <Home size={18} />
               <span>Inicio docente</span>
             </NavLink>
+
             <NavLink
-              to="/portal"
-              className={({isActive}) => location.pathname === '/portal' ? 'nav-item active' : 'nav-item'}
+              to="/portal?tab=programas"
+              className={() => {
+                const isProgramas = location.pathname.startsWith('/dashboard/profesor') || (location.pathname === '/portal' && location.search.includes('tab=programas'));
+                return isProgramas ? 'nav-item active' : 'nav-item';
+              }}
+              aria-current={(location.pathname.startsWith('/dashboard/profesor') || (location.pathname === '/portal' && location.search.includes('tab=programas'))) ? 'page' : undefined}
             >
               <BookOpen size={18} />
               <span>Mis programas</span>
             </NavLink>
+
             <NavLink
-              to="/soporte"
-              className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}
+              to="/soporte?tab=consultas"
+              className={() => {
+                const isConsultas = location.pathname === '/soporte' && location.search.includes('tab=consultas');
+                return isConsultas ? 'nav-item active' : 'nav-item';
+              }}
+              aria-current={(location.pathname === '/soporte' && location.search.includes('tab=consultas')) ? 'page' : undefined}
             >
               <MessageSquare size={18} />
               <span>Bandeja de consultas</span>
             </NavLink>
+
             <NavLink
-              to="/portal"
-              className="nav-item"
+              to="/portal?tab=agenda"
+              className={() => {
+                const isAgenda = (location.pathname === '/portal' && location.search.includes('tab=agenda')) || location.pathname === '/pendientes';
+                return isAgenda ? 'nav-item active' : 'nav-item';
+              }}
+              aria-current={((location.pathname === '/portal' && location.search.includes('tab=agenda')) || location.pathname === '/pendientes') ? 'page' : undefined}
             >
               <CalendarDays size={18} />
               <span>Agenda</span>
@@ -76,12 +96,26 @@ export default function Sidebar() {
             <div className="sidebar-divider" />
             <div className="sidebar-section-label">CUENTA</div>
 
-            <NavLink to="/perfil" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <NavLink 
+              to="/perfil" 
+              className={() => {
+                const isPerfil = location.pathname === '/perfil';
+                return isPerfil ? 'nav-item active' : 'nav-item';
+              }}
+              aria-current={location.pathname === '/perfil' ? 'page' : undefined}
+            >
               <UserCircle size={18} />
               <span>Mi perfil</span>
             </NavLink>
 
-            <NavLink to="/soporte" className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+            <NavLink 
+              to="/soporte" 
+              className={() => {
+                const isSoporte = location.pathname === '/soporte' && !location.search.includes('tab=consultas');
+                return isSoporte ? 'nav-item active' : 'nav-item';
+              }}
+              aria-current={(location.pathname === '/soporte' && !location.search.includes('tab=consultas')) ? 'page' : undefined}
+            >
               <HelpCircle size={18} />
               <span>Soporte técnico</span>
             </NavLink>
