@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2 } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms } from '../services/programService';
 import PendingActivitiesCard from '../components/PendingActivitiesCard';
@@ -541,6 +541,50 @@ function AdminPortal({ getDiplomadoLink }) {
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState(null);
 
+  // Habilitar / Inhabilitar un programa
+  const handleTogglePublish = async (programId, currentPublishedState) => {
+    const nextState = !currentPublishedState;
+    try {
+      const { error: updateError } = await supabase
+        .from('diploma_programs')
+        .update({ 
+          is_published: nextState, 
+          status: nextState ? 'published' : 'draft' 
+        })
+        .eq('id', programId);
+
+      if (updateError) throw updateError;
+
+      setDiplomas(prev => prev.map(p => 
+        p.id === programId ? { ...p, is_published: nextState, status: nextState ? 'published' : 'draft' } : p
+      ));
+    } catch (err) {
+      console.error('Error al cambiar estado del programa:', err);
+      alert('No se pudo cambiar el estado del programa. Inténtalo de nuevo.');
+    }
+  };
+
+  // Eliminar un programa
+  const handleDeleteProgram = async (program) => {
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el programa "${program.title}"?\n\nEsta acción no se puede deshacer y borrará sus módulos y clases asociadas.`);
+    if (!confirmed) return;
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('diploma_programs')
+        .delete()
+        .eq('id', program.id);
+
+      if (deleteError) throw deleteError;
+
+      setDiplomas(prev => prev.filter(p => p.id !== program.id));
+      setCounts(prev => ({ ...prev, programs: Math.max(0, prev.programs - 1) }));
+    } catch (err) {
+      console.error('Error al eliminar el programa:', err);
+      alert('Hubo un error al intentar eliminar el programa.');
+    }
+  };
+
   useEffect(() => {
     async function fetchData() {
       // Counts
@@ -588,7 +632,6 @@ function AdminPortal({ getDiplomadoLink }) {
         if (uploadErr) {
           console.error("Advertencia al subir portada:", uploadErr);
         } else if (publicUrl) {
-          imageUrl = publicUrl;
           await supabase
             .from('diploma_programs')
             .update({ image_url: publicUrl })
@@ -603,11 +646,11 @@ function AdminPortal({ getDiplomadoLink }) {
           .from('modules')
           .insert([{
             program_id: progData.id,
-            title: 'Contenido del Curso',
-            description: 'Módulo interno para mantener la estructura de la base de datos.',
+            title: `Módulo General - ${progData.title}`,
+            description: 'Módulo contenedor automático para curso corto',
             order_index: 0
           }]);
-        if (modError) throw modError;
+        if (modError) console.error("Error creando módulo por defecto para el curso:", modError);
       }
 
       setDiplomas([progData, ...diplomas]);
@@ -685,26 +728,75 @@ function AdminPortal({ getDiplomadoLink }) {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Estructura por Módulos</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
-            {diplomas.filter(d => d.program_type !== 'curso').map(dip => (
-              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--gold-subtle)', border: '1px solid rgba(252, 163, 17, 0.25)', padding: '1.25rem' }}>
-                <div style={{ marginBottom: '0.85rem' }}>
-                  <span className="badge badge-navy">Diplomado</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
+            {diplomas.filter(d => d.program_type !== 'curso').map(dip => {
+              const isPublished = dip.is_published !== false && dip.status !== 'draft';
+
+              return (
+                <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: isPublished ? 'var(--gold-subtle)' : '#f8fafc', border: isPublished ? '1px solid rgba(252, 163, 17, 0.25)' : '1px solid #cbd5e1', padding: '1.25rem', opacity: isPublished ? 1 : 0.85 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                    <span className="badge badge-navy">Diplomado</span>
+                    <span className="badge" style={{ background: isPublished ? '#dcfce7' : '#e2e8f0', color: isPublished ? '#15803d' : '#475569', fontSize: '0.68rem' }}>
+                      {isPublished ? 'Activo' : 'Inhabilitado'}
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem', flexGrow: 1, lineHeight: 1.4 }}>
+                    {dip.description || 'Sin descripción detallada.'}
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto' }}>
+                    <Link
+                      onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
+                      to={getDiplomadoLink(dip.id)}
+                      className="btn btn-gold"
+                      style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
+                    >
+                      Administrar →
+                    </Link>
+
+                    {/* BOTONES DE INHABILITAR / ELIMINAR */}
+                    <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePublish(dip.id, isPublished)}
+                        title={isPublished ? 'Inhabilitar programa (ocultar de estudiantes)' : 'Habilitar programa'}
+                        style={{
+                          flex: 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                          padding: '0.45rem 0.5rem', borderRadius: 'var(--radius-md)',
+                          fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                          background: isPublished ? '#fffbe6' : '#eff6ff',
+                          color: isPublished ? '#d97706' : 'var(--navy)',
+                          border: isPublished ? '1px solid #fca311' : '1px solid var(--navy)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {isPublished ? <EyeOff size={14} /> : <Eye size={14} />}
+                        <span>{isPublished ? 'Inhabilitar' : 'Habilitar'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProgram(dip)}
+                        title="Eliminar programa permanentemente"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                          padding: '0.45rem 0.65rem', borderRadius: 'var(--radius-md)',
+                          fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                          background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <Trash2 size={14} />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem', flexGrow: 1, lineHeight: 1.4 }}>
-                  {dip.description || 'Sin descripción detallada.'}
-                </p>
-                <Link
-                  onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
-                  to={getDiplomadoLink(dip.id)}
-                  className="btn btn-gold"
-                  style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
-                >
-                  Administrar →
-                </Link>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Tarjeta de Crear Diplomado */}
             <div
@@ -734,26 +826,75 @@ function AdminPortal({ getDiplomadoLink }) {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Temario Directo</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
-            {diplomas.filter(d => d.program_type === 'curso').map(dip => (
-              <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-light)', border: '1px solid rgba(20, 33, 61, 0.15)', padding: '1.25rem' }}>
-                <div style={{ marginBottom: '0.85rem' }}>
-                  <span className="badge badge-navy">Curso Corto</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
+            {diplomas.filter(d => d.program_type === 'curso').map(dip => {
+              const isPublished = dip.is_published !== false && dip.status !== 'draft';
+
+              return (
+                <div key={dip.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: isPublished ? 'var(--bg-light)' : '#f8fafc', border: isPublished ? '1px solid rgba(20, 33, 61, 0.15)' : '1px solid #cbd5e1', padding: '1.25rem', opacity: isPublished ? 1 : 0.85 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                    <span className="badge badge-navy">Curso Corto</span>
+                    <span className="badge" style={{ background: isPublished ? '#dcfce7' : '#e2e8f0', color: isPublished ? '#15803d' : '#475569', fontSize: '0.68rem' }}>
+                      {isPublished ? 'Activo' : 'Inhabilitado'}
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem', flexGrow: 1, lineHeight: 1.4 }}>
+                    {dip.description || 'Sin descripción detallada.'}
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto' }}>
+                    <Link
+                      onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
+                      to={getDiplomadoLink(dip.id)}
+                      className="btn btn-navy"
+                      style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
+                    >
+                      Administrar →
+                    </Link>
+
+                    {/* BOTONES DE INHABILITAR / ELIMINAR */}
+                    <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePublish(dip.id, isPublished)}
+                        title={isPublished ? 'Inhabilitar programa (ocultar de estudiantes)' : 'Habilitar programa'}
+                        style={{
+                          flex: 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                          padding: '0.45rem 0.5rem', borderRadius: 'var(--radius-md)',
+                          fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                          background: isPublished ? '#fffbe6' : '#eff6ff',
+                          color: isPublished ? '#d97706' : 'var(--navy)',
+                          border: isPublished ? '1px solid #fca311' : '1px solid var(--navy)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {isPublished ? <EyeOff size={14} /> : <Eye size={14} />}
+                        <span>{isPublished ? 'Inhabilitar' : 'Habilitar'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProgram(dip)}
+                        title="Eliminar programa permanentemente"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                          padding: '0.45rem 0.65rem', borderRadius: 'var(--radius-md)',
+                          fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                          background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <Trash2 size={14} />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3', fontWeight: 700 }}>{dip.title}</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem', flexGrow: 1, lineHeight: 1.4 }}>
-                  {dip.description || 'Sin descripción detallada.'}
-                </p>
-                <Link
-                  onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
-                  to={getDiplomadoLink(dip.id)}
-                  className="btn btn-navy"
-                  style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
-                >
-                  Administrar →
-                </Link>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Tarjeta de Crear Curso */}
             <div

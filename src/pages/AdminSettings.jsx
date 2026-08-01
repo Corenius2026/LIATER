@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { Save, AlertCircle, CheckCircle, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Save, AlertCircle, CheckCircle, Upload, Trash2, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { uploadProgramCover } from '../services/programService';
@@ -8,12 +8,14 @@ import { uploadProgramCover } from '../services/programService';
 export default function AdminSettings() {
   const { currentUser } = useAuth();
   const { programId } = useParams();
+  const navigate = useNavigate();
   const role = currentUser?.role;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [programType, setProgramType] = useState('diplomado');
   const [imageUrl, setImageUrl] = useState(null);
+  const [isPublished, setIsPublished] = useState(true);
   
   // Estados para subida de imagen de portada
   const [coverFile, setCoverFile] = useState(null);
@@ -31,7 +33,7 @@ export default function AdminSettings() {
       try {
         const { data, error } = await supabase
           .from('diploma_programs')
-          .select('title, description, program_type, image_url')
+          .select('title, description, program_type, image_url, is_published, status')
           .eq('id', programId)
           .single();
         
@@ -40,6 +42,7 @@ export default function AdminSettings() {
         setDescription(data.description || '');
         setProgramType(data.program_type || 'diplomado');
         setImageUrl(data.image_url || null);
+        setIsPublished(data.is_published !== false && data.status !== 'draft');
         if (data.image_url) {
           setCoverPreview(data.image_url);
         }
@@ -80,6 +83,48 @@ export default function AdminSettings() {
     setCoverFile(null);
     setCoverPreview(null);
     setImageUrl(null);
+  };
+
+  const handleTogglePublish = async () => {
+    const nextState = !isPublished;
+    setError('');
+    setSuccess('');
+    try {
+      const { error: updateError } = await supabase
+        .from('diploma_programs')
+        .update({ 
+          is_published: nextState, 
+          status: nextState ? 'published' : 'draft' 
+        })
+        .eq('id', programId);
+
+      if (updateError) throw updateError;
+
+      setIsPublished(nextState);
+      setSuccess(nextState ? 'Programa habilitado y publicado correctamente.' : 'Programa inhabilitado (oculto para estudiantes).');
+    } catch (err) {
+      console.error('Error al cambiar estado:', err);
+      setError('No se pudo cambiar el estado del programa.');
+    }
+  };
+
+  const handleDeleteProgram = async () => {
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente este programa ("${title}")?\n\nEsta acción no se puede deshacer y borrará sus módulos y clases asociadas.`);
+    if (!confirmed) return;
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('diploma_programs')
+        .delete()
+        .eq('id', programId);
+
+      if (deleteError) throw deleteError;
+
+      navigate('/portal');
+    } catch (err) {
+      console.error('Error al eliminar el programa:', err);
+      setError('Hubo un error al intentar eliminar el programa.');
+    }
   };
 
   const handleSave = async (e) => {
@@ -243,17 +288,51 @@ export default function AdminSettings() {
             </div>
           </div>
           
-          <button 
-            type="submit" 
-            disabled={isButtonDisabled} 
-            className="btn btn-primary" 
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: 'fit-content', padding: '10px 20px', fontWeight: 700 }}
-          >
-            <Save size={18} />
-            <span>
-              {uploadingCover ? 'Subiendo imagen...' : saving ? 'Guardando...' : 'Guardar Cambios'}
-            </span>
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+            <button 
+              type="submit" 
+              disabled={isButtonDisabled} 
+              className="btn btn-primary" 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 700 }}
+            >
+              <Save size={18} />
+              <span>
+                {uploadingCover ? 'Subiendo imagen...' : saving ? 'Guardando...' : 'Guardar Cambios'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleTogglePublish}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '10px 18px', borderRadius: '4px',
+                fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer',
+                background: isPublished ? '#fffbe6' : '#eff6ff',
+                color: isPublished ? '#d97706' : 'var(--navy)',
+                border: isPublished ? '1px solid #fca311' : '1px solid var(--navy)',
+                transition: 'all 0.2s'
+              }}
+            >
+              {isPublished ? <EyeOff size={16} /> : <Eye size={16} />}
+              <span>{isPublished ? 'Inhabilitar Programa' : 'Habilitar Programa'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeleteProgram}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '10px 18px', borderRadius: '4px',
+                fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer',
+                background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca',
+                marginLeft: 'auto', transition: 'all 0.2s'
+              }}
+            >
+              <Trash2 size={16} />
+              <span>Eliminar Programa</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>
