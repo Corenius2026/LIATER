@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import {
   User, Mail, Phone, Globe, Camera, Shield, Save,
   BookOpen, Lock, CheckCircle2, Award, Briefcase,
-  LockKeyhole, MailCheck, Eye, EyeOff, X
+  LockKeyhole, MailCheck, Eye, EyeOff, X, GraduationCap
 } from 'lucide-react';
 
 export default function Profile() {
@@ -31,6 +31,19 @@ export default function Profile() {
     title_role: 'Profesor Titular',
     experience: ''
   });
+
+  const [initialAcademicData, setInitialAcademicData] = useState({
+    area: '',
+    bio: '',
+    title_role: 'Profesor Titular',
+    experience: ''
+  });
+
+  const hasUnsavedAcademicChanges = 
+    academicData.area !== initialAcademicData.area ||
+    academicData.title_role !== initialAcademicData.title_role ||
+    academicData.bio !== initialAcademicData.bio ||
+    academicData.experience !== initialAcademicData.experience;
 
   // Programas en los que participa
   const [myPrograms, setMyPrograms] = useState([]);
@@ -113,12 +126,14 @@ export default function Profile() {
             .maybeSingle();
 
           if (tProfile) {
-            setAcademicData({
+            const loadedData = {
               area: tProfile.area || '',
               bio: tProfile.bio || '',
               title_role: tProfile.title_role || 'Profesor Titular',
               experience: tProfile.experience || ''
-            });
+            };
+            setAcademicData(loadedData);
+            setInitialAcademicData(loadedData);
           }
 
           // Cargar programas
@@ -134,6 +149,14 @@ export default function Profile() {
     }
     loadProfileData();
   }, [currentUser?.id, isTeacher]);
+
+  const handleTabChange = (newTab) => {
+    if (activeTab === 'academic' && hasUnsavedAcademicChanges) {
+      const confirmLeave = window.confirm('Tienes cambios sin guardar en tu perfil académico. ¿Deseas salir de esta sección?');
+      if (!confirmLeave) return;
+    }
+    setActiveTab(newTab);
+  };
 
   const handleSavePersonal = async (e) => {
     e.preventDefault();
@@ -181,10 +204,25 @@ export default function Profile() {
           .eq('id', tProfile.id);
 
         if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('teacher_profiles')
+          .insert({
+            user_id: currentUser.id,
+            area: academicData.area,
+            bio: academicData.bio,
+            title_role: academicData.title_role,
+            experience: academicData.experience
+          });
+
+        if (error) throw error;
       }
-      setMsg({ type: 'success', text: 'Perfil académico actualizado con éxito.' });
+
+      setInitialAcademicData({ ...academicData });
+      setMsg({ type: 'success', text: 'Perfil académico actualizado.' });
     } catch (err) {
-      setMsg({ type: 'error', text: 'Error al actualizar perfil académico: ' + err.message });
+      console.error('Error al guardar perfil académico:', err);
+      setMsg({ type: 'error', text: 'No fue posible guardar los cambios. Inténtalo nuevamente.' });
     } finally {
       setSaving(false);
     }
@@ -355,7 +393,7 @@ export default function Profile() {
           {/* BOTONES DE PESTAÑAS DEL PERFIL */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
             <button
-              onClick={() => setActiveTab('personal')}
+              onClick={() => handleTabChange('personal')}
               style={{
                 padding: '0.6rem 1.25rem',
                 borderRadius: '8px',
@@ -373,7 +411,7 @@ export default function Profile() {
             </button>
 
             <button
-              onClick={() => setActiveTab('academic')}
+              onClick={() => handleTabChange('academic')}
               style={{
                 padding: '0.6rem 1.25rem',
                 borderRadius: '8px',
@@ -391,7 +429,7 @@ export default function Profile() {
             </button>
 
             <button
-              onClick={() => setActiveTab('security')}
+              onClick={() => handleTabChange('security')}
               style={{
                 padding: '0.6rem 1.25rem',
                 borderRadius: '8px',
@@ -477,72 +515,278 @@ export default function Profile() {
 
           {/* CONTENIDO DE PESTAÑA: PERFIL ACADÉMICO PÚBLICO */}
           {activeTab === 'academic' && (
-            <form onSubmit={handleSaveAcademic} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
-              <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                Perfil Académico Público
-              </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              
+              {/* ALINEACIÓN EN DOS COLUMNAS (EDICIÓN 60% + VISTA PREVIA 40%) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+                
+                {/* COLUMNA IZQUIERDA: FORMULARIO DE EDICIÓN (~60%) */}
+                <form 
+                  onSubmit={handleSaveAcademic} 
+                  className="card" 
+                  style={{ padding: '2rem', background: 'var(--white)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                >
+                  <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
+                      Editar Perfil Académico
+                    </h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
+                      Completa tu información profesional para presentar tu trayectoria a los estudiantes.
+                    </p>
+                  </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Especialidad o Área</label>
-                  <input 
-                    type="text" 
-                    value={academicData.area} 
-                    onChange={e => setAcademicData({ ...academicData, area: e.target.value })} 
-                    placeholder="Ej. Inteligencia Artificial, Redes de Datos" 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
-                  />
+                  {/* PRIMERA FILA: ESPECIALIDAD Y CARGO */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <label htmlFor="areaInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
+                          Especialidad o área
+                        </label>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {academicData.area.length}/100
+                        </span>
+                      </div>
+                      <input 
+                        id="areaInput"
+                        type="text" 
+                        maxLength={100}
+                        value={academicData.area} 
+                        onChange={e => setAcademicData({ ...academicData, area: e.target.value })} 
+                        placeholder="Ej. Inteligencia Artificial, Redes de Datos" 
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }} 
+                      />
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                        Área principal de conocimiento o experiencia profesional.
+                      </span>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <label htmlFor="roleInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
+                          Cargo
+                        </label>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {academicData.title_role.length}/80
+                        </span>
+                      </div>
+                      <input 
+                        id="roleInput"
+                        type="text" 
+                        maxLength={80}
+                        value={academicData.title_role} 
+                        onChange={e => setAcademicData({ ...academicData, title_role: e.target.value })} 
+                        placeholder="Ej. Profesor Titular, Docente Investigador" 
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }} 
+                      />
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                        Cargo académico o profesional que será visible para los estudiantes.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* SEGUNDA SECCIÓN: BIOGRAFÍA CORTA */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <label htmlFor="bioInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
+                        Biografía corta
+                      </label>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {academicData.bio.length}/400
+                      </span>
+                    </div>
+                    <textarea 
+                      id="bioInput"
+                      rows={3} 
+                      maxLength={400}
+                      value={academicData.bio} 
+                      onChange={e => setAcademicData({ ...academicData, bio: e.target.value })} 
+                      placeholder="Resumen profesional de tu trayectoria académica para la comunidad..." 
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', resize: 'vertical' }} 
+                    />
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                      Presentación breve sobre tu experiencia y enfoque docente.
+                    </span>
+                  </div>
+
+                  {/* TERCERA SECCIÓN: FORMACIÓN O EXPERIENCIA */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <label htmlFor="expInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
+                        Formación o experiencia
+                      </label>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {academicData.experience.length}/800
+                      </span>
+                    </div>
+                    <textarea 
+                      id="expInput"
+                      rows={4} 
+                      maxLength={800}
+                      value={academicData.experience} 
+                      onChange={e => setAcademicData({ ...academicData, experience: e.target.value })} 
+                      placeholder="Detalles sobre títulos universitarios, reconocimientos y experiencia docente..." 
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', resize: 'vertical' }} 
+                    />
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                      Estudios, experiencia profesional o trayectoria relacionada con los programas.
+                    </span>
+                  </div>
+
+                  {/* BOTÓN DE GUARDADO INTEGRADOR AL FINAL DEL FORMULARIO */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '0.5rem' }}>
+                    <button 
+                      type="submit" 
+                      disabled={saving || !hasUnsavedAcademicChanges} 
+                      className="btn" 
+                      style={{ 
+                        background: (saving || !hasUnsavedAcademicChanges) ? '#cbd5e1' : 'var(--navy)', 
+                        color: 'white', 
+                        border: 'none', 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '0.5rem', 
+                        padding: '0.75rem 1.5rem', 
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        fontSize: '0.9rem',
+                        cursor: (saving || !hasUnsavedAcademicChanges) ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Save size={18} /> 
+                      {saving ? 'Guardando...' : 'Guardar perfil académico'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* COLUMNA DERECHA: VISTA PREVIA PÚBLICA (~40%) */}
+                <div 
+                  role="region" 
+                  aria-label="Vista previa pública del perfil" 
+                  className="card" 
+                  style={{ 
+                    padding: '1.75rem', 
+                    background: '#f8fafc', 
+                    border: '1px solid #e2e8f0', 
+                    borderTop: '3px solid var(--navy)',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '1.25rem',
+                    position: 'sticky',
+                    top: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
+                      Así verán tu perfil los estudiantes
+                    </h3>
+                    <span style={{ background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Vista previa
+                    </span>
+                  </div>
+
+                  {/* CABECERA VISTA PREVIA */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '1.5rem', flexShrink: 0, border: '2px solid var(--gold)' }}>
+                      {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'P'}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {personalData.full_name || 'Profesor'}
+                      </h4>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '0.15rem' }}>
+                        {academicData.title_role.trim() || <em style={{ opacity: 0.6, fontStyle: 'italic' }}>Cargo académico no especificado</em>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ESPECIALIDAD BADGE */}
+                  <div>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                      Especialidad
+                    </div>
+                    {academicData.area.trim() ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#e0f2fe', color: '#0369a1', padding: '0.3rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: 700 }}>
+                        <Award size={14} />
+                        {academicData.area}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.7 }}>
+                        Especialidad no especificada
+                      </span>
+                    )}
+                  </div>
+
+                  {/* BIOGRAFÍA VISTA PREVIA */}
+                  <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                      Biografía
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: academicData.bio.trim() ? 'var(--navy)' : 'var(--text-muted)', margin: 0, lineHeight: 1.5, fontStyle: academicData.bio.trim() ? 'normal' : 'italic' }}>
+                      {academicData.bio.trim() || 'Añade una breve presentación para que los estudiantes conozcan tu perfil.'}
+                    </p>
+                  </div>
+
+                  {/* FORMACIÓN VISTA PREVIA */}
+                  <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                      Formación y Trayectoria
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: academicData.experience.trim() ? 'var(--navy)' : 'var(--text-muted)', margin: 0, lineHeight: 1.5, fontStyle: academicData.experience.trim() ? 'normal' : 'italic', whiteSpace: 'pre-line' }}>
+                      {academicData.experience.trim() || 'Detalles sobre formación y trayectoria académica.'}
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Cargo</label>
-                  <input 
-                    type="text" 
-                    value={academicData.title_role} 
-                    onChange={e => setAcademicData({ ...academicData, title_role: e.target.value })} 
-                    placeholder="Ej. Profesor Titular, Docente Investigador" 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
-                  />
+              </div>
+
+              {/* SECCIÓN INFERIOR: PROGRAMAS ASIGNADOS (READ-ONLY) */}
+              <div className="card" style={{ padding: '2rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderTop: '3px solid var(--gold)' }}>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
+                    Programas asignados
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
+                    Estos programas son asignados por la administración de LIATER.
+                  </p>
                 </div>
-              </div>
 
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Biografía Corta</label>
-                <textarea 
-                  rows={3} 
-                  value={academicData.bio} 
-                  onChange={e => setAcademicData({ ...academicData, bio: e.target.value })} 
-                  placeholder="Resumen profesional de tu trayectoria académica para la comunidad..." 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
-                />
-              </div>
-
-              <div style={{ marginBottom: '2rem' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Formación o Experiencia</label>
-                <textarea 
-                  rows={3} 
-                  value={academicData.experience} 
-                  onChange={e => setAcademicData({ ...academicData, experience: e.target.value })} 
-                  placeholder="Detalles sobre títulos universitarios, reconocimientos y experiencia docente..." 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
-                />
-              </div>
-
-              {/* LISTA DE PROGRAMAS EN LOS QUE PARTICIPA */}
-              <div style={{ marginBottom: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem' }}>
-                  Programas en los que participa
-                </h4>
                 {myPrograms.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No hay programas asignados por el momento.</p>
+                  <div style={{ padding: '2rem 1rem', textAlign: 'center', background: 'var(--bg-light)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                    <BookOpen size={36} style={{ color: 'var(--navy)', opacity: 0.3, marginBottom: '0.75rem' }} />
+                    <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.35rem' }}>
+                      No tienes programas asignados
+                    </h4>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+                      Cuando la administración te asigne un programa, aparecerá aquí.
+                    </p>
+                  </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
                     {myPrograms.map(prog => (
-                      <div key={prog.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--bg-light)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                        <BookOpen size={18} color="var(--navy)" />
-                        <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>{prog.title}</div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{prog.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'}</div>
+                      <div 
+                        key={prog.id} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.85rem', 
+                          padding: '1rem 1.15rem', 
+                          background: 'var(--white)', 
+                          borderRadius: '10px', 
+                          border: '1px solid var(--border-color)',
+                          boxShadow: '0 1px 2px rgba(20, 33, 61, 0.04)'
+                        }}
+                      >
+                        <div style={{ padding: '0.6rem', borderRadius: '8px', background: 'rgba(20, 33, 61, 0.05)', color: 'var(--navy)', flexShrink: 0 }}>
+                          {prog.program_type === 'curso' ? <BookOpen size={20} /> : <GraduationCap size={20} />}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {prog.title}
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {prog.program_type === 'curso' ? 'Curso Corto' : (prog.program_type === 'taller' ? 'Taller' : 'Diplomado')}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -550,12 +794,7 @@ export default function Profile() {
                 )}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontWeight: 700 }}>
-                  <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios Académicos'}
-                </button>
-              </div>
-            </form>
+            </div>
           )}
 
           {/* CONTENIDO DE PESTAÑA: SEGURIDAD */}
