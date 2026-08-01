@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms } from '../services/programService';
 import PendingActivitiesCard from '../components/PendingActivitiesCard';
@@ -503,6 +503,26 @@ function TeacherPortal({ getDiplomadoLink }) {
   const upcomingClassesList = classes.filter(c => new Date(c.class_date) >= startOfToday).sort((a,b) => new Date(a.class_date) - new Date(b.class_date));
   const upcomingClasses = upcomingClassesList.length > 0 ? upcomingClassesList : classes;
 
+  // Próxima clase única (la futura más cercana)
+  const nextClass = upcomingClassesList.length > 0 ? upcomingClassesList[0] : (classes.length > 0 ? classes[0] : null);
+
+  let nextClassDay = '';
+  let nextClassMonth = '';
+  let nextClassTimeStr = '';
+  let nextClassProgTitle = '';
+  let nextClassModuleName = '';
+  let nextClassProgId = '';
+
+  if (nextClass) {
+    const d = new Date(nextClass.class_date);
+    nextClassDay = d.getDate();
+    nextClassMonth = d.toLocaleString('es-ES', { month: 'short' });
+    nextClassTimeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    nextClassProgTitle = nextClass.diploma_programs?.title || nextClass.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
+    nextClassModuleName = nextClass.subtopics?.modules?.title || nextClass.module_name || '';
+    nextClassProgId = nextClass.diploma_programs?.id || nextClass.subtopics?.modules?.diploma_programs?.id || nextClass.program_id;
+  }
+
   // Filtrado para la vista "Mis Programas"
   const filteredDiplomas = diplomas.filter(p => {
     if (activeFilter === 'Diplomados') return p.program_type !== 'curso' && p.program_type !== 'taller';
@@ -914,89 +934,161 @@ function TeacherPortal({ getDiplomadoLink }) {
         </Link>
       </div>
 
-      {/* CONTENIDO INFERIOR TEMPORALMENTE MANTENIDO SEGÚN INSTRUCCIÓN */}
-      <div className="portal-layout">
-        <div className="portal-main">
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Diplomados</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-            {diplomas.filter(p => p.program_type !== 'curso').length === 0 ? (
-              <p style={{ color: 'var(--text-muted)' }}>No tienes diplomados asignados.</p>
-            ) : (
-              diplomas.filter(p => p.program_type !== 'curso').map(program => (
-                <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--gold-subtle)', border: '1px solid rgba(212,160,23,0.2)', padding: '1.25rem' }}>
-                  <div style={{ marginBottom: '1rem' }}>
-                    <span style={{ background: 'var(--navy)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
-                  </div>
-                  <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3' }}>{program.title}</h3>
-                  <p style={{ color: 'var(--navy-light)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso al entorno del diplomado.'}</p>
-                  <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: 'var(--navy)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
-                </div>
-              ))
-            )}
-          </div>
+      {/* BLOQUE ÚNICO: PRÓXIMA CLASE */}
+      <div style={{ marginTop: '0.5rem' }}>
+        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>
+          Próxima clase
+        </h2>
 
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Cursos Cortos</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-            {diplomas.filter(p => p.program_type === 'curso').length === 0 ? (
-              <p style={{ color: 'var(--text-muted)' }}>No tienes cursos asignados.</p>
-            ) : (
-              diplomas.filter(p => p.program_type === 'curso').map(program => (
-                <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
-                  <div style={{ marginBottom: '1rem' }}>
-                    <span style={{ background: 'var(--green-600)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
-                  </div>
-                  <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--green-700)', lineHeight: '1.3' }}>{program.title}</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso directo a subtemas y clases.'}</p>
-                  <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: 'var(--green-600)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
-                </div>
-              ))
-            )}
+        {loading ? (
+          <p style={{ color: 'var(--text-muted)' }}>Cargando próxima clase...</p>
+        ) : !nextClass ? (
+          /* ESTADO SIN CLASES */
+          <div className="card" style={{ 
+            background: 'var(--white)', 
+            border: '1px solid var(--border-color)', 
+            borderLeft: '4px solid var(--gold)',
+            borderRadius: 'var(--radius-lg)', 
+            padding: '2.5rem 2rem', 
+            textAlign: 'center',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)'
+          }}>
+            <CalendarDays size={38} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '0.75rem' }} />
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.35rem' }}>
+              No tienes clases próximas
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.25rem 0' }}>
+              Cuando el administrador te asigne una nueva clase, aparecerá aquí.
+            </p>
+            <Link 
+              to="/portal?tab=programas" 
+              className="btn" 
+              style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '0.55rem 1.25rem', fontWeight: 600, fontSize: '0.88rem', borderRadius: '8px', textDecoration: 'none' }}
+            >
+              Ver mis programas
+            </Link>
           </div>
-
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>
-          {loading ? (
-            <p style={{ color: 'var(--text-muted)' }}>Cargando agenda...</p>
-          ) : upcomingClasses.length === 0 ? (
-             <p style={{ color: 'var(--text-muted)' }}>No tienes clases próximas programadas.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {upcomingClasses.map(cls => {
-                const d = new Date(cls.class_date);
-                const day = d.getDate();
-                const month = d.toLocaleString('es-ES', { month: 'short' });
-                return (
-                  <div key={cls.id} style={{ display: 'flex', alignItems: 'center', padding: '1.5rem', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid #e2e8f0', gap: '1rem' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#eff6ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase' }}>{month}</span>
-                      <span style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>{day}</span>
-                    </div>
-                    <div style={{ flex: '1 1 200px' }}>
-                      <h4 style={{ margin: 0, color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>{cls.title}</h4>
-                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa'} • {cls.duration || 0} min</p>
-                    </div>
-                    <Link to={getDiplomadoLink()} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Ir al Panel</Link>
-                  </div>
-                );
-              })}
+        ) : (
+          /* TARJETA DE PRÓXIMA CLASE */
+          <div 
+            className="teacher-summary-card" 
+            style={{ 
+              background: 'var(--white)', 
+              border: '1px solid var(--border-color)', 
+              borderTop: '3px solid var(--gold)', 
+              borderRadius: 'var(--radius-lg)', 
+              padding: '1.5rem', 
+              boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+              display: 'flex',
+              alignItems: 'center',
+              justify: 'space-between',
+              gap: '1.5rem',
+              flexWrap: 'wrap',
+              transition: 'all 200ms ease-in-out'
+            }}
+          >
+            {/* BLOQUE DE FECHA A LA IZQUIERDA */}
+            <div style={{ 
+              width: '64px', 
+              height: '64px', 
+              borderRadius: '10px', 
+              background: 'rgba(20, 33, 61, 0.04)', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justify: 'center', 
+              flexShrink: 0, 
+              border: '1px solid rgba(20, 33, 61, 0.08)' 
+            }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {nextClassMonth}
+              </span>
+              <span style={{ fontSize: '1.5rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>
+                {nextClassDay}
+              </span>
             </div>
-          )}
-        </div>
 
-        <div className="portal-sidebar">
-          <div className="card" style={{ background: '#f8fafc', border: 'none', boxShadow: 'none' }}>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Resumen Docente</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Clases Asignadas</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{classes.length}</span>
+            {/* INFORMACIÓN DE LA CLASE EN EL CENTRO */}
+            <div style={{ flex: '1 1 280px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {nextClassProgTitle}
+                </span>
+                {nextClassModuleName && (
+                  <>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>•</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {nextClassModuleName}
+                    </span>
+                  </>
+                )}
+                {nextClass.status && (
+                  <span style={{ 
+                    background: 'rgba(20, 33, 61, 0.06)', 
+                    color: 'var(--navy)', 
+                    padding: '0.15rem 0.5rem', 
+                    borderRadius: '4px', 
+                    fontSize: '0.7rem', 
+                    fontWeight: 700 
+                  }}>
+                    {nextClass.status}
+                  </span>
+                )}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Próximas Clases</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--navy)' }}>{upcomingClasses.length}</span>
+
+              <h3 style={{ margin: '0 0 0.35rem 0', color: 'var(--navy)', fontSize: '1.2rem', fontWeight: 800, lineHeight: 1.3 }}>
+                {nextClass.title}
+              </h3>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                <span>🕒 {nextClassTimeStr} hrs</span>
+                {nextClass.duration && (
+                  <>
+                    <span>•</span>
+                    <span>⏱️ {nextClass.duration} min</span>
+                  </>
+                )}
               </div>
             </div>
+
+            {/* ACCIONES A LA DERECHA */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexShrink: 0, flexWrap: 'wrap' }}>
+              <Link 
+                to={getDiplomadoLink(nextClassProgId)} 
+                className="btn" 
+                style={{ 
+                  background: 'var(--navy)', 
+                  color: 'var(--white)', 
+                  border: 'none', 
+                  padding: '0.65rem 1.25rem', 
+                  fontWeight: 700, 
+                  fontSize: '0.88rem', 
+                  borderRadius: '8px', 
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Preparar clase
+              </Link>
+
+              <Link 
+                to="/portal?tab=agenda" 
+                style={{ 
+                  color: 'var(--gold-dark, #d4a017)', 
+                  fontSize: '0.88rem', 
+                  fontWeight: 700, 
+                  textDecoration: 'none', 
+                  whiteSpace: 'nowrap',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem'
+                }}
+              >
+                Ver agenda →
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
     </div>
