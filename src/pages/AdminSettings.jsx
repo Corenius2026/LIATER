@@ -109,10 +109,29 @@ export default function AdminSettings() {
   };
 
   const handleDeleteProgram = async () => {
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente este programa ("${title}")?\n\nEsta acción no se puede deshacer y borrará sus módulos y clases asociadas.`);
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente este programa ("${title}")?\n\nEsta acción no se puede deshacer y borrará TODOS sus módulos, clases, tareas, inscripciones y contenido asociado.`);
     if (!confirmed) return;
 
     try {
+      // 1. Eliminar inscripciones vinculadas
+      await supabase.from('enrollments').delete().eq('diploma_id', programId);
+
+      // 2. Eliminar tareas y cuestionarios vinculados
+      try {
+        await supabase.from('assignments').delete().eq('program_id', programId);
+        await supabase.from('quizzes').delete().eq('program_id', programId);
+      } catch {
+        // Ignorar si las tablas aún no tienen datos
+      }
+
+      // 3. Eliminar clases vinculadas
+      await supabase.from('class_sessions').delete().eq('program_id', programId);
+
+      // 4. Eliminar módulos del programa (cascada a subtemas y clases)
+      await supabase.from('modules').delete().eq('program_id', programId);
+      await supabase.from('modules').delete().eq('diploma_id', programId);
+
+      // 5. Eliminar el programa principal
       const { error: deleteError } = await supabase
         .from('diploma_programs')
         .delete()
@@ -122,7 +141,7 @@ export default function AdminSettings() {
 
       navigate('/portal');
     } catch (err) {
-      console.error('Error al eliminar el programa:', err);
+      console.error('Error al eliminar el programa y su contenido:', err);
       setError('Hubo un error al intentar eliminar el programa.');
     }
   };

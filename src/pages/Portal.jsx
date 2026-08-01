@@ -564,12 +564,31 @@ function AdminPortal({ getDiplomadoLink }) {
     }
   };
 
-  // Eliminar un programa
+  // Eliminar un programa y todo su contenido asociado
   const handleDeleteProgram = async (program) => {
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el programa "${program.title}"?\n\nEsta acción no se puede deshacer y borrará sus módulos y clases asociadas.`);
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el programa "${program.title}"?\n\nEsta acción no se puede deshacer y borrará TODOS sus módulos, clases, tareas, inscripciones y contenido asociado.`);
     if (!confirmed) return;
 
     try {
+      // 1. Eliminar inscripciones vinculadas
+      await supabase.from('enrollments').delete().eq('diploma_id', program.id);
+
+      // 2. Eliminar tareas y cuestionarios vinculados
+      try {
+        await supabase.from('assignments').delete().eq('program_id', program.id);
+        await supabase.from('quizzes').delete().eq('program_id', program.id);
+      } catch {
+        // Ignorar si las tablas aún no tienen registros
+      }
+
+      // 3. Eliminar clases del programa
+      await supabase.from('class_sessions').delete().eq('program_id', program.id);
+
+      // 4. Eliminar módulos del programa (cascada a subtemas y clases)
+      await supabase.from('modules').delete().eq('program_id', program.id);
+      await supabase.from('modules').delete().eq('diploma_id', program.id);
+
+      // 5. Eliminar el registro principal en diploma_programs
       const { error: deleteError } = await supabase
         .from('diploma_programs')
         .delete()
@@ -580,7 +599,7 @@ function AdminPortal({ getDiplomadoLink }) {
       setDiplomas(prev => prev.filter(p => p.id !== program.id));
       setCounts(prev => ({ ...prev, programs: Math.max(0, prev.programs - 1) }));
     } catch (err) {
-      console.error('Error al eliminar el programa:', err);
+      console.error('Error al eliminar el programa y su contenido:', err);
       alert('Hubo un error al intentar eliminar el programa.');
     }
   };
