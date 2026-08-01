@@ -1,20 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, Clock, Award, HelpCircle,
-  Send, CheckCircle2, BookOpen
+  Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck
 } from 'lucide-react';
 
 export default function ClassDetail() {
   const { id } = useParams();
+  const { currentUser } = useAuth();
   
   const [clsData, setClsData] = useState(null);
   const [moduleId, setModuleId] = useState(null);
   const [moduleTitle, setModuleTitle] = useState(null);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ESTADOS DEL MODAL DE DUDAS
+  const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [topic, setTopic] = useState('');
+  const [touched, setTouched] = useState({ subject: false, description: false });
+  const [devNotice, setDevNotice] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const doubtButtonRef = useRef(null);
+  const firstInputRef = useRef(null);
 
   useEffect(() => {
     async function fetchClassDetail() {
@@ -48,6 +62,7 @@ export default function ClassDetail() {
               setModuleId(subData.module_id);
               if (subData.modules?.title) {
                 setModuleTitle(subData.modules.title);
+                setTopic(subData.modules.title);
               }
             }
           }
@@ -89,6 +104,63 @@ export default function ClassDetail() {
 
     fetchClassDetail();
   }, [id]);
+
+  // MANEJO DE ACCESIBILIDAD Y ESCAPE EN EL MODAL DE DUDAS
+  const openDoubtModal = () => {
+    setIsDoubtModalOpen(true);
+    setDevNotice('');
+    setTimeout(() => {
+      firstInputRef.current?.focus();
+    }, 100);
+  };
+
+  const closeDoubtModal = () => {
+    setIsDoubtModalOpen(false);
+    setDevNotice('');
+    doubtButtonRef.current?.focus();
+  };
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape' && isDoubtModalOpen) {
+        closeDoubtModal();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDoubtModalOpen]);
+
+  // VALIDACIÓN DEL FORMULARIO
+  const subjectError = touched.subject && !subject.trim()
+    ? 'El asunto de la duda es obligatorio.'
+    : subject.length > 120
+    ? 'El asunto no debe exceder los 120 caracteres.'
+    : '';
+
+  const descriptionError = touched.description && !description.trim()
+    ? 'La descripción de la duda es obligatoria.'
+    : description.length > 1500
+    ? 'La descripción no debe exceder los 1500 caracteres.'
+    : '';
+
+  const isFormValid = subject.trim().length > 0 &&
+                      subject.length <= 120 &&
+                      description.trim().length > 0 &&
+                      description.length <= 1500;
+
+  const handleSubmitDoubt = (e) => {
+    e.preventDefault();
+    setTouched({ subject: true, description: true });
+
+    if (!isFormValid || submitting) return;
+
+    setSubmitting(true);
+    setTimeout(() => {
+      // Como no se conecta aún a la BD: no mostrar "Duda enviada" falso, solo aviso de desarrollo y NO borrar datos
+      setDevNotice('El formulario está listo para conectarse al servicio de dudas.');
+      setSubmitting(false);
+    }, 400);
+  };
 
   if (loading) {
     return (
@@ -147,6 +219,13 @@ export default function ClassDetail() {
           border-radius: var(--radius-lg, 12px);
           padding: 1.25rem;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        /* MODAL Y CAMPOS STYLES */
+        .doubt-input:focus, .doubt-textarea:focus {
+          outline: none;
+          border-color: var(--gold-dark, #ca8a04) !important;
+          box-shadow: 0 0 0 3px rgba(202, 138, 4, 0.15) !important;
         }
 
         @media (max-width: 991px) {
@@ -335,14 +414,14 @@ export default function ClassDetail() {
             </div>
           </div>
 
-          {/* 2. PLACEHOLDER DE ENVIAR UNA DUDA */}
+          {/* 2. ENVIAR UNA DUDA Y PREPARACIÓN VISUAL DE ESTADOS */}
           <div className="card-placeholder order-dudas">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <HelpCircle size={18} color="var(--gold-dark)" /> ¿Tienes una duda sobre esta clase?
               </h3>
-              <span style={{ background: '#fef3c7', color: '#92400e', fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: '12px', fontWeight: 600 }}>
-                Disponible próximamente
+              <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: '12px', fontWeight: 600 }}>
+                Atención docente
               </span>
             </div>
 
@@ -350,15 +429,326 @@ export default function ClassDetail() {
               Envía tu pregunta para que el docente pueda revisarla y atenderla durante la clase.
             </p>
 
-            <button disabled className="btn" style={{ width: '100%', opacity: 0.6, cursor: 'not-allowed', background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', padding: '0.55rem 1rem', fontSize: '0.84rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', borderRadius: '8px' }}>
+            <button
+              ref={doubtButtonRef}
+              onClick={openDoubtModal}
+              className="btn"
+              style={{
+                width: '100%',
+                background: 'var(--navy)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.6rem 1rem',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)'
+              }}
+            >
               <Send size={15} /> Enviar una duda
             </button>
+
+            {/* PREPARACIÓN VISUAL DE ETIQUETAS DE ESTADOS FUTUROS */}
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                ESTADOS DE REVISIÓN FUTUROS:
+              </span>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>Enviada</span>
+                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Revisada</span>
+                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Atendida en clase</span>
+                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>Archivada</span>
+              </div>
+            </div>
           </div>
 
         </div>
 
       </div>
+
+      {/* 3. MODAL ACCESIBLE DE ENVÍO DE DUDA */}
+      {isDoubtModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '1rem',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={closeDoubtModal}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: '#ffffff',
+              borderRadius: 'var(--radius-lg, 16px)',
+              padding: '1.75rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+              position: 'relative',
+              animation: 'fadeSlideUp 0.25s ease-out',
+              border: '1px solid var(--border-color, #e2e8f0)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* BOTÓN CERRAR */}
+            <button
+              type="button"
+              onClick={closeDoubtModal}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted, #64748b)',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* ENCABEZADO DEL MODAL */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: '#eff6ff',
+                  color: 'var(--navy)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <HelpCircle size={22} color="var(--gold-dark)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  Enviar Duda al Docente
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Clase: {clsData.title}
+                </span>
+              </div>
+            </div>
+
+            {/* TEXTO INFORMATIVO REQUERIDO */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.82rem',
+              color: 'var(--text-secondary, #475569)',
+              lineHeight: 1.45,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.5rem'
+            }}>
+              <Info size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--gold-dark)' }} />
+              <span>
+                Tu duda será revisada por el docente para ser atendida durante la clase o en el espacio académico correspondiente.
+              </span>
+            </div>
+
+            {/* AVISO DE DESARROLLO (NO FALSO MENSAJE DE ÉXITO Y NO BORRA DATOS) */}
+            {devNotice && (
+              <div style={{
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+                fontSize: '0.83rem',
+                color: '#1e40af',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <FileCheck size={18} color="#2563eb" />
+                <span>{devNotice}</span>
+              </div>
+            )}
+
+            {/* FORMULARIO DE DUDAS */}
+            <form onSubmit={handleSubmitDoubt} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              
+              {/* 1. ASUNTO DE LA DUDA */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--navy)' }}>
+                    Asunto de la duda <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.74rem', color: subject.length > 120 ? '#dc2626' : 'var(--text-muted)' }}>
+                    {subject.length} / 120
+                  </span>
+                </div>
+                <input
+                  ref={firstInputRef}
+                  type="text"
+                  className="doubt-input"
+                  value={subject}
+                  maxLength={120}
+                  onChange={(e) => {
+                    setSubject(e.target.value);
+                    if (!touched.subject) setTouched(prev => ({ ...prev, subject: true }));
+                  }}
+                  onBlur={() => setTouched(prev => ({ ...prev, subject: true }))}
+                  placeholder="Ej: Aclaración sobre la fórmula de rendimiento..."
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.85rem',
+                    border: subjectError ? '1px solid #dc2626' : '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    fontSize: '0.86rem'
+                  }}
+                />
+                {subjectError && (
+                  <span style={{ fontSize: '0.76rem', color: '#dc2626', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <AlertCircle size={13} /> {subjectError}
+                  </span>
+                )}
+              </div>
+
+              {/* 2. DESCRIPCIÓN */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--navy)' }}>
+                    Descripción detallada <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.74rem', color: description.length > 1500 ? '#dc2626' : 'var(--text-muted)' }}>
+                    {description.length} / 1500
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  className="doubt-textarea"
+                  value={description}
+                  maxLength={1500}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    if (!touched.description) setTouched(prev => ({ ...prev, description: true }));
+                  }}
+                  onBlur={() => setTouched(prev => ({ ...prev, description: true }))}
+                  placeholder="Describe en detalle tu consulta o inquietud técnica..."
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.85rem',
+                    border: descriptionError ? '1px solid #dc2626' : '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    fontSize: '0.86rem',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    minHeight: '100px'
+                  }}
+                />
+                {descriptionError && (
+                  <span style={{ fontSize: '0.76rem', color: '#dc2626', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <AlertCircle size={13} /> {descriptionError}
+                  </span>
+                )}
+              </div>
+
+              {/* 3. TEMA RELACIONADO (OPCIONAL) */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem', color: 'var(--navy)' }}>
+                  Tema relacionado (opcional)
+                </label>
+                <input
+                  type="text"
+                  className="doubt-input"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="Ej: Módulo 1 - Fundamentos"
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.85rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    fontSize: '0.86rem'
+                  }}
+                />
+              </div>
+
+              {/* DATOS AUTOMÁTICOS (CONTEXTO INTERNO LISTO PARA SUPABASE) */}
+              <div style={{
+                background: '#f8fafc',
+                borderRadius: '8px',
+                padding: '0.6rem 0.85rem',
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                gap: '1rem',
+                flexWrap: 'wrap'
+              }}>
+                <span>Docente: <strong>{clsData.teacher_profiles?.name || 'Asignado'}</strong></span>
+                <span>Estudiante: <strong>{currentUser?.full_name || 'Autenticado'}</strong></span>
+              </div>
+
+              {/* ACCIONES DEL FORMULARIO */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={closeDoubtModal}
+                  className="btn btn-outline"
+                  style={{ padding: '0.55rem 1.1rem', fontSize: '0.85rem', fontWeight: 600, borderRadius: '8px' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!isFormValid || submitting}
+                  className="btn"
+                  style={{
+                    padding: '0.55rem 1.25rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    background: isFormValid ? 'var(--navy)' : '#e2e8f0',
+                    color: isFormValid ? '#ffffff' : '#94a3b8',
+                    border: 'none',
+                    cursor: isFormValid ? 'pointer' : 'not-allowed',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    boxShadow: isFormValid ? '0 2px 4px rgba(20, 33, 61, 0.2)' : 'none'
+                  }}
+                >
+                  <Send size={15} /> {submitting ? 'Procesando...' : 'Enviar una duda'}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
 
