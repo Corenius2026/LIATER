@@ -25,16 +25,25 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     // 1. OBTENER PROGRAMAS A LOS QUE ESTÁ INSCRITO EL ESTUDIANTE
     // -------------------------------------------------------------
     try {
-      const { data: enrollments, error: enrollErr } = await supabase
+      let { data: enrollments, error: enrollErr } = await supabase
         .from('enrollments')
-        .select('diploma_id, diploma_programs(id, title)')
+        .select('program_id, diploma_programs(id, title)')
         .eq('student_id', studentId);
 
-      if (!enrollErr && enrollments) {
+      if (enrollErr || !enrollments || enrollments.length === 0) {
+        const { data: legacyEnrollments } = await supabase
+          .from('enrollments')
+          .select('diploma_id, diploma_programs(id, title)')
+          .eq('student_id', studentId);
+        enrollments = legacyEnrollments;
+      }
+
+      if (enrollments) {
         programIds = enrollments.map(e => {
-          if (e.diploma_id) {
-            programMap[e.diploma_id] = e.diploma_programs?.title || 'Programa Inscrito';
-            return e.diploma_id;
+          const pId = e.program_id || e.diploma_id;
+          if (pId) {
+            programMap[pId] = e.diploma_programs?.title || 'Programa Inscrito';
+            return pId;
           }
           return null;
         }).filter(Boolean);
