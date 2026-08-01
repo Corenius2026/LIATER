@@ -2,11 +2,12 @@
 -- Migración 005: Borrado en Cascada para Contenido de Programas
 -- ====================================================================
 
--- 1. Asegurar ON DELETE CASCADE en la relación modules -> diploma_programs
+-- 1. Asegurar ON DELETE CASCADE en la relación modules (program_id) -> diploma_programs
 ALTER TABLE IF EXISTS modules
   DROP CONSTRAINT IF EXISTS modules_diploma_id_fkey,
-  ADD CONSTRAINT modules_diploma_id_fkey
-    FOREIGN KEY (diploma_id) REFERENCES diploma_programs(id) ON DELETE CASCADE;
+  DROP CONSTRAINT IF EXISTS modules_program_id_fkey,
+  ADD CONSTRAINT modules_program_id_fkey
+    FOREIGN KEY (program_id) REFERENCES diploma_programs(id) ON DELETE CASCADE;
 
 -- 2. Asegurar ON DELETE CASCADE en subtopics -> modules
 ALTER TABLE IF EXISTS subtopics
@@ -33,19 +34,20 @@ BEGIN
     END IF;
 END $$;
 
--- 4. Asegurar ON DELETE CASCADE en enrollments -> diploma_programs
+-- 4. Asegurar ON DELETE CASCADE en enrollments (program_id) -> diploma_programs
 ALTER TABLE IF EXISTS enrollments
   DROP CONSTRAINT IF EXISTS enrollments_diploma_id_fkey,
-  ADD CONSTRAINT enrollments_diploma_id_fkey
-    FOREIGN KEY (diploma_id) REFERENCES diploma_programs(id) ON DELETE CASCADE;
+  DROP CONSTRAINT IF EXISTS enrollments_program_id_fkey,
+  ADD CONSTRAINT enrollments_program_id_fkey
+    FOREIGN KEY (program_id) REFERENCES diploma_programs(id) ON DELETE CASCADE;
 
--- 5. Asegurar ON DELETE CASCADE en assignments -> diploma_programs
+-- 5. Asegurar ON DELETE CASCADE en assignments (program_id) -> diploma_programs
 ALTER TABLE IF EXISTS assignments
   DROP CONSTRAINT IF EXISTS assignments_program_id_fkey,
   ADD CONSTRAINT assignments_program_id_fkey
     FOREIGN KEY (program_id) REFERENCES diploma_programs(id) ON DELETE CASCADE;
 
--- 6. Asegurar ON DELETE CASCADE en quizzes -> diploma_programs
+-- 6. Asegurar ON DELETE CASCADE en quizzes (program_id) -> diploma_programs
 ALTER TABLE IF EXISTS quizzes
   DROP CONSTRAINT IF EXISTS quizzes_program_id_fkey,
   ADD CONSTRAINT quizzes_program_id_fkey
