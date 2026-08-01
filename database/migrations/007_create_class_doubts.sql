@@ -23,6 +23,11 @@ CREATE INDEX IF NOT EXISTS idx_class_doubts_student_id ON class_doubts(student_i
 CREATE INDEX IF NOT EXISTS idx_class_doubts_status ON class_doubts(status);
 CREATE INDEX IF NOT EXISTS idx_class_doubts_created_at ON class_doubts(created_at);
 
+-- Otorgar permisos a los roles de la API de Supabase
+GRANT ALL ON TABLE class_doubts TO anon;
+GRANT ALL ON TABLE class_doubts TO authenticated;
+GRANT ALL ON TABLE class_doubts TO service_role;
+
 -- Habilitar Row Level Security (RLS)
 ALTER TABLE class_doubts ENABLE ROW LEVEL SECURITY;
 

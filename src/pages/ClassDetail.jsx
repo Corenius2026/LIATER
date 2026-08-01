@@ -188,7 +188,9 @@ export default function ClassDetail() {
     });
 
     if (error) {
-      setSubmitError('Ocurrió un inconveniente al enviar tu duda. Por favor, intenta de nuevo.');
+      console.error('Supabase Error on createDoubt:', error);
+      const errorMsg = error?.message || error?.details || JSON.stringify(error) || 'Ocurrió un error desconocido.';
+      setSubmitError(`Error en Supabase: ${errorMsg}`);
       setSubmitting(false);
       return;
     }
