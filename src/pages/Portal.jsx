@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
@@ -824,12 +824,30 @@ function TeacherPortal({ getDiplomadoLink }) {
   // VISTA 4: BANDEJA DE CONSULTAS (tab=consultas)
   // -------------------------------------------------------------------
   if (activeTab === 'consultas') {
-    const filteredQuestions = questions.filter(q => {
-      if (doubtStatusFilter === 'todos') return true;
-      return q.status === doubtStatusFilter;
+    // 1. Filtrar solo dudas PENDIENTES ('enviada' o 'revisada') (Requisito 1)
+    const pendingQuestions = questions.filter(q => q.status === 'enviada' || q.status === 'revisada');
+
+    // 2. Contadores (Requisito 2)
+    const countTotalPending = pendingQuestions.length;
+    const countNew = pendingQuestions.filter(q => q.status === 'enviada').length;
+    const countRevised = pendingQuestions.filter(q => q.status === 'revisada').length;
+
+    // 3. Aplicar sub-filtro de los 3 indicadores ('pendientes', 'enviadas', 'revisadas')
+    let displayQuestions = pendingQuestions.filter(q => {
+      if (doubtStatusFilter === 'enviada') return q.status === 'enviada';
+      if (doubtStatusFilter === 'revisada') return q.status === 'revisada';
+      return true;
     });
 
-    const countByStatus = (st) => questions.filter(q => q.status === st).length;
+    // 4. Ordenar: Primero dudas nuevas ('enviada'), luego revisadas ('revisada') (Requisito 7)
+    displayQuestions.sort((a, b) => {
+      if (a.status === 'enviada' && b.status !== 'enviada') return -1;
+      if (a.status !== 'enviada' && b.status === 'enviada') return 1;
+      
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA;
+    });
 
     return (
       <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -838,151 +856,273 @@ function TeacherPortal({ getDiplomadoLink }) {
             Bandeja de consultas
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-            Revisa las dudas enviadas por los estudiantes de todos tus programas y prepáralas para atenderlas durante la clase correspondiente.
+            Revisa las dudas pendientes enviadas por los estudiantes y prepáralas para ser atendidas en sus clases correspondientes.
           </p>
         </div>
 
-        {/* CONTADORES RÁPIDOS Y FILTROS POR ESTADO */}
-        <div className="card" style={{ padding: '1.25rem', background: 'var(--white)', borderRadius: '12px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
-            <div
-              onClick={() => setDoubtStatusFilter('todos')}
-              style={{
-                padding: '0.6rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-                background: doubtStatusFilter === 'todos' ? '#f1f5f9' : 'transparent',
-                border: doubtStatusFilter === 'todos' ? '1px solid var(--navy)' : '1px solid var(--border-color)',
-                textAlign: 'center', transition: 'all 0.2s'
-              }}
-            >
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy)' }}>{questions.length}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Todas</div>
-            </div>
-
-            <div
-              onClick={() => setDoubtStatusFilter('enviada')}
-              style={{
-                padding: '0.6rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-                background: doubtStatusFilter === 'enviada' ? '#dbeafe' : 'transparent',
-                border: doubtStatusFilter === 'enviada' ? '1px solid #1e40af' : '1px solid var(--border-color)',
-                textAlign: 'center', transition: 'all 0.2s'
-              }}
-            >
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e40af' }}>{countByStatus('enviada')}</div>
-              <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>Enviadas</div>
-            </div>
-
-            <div
-              onClick={() => setDoubtStatusFilter('revisada')}
-              style={{
-                padding: '0.6rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-                background: doubtStatusFilter === 'revisada' ? '#fef3c7' : 'transparent',
-                border: doubtStatusFilter === 'revisada' ? '1px solid #92400e' : '1px solid var(--border-color)',
-                textAlign: 'center', transition: 'all 0.2s'
-              }}
-            >
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#92400e' }}>{countByStatus('revisada')}</div>
-              <div style={{ fontSize: '0.75rem', color: '#92400e', fontWeight: 600 }}>Revisadas</div>
-            </div>
-
-            <div
-              onClick={() => setDoubtStatusFilter('atendida')}
-              style={{
-                padding: '0.6rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-                background: doubtStatusFilter === 'atendida' ? '#dcfce7' : 'transparent',
-                border: doubtStatusFilter === 'atendida' ? '1px solid #166534' : '1px solid var(--border-color)',
-                textAlign: 'center', transition: 'all 0.2s'
-              }}
-            >
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#166534' }}>{countByStatus('atendida')}</div>
-              <div style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>Atendidas en clase</div>
-            </div>
-
-            <div
-              onClick={() => setDoubtStatusFilter('archivada')}
-              style={{
-                padding: '0.6rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-                background: doubtStatusFilter === 'archivada' ? '#f1f5f9' : 'transparent',
-                border: doubtStatusFilter === 'archivada' ? '1px solid #64748b' : '1px solid var(--border-color)',
-                textAlign: 'center', transition: 'all 0.2s'
-              }}
-            >
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#64748b' }}>{countByStatus('archivada')}</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Archivadas</div>
-            </div>
+        {/* 3 INDICADORES COMPACTOS (Requisito 2) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+          
+          {/* INDICADOR 1: PENDIENTES */}
+          <div
+            onClick={() => setDoubtStatusFilter('pendientes')}
+            style={{
+              padding: '0.65rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              background: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'var(--navy)' : 'var(--white)',
+              color: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'var(--white)' : 'var(--navy)',
+              border: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'none' : '1px solid var(--border-color)',
+              boxShadow: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'inset 0 -3px 0 var(--gold)' : '0 1px 2px rgba(20, 33, 61, 0.03)',
+              display: 'flex',
+              alignItems: 'center',
+              justify: 'space-between',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Pendientes</span>
+            <span style={{ 
+              fontSize: '1.1rem', 
+              fontWeight: 800, 
+              color: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'var(--gold)' : 'var(--navy)',
+              background: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'rgba(255,255,255,0.12)' : 'rgba(20,33,61,0.06)',
+              padding: '2px 9px',
+              borderRadius: '9999px'
+            }}>
+              {countTotalPending}
+            </span>
           </div>
+
+          {/* INDICADOR 2: NUEVAS */}
+          <div
+            onClick={() => setDoubtStatusFilter('enviada')}
+            style={{
+              padding: '0.65rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              background: doubtStatusFilter === 'enviada' ? 'var(--navy)' : 'var(--white)',
+              color: doubtStatusFilter === 'enviada' ? 'var(--white)' : 'var(--navy)',
+              border: doubtStatusFilter === 'enviada' ? 'none' : '1px solid var(--border-color)',
+              boxShadow: doubtStatusFilter === 'enviada' ? 'inset 0 -3px 0 var(--gold)' : '0 1px 2px rgba(20, 33, 61, 0.03)',
+              display: 'flex',
+              alignItems: 'center',
+              justify: 'space-between',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Nuevas</span>
+            <span style={{ 
+              fontSize: '1.1rem', 
+              fontWeight: 800, 
+              color: doubtStatusFilter === 'enviada' ? 'var(--gold)' : 'var(--navy)',
+              background: doubtStatusFilter === 'enviada' ? 'rgba(255,255,255,0.12)' : 'rgba(20,33,61,0.06)',
+              padding: '2px 9px',
+              borderRadius: '9999px'
+            }}>
+              {countNew}
+            </span>
+          </div>
+
+          {/* INDICADOR 3: REVISADAS */}
+          <div
+            onClick={() => setDoubtStatusFilter('revisada')}
+            style={{
+              padding: '0.65rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              background: doubtStatusFilter === 'revisada' ? 'var(--navy)' : 'var(--white)',
+              color: doubtStatusFilter === 'revisada' ? 'var(--white)' : 'var(--navy)',
+              border: doubtStatusFilter === 'revisada' ? 'none' : '1px solid var(--border-color)',
+              boxShadow: doubtStatusFilter === 'revisada' ? 'inset 0 -3px 0 var(--gold)' : '0 1px 2px rgba(20, 33, 61, 0.03)',
+              display: 'flex',
+              alignItems: 'center',
+              justify: 'space-between',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Revisadas</span>
+            <span style={{ 
+              fontSize: '1.1rem', 
+              fontWeight: 800, 
+              color: doubtStatusFilter === 'revisada' ? 'var(--gold)' : 'var(--navy)',
+              background: doubtStatusFilter === 'revisada' ? 'rgba(255,255,255,0.12)' : 'rgba(20,33,61,0.06)',
+              padding: '2px 9px',
+              borderRadius: '9999px'
+            }}>
+              {countRevised}
+            </span>
+          </div>
+
         </div>
 
+        {/* LISTADO DE DUDAS O ESTADO VACÍO */}
         {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando consultas de estudiantes...</p>
-        ) : filteredQuestions.length === 0 ? (
-          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
+          <p style={{ color: 'var(--text-muted)' }}>Cargando consultas pendientes...</p>
+        ) : displayQuestions.length === 0 ? (
+          /* ESTADO VACÍO (Requisito 8) */
+          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.05)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto' }}>
               <MessageSquareText size={32} />
             </div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
-              {questions.length === 0 ? 'No hay dudas por revisar' : 'No se encontraron dudas con este filtro'}
+              No hay dudas pendientes
             </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '520px', margin: '0 auto', lineHeight: 1.5 }}>
-              {questions.length === 0 ? 'Las dudas enviadas por los estudiantes aparecerán aquí, organizadas por programa y clase.' : 'Prueba cambiando el filtro seleccionado arriba.'}
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '520px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
+              Las nuevas dudas enviadas por los estudiantes aparecerán aquí, organizadas por programa y clase.
             </p>
+            <Link 
+              to="/portal?tab=programas" 
+              className="btn" 
+              style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                background: 'var(--navy)', 
+                color: 'var(--white)', 
+                padding: '0.65rem 1.25rem', 
+                borderRadius: '8px', 
+                fontSize: '0.88rem', 
+                fontWeight: 700, 
+                textDecoration: 'none' 
+              }}
+            >
+              Ver mis programas
+            </Link>
           </div>
         ) : (
+          /* FILAS DE DUDAS PENDIENTES (Requisitos 3, 4, 5, 6, 9) */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {filteredQuestions.map(q => {
-              const statusCfg = {
-                enviada:  { label: 'Enviada',  bg: '#dbeafe', color: '#1e40af', border: '#bfdbfe' },
-                revisada: { label: 'Revisada', bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
-                atendida: { label: 'Atendida en clase', bg: '#dcfce7', color: '#166534', border: '#bbf7d0' },
-                archivada:{ label: 'Archivada',bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' }
-              }[q.status || 'enviada'] || { label: q.status, bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' };
+            {displayQuestions.map(q => {
+              const isNueva = q.status === 'enviada';
+              const progId = q.program_id || q.diploma_programs?.id;
+              const programLink = getDiplomadoLink ? `${getDiplomadoLink(progId)}?tab=dudas&doubtId=${q.id}` : `/dashboard/profesor/${progId}?tab=dudas&doubtId=${q.id}`;
 
               return (
-                <div key={q.id} className="card" style={{ padding: '1.25rem 1.5rem', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '0.5rem' }}>
-                    <h3 style={{ margin: 0, fontWeight: 700, color: 'var(--navy)', fontSize: '1.05rem' }}>
-                      {q.subject || 'Consulta de estudiante'}
-                    </h3>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: '9999px', background: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border}`, whiteSpace: 'nowrap' }}>
-                      {statusCfg.label}
-                    </span>
+                <div 
+                  key={q.id} 
+                  className="card teacher-summary-card" 
+                  style={{ 
+                    padding: '1.35rem 1.5rem', 
+                    background: 'var(--white)', 
+                    borderRadius: 'var(--radius-lg)', 
+                    border: '1px solid var(--border-color)',
+                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem'
+                  }}
+                >
+                  {/* PRIMERO: ESTADO Y TÍTULO (Requisitos 3, 4) */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span 
+                        style={{ 
+                          fontSize: '0.72rem', 
+                          fontWeight: 800, 
+                          padding: '3px 10px', 
+                          borderRadius: '9999px', 
+                          background: isNueva ? 'rgba(252, 163, 17, 0.12)' : '#e0f2fe', 
+                          color: isNueva ? '#b45309' : 'var(--navy)', 
+                          border: isNueva ? '1px solid #fde68a' : '1px solid #bae6fd', 
+                          whiteSpace: 'nowrap' 
+                        }}
+                      >
+                        {isNueva ? 'Nueva' : 'Revisada'}
+                      </span>
+                      <h3 style={{ margin: 0, fontWeight: 800, color: 'var(--navy)', fontSize: '1.05rem', lineHeight: 1.3 }}>
+                        {q.subject || 'Consulta de estudiante'}
+                      </h3>
+                    </div>
                   </div>
 
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 0.85rem 0', lineHeight: 1.5 }}>
+                  {/* DESPUÉS: FRAGMENTO DE LA DUDA (MÁX 2 LÍNEAS) (Requisito 4) */}
+                  <p 
+                    style={{ 
+                      color: 'var(--text-secondary)', 
+                      fontSize: '0.9rem', 
+                      margin: 0, 
+                      lineHeight: 1.5,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}
+                  >
                     {q.description}
                   </p>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 600, color: 'var(--gold-dark)' }}>{q.diploma_programs?.title || 'Programa'}</span>
+                  {/* FINALMENTE: CONTEXTO (CLASE PROTAGONISTA, PROGRAMA, ESTUDIANTE, FECHA) Y BOTÓN (Requisitos 4, 5, 6) */}
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      justify: 'space-between', 
+                      alignItems: 'center', 
+                      flexWrap: 'wrap', 
+                      gap: '0.75rem', 
+                      paddingTop: '0.75rem', 
+                      borderTop: '1px solid var(--border-color)', 
+                      fontSize: '0.82rem', 
+                      color: 'var(--text-muted)' 
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {/* CLASE CON MAYOR PROTAGONISMO */}
+                      <span style={{ fontWeight: 800, color: 'var(--navy)', fontSize: '0.88rem' }}>
+                        {q.class_sessions?.title || 'Clase asignada'}
+                      </span>
                       <span>•</span>
-                      <span>{q.class_sessions?.title || 'Clase'}</span>
+                      {/* PROGRAMA */}
+                      <span style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>
+                        {q.diploma_programs?.title || 'Programa'}
+                      </span>
                       <span>•</span>
-                      <span>Estudiante: <strong style={{ color: 'var(--navy)' }}>{q.users_profile?.full_name || 'Estudiante'}</strong></span>
+                      {/* ESTUDIANTE */}
+                      <span>
+                        Estudiante: <strong style={{ color: 'var(--navy)' }}>{q.users_profile?.full_name || 'Estudiante'}</strong>
+                      </span>
+                      {/* FECHA */}
                       {q.created_at && (
                         <>
                           <span>•</span>
-                          <span>{new Date(q.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>
+                            {new Date(q.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         </>
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      {q.status === 'enviada' && (
-                        <button onClick={() => handleStatusChange(q.id, 'revisada')} className="btn btn-outline" style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}>
-                          <Eye size={12} /> Marcar revisada
-                        </button>
-                      )}
-                      {q.status !== 'atendida' && (
-                        <button onClick={() => handleStatusChange(q.id, 'atendida')} className="btn btn-outline" style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem', color: '#166534', borderColor: '#bbf7d0' }}>
-                          <CheckCircle2 size={12} /> Atendida en clase
-                        </button>
-                      )}
-                      {q.status !== 'archivada' && (
-                        <button onClick={() => handleStatusChange(q.id, 'archivada')} className="btn btn-outline" style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem', color: '#64748b' }}>
-                          <Archive size={12} /> Archivar
-                        </button>
-                      )}
-                    </div>
+                    {/* BOTÓN PRINCIPAL "VER EN EL PROGRAMA" (Requisitos 5, 6) */}
+                    <Link
+                      to={programLink}
+                      className="btn"
+                      style={{
+                        background: 'var(--white)',
+                        border: '1px solid var(--navy)',
+                        color: 'var(--navy)',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        padding: '0.45rem 0.95rem',
+                        borderRadius: '8px',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseOver={e => {
+                        e.currentTarget.style.background = 'var(--navy)';
+                        e.currentTarget.style.color = 'var(--white)';
+                      }}
+                      onMouseOut={e => {
+                        e.currentTarget.style.background = 'var(--white)';
+                        e.currentTarget.style.color = 'var(--navy)';
+                      }}
+                    >
+                      <ArrowRight size={14} />
+                      Ver en el programa
+                    </Link>
                   </div>
                 </div>
               );

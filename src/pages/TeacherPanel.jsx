@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { updateDoubtStatus } from '../services/doubtService';
 import { formatClassDate } from '../utils/dateUtils';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   BookOpen, Video, FileText, Megaphone, Presentation,
   Play, Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
@@ -1779,12 +1779,20 @@ export default function TeacherPanel() {
   const { currentUser } = useAuth();
   const { programId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('resumen');
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [currentProgram, setCurrentProgram] = useState(null);
   const [myPrograms, setMyPrograms] = useState([]);
   const role = currentUser?.role;
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
 
   // Resolver el teacher_profile.id real y obtener datos del programa
   useEffect(() => {
