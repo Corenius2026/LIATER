@@ -24,6 +24,19 @@ export default function Profile() {
     avatar_url: ''
   });
 
+  const [initialPersonalData, setInitialPersonalData] = useState({
+    full_name: currentUser?.name || '',
+    email: currentUser?.email || '',
+    phone: '',
+    country: 'Colombia',
+    avatar_url: ''
+  });
+
+  const hasUnsavedPersonalChanges = 
+    personalData.full_name !== initialPersonalData.full_name ||
+    personalData.phone !== initialPersonalData.phone ||
+    personalData.country !== initialPersonalData.country;
+
   // Datos académicos (teacher_profiles)
   const [academicData, setAcademicData] = useState({
     area: '',
@@ -108,13 +121,15 @@ export default function Profile() {
           .maybeSingle();
           
         if (uProfile) {
-          setPersonalData({
+          const loadedPersonal = {
             full_name: uProfile.full_name || currentUser.name || '',
             email: currentUser.email || '',
             phone: uProfile.phone || '',
             country: uProfile.country || 'Colombia',
             avatar_url: uProfile.avatar_url || ''
-          });
+          };
+          setPersonalData(loadedPersonal);
+          setInitialPersonalData(loadedPersonal);
         }
 
         // 2. Si es profesor, cargar teacher_profiles y diploma_programs
@@ -173,6 +188,10 @@ export default function Profile() {
   }, [currentUser?.id, currentUser?.auth_user_id, isTeacher]);
 
   const handleTabChange = (newTab) => {
+    if (activeTab === 'personal' && hasUnsavedPersonalChanges) {
+      const confirmLeave = window.confirm('Tienes cambios sin guardar. ¿Deseas salir de esta sección?');
+      if (!confirmLeave) return;
+    }
     if (activeTab === 'academic' && hasUnsavedAcademicChanges) {
       const confirmLeave = window.confirm('Tienes cambios sin guardar en tu perfil académico. ¿Deseas salir de esta sección?');
       if (!confirmLeave) return;
@@ -182,6 +201,7 @@ export default function Profile() {
 
   const handleSavePersonal = async (e) => {
     e.preventDefault();
+    if (!hasUnsavedPersonalChanges || saving) return;
     setSaving(true);
     setMsg({ type: '', text: '' });
     try {
@@ -195,9 +215,12 @@ export default function Profile() {
         .eq('id', currentUser.id);
 
       if (error) throw error;
-      setMsg({ type: 'success', text: 'Perfil personal actualizado con éxito.' });
+
+      setInitialPersonalData({ ...personalData });
+      setMsg({ type: 'success', text: 'Información personal actualizada.' });
     } catch (err) {
-      setMsg({ type: 'error', text: 'Error al actualizar perfil: ' + err.message });
+      console.error('Error al actualizar perfil personal:', err);
+      setMsg({ type: 'error', text: 'No fue posible guardar los cambios. Inténtalo nuevamente.' });
     } finally {
       setSaving(false);
     }
@@ -483,50 +506,108 @@ export default function Profile() {
 
           {/* CONTENIDO DE PESTAÑA: PERFIL PERSONAL */}
           {activeTab === 'personal' && (
-            <form onSubmit={handleSavePersonal} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
-              <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                Perfil Personal
-              </h3>
+            <form 
+              onSubmit={handleSavePersonal} 
+              className="card" 
+              style={{ 
+                padding: '2rem', 
+                background: 'var(--white)', 
+                border: '1px solid var(--border-color)', 
+                borderTop: '3px solid var(--gold)',
+                borderRadius: 'var(--radius-lg)',
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '1.5rem',
+                boxShadow: '0 4px 14px rgba(20, 33, 61, 0.04)'
+              }}
+            >
+              {/* ENCABEZADO DE LA TARJETA */}
+              <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
+                <h3 style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
+                  Perfil personal
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.3rem 0 0 0' }}>
+                  Administra tus datos básicos y de contacto.
+                </p>
+              </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+              {/* CUADRÍCULA EQUILIBRADA DE 2 COLUMNAS (2X2) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+                
+                {/* FILA 1, COLUMNA 1: NOMBRE COMPLETO */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Nombre Completo</label>
+                  <label htmlFor="fullNameInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                    Nombre completo
+                  </label>
                   <input 
+                    id="fullNameInput"
                     type="text" 
                     value={personalData.full_name} 
                     onChange={e => setPersonalData({ ...personalData, full_name: e.target.value })} 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} 
+                    placeholder="Tu nombre completo"
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--white)', fontSize: '0.9rem' }} 
                     required 
                   />
                 </div>
 
+                {/* FILA 1, COLUMNA 2: CORREO ELECTRÓNICO (READONLY) */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Correo Electrónico</label>
-                  <input 
-                    type="email" 
-                    value={personalData.email} 
-                    disabled 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)' }} 
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
+                    <label htmlFor="emailInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
+                      Correo electrónico
+                    </label>
+                    <Lock size={13} color="var(--text-muted)" title="Campo de solo lectura" />
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      id="emailInput"
+                      type="email" 
+                      value={personalData.email} 
+                      readOnly
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.75rem 0.75rem 0.75rem 2.4rem', 
+                        borderRadius: '8px', 
+                        border: '1px solid #e2e8f0', 
+                        background: '#f8fafc', 
+                        color: '#64748b', 
+                        cursor: 'not-allowed',
+                        fontSize: '0.9rem',
+                        userSelect: 'all'
+                      }} 
+                    />
+                    <Lock size={16} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  </div>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                    El correo está asociado a tu cuenta y no puede modificarse desde esta sección.
+                  </span>
                 </div>
 
+                {/* FILA 2, COLUMNA 1: TELÉFONO (OPCIONAL) */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Teléfono</label>
+                  <label htmlFor="phoneInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                    Teléfono (opcional)
+                  </label>
                   <input 
+                    id="phoneInput"
                     type="tel" 
                     value={personalData.phone} 
                     onChange={e => setPersonalData({ ...personalData, phone: e.target.value })} 
                     placeholder="+57 300 000 0000" 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--white)', fontSize: '0.9rem' }} 
                   />
                 </div>
 
+                {/* FILA 2, COLUMNA 2: PAÍS */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>País</label>
+                  <label htmlFor="countrySelect" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                    País
+                  </label>
                   <select 
+                    id="countrySelect"
                     value={personalData.country} 
                     onChange={e => setPersonalData({ ...personalData, country: e.target.value })} 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--white)', fontSize: '0.9rem' }}
                   >
                     <option value="Colombia">Colombia</option>
                     <option value="México">México</option>
@@ -537,11 +618,33 @@ export default function Profile() {
                     <option value="Otro">Otro</option>
                   </select>
                 </div>
+
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontWeight: 700 }}>
-                  <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios'}
+              {/* FOOTER INTERNO DEL FORMULARIO CON ACCIÓN DE GUARDADO INTEGRADOR */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+                <button 
+                  type="submit" 
+                  disabled={saving || !hasUnsavedPersonalChanges} 
+                  className="btn" 
+                  style={{ 
+                    background: (saving || !hasUnsavedPersonalChanges) ? '#cbd5e1' : 'var(--navy)', 
+                    color: 'white', 
+                    border: 'none', 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '0.5rem', 
+                    padding: '0.75rem 1.5rem', 
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    cursor: (saving || !hasUnsavedPersonalChanges) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: (saving || !hasUnsavedPersonalChanges) ? 'none' : '0 2px 6px rgba(20, 33, 61, 0.15)'
+                  }}
+                >
+                  <Save size={18} /> 
+                  {saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
             </form>
