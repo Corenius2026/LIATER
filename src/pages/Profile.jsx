@@ -120,17 +120,8 @@ export default function Profile() {
           .eq('id', currentUser.id)
           .maybeSingle();
           
-        if (uProfile) {
-          const loadedPersonal = {
-            full_name: uProfile.full_name || currentUser.name || '',
-            email: currentUser.email || '',
-            phone: uProfile.phone || '',
-            country: uProfile.country || 'Colombia',
-            avatar_url: uProfile.avatar_url || ''
-          };
-          setPersonalData(loadedPersonal);
-          setInitialPersonalData(loadedPersonal);
-        }
+        let phone = uProfile?.phone || '';
+        let country = uProfile?.country || 'Colombia';
 
         // 2. Si es profesor, cargar teacher_profiles y diploma_programs
         if (isTeacher) {
@@ -150,6 +141,9 @@ export default function Profile() {
             let expText = tProfile.experience || '';
             let roleText = tProfile.title_role || 'Profesor Titular';
 
+            if (tProfile.phone) phone = tProfile.phone;
+            if (tProfile.country) country = tProfile.country;
+
             if (bioText && typeof bioText === 'string' && bioText.trim().startsWith('{') && bioText.trim().endsWith('}')) {
               try {
                 const parsed = JSON.parse(bioText);
@@ -157,6 +151,8 @@ export default function Profile() {
                   bioText = parsed.bio !== undefined ? parsed.bio : bioText;
                   expText = parsed.experience !== undefined ? parsed.experience : expText;
                   roleText = parsed.title_role !== undefined ? parsed.title_role : roleText;
+                  if (parsed.phone !== undefined && parsed.phone !== '') phone = parsed.phone;
+                  if (parsed.country !== undefined && parsed.country !== '') country = parsed.country;
                 }
               } catch (e) {
                 // mantener texto plano
@@ -180,6 +176,16 @@ export default function Profile() {
             .order('title', { ascending: true });
           if (progs) setMyPrograms(progs);
         }
+
+        const loadedPersonal = {
+          full_name: uProfile?.full_name || currentUser.name || '',
+          email: currentUser.email || '',
+          phone: phone,
+          country: country,
+          avatar_url: uProfile?.avatar_url || ''
+        };
+        setPersonalData(loadedPersonal);
+        setInitialPersonalData(loadedPersonal);
       } catch (err) {
         console.error('Error al cargar perfil:', err);
       }
@@ -227,7 +233,7 @@ export default function Profile() {
         if (fallbackErr) throw fallbackErr;
       }
 
-      // 2. Si el usuario es profesor, sincronizar el nombre en teacher_profiles para que el admin lo vea en tiempo real
+      // 2. Si el usuario es profesor, sincronizar name, phone y country en teacher_profiles
       if (isTeacher) {
         const userOrClause = currentUser?.auth_user_id 
           ? `user_id.eq.${currentUser.id},user_id.eq.${currentUser.auth_user_id}` 
@@ -235,20 +241,45 @@ export default function Profile() {
 
         const { data: tProfiles } = await supabase
           .from('teacher_profiles')
-          .select('id')
+          .select('*')
           .or(userOrClause);
 
-        if (tProfiles && tProfiles.length > 0) {
+        const tProfile = tProfiles && tProfiles.length > 0 ? tProfiles[0] : null;
+
+        let bioObj = {
+          bio: academicData.bio,
+          experience: academicData.experience,
+          title_role: academicData.title_role,
+          phone: personalData.phone,
+          country: personalData.country
+        };
+
+        if (tProfile && tProfile.bio && tProfile.bio.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(tProfile.bio);
+            if (parsed && typeof parsed === 'object') {
+              bioObj = { ...parsed, phone: personalData.phone, country: personalData.country };
+            }
+          } catch (e) {}
+        }
+
+        const bioPayload = JSON.stringify(bioObj);
+
+        if (tProfile) {
           await supabase
             .from('teacher_profiles')
-            .update({ name: personalData.full_name })
-            .eq('id', tProfiles[0].id);
+            .update({
+              name: personalData.full_name,
+              bio: bioPayload
+            })
+            .eq('id', tProfile.id);
         } else {
           await supabase
             .from('teacher_profiles')
             .insert({
               user_id: currentUser.id,
-              name: personalData.full_name
+              name: personalData.full_name,
+              bio: bioPayload
             });
         }
       }

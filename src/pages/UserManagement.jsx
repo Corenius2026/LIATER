@@ -79,13 +79,45 @@ export default function UserManagement() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data, error: fetchErr } = await supabase
+      const { data: uProfiles, error: fetchErr } = await supabase
         .from('users_profile')
         .select('*')
         .order('created_at', { ascending: false });
       
       if (fetchErr) throw fetchErr;
-      setUsers(data || []);
+
+      const { data: tProfiles } = await supabase
+        .from('teacher_profiles')
+        .select('*');
+
+      const teacherMap = new Map();
+      if (tProfiles) {
+        tProfiles.forEach(tp => {
+          if (tp.user_id) teacherMap.set(String(tp.user_id), tp);
+        });
+      }
+
+      const enriched = (uProfiles || []).map(u => {
+        const tProf = teacherMap.get(String(u.id)) || teacherMap.get(String(u.auth_user_id));
+        let phone = u.phone || tProf?.phone || '';
+        let country = u.country || tProf?.country || '';
+
+        if (tProf?.bio && typeof tProf.bio === 'string' && tProf.bio.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(tProf.bio);
+            if (!phone && parsed.phone) phone = parsed.phone;
+            if (!country && parsed.country) country = parsed.country;
+          } catch (e) {}
+        }
+
+        return {
+          ...u,
+          phone: phone || '—',
+          country: country || 'Colombia'
+        };
+      });
+
+      setUsers(enriched);
     } catch (err) {
       console.error('Error fetching users:', err);
     } finally {
@@ -187,11 +219,16 @@ export default function UserManagement() {
     }
   };
 
+  const [editPhone, setEditPhone] = useState('');
+  const [editCountry, setEditCountry] = useState('Colombia');
+
   const openEditModal = (user) => {
     setEditUser(user);
     setFullName(user.full_name || '');
     setEditEmail(user.email || '');
     setRole(user.role || 'student');
+    setEditPhone(user.phone && user.phone !== '—' ? user.phone : '');
+    setEditCountry(user.country || 'Colombia');
     setShowEditModal(true);
     setError('');
     setSuccess('');
@@ -277,12 +314,46 @@ export default function UserManagement() {
 
     setSubmitting(true);
     try {
-      const { error: updateError } = await supabase
+      // 1. Intentar actualizar users_profile
+      let { error: updateError } = await supabase
         .from('users_profile')
-        .update({ full_name: fullName, role })
+        .update({ full_name: fullName, role, phone: editPhone, country: editCountry })
         .eq('id', editUser.id);
       
-      if (updateError) throw updateError;
+      if (updateError) {
+        const { error: fallbackErr } = await supabase
+          .from('users_profile')
+          .update({ full_name: fullName, role })
+          .eq('id', editUser.id);
+        if (fallbackErr) throw fallbackErr;
+      }
+
+      // 2. Si es profesor, actualizar teacher_profiles también
+      if (role === 'teacher' || editUser.role === 'teacher') {
+        const { data: tProfiles } = await supabase
+          .from('teacher_profiles')
+          .select('*')
+          .or(`user_id.eq.${editUser.id}${editUser.auth_user_id ? `,user_id.eq.${editUser.auth_user_id}` : ''}`);
+
+        const tProf = tProfiles && tProfiles.length > 0 ? tProfiles[0] : null;
+        let bioObj = { phone: editPhone, country: editCountry };
+        if (tProf && tProf.bio && tProf.bio.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(tProf.bio);
+            if (parsed && typeof parsed === 'object') {
+              bioObj = { ...parsed, phone: editPhone, country: editCountry };
+            }
+          } catch (err) {}
+        }
+        const bioPayload = JSON.stringify(bioObj);
+
+        if (tProf) {
+          await supabase
+            .from('teacher_profiles')
+            .update({ name: fullName, bio: bioPayload })
+            .eq('id', tProf.id);
+        }
+      }
       
       setSuccess('Usuario actualizado con éxito.');
       fetchUsers();
@@ -373,6 +444,22 @@ export default function UserManagement() {
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>El correo está enlazado a la cuenta y no puede editarse aquí de forma segura.</span>
                 </div>
                 <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Teléfono</label>
+                  <input type="text" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="+57 300 000 0000" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>País</label>
+                  <select value={editCountry} onChange={e => setEditCountry(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                    <option value="Colombia">Colombia</option>
+                    <option value="México">México</option>
+                    <option value="Perú">Perú</option>
+                    <option value="Chile">Chile</option>
+                    <option value="Argentina">Argentina</option>
+                    <option value="España">España</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Rol</label>
                   <select value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
                     <option value="student">Estudiante</option>
@@ -451,13 +538,13 @@ export default function UserManagement() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Usuario</th><th>Rol</th><th>Estado</th><th>Fecha de Ingreso</th><th>Acciones</th>
+                <th>Usuario</th><th>Teléfono</th><th>País</th><th>Rol</th><th>Estado</th><th>Fecha de Ingreso</th><th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <LoadingRow cols={5} /> : 
-               users.filter(u => u.role === viewRole && (u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase()))).length === 0 ? <EmptyRow cols={5} message="No se encontraron usuarios con esos criterios." /> :
-               users.filter(u => u.role === viewRole && (u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase()))).map(user => (
+              {loading ? <LoadingRow cols={7} /> : 
+               users.filter(u => u.role === viewRole && (u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase()) || u.phone?.toLowerCase().includes(searchTerm.toLowerCase()))).length === 0 ? <EmptyRow cols={7} message="No se encontraron usuarios con esos criterios." /> :
+               users.filter(u => u.role === viewRole && (u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase()) || u.phone?.toLowerCase().includes(searchTerm.toLowerCase()))).map(user => (
                 <tr key={user.id}>
                   <td>
                     <div className="user-cell">
@@ -468,6 +555,8 @@ export default function UserManagement() {
                       </div>
                     </div>
                   </td>
+                  <td style={{ fontSize: '0.85rem', color: 'var(--navy)', fontWeight: 600 }}>{user.phone || '—'}</td>
+                  <td style={{ fontSize: '0.85rem', color: 'var(--navy)', fontWeight: 600 }}>{user.country || 'Colombia'}</td>
                   <td><RoleBadge role={user.role} /></td>
                   <td>
                     <span style={{ 
