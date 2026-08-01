@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { PlayCircle, BookOpen, Calendar, Video, Clock, User, Megaphone, ArrowRight } from 'lucide-react';
+import { PlayCircle, BookOpen, Calendar, Video, Clock, User, Megaphone, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export default function Dashboard() {
   const { programId } = useParams();
@@ -108,6 +108,13 @@ export default function Dashboard() {
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+      {/* BOTÓN DE RETORNO AL PORTAL */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <Link to="/portal" className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
+          <ArrowLeft size={14} /> Volver a Mis Programas
+        </Link>
+      </div>
+
       {/* --- ENCABEZADO --- */}
       <div className="page-header" style={{ marginBottom: '2rem' }}>
         <h1 className="page-title">Panel de Estudiante</h1>

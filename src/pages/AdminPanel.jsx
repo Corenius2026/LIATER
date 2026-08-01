@@ -1916,6 +1916,13 @@ export default function AdminPanel() {
 
   return (
     <div>
+      {/* BOTÓN DE RETORNO AL PORTAL */}
+      <div style={{ marginBottom: '1rem' }}>
+        <Link to="/portal" className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
+          <ArrowLeft size={14} /> Volver a Programas
+        </Link>
+      </div>
+
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
         <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
         <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
