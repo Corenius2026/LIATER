@@ -205,7 +205,8 @@ export default function Profile() {
     setSaving(true);
     setMsg({ type: '', text: '' });
     try {
-      const { error } = await supabase
+      // 1. Intentar actualizar users_profile con todos los campos
+      let { error: uErr } = await supabase
         .from('users_profile')
         .update({
           full_name: personalData.full_name,
@@ -214,7 +215,43 @@ export default function Profile() {
         })
         .eq('id', currentUser.id);
 
-      if (error) throw error;
+      if (uErr) {
+        // Fallback si la tabla users_profile no tiene columnas phone / country en Postgres
+        const { error: fallbackErr } = await supabase
+          .from('users_profile')
+          .update({
+            full_name: personalData.full_name
+          })
+          .eq('id', currentUser.id);
+
+        if (fallbackErr) throw fallbackErr;
+      }
+
+      // 2. Si el usuario es profesor, sincronizar el nombre en teacher_profiles para que el admin lo vea en tiempo real
+      if (isTeacher) {
+        const userOrClause = currentUser?.auth_user_id 
+          ? `user_id.eq.${currentUser.id},user_id.eq.${currentUser.auth_user_id}` 
+          : `user_id.eq.${currentUser.id}`;
+
+        const { data: tProfiles } = await supabase
+          .from('teacher_profiles')
+          .select('id')
+          .or(userOrClause);
+
+        if (tProfiles && tProfiles.length > 0) {
+          await supabase
+            .from('teacher_profiles')
+            .update({ name: personalData.full_name })
+            .eq('id', tProfiles[0].id);
+        } else {
+          await supabase
+            .from('teacher_profiles')
+            .insert({
+              user_id: currentUser.id,
+              name: personalData.full_name
+            });
+        }
+      }
 
       setInitialPersonalData({ ...personalData });
       setMsg({ type: 'success', text: 'Información personal actualizada.' });
