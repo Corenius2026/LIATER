@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import {
   User, Mail, Phone, Globe, Camera, Shield, Save,
-  BookOpen, Lock, CheckCircle2, Award, Briefcase
+  BookOpen, Lock, CheckCircle2, Award, Briefcase,
+  LockKeyhole, MailCheck, Eye, EyeOff, X
 } from 'lucide-react';
 
 export default function Profile() {
@@ -33,10 +34,53 @@ export default function Profile() {
   // Programas en los que participa
   const [myPrograms, setMyPrograms] = useState([]);
   
-  // Seguridad
-  const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
+  // Estado para la sección de Seguridad
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordStep, setPasswordStep] = useState('initial'); // 'initial' | 'otp'
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  
+  // Visibilidad de contraseñas
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+
+  // Mensajes de error/éxito del modal
+  const [modalError, setModalError] = useState('');
+  const [modalSuccess, setModalSuccess] = useState('');
+  const [securitySaving, setSecuritySaving] = useState(false);
+
+  // Verificación de correo Supabase Auth
+  const [isEmailVerified, setIsEmailVerified] = useState(true);
+
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
+
+  useEffect(() => {
+    async function checkEmailVerification() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setIsEmailVerified(!!(user.email_confirmed_at || user.confirmed_at));
+        }
+      } catch (e) {
+        console.error('Error al verificar estado de correo:', e);
+      }
+    }
+    checkEmailVerification();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showPasswordModal) {
+        handleClosePasswordModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showPasswordModal]);
 
   useEffect(() => {
     async function loadProfileData() {
@@ -145,28 +189,120 @@ export default function Profile() {
     }
   };
 
-  const handleSaveSecurity = async (e) => {
+  const handleOpenPasswordModal = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setOtpCode('');
+    setModalError('');
+    setModalSuccess('');
+    setPasswordStep('initial');
+    setShowPasswordModal(true);
+  };
+
+  const handleClosePasswordModal = () => {
+    setShowPasswordModal(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setOtpCode('');
+    setModalError('');
+    setModalSuccess('');
+  };
+
+  const handleUpdatePassword = async (e) => {
     e.preventDefault();
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setMsg({ type: 'error', text: 'Las contraseñas no coinciden.' });
+    setModalError('');
+    setModalSuccess('');
+
+    if (!currentPassword) {
+      setModalError('La contraseña actual es obligatoria.');
       return;
     }
-    if (passwordData.newPassword.length < 6) {
-      setMsg({ type: 'error', text: 'La contraseña debe tener al menos 6 caracteres.' });
+    if (!newPassword) {
+      setModalError('La nueva contraseña es obligatoria.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setModalError('La nueva contraseña no cumple los requisitos de seguridad (mínimo 6 caracteres).');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setModalError('Las contraseñas no coinciden.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setModalError('La nueva contraseña debe ser diferente a la contraseña actual.');
       return;
     }
 
-    setSaving(true);
-    setMsg({ type: '', text: '' });
+    setSecuritySaving(true);
+
     try {
-      const { error } = await supabase.auth.updateUser({ password: passwordData.newPassword });
-      if (error) throw error;
-      setMsg({ type: 'success', text: 'Contraseña actualizada con éxito.' });
-      setPasswordData({ newPassword: '', confirmPassword: '' });
+      // 1. Verificar la contraseña actual intentando autenticación segura con Supabase
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: currentUser?.email,
+        password: currentPassword
+      });
+
+      if (signInErr) {
+        setModalError('La contraseña actual no es correcta.');
+        setSecuritySaving(false);
+        return;
+      }
+
+      // 2. Si se requiere paso de OTP / Reautenticación por Supabase
+      if (passwordStep === 'otp') {
+        if (!otpCode.trim()) {
+          setModalError('Ingresa el código de verificación enviado a tu correo.');
+          setSecuritySaving(false);
+          return;
+        }
+
+        const { error: otpErr } = await supabase.auth.reauthenticate({
+          nonce: otpCode.trim()
+        });
+
+        if (otpErr) {
+          setModalError('El código de verificación es inválido o ha expirado.');
+          setSecuritySaving(false);
+          return;
+        }
+      }
+
+      // 3. Actualizar contraseña mediante Supabase Auth
+      const { error: updateErr } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateErr) {
+        if (updateErr.message?.toLowerCase().includes('reauthenticate') || updateErr.status === 429) {
+          try {
+            await supabase.auth.reauthenticate();
+            setPasswordStep('otp');
+            setModalError('Por seguridad, enviamos un código a tu correo. Ingrésalo para confirmar.');
+          } catch (reauthErr) {
+            setModalError('No fue posible iniciar la verificación por correo. Inténtalo más tarde.');
+          }
+          setSecuritySaving(false);
+          return;
+        }
+        throw updateErr;
+      }
+
+      // Éxito
+      setModalSuccess('Contraseña actualizada correctamente.');
+      setMsg({ type: 'success', text: 'Contraseña actualizada correctamente.' });
+
+      setTimeout(() => {
+        handleClosePasswordModal();
+      }, 1200);
+
     } catch (err) {
-      setMsg({ type: 'error', text: 'Error al cambiar contraseña: ' + err.message });
+      console.error('Error al actualizar contraseña:', err);
+      setModalError('No fue posible actualizar la contraseña. Inténtalo nuevamente.');
     } finally {
-      setSaving(false);
+      setSecuritySaving(false);
     }
   };
 
@@ -424,50 +560,93 @@ export default function Profile() {
           {/* CONTENIDO DE PESTAÑA: SEGURIDAD */}
           {activeTab === 'security' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <form onSubmit={handleSaveSecurity} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
-                <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                  Cambio de Contraseña
-                </h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Nueva Contraseña</label>
-                    <input 
-                      type="password" 
-                      value={passwordData.newPassword} 
-                      onChange={e => setPasswordData({ ...passwordData, newPassword: e.target.value })} 
-                      placeholder="Mínimo 6 caracteres" 
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
-                      required 
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.4rem' }}>Confirmar Contraseña</label>
-                    <input 
-                      type="password" 
-                      value={passwordData.confirmPassword} 
-                      onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} 
-                      placeholder="Repite la nueva contraseña" 
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} 
-                      required 
-                    />
-                  </div>
+              {/* TARJETA DE RESUMEN DE SEGURIDAD */}
+              <div className="card" style={{ padding: '2rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderTop: '3px solid var(--gold)' }}>
+                <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
+                    Acceso y seguridad
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0.25rem 0 0 0' }}>
+                    Administra la contraseña y protege el acceso a tu cuenta.
+                  </p>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontWeight: 700 }}>
-                    <Lock size={18} /> {saving ? 'Actualizando...' : 'Actualizar Contraseña'}
-                  </button>
-                </div>
-              </form>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* FILA 1: CONTRASEÑA */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', paddingBottom: '1.25rem', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flex: '1 1 280px' }}>
+                      <div style={{ padding: '0.65rem', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy)', flexShrink: 0 }}>
+                        <LockKeyhole size={22} />
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: '1rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>
+                          Contraseña
+                        </h4>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                          Utiliza una contraseña segura y diferente a la de otros servicios.
+                        </p>
+                      </div>
+                    </div>
 
-              <div className="card" style={{ padding: '1.5rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
-                  Gestión Básica de Acceso
-                </h4>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-                  Tu cuenta cuenta con privilegios de **Profesor**. Si requieres cambios de rol o permisos avanzados en la plataforma LIATER, por favor contacta al Administrador del sistema.
+                    <button 
+                      type="button" 
+                      onClick={handleOpenPasswordModal}
+                      className="btn" 
+                      style={{ 
+                        background: 'transparent', 
+                        color: 'var(--navy)', 
+                        border: '1.5px solid var(--navy)', 
+                        padding: '0.55rem 1.25rem', 
+                        fontWeight: 700, 
+                        fontSize: '0.88rem', 
+                        borderRadius: '8px',
+                        whiteSpace: 'nowrap',
+                        cursor: 'pointer',
+                        transition: 'all 200ms ease'
+                      }}
+                      onMouseOver={e => { e.currentTarget.style.background = 'var(--navy)'; e.currentTarget.style.color = 'var(--white)'; }}
+                      onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--navy)'; }}
+                    >
+                      Cambiar contraseña
+                    </button>
+                  </div>
+
+                  {/* FILA 2: CORREO DE RECUPERACIÓN */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flex: '1 1 280px' }}>
+                      <div style={{ padding: '0.65rem', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy)', flexShrink: 0 }}>
+                        <MailCheck size={22} />
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: '1rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>
+                          Correo de recuperación
+                        </h4>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                          {currentUser?.email || 'Correo no registrado'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span style={{ 
+                        background: isEmailVerified ? '#e8f5ee' : '#fff7ed', 
+                        color: isEmailVerified ? 'var(--green-700)' : '#c2410c', 
+                        padding: '0.35rem 0.85rem', 
+                        borderRadius: '9999px', 
+                        fontSize: '0.75rem', 
+                        fontWeight: 700 
+                      }}>
+                        {isEmailVerified ? '✓ Correo verificado' : 'Verificación pendiente'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* NOTA PEQUEÑA AL FINAL */}
+              <div style={{ textAlign: 'center', padding: '0.5rem 1rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Los roles y permisos institucionales son administrados por LIATER.
                 </p>
               </div>
             </div>
@@ -510,6 +689,209 @@ export default function Profile() {
             </button>
           </div>
         </form>
+      )}
+
+      {/* MODAL DE CAMBIO DE CONTRASEÑA */}
+      {showPasswordModal && (
+        <div 
+          role="dialog" 
+          aria-modal="true" 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            background: 'rgba(15, 23, 42, 0.65)', 
+            backdropFilter: 'blur(3px)',
+            display: 'flex', 
+            alignItems: 'center', 
+            justify: 'center', 
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={handleClosePasswordModal}
+        >
+          <div 
+            style={{ 
+              background: 'var(--white)', 
+              borderRadius: 'var(--radius-lg)', 
+              border: '1px solid var(--border-color)',
+              borderTop: '4px solid var(--gold)',
+              maxWidth: '500px', 
+              width: '100%', 
+              padding: '2rem', 
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              position: 'relative'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Botón Cerrar */}
+            <button 
+              type="button" 
+              onClick={handleClosePasswordModal} 
+              style={{ 
+                position: 'absolute', 
+                top: '1.25rem', 
+                right: '1.25rem', 
+                background: 'none', 
+                border: 'none', 
+                color: 'var(--text-muted)', 
+                cursor: 'pointer' 
+              }}
+              aria-label="Cerrar modal"
+            >
+              <X size={20} />
+            </button>
+
+            {/* HEADER DEL MODAL */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.25rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
+                {passwordStep === 'otp' ? 'Verifica tu identidad' : 'Cambiar contraseña'}
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0.35rem 0 0 0' }}>
+                {passwordStep === 'otp' 
+                  ? 'Enviamos un código de seguridad a tu correo registrado.' 
+                  : 'Confirma tu contraseña actual antes de establecer una nueva.'}
+              </p>
+            </div>
+
+            {/* ALERTAS DEL MODAL */}
+            {modalError && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, marginBottom: '1.25rem' }}>
+                ⚠️ {modalError}
+              </div>
+            )}
+
+            {modalSuccess && (
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, marginBottom: '1.25rem' }}>
+                ✓ {modalSuccess}
+              </div>
+            )}
+
+            {/* FORMULARIO DE CAMBIO */}
+            <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {passwordStep === 'initial' ? (
+                <>
+                  {/* Campo: Contraseña actual */}
+                  <div>
+                    <label htmlFor="currentPasswordInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                      Contraseña actual
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        id="currentPasswordInput"
+                        type={showCurrentPw ? 'text' : 'password'} 
+                        value={currentPassword}
+                        onChange={e => setCurrentPassword(e.target.value)}
+                        placeholder="Tu contraseña actual"
+                        style={{ width: '100%', padding: '0.7rem 2.5rem 0.7rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }}
+                        required
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowCurrentPw(!showCurrentPw)}
+                        style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        aria-label="Ver u ocultar contraseña actual"
+                      >
+                        {showCurrentPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Campo: Nueva contraseña */}
+                  <div>
+                    <label htmlFor="newPasswordInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                      Nueva contraseña
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        id="newPasswordInput"
+                        type={showNewPw ? 'text' : 'password'} 
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="Mínimo 6 caracteres"
+                        style={{ width: '100%', padding: '0.7rem 2.5rem 0.7rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }}
+                        required
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowNewPw(!showNewPw)}
+                        style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        aria-label="Ver u ocultar nueva contraseña"
+                      >
+                        {showNewPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Campo: Confirmar nueva contraseña */}
+                  <div>
+                    <label htmlFor="confirmPasswordInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                      Confirmar nueva contraseña
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        id="confirmPasswordInput"
+                        type={showConfirmPw ? 'text' : 'password'} 
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        placeholder="Repite la nueva contraseña"
+                        style={{ width: '100%', padding: '0.7rem 2.5rem 0.7rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }}
+                        required
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowConfirmPw(!showConfirmPw)}
+                        style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        aria-label="Ver u ocultar confirmación de contraseña"
+                      >
+                        {showConfirmPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Paso OTP */
+                <div>
+                  <label htmlFor="otpCodeInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                    Código de verificación
+                  </label>
+                  <input 
+                    id="otpCodeInput"
+                    type="text" 
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value)}
+                    placeholder="Ingresa el código de 6 dígitos"
+                    maxLength={6}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '1.1rem', letterSpacing: '0.2em', textAlign: 'center' }}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* ACCIONES DEL MODAL */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button 
+                  type="button" 
+                  onClick={handleClosePasswordModal}
+                  className="btn btn-outline"
+                  style={{ padding: '0.65rem 1.25rem', fontWeight: 600, fontSize: '0.88rem' }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={securitySaving}
+                  className="btn" 
+                  style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '0.65rem 1.35rem', fontWeight: 700, fontSize: '0.88rem', borderRadius: '8px' }}
+                >
+                  {securitySaving ? 'Procesando...' : (passwordStep === 'otp' ? 'Verificar y actualizar' : 'Actualizar contraseña')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>
