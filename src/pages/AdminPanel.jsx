@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import './AdminPanel.css';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../utils/dateUtils';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    HELPERS (sin cambios)
