@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms } from '../services/programService';
 import PendingActivitiesCard from '../components/PendingActivitiesCard';
@@ -391,6 +391,8 @@ function TeacherPortal({ getDiplomadoLink }) {
   const { currentUser } = useAuth();
   const [classes, setClasses] = useState([]);
   const [diplomas, setDiplomas] = useState([]);
+  const [teacherName, setTeacherName] = useState('');
+  const [counts, setCounts] = useState({ doubts: 0, upcomingClasses: 0, activePrograms: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -399,22 +401,38 @@ function TeacherPortal({ getDiplomadoLink }) {
       try {
         const { data: profileData } = await supabase
           .from('teacher_profiles')
-          .select('id')
+          .select('id, name')
           .eq('user_id', currentUser.id)
           .maybeSingle();
 
+        const name = profileData?.name || currentUser?.full_name || currentUser?.name || currentUser?.user_metadata?.full_name || 'Profesor';
+        setTeacherName(name);
+
+        let teacherClasses = [];
+        let teacherDiplomas = [];
+        let doubtsCount = 0;
+
         if (profileData) {
-          // Obtener clases para la agenda
           const { data: classData } = await supabase
             .from('class_sessions')
             .select('*, diploma_programs(id, title, program_type, description), subtopics(modules(diploma_programs(id, title, program_type, description)))')
             .eq('teacher_id', profileData.id)
             .order('class_date', { ascending: true });
             
-          setClasses(classData || []);
+          teacherClasses = classData || [];
+          setClasses(teacherClasses);
+
+          try {
+            const { count } = await supabase
+              .from('questions')
+              .select('*', { count: 'exact', head: true })
+              .or(`teacher_id.eq.${profileData.id},teacher_id.is.null`);
+            doubtsCount = count || 0;
+          } catch (e) {
+            doubtsCount = 0;
+          }
         }
 
-        // Obtener diplomados/cursos inscritos
         const { data: enrollData } = await supabase
           .from('enrollments')
           .select('diploma_programs(*)')
@@ -422,9 +440,19 @@ function TeacherPortal({ getDiplomadoLink }) {
           .order('created_at', { ascending: false });
           
         if (enrollData) {
-          const enrolledDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
-          setDiplomas(enrolledDiplomas);
+          teacherDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
+          setDiplomas(teacherDiplomas);
         }
+
+        const now = new Date();
+        const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= now).length;
+        const activeProgramsCount = teacherDiplomas.length;
+
+        setCounts({
+          doubts: doubtsCount,
+          upcomingClasses: upcomingCount,
+          activePrograms: activeProgramsCount
+        });
       } catch (err) {
         console.error('Error fetching teacher portal data', err);
       } finally {
@@ -437,88 +465,248 @@ function TeacherPortal({ getDiplomadoLink }) {
   const upcomingClasses = classes.filter(c => new Date(c.class_date) > new Date());
   
   return (
-    <div className="portal-layout">
-      <div className="portal-main">
-        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Diplomados</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {diplomas.filter(p => p.program_type !== 'curso').length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No tienes diplomados asignados.</p>
-          ) : (
-            diplomas.filter(p => p.program_type !== 'curso').map(program => (
-              <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--gold-subtle)', border: '1px solid rgba(212,160,23,0.2)', padding: '1.25rem' }}>
-                <div style={{ marginBottom: '1rem' }}>
-                  <span style={{ background: 'var(--navy)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
-                </div>
-                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3' }}>{program.title}</h3>
-                <p style={{ color: 'var(--navy-light)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso al entorno del diplomado.'}</p>
-                <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: 'var(--navy)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
+    <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+      
+      {/* BLOQUE SUPERIOR DE INICIO DOCENTE */}
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
+          Inicio docente
+        </h1>
+        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 600, margin: '0.4rem 0 0 0' }}>
+          Hola, {teacherName || 'Profesor'}
+        </h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
+          Consulta lo más importante de tus programas y prepara tus próximas clases.
+        </p>
+      </div>
+
+      {/* TRES TARJETAS DE RESUMEN OPERATIVO */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: '1.25rem',
+        marginBottom: '2.5rem'
+      }}>
+        {/* TARJETA 1: DUDAS POR REVISAR */}
+        <Link
+          to="/soporte?tab=consultas"
+          className="teacher-summary-card"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justify: 'space-between',
+            background: 'var(--white, #ffffff)',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            borderTop: '3px solid var(--gold, #fca311)',
+            borderRadius: 'var(--radius-lg, 0.75rem)',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+            textDecoration: 'none',
+            color: 'inherit',
+            transition: 'all 200ms ease-in-out',
+            minHeight: '160px',
+            cursor: 'pointer'
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Dudas por revisar
+              </span>
+              <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213d)' }}>
+                <MessageSquareText size={22} />
               </div>
-            ))
+            </div>
+            {loading ? (
+              <div style={{ width: '48px', height: '36px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+            ) : (
+              <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy, #14213d)', lineHeight: 1.1 }}>
+                {counts.doubts}
+              </div>
+            )}
+          </div>
+          
+          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold-dark, #d4a017)' }}>
+            <span>Revisar dudas</span>
+            <ChevronRight size={16} />
+          </div>
+        </Link>
+
+        {/* TARJETA 2: CLASES PRÓXIMAS */}
+        <Link
+          to="/portal?tab=agenda"
+          className="teacher-summary-card"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justify: 'space-between',
+            background: 'var(--white, #ffffff)',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            borderTop: '3px solid var(--gold, #fca311)',
+            borderRadius: 'var(--radius-lg, 0.75rem)',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+            textDecoration: 'none',
+            color: 'inherit',
+            transition: 'all 200ms ease-in-out',
+            minHeight: '160px',
+            cursor: 'pointer'
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Clases próximas
+              </span>
+              <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213d)' }}>
+                <CalendarClock size={22} />
+              </div>
+            </div>
+            {loading ? (
+              <div style={{ width: '48px', height: '36px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+            ) : (
+              <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy, #14213d)', lineHeight: 1.1 }}>
+                {counts.upcomingClasses}
+              </div>
+            )}
+          </div>
+          
+          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold-dark, #d4a017)' }}>
+            <span>Ver agenda</span>
+            <ChevronRight size={16} />
+          </div>
+        </Link>
+
+        {/* TARJETA 3: PROGRAMAS ACTIVOS */}
+        <Link
+          to="/portal?tab=programas"
+          className="teacher-summary-card"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justify: 'space-between',
+            background: 'var(--white, #ffffff)',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            borderTop: '3px solid var(--gold, #fca311)',
+            borderRadius: 'var(--radius-lg, 0.75rem)',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+            textDecoration: 'none',
+            color: 'inherit',
+            transition: 'all 200ms ease-in-out',
+            minHeight: '160px',
+            cursor: 'pointer'
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Programas activos
+              </span>
+              <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213d)' }}>
+                <BookOpen size={22} />
+              </div>
+            </div>
+            {loading ? (
+              <div style={{ width: '48px', height: '36px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+            ) : (
+              <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy, #14213d)', lineHeight: 1.1 }}>
+                {counts.activePrograms}
+              </div>
+            )}
+          </div>
+          
+          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold-dark, #d4a017)' }}>
+            <span>Ver programas</span>
+            <ChevronRight size={16} />
+          </div>
+        </Link>
+      </div>
+
+      <div className="portal-layout">
+        <div className="portal-main">
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Diplomados</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+            {diplomas.filter(p => p.program_type !== 'curso').length === 0 ? (
+              <p style={{ color: 'var(--text-muted)' }}>No tienes diplomados asignados.</p>
+            ) : (
+              diplomas.filter(p => p.program_type !== 'curso').map(program => (
+                <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: 'var(--gold-subtle)', border: '1px solid rgba(212,160,23,0.2)', padding: '1.25rem' }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <span style={{ background: 'var(--navy)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--navy)', lineHeight: '1.3' }}>{program.title}</h3>
+                  <p style={{ color: 'var(--navy-light)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso al entorno del diplomado.'}</p>
+                  <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: 'var(--navy)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar</Link>
+                </div>
+              ))
+            )}
+          </div>
+
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Cursos Cortos</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+            {diplomas.filter(p => p.program_type === 'curso').length === 0 ? (
+              <p style={{ color: 'var(--text-muted)' }}>No tienes cursos asignados.</p>
+            ) : (
+              diplomas.filter(p => p.program_type === 'curso').map(program => (
+                <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <span style={{ background: 'var(--green-600)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--green-700)', lineHeight: '1.3' }}>{program.title}</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso directo a subtemas y clases.'}</p>
+                  <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: 'var(--green-600)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
+                </div>
+              ))
+            )}
+          </div>
+
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>
+          {loading ? (
+            <p style={{ color: 'var(--text-muted)' }}>Cargando agenda...</p>
+          ) : upcomingClasses.length === 0 ? (
+             <p style={{ color: 'var(--text-muted)' }}>No tienes clases próximas programadas.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {upcomingClasses.map(cls => {
+                const d = new Date(cls.class_date);
+                const day = d.getDate();
+                const month = d.toLocaleString('es-ES', { month: 'short' });
+                return (
+                  <div key={cls.id} style={{ display: 'flex', alignItems: 'center', padding: '1.5rem', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid #e2e8f0', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#eff6ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase' }}>{month}</span>
+                      <span style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>{day}</span>
+                    </div>
+                    <div style={{ flex: '1 1 200px' }}>
+                      <h4 style={{ margin: 0, color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>{cls.title}</h4>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa'} • {cls.duration || 0} min</p>
+                    </div>
+                    <Link to={getDiplomadoLink()} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Ir al Panel</Link>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Mis Cursos Cortos</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-          {diplomas.filter(p => p.program_type === 'curso').length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No tienes cursos asignados.</p>
-          ) : (
-            diplomas.filter(p => p.program_type === 'curso').map(program => (
-              <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1.25rem' }}>
-                <div style={{ marginBottom: '1rem' }}>
-                  <span style={{ background: 'var(--green-600)', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>Asignado</span>
-                </div>
-                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', color: 'var(--green-700)', lineHeight: '1.3' }}>{program.title}</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>{program.description || 'Acceso directo a subtemas y clases.'}</p>
-                <Link to={getDiplomadoLink(program.id)} className="btn" style={{ background: 'var(--green-600)', color: 'white', border: 'none', textAlign: 'center', width: '100%', padding: '0.5rem' }}>Entrar al Curso</Link>
+        <div className="portal-sidebar">
+          <div className="card" style={{ background: '#f8fafc', border: 'none', boxShadow: 'none' }}>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Resumen Docente</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Clases Asignadas</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{classes.length}</span>
               </div>
-            ))
-          )}
-        </div>
-
-        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Próximas Clases en Agenda</h2>
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando agenda...</p>
-        ) : upcomingClasses.length === 0 ? (
-           <p style={{ color: 'var(--text-muted)' }}>No tienes clases próximas programadas.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {upcomingClasses.map(cls => {
-              const d = new Date(cls.class_date);
-              const day = d.getDate();
-              const month = d.toLocaleString('es-ES', { month: 'short' });
-              return (
-                <div key={cls.id} style={{ display: 'flex', alignItems: 'center', padding: '1.5rem', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid #e2e8f0', gap: '1rem' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#eff6ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase' }}>{month}</span>
-                    <span style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>{day}</span>
-                  </div>
-                  <div style={{ flex: '1 1 200px' }}>
-                    <h4 style={{ margin: 0, color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>{cls.title}</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{cls.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa'} • {cls.duration || 0} min</p>
-                  </div>
-                  <Link to={getDiplomadoLink()} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>Ir al Panel</Link>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="portal-sidebar">
-        <div className="card" style={{ background: '#f8fafc', border: 'none', boxShadow: 'none' }}>
-          <h3 style={{ fontSize: '1.1rem', color: 'var(--text-dark)', marginBottom: '1.5rem' }}>Resumen Docente</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Clases Asignadas</span>
-              <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{classes.length}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Próximas Clases</span>
-              <span style={{ fontWeight: 'bold', color: '#e11d48' }}>{upcomingClasses.length} Pendientes</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Próximas Clases</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--navy)' }}>{upcomingClasses.length}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
     </div>
   );
 }
@@ -1095,17 +1283,19 @@ export default function Portal() {
 
   return (
     <div style={{ padding: '1rem 1rem 2.5rem 1rem', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* HEADER PRINCIPAL COMPARTIDO */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-          {role === 'admin' ? 'Panel de Control LIATER' : 'Mis Programas'}
-        </h1>
-        {role === 'student' && (
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-            Continúa tu formación y revisa tus próximos compromisos.
-          </p>
-        )}
-      </div>
+      {/* HEADER PRINCIPAL COMPARTIDO (Se oculta para profesores para usar el encabezado propio de Inicio docente) */}
+      {role !== 'teacher' && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
+            {role === 'admin' ? 'Panel de Control LIATER' : 'Mis Programas'}
+          </h1>
+          {role === 'student' && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
+              Continúa tu formación y revisa tus próximos compromisos.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* RENDERIZADO DINÁMICO SEGÚN ROL */}
       {role === 'admin' && <AdminPortal getDiplomadoLink={getDiplomadoLink} />}
