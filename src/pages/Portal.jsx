@@ -573,53 +573,130 @@ function TeacherPortal({ getDiplomadoLink }) {
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Cargando programas...</p>
         ) : filteredDiplomas.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>No tienes programas asignados en esta categoría.</p>
+          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <BookOpen size={40} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '1rem' }} />
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
+              No tienes programas en esta categoría
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+              Cuando tengas un programa asignado, aparecerá aquí.
+            </p>
+          </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
-            {filteredDiplomas.map(program => (
-              <div key={program.id} className="card" style={{ display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
-                {/* Portada del programa */}
-                <div style={{ height: '160px', background: program.image_url ? `url(${program.image_url}) center/cover` : 'linear-gradient(135deg, #14213d 0%, #1e2e52 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                  {!program.image_url && (
-                    <div style={{ textAlign: 'center', color: 'var(--gold)' }}>
-                      <BookOpen size={36} />
-                      <div style={{ fontSize: '0.8rem', fontWeight: 700, marginTop: '0.25rem', letterSpacing: '0.05em' }}>LIATER UNAL</div>
-                    </div>
-                  )}
-                </div>
-                
-                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <span style={{ 
-                      background: program.program_type === 'curso' ? '#e8f5ee' : 'var(--bg-light)', 
-                      color: program.program_type === 'curso' ? 'var(--green-700)' : 'var(--navy)', 
-                      padding: '0.35rem 0.75rem', 
-                      borderRadius: '9999px', 
-                      fontSize: '0.7rem', 
-                      fontWeight: 700, 
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
-                    }}>
-                      {program.program_type === 'curso' ? 'Curso Corto' : (program.program_type === 'taller' ? 'Taller' : 'Diplomado')}
-                    </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
+            {filteredDiplomas.map(program => {
+              // Métricas reales para este programa
+              const progClasses = classes.filter(c => 
+                (c.diploma_programs?.id === program.id) || 
+                (c.subtopics?.modules?.diploma_programs?.id === program.id) || 
+                (c.program_id === program.id)
+              );
+              const progClassCount = progClasses.length;
+              
+              const startOfToday = new Date();
+              startOfToday.setHours(0, 0, 0, 0);
+              const progUpcomingClass = progClasses.find(c => new Date(c.class_date) >= startOfToday);
+              const progNextClassStr = progUpcomingClass 
+                ? new Date(progUpcomingClass.class_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) 
+                : (progClassCount > 0 ? 'Programadas' : 'Pendiente');
+
+              return (
+                <div 
+                  key={program.id} 
+                  className="card teacher-summary-card" 
+                  style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    padding: 0, 
+                    overflow: 'hidden', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: 'var(--radius-lg)',
+                    background: 'var(--white)',
+                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+                    transition: 'all 200ms ease-in-out'
+                  }}
+                >
+                  {/* Portada visual superior compacta (110px) */}
+                  <div style={{ 
+                    height: '110px', 
+                    background: program.image_url ? `url(${program.image_url}) center/cover` : 'linear-gradient(135deg, #14213d 0%, #1e2e52 100%)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justify: 'center', 
+                    position: 'relative' 
+                  }}>
+                    {!program.image_url && (
+                      <div style={{ textAlign: 'center', color: 'var(--gold)' }}>
+                        <BookOpen size={30} />
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, marginTop: '0.2rem', letterSpacing: '0.05em' }}>LIATER UNAL</div>
+                      </div>
+                    )}
                   </div>
-
-                  <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 800, margin: '0 0 0.5rem 0', lineHeight: 1.3 }}>
-                    {program.title}
-                  </h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1.25rem 0', flexGrow: 1, lineHeight: 1.4 }}>
-                    {program.description || 'Acceso al entorno del programa.'}
-                  </p>
-
-                  <div style={{ marginTop: 'auto' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.35rem' }}>
-                      <span>Progreso</span>
-                      <span>0%</span>
+                  
+                  <div style={{ padding: '1.25rem 1.5rem 1.5rem 1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                    {/* Chips de tipo y estado */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                      <span style={{ 
+                        background: program.program_type === 'curso' ? '#e8f5ee' : 'var(--bg-light)', 
+                        color: program.program_type === 'curso' ? 'var(--green-700)' : 'var(--navy)', 
+                        padding: '0.25rem 0.65rem', 
+                        borderRadius: '9999px', 
+                        fontSize: '0.68rem', 
+                        fontWeight: 700, 
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                      }}>
+                        {program.program_type === 'curso' ? 'Curso Corto' : (program.program_type === 'taller' ? 'Taller' : 'Diplomado')}
+                      </span>
+                      <span style={{ 
+                        background: 'rgba(20, 33, 61, 0.05)', 
+                        color: 'var(--navy)', 
+                        padding: '0.25rem 0.65rem', 
+                        borderRadius: '9999px', 
+                        fontSize: '0.68rem', 
+                        fontWeight: 700 
+                      }}>
+                        Asignado
+                      </span>
                     </div>
-                    <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', marginBottom: '1.25rem', overflow: 'hidden' }}>
-                      <div style={{ width: '0%', height: '100%', background: 'var(--navy)', borderRadius: '3px' }} />
+
+                    {/* Título del programa (Sin descripción larga) */}
+                    <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 800, margin: '0 0 1rem 0', lineHeight: 1.3 }}>
+                      {program.title}
+                    </h3>
+
+                    {/* Métricas docentes compactas */}
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(2, 1fr)', 
+                      gap: '0.75rem', 
+                      background: 'rgba(20, 33, 61, 0.03)', 
+                      border: '1px solid rgba(20, 33, 61, 0.06)', 
+                      borderRadius: '8px', 
+                      padding: '0.75rem 1rem', 
+                      marginBottom: '1.25rem',
+                      marginTop: 'auto'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Clases asignadas
+                        </div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)' }}>
+                          {progClassCount}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Próxima clase
+                        </div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--navy)', textTransform: 'capitalize' }}>
+                          {progNextClassStr}
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Botón de Acción Principal */}
                     <Link 
                       to={getDiplomadoLink(program.id)} 
                       className="btn" 
@@ -637,12 +714,12 @@ function TeacherPortal({ getDiplomadoLink }) {
                         textDecoration: 'none'
                       }}
                     >
-                      Comenzar →
+                      Entrar al programa
                     </Link>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
