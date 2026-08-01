@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { updateDoubtStatus } from '../services/doubtService';
 import { formatClassDate } from '../utils/dateUtils';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   BookOpen, Video, FileText, Megaphone, Presentation,
   Play, Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
   CalendarDays, Timer, ShieldAlert, Eye, Pencil, Trash2,
-  AlertCircle, Info, Layers, X, User, MessageSquare, Users
+  AlertCircle, Info, Layers, X, User, MessageSquare, Users,
+  Search, Filter, Check, Archive, RefreshCw, FileCheck
 } from 'lucide-react';
+
 
 import './TeacherPanel.css';
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ─────────────────────────────────────────
    HELPERS & CONFIG
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+───────────────────────────────────────── */
 // Context para pasar el teacher_profile completo a todos los tabs
 const TeacherContext = React.createContext(null);
 const useTeacherContext = () => React.useContext(TeacherContext);
@@ -41,212 +44,6 @@ function TagPill({ tag }) {
   return <span className={`announcement-tag ${map[tag] ?? 'tag-general'}`}>{labels[tag] ?? tag}</span>;
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 1 — Resumen (Hero + stats rápidas)
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function ResumenTab({ onChangeTab }) {
-  const { profile, programId, currentProgram } = useTeacherContext();
-  const [stats, setStats] = useState({ totalClasses: 0, completed: 0, upcoming: 0, announcements: 0, students: 0, questions: 2 });
-  const [loading, setLoading] = useState(true);
-  const [upcomingClasses, setUpcomingClasses] = useState([]);
-
-  useEffect(() => {
-    async function fetchStats() {
-      if (!programId) return;
-      try {
-        const pClasses = supabase.from('class_sessions')
-          .select('id, title, class_date, program_id, duration, description')
-          .eq('program_id', programId)
-          .order('class_date', { ascending: true });
-          
-        const pAnnouncements = supabase.from('announcements')
-          .select('*', { count: 'exact', head: true })
-          .eq('program_id', programId);
-          
-        const pStudents = supabase.from('enrollments')
-          .select('student_id, users_profile!inner(role)', { count: 'exact', head: true })
-          .eq('program_id', programId)
-          .eq('users_profile.role', 'student');
-        
-        const [resClasses, resAnn, resStudents] = await Promise.all([pClasses, pAnnouncements, pStudents]);
-        
-        const classes = resClasses.data || [];
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-
-        const completed = classes.filter(c => new Date(c.class_date) < startOfToday).length;
-        const upcomingList = classes.filter(c => new Date(c.class_date) >= startOfToday);
-        const displayUpcoming = upcomingList.length > 0 ? upcomingList : classes;
-        
-        setUpcomingClasses(displayUpcoming.slice(0, 3));
-
-        setStats({
-          totalClasses: classes.length,
-          completed,
-          upcoming: upcomingList.length || classes.length,
-          announcements: resAnn.count || 0,
-          students: resStudents.count || 0,
-          questions: 2
-        });
-      } catch (err) {
-        console.error('Error fetching teacher stats', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchStats();
-  }, [profile?.id, programId]);
-
-  const pendingQuestions = [
-    { id: 1, question: '¿Cómo puedo acceder a la presentación de la clase 2?', topic: 'Clase 2', time: 'Hace 35 min', status: 'Sin responder' },
-    { id: 2, question: 'No entiendo el ejemplo del módulo 1', topic: 'Módulo 1', time: 'Hace 2 h', status: 'En revisión' }
-  ];
-
-  if (loading) {
-    return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando resumen del programa...</div>;
-  }
-
-  return (
-    <div>
-      {/* 1. Encabezado del programa */}
-      <div className="card" style={{ padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-        <div>
-           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
-             {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'}
-           </div>
-           <h1 style={{ fontSize: '1.5rem', color: 'var(--navy)', margin: '0 0 0.5rem 0' }}>{currentProgram?.title || 'Cargando programa...'}</h1>
-           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-             <span>Profesor asignado: <strong style={{color: 'var(--navy)'}}>{profile.name}</strong></span>
-             <span style={{opacity: 0.5}}>•</span>
-             <span style={{ color: 'var(--green-600)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-               <div style={{width:'8px', height:'8px', borderRadius:'50%', background:'var(--green-600)'}}></div> Programa activo
-             </span>
-             <span style={{opacity: 0.5}}>•</span>
-             <span><strong>{stats.students}</strong> estudiantes</span>
-           </div>
-        </div>
-        <button className="btn btn-navy" onClick={() => onChangeTab('anuncios')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
-          <Megaphone size={16} /> Crear anuncio
-        </button>
-      </div>
-
-      {/* 2. Primera fila de indicadores */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #dc2626' }}>
-           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.questions}</span>
-           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>PREGUNTAS PENDIENTES</span>
-        </div>
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #f59e0b' }}>
-           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.upcoming}</span>
-           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>PRÓXIMAS CLASES</span>
-        </div>
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #10b981' }}>
-           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.announcements}</span>
-           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>ANUNCIOS ACTIVOS</span>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem' }}>
-         {/* 3. Columna principal */}
-         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            
-            {/* Preguntas que requieren atención */}
-            <div className="card" style={{ padding: '1.5rem' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                 <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Preguntas que requieren atención</h3>
-                 <button onClick={() => onChangeTab('dudas')} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Ver preguntas</button>
-               </div>
-               
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                 {pendingQuestions.length === 0 ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-light)', borderRadius: '8px' }}>
-                      <MessageSquare size={24} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                      <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay preguntas pendientes por el momento.</p>
-                    </div>
-                 ) : (
-                    pendingQuestions.map(q => (
-                       <div key={q.id} style={{ padding: '1.25rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--white)' }}>
-                          <div style={{ fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>{q.question}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                             {q.topic} <span style={{margin:'0 4px', opacity:0.5}}>•</span> {q.time} <span style={{margin:'0 4px', opacity:0.5}}>•</span> 
-                             <span style={{ color: q.status === 'Sin responder' ? '#dc2626' : '#f59e0b', fontWeight: 600 }}>{q.status}</span>
-                          </div>
-                       </div>
-                    ))
-                 )}
-               </div>
-            </div>
-
-            {/* Próximas clases */}
-            <div className="card" style={{ padding: '1.5rem' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                 <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Próximas clases</h3>
-                 <button onClick={() => onChangeTab('clases')} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Ver clases</button>
-               </div>
-               
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                 {upcomingClasses.length === 0 ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-light)', borderRadius: '8px' }}>
-                      <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay próximas clases programadas.</p>
-                    </div>
-                 ) : (
-                    upcomingClasses.map(c => (
-                       <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--white)' }}>
-                          <div style={{ background: 'rgba(252, 163, 17, 0.15)', color: 'var(--gold-dark)', padding: '0.6rem', borderRadius: '8px' }}>
-                            <CalendarDays size={20} />
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '0.95rem' }}>{c.title}</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{new Date(c.class_date).toLocaleDateString('es-ES', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
-                          </div>
-                       </div>
-                    ))
-                 )}
-               </div>
-            </div>
-         </div>
-
-         {/* 4. Columna secundaria */}
-         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div className="card" style={{ padding: '1.5rem' }}>
-               <h3 style={{ margin: '0 0 1.25rem 0', color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Actividad reciente</h3>
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <button 
-                     onClick={() => onChangeTab('dudas')} 
-                     style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
-                     onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                     onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                  >
-                     <div style={{ background: 'var(--white)', padding: '0.5rem', borderRadius: '50%', color: 'var(--navy)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                       <MessageSquare size={16} />
-                     </div>
-                     <div>
-                       <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>Responder consultas</div>
-                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ir a dudas de estudiantes</div>
-                     </div>
-                  </button>
-
-                  <button 
-                     onClick={() => onChangeTab('anuncios')} 
-                     style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
-                     onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                     onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                  >
-                     <div style={{ background: 'var(--white)', padding: '0.5rem', borderRadius: '50%', color: 'var(--navy)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                       <Megaphone size={16} />
-                     </div>
-                     <div>
-                       <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>Crear anuncio</div>
-                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Comunicado general al grupo</div>
-                     </div>
-                  </button>
-               </div>
-            </div>
-         </div>
-      </div>
-    </div>
-  );
-}
 
 
 
@@ -1160,24 +957,737 @@ function PerfilTab() {
 }
 
 /* ─────────────────────────────────────────
-   TAB: Dudas de estudiantes
+   HELPER COMPONENT: StatusChip
 ───────────────────────────────────────── */
-function DudasTab() {
+function StatusChip({ status }) {
+  const configs = {
+    enviada: { bg: '#dbeafe', color: '#1e40af', icon: <Clock size={13} />, label: 'Enviada (Sin revisar)' },
+    revisada: { bg: '#fef3c7', color: '#92400e', icon: <Eye size={13} />, label: 'Revisada' },
+    atendida: { bg: '#dcfce7', color: '#166534', icon: <CheckCircle2 size={13} />, label: 'Atendida en clase' },
+    archivada: { bg: '#f1f5f9', color: '#475569', icon: <Layers size={13} />, label: 'Archivada' }
+  };
+  const cfg = configs[status] || configs.enviada;
   return (
-    <div className="card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
-      <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.05)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
-        <MessageSquare size={30} />
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.35rem',
+      padding: '0.25rem 0.65rem',
+      borderRadius: '12px',
+      fontSize: '0.74rem',
+      fontWeight: 600,
+      background: cfg.bg,
+      color: cfg.color
+    }}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
+/* ─────────────────────────────────────────
+   TAB 1 — Resumen (Hero + stats rápidas)
+───────────────────────────────────────── */
+function ResumenTab({ onChangeTab }) {
+  const { profile, programId, currentProgram } = useTeacherContext();
+  const [stats, setStats] = useState({ totalClasses: 0, completed: 0, upcoming: 0, announcements: 0, students: 0, questions: 0 });
+  const [loading, setLoading] = useState(true);
+  const [upcomingClasses, setUpcomingClasses] = useState([]);
+  const [pendingDoubts, setPendingDoubts] = useState([]);
+
+  const fetchStatsAndDoubts = async () => {
+    if (!programId) return;
+    try {
+      setLoading(true);
+
+      const pClasses = supabase.from('class_sessions')
+        .select('id, title, class_date, program_id, duration, description')
+        .eq('program_id', programId)
+        .order('class_date', { ascending: true });
+        
+      const pAnnouncements = supabase.from('announcements')
+        .select('*', { count: 'exact', head: true })
+        .eq('program_id', programId);
+        
+      const pStudents = supabase.from('enrollments')
+        .select('student_id, users_profile!inner(role)', { count: 'exact', head: true })
+        .eq('program_id', programId)
+        .eq('users_profile.role', 'student');
+
+      // Consultar dudas no revisadas ('enviada') para el contador dinámico
+      const pUnreviewedDoubts = supabase.from('class_doubts')
+        .select('*', { count: 'exact', head: true })
+        .eq('program_id', programId)
+        .eq('status', 'enviada');
+
+      // Consultar las últimas dudas recibidas que requieren atención
+      const pTopDoubts = supabase.from('class_doubts')
+        .select(`
+          *,
+          class_sessions (id, title),
+          users_profile:student_id (full_name)
+        `)
+        .eq('program_id', programId)
+        .in('status', ['enviada', 'revisada'])
+        .order('created_at', { ascending: false })
+        .limit(3);
+      
+      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts] = await Promise.all([
+        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts
+      ]);
+      
+      const classes = resClasses.data || [];
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const completed = classes.filter(c => new Date(c.class_date) < startOfToday).length;
+      const upcomingList = classes.filter(c => new Date(c.class_date) >= startOfToday);
+      const displayUpcoming = upcomingList.length > 0 ? upcomingList : classes;
+      
+      setUpcomingClasses(displayUpcoming.slice(0, 3));
+      setPendingDoubts(resTopDoubts.data || []);
+
+      setStats({
+        totalClasses: classes.length,
+        completed,
+        upcoming: upcomingList.length || classes.length,
+        announcements: resAnn.count || 0,
+        students: resStudents.count || 0,
+        questions: resUnreviewed.count || 0
+      });
+    } catch (err) {
+      console.error('Error fetching teacher stats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatsAndDoubts();
+  }, [profile?.id, programId]);
+
+  // Actualizar estado de una duda directamente desde el Resumen y actualizar contador en caliente
+  const handleQuickStatusChange = async (doubtId, newStatus) => {
+    setPendingDoubts(prev => prev.map(d => d.id === doubtId ? { ...d, status: newStatus } : d));
+    
+    // Si la duda pasa de 'enviada' a otro estado, decrementar el contador dinámicamente
+    const target = pendingDoubts.find(d => d.id === doubtId);
+    if (target && target.status === 'enviada' && newStatus !== 'enviada') {
+      setStats(prev => ({ ...prev, questions: Math.max(0, prev.questions - 1) }));
+    }
+
+    await updateDoubtStatus(doubtId, newStatus);
+  };
+
+  if (loading) {
+    return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando resumen del programa...</div>;
+  }
+
+  return (
+    <div>
+      {/* 1. Encabezado del programa */}
+      <div className="card" style={{ padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+        <div>
+           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+             {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'}
+           </div>
+           <h1 style={{ fontSize: '1.5rem', color: 'var(--navy)', margin: '0 0 0.5rem 0' }}>{currentProgram?.title || 'Cargando programa...'}</h1>
+           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+             <span>Profesor asignado: <strong style={{color: 'var(--navy)'}}>{profile.name}</strong></span>
+             <span style={{opacity: 0.5}}>•</span>
+             <span style={{ color: 'var(--green-600)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+               <div style={{width:'8px', height:'8px', borderRadius:'50%', background:'var(--green-600)'}}></div> Programa activo
+             </span>
+             <span style={{opacity: 0.5}}>•</span>
+             <span><strong>{stats.students}</strong> estudiantes</span>
+           </div>
+        </div>
+        <button className="btn btn-navy" onClick={() => onChangeTab('anuncios')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+          <Megaphone size={16} /> Crear anuncio
+        </button>
       </div>
-      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>Dudas e Inquietudes de Estudiantes</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '500px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
-        Atiende las consultas recibidas de los estudiantes matriculados en este programa o revisa la bandeja general.
-      </p>
-      <Link to="/soporte" className="btn btn-navy" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.25rem', fontWeight: 600 }}>
-        Ir a Bandeja de Consultas
-      </Link>
+
+      {/* 2. Primera fila de indicadores */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid var(--gold-dark)' }}>
+           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.questions}</span>
+           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>DUDAS POR REVISAR</span>
+        </div>
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #f59e0b' }}>
+           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.upcoming}</span>
+           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>PRÓXIMAS CLASES</span>
+        </div>
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #10b981' }}>
+           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.announcements}</span>
+           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>ANUNCIOS ACTIVOS</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem' }}>
+         {/* 3. Columna principal */}
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            
+            {/* Dudas que requieren atención */}
+            <div className="card" style={{ padding: '1.5rem' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                 <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Dudas que requieren atención</h3>
+                 <button onClick={() => onChangeTab('dudas')} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Ver todas las dudas</button>
+               </div>
+               
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                 {pendingDoubts.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-light)', borderRadius: '8px' }}>
+                      <MessageSquare size={24} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                      <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>No hay dudas pendientes por el momento.</p>
+                      <span style={{ fontSize: '0.78rem' }}>Las dudas enviadas por los estudiantes aparecerán organizadas aquí.</span>
+                    </div>
+                 ) : (
+                    pendingDoubts.map(d => (
+                       <div key={d.id} style={{ padding: '1.25rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--white)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                            <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '0.95rem' }}>{d.subject}</div>
+                            <StatusChip status={d.status} />
+                          </div>
+                          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '0 0 0.75rem 0', lineHeight: 1.4 }}>
+                            {d.description?.length > 120 ? `${d.description.substring(0, 120)}...` : d.description}
+                          </p>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                             <span>Estudiante: <strong style={{ color: 'var(--navy)' }}>{d.users_profile?.full_name || 'Estudiante'}</strong> • {d.class_sessions?.title || 'Clase'}</span>
+                             <div style={{ display: 'flex', gap: '0.4rem' }}>
+                               {d.status === 'enviada' && (
+                                 <button onClick={() => handleQuickStatusChange(d.id, 'revisada')} className="btn btn-outline" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}>
+                                   <Eye size={12} /> Marcar revisada
+                                 </button>
+                               )}
+                               {d.status !== 'atendida' && (
+                                 <button onClick={() => handleQuickStatusChange(d.id, 'atendida')} className="btn btn-outline" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', color: '#166534', borderColor: '#bbf7d0' }}>
+                                   <CheckCircle2 size={12} /> Atendida en clase
+                                 </button>
+                               )}
+                             </div>
+                          </div>
+                       </div>
+                    ))
+                 )}
+               </div>
+            </div>
+
+            {/* Próximas clases */}
+            <div className="card" style={{ padding: '1.5rem' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                 <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Próximas clases</h3>
+                 <button onClick={() => onChangeTab('clases')} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Ver clases</button>
+               </div>
+               
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                 {upcomingClasses.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-light)', borderRadius: '8px' }}>
+                      <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay próximas clases programadas.</p>
+                    </div>
+                 ) : (
+                    upcomingClasses.map(c => (
+                       <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--white)' }}>
+                          <div style={{ background: 'rgba(252, 163, 17, 0.15)', color: 'var(--gold-dark)', padding: '0.6rem', borderRadius: '8px' }}>
+                            <CalendarDays size={20} />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '0.95rem' }}>{c.title}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{new Date(c.class_date).toLocaleDateString('es-ES', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
+                          </div>
+                       </div>
+                    ))
+                 )}
+               </div>
+            </div>
+
+         </div>
+
+         {/* 4. Columna secundaria (Resumen de programa) */}
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+               <h3 style={{ margin: '0 0 1rem 0', color: 'var(--navy)', fontSize: '1.05rem', fontWeight: 700 }}>Resumen del Programa</h3>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Total Clases:</span>
+                    <strong style={{ color: 'var(--navy)' }}>{stats.totalClasses}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Clases Completadas:</span>
+                    <strong style={{ color: 'var(--green-600)' }}>{stats.completed}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Clases Pendientes:</span>
+                    <strong style={{ color: 'var(--navy)' }}>{stats.upcoming}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Estudiantes Matriculados:</span>
+                    <strong style={{ color: 'var(--navy)' }}>{stats.students}</strong>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </div>
     </div>
   );
 }
+
+/* ─────────────────────────────────────────
+   TAB 3: Dudas de estudiantes (Gestión Docente)
+───────────────────────────────────────── */
+function DudasTab() {
+  const { programId, currentProgram } = useTeacherContext();
+  const [doubts, setDoubts] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filtros
+  const [statusFilter, setStatusFilter] = useState('todos');
+  const [classFilter, setClassFilter] = useState('todos');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateOrder, setDateOrder] = useState('desc');
+
+  // Modal de Detalle
+  const [selectedDoubt, setSelectedDoubt] = useState(null);
+
+  const fetchDoubtsAndClasses = async () => {
+    if (!programId) return;
+    try {
+      setLoading(true);
+
+      // 1. Cargar clases del programa
+      const { data: clsData } = await supabase
+        .from('class_sessions')
+        .select('id, title')
+        .eq('program_id', programId)
+        .order('order_index', { ascending: true });
+      setClasses(clsData || []);
+
+      // 2. Cargar dudas del programa con relaciones
+      const { data: doubtData, error } = await supabase
+        .from('class_doubts')
+        .select(`
+          *,
+          class_sessions (
+            id,
+            title
+          ),
+          users_profile:student_id (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq('program_id', programId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setDoubts(doubtData || []);
+    } catch (err) {
+      console.error('Error al cargar dudas del estudiante:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDoubtsAndClasses();
+  }, [programId]);
+
+  // Actualización de estado en caliente (optimista y persistida)
+  const handleStatusUpdate = async (doubtId, newStatus) => {
+    setDoubts(prev => prev.map(d => d.id === doubtId ? { ...d, status: newStatus } : d));
+    if (selectedDoubt && selectedDoubt.id === doubtId) {
+      setSelectedDoubt(prev => prev ? { ...prev, status: newStatus } : null);
+    }
+    await updateDoubtStatus(doubtId, newStatus);
+  };
+
+  // Filtrado dinámico
+  const filteredDoubts = doubts.filter(d => {
+    const matchesStatus = statusFilter === 'todos' || d.status === statusFilter;
+    const matchesClass = classFilter === 'todos' || d.class_id === classFilter;
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm.trim() ||
+      d.subject?.toLowerCase().includes(searchLower) ||
+      d.description?.toLowerCase().includes(searchLower) ||
+      d.users_profile?.full_name?.toLowerCase().includes(searchLower) ||
+      d.users_profile?.email?.toLowerCase().includes(searchLower);
+
+    return matchesStatus && matchesClass && matchesSearch;
+  }).sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime();
+    const dateB = new Date(b.created_at).getTime();
+    return dateOrder === 'desc' ? dateB - dateA : dateA - dateB;
+  });
+
+  const countByStatus = (st) => doubts.filter(d => d.status === st).length;
+
+  if (loading) {
+    return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando dudas de estudiantes...</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      
+      {/* ENCABEZADO Y RESUMEN DE ESTADOS */}
+      <div className="card" style={{ padding: '1.5rem', background: 'var(--white)', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <MessageSquare size={20} color="var(--gold-dark)" /> Bandeja de Consultas e Inquietudes
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: '4px 0 0 0' }}>
+              Revisa y gestiona las dudas enviadas por los estudiantes del programa <strong>{currentProgram?.title}</strong> para atenderlas durante las sesiones de clase.
+            </p>
+          </div>
+          <button onClick={fetchDoubtsAndClasses} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <RefreshCw size={14} /> Actualizar
+          </button>
+        </div>
+
+        {/* CONTADORES RÁPIDOS POR ESTADO */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+          <div
+            onClick={() => setStatusFilter('todos')}
+            style={{
+              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
+              background: statusFilter === 'todos' ? '#f1f5f9' : 'transparent',
+              border: statusFilter === 'todos' ? '1px solid var(--navy)' : '1px solid var(--border-color)',
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>{doubts.length}</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Todas</div>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter('enviada')}
+            style={{
+              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
+              background: statusFilter === 'enviada' ? '#dbeafe' : 'transparent',
+              border: statusFilter === 'enviada' ? '1px solid #1e40af' : '1px solid var(--border-color)',
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e40af' }}>{countByStatus('enviada')}</div>
+            <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Enviadas</div>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter('revisada')}
+            style={{
+              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
+              background: statusFilter === 'revisada' ? '#fef3c7' : 'transparent',
+              border: statusFilter === 'revisada' ? '1px solid #92400e' : '1px solid var(--border-color)',
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#92400e' }}>{countByStatus('revisada')}</div>
+            <div style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 600 }}>Revisadas</div>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter('atendida')}
+            style={{
+              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
+              background: statusFilter === 'atendida' ? '#dcfce7' : 'transparent',
+              border: statusFilter === 'atendida' ? '1px solid #166534' : '1px solid var(--border-color)',
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#166534' }}>{countByStatus('atendida')}</div>
+            <div style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 600 }}>Atendidas en clase</div>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter('archivada')}
+            style={{
+              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
+              background: statusFilter === 'archivada' ? '#f1f5f9' : 'transparent',
+              border: statusFilter === 'archivada' ? '1px solid #475569' : '1px solid var(--border-color)',
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#475569' }}>{countByStatus('archivada')}</div>
+            <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 600 }}>Archivadas</div>
+          </div>
+        </div>
+      </div>
+
+      {/* BARRA DE FILTROS Y BÚSQUEDA */}
+      <div className="card" style={{ padding: '1rem 1.25rem', background: 'var(--white)', borderRadius: '12px', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        
+        {/* BUSCADOR POR TEXTO */}
+        <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+          <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por asunto, estudiante o contenido..."
+            style={{
+              width: '100%',
+              padding: '0.45rem 0.85rem 0.45rem 2.2rem',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              fontSize: '0.84rem'
+            }}
+          />
+        </div>
+
+        {/* FILTRO POR CLASE */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
+          <Filter size={14} color="var(--text-muted)" />
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            style={{ padding: '0.45rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem', background: '#fff' }}
+          >
+            <option value="todos">Todas las clases</option>
+            {classes.map(c => (
+              <option key={c.id} value={c.id}>{c.title}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* ORDEN POR FECHA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
+          <Clock size={14} color="var(--text-muted)" />
+          <select
+            value={dateOrder}
+            onChange={(e) => setDateOrder(e.target.value)}
+            style={{ padding: '0.45rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem', background: '#fff' }}
+          >
+            <option value="desc">Más recientes primero</option>
+            <option value="asc">Más antiguas primero</option>
+          </select>
+        </div>
+
+      </div>
+
+      {/* LISTADO DE DUDAS / ESTADO VACÍO */}
+      {filteredDoubts.length === 0 ? (
+        <div className="card" style={{ padding: '3rem 1.5rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(202, 138, 4, 0.08)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
+            <MessageSquare size={32} />
+          </div>
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+            No hay dudas por revisar
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '480px', margin: '0 auto', lineHeight: 1.5 }}>
+            Las dudas enviadas por los estudiantes aparecerán aquí, organizadas por programa y clase.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {filteredDoubts.map(d => (
+            <div
+              key={d.id}
+              className="card"
+              style={{
+                padding: '1.25rem',
+                background: 'var(--white)',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+                transition: 'border-color 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '4px', flexWrap: 'wrap' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--navy)' }}>
+                      {d.subject}
+                    </h4>
+                    <StatusChip status={d.status} />
+                  </div>
+
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #475569)', margin: '0 0 0.6rem 0', lineHeight: 1.45 }}>
+                    {d.description?.length > 180 ? `${d.description.substring(0, 180)}...` : d.description}
+                  </p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                    <span>Estudiante: <strong style={{ color: 'var(--navy)' }}>{d.users_profile?.full_name || 'Estudiante'}</strong> ({d.users_profile?.email || 'Sin correo'})</span>
+                    <span>•</span>
+                    <span>Clase: <strong style={{ color: 'var(--navy)' }}>{d.class_sessions?.title || 'Clase'}</strong></span>
+                    <span>•</span>
+                    <span>Fecha: {new Date(d.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+
+                {/* ACCIONES DEL DOCENTE (SIN OPCIONES DE ESCRIBIR RESPUESTAS) */}
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    onClick={() => setSelectedDoubt(d)}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Eye size={13} /> Ver detalle
+                  </button>
+
+                  {d.status !== 'revisada' && (
+                    <button
+                      onClick={() => handleStatusUpdate(d.id, 'revisada')}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <Eye size={13} /> Marcar revisada
+                    </button>
+                  )}
+
+                  {d.status !== 'atendida' && (
+                    <button
+                      onClick={() => handleStatusUpdate(d.id, 'atendida')}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#166534', borderColor: '#bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <CheckCircle2 size={13} /> Atendida en clase
+                    </button>
+                  )}
+
+                  {d.status !== 'archivada' && (
+                    <button
+                      onClick={() => handleStatusUpdate(d.id, 'archivada')}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#475569', borderColor: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <Layers size={13} /> Archivar
+                    </button>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* MODAL DE DETALLE COMPLETO DE LA DUDA */}
+      {selectedDoubt && (
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 2000, padding: '1rem'
+          }}
+          onClick={() => setSelectedDoubt(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto',
+              background: '#ffffff', borderRadius: '16px', padding: '1.75rem',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* CERRAR */}
+            <button
+              type="button"
+              onClick={() => setSelectedDoubt(null)}
+              style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* HEADER DEL MODAL */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <MessageSquare size={22} color="var(--gold-dark)" />
+              </div>
+              <div>
+                <StatusChip status={selectedDoubt.status} />
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  {selectedDoubt.subject}
+                </h3>
+              </div>
+            </div>
+
+            {/* METADATOS COMPLETOS */}
+            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', fontSize: '0.82rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', border: '1px solid var(--border-color)' }}>
+              <div>
+                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Estudiante:</span>
+                <strong style={{ color: 'var(--navy)' }}>{selectedDoubt.users_profile?.full_name || 'Estudiante'}</strong>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{selectedDoubt.users_profile?.email || 'Sin correo'}</div>
+              </div>
+
+              <div>
+                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Clase vinculada:</span>
+                <strong style={{ color: 'var(--navy)' }}>{selectedDoubt.class_sessions?.title || 'Clase'}</strong>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                  Enviada el: {new Date(selectedDoubt.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+
+            {/* CONTENIDO DE LA CONSULTA */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                Descripción de la duda:
+              </label>
+              <div style={{ background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem', fontSize: '0.88rem', color: 'var(--navy)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                {selectedDoubt.description}
+              </div>
+            </div>
+
+            {/* AVISO EXPLICATIVO DOCENTE */}
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.82rem', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Info size={16} color="#2563eb" style={{ flexShrink: 0 }} />
+              <span>Esta duda será atendida por el docente durante la sesión de clase o espacio académico correspondiente.</span>
+            </div>
+
+            {/* ACCIONES RÁPIDAS DE ESTADO */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', flexWrap: 'wrap', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              {selectedDoubt.status !== 'revisada' && (
+                <button
+                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'revisada')}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#92400e', borderColor: '#fde68a' }}
+                >
+                  <Eye size={14} /> Marcar como revisada
+                </button>
+              )}
+
+              {selectedDoubt.status !== 'atendida' && (
+                <button
+                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'atendida')}
+                  className="btn"
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', background: '#166534', color: '#fff', border: 'none' }}
+                >
+                  <CheckCircle2 size={14} /> Atendida en clase
+                </button>
+              )}
+
+              {selectedDoubt.status !== 'archivada' && (
+                <button
+                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'archivada')}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#475569' }}
+                >
+                  <Layers size={14} /> Archivar
+                </button>
+              )}
+
+              <button
+                onClick={() => setSelectedDoubt(null)}
+                className="btn btn-outline"
+                style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem' }}
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 
 /* ─────────────────────────────────────────
    TAB: Estudiantes
