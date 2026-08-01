@@ -133,7 +133,27 @@ function ConfirmModal({ isOpen, title, message, note, confirmText = 'Eliminar', 
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+
+        {note && (
+          <div style={{
+            backgroundColor: '#fffbe6',
+            border: '1px solid #fde68a',
+            borderRadius: '8px',
+            padding: '0.75rem 1rem',
+            marginBottom: '0.5rem',
+            fontSize: '0.825rem',
+            color: '#92400e',
+            lineHeight: 1.45,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.5rem'
+          }}>
+            <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: '2px', color: '#d97706' }} />
+            <span><strong>Nota:</strong> {note}</span>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
           <button
             type="button"
             onClick={onClose}
@@ -754,6 +774,19 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
   const [success, setSuccess] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
 
+  // Estado para el modal de confirmación personalizado
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    note: '',
+    confirmText: 'Eliminar',
+    onConfirm: null,
+    loading: false
+  });
+
+  const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false, loading: false }));
+
   useEffect(() => {
     setSelectedIds([]);
   }, [modules]);
@@ -772,42 +805,107 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
     );
   };
 
-  const handleBulkDelete = async () => {
+  const promptBulkDelete = () => {
     if (selectedIds.length === 0) return;
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar los ${selectedIds.length} módulos seleccionados?\n\nNota: Los módulos que tengan subtemas asociados no se podrán eliminar.`);
-    if (!confirmed) return;
+    const count = selectedIds.length;
+    setModalConfig({
+      isOpen: true,
+      title: `Eliminar ${count} ${count === 1 ? 'Módulo' : 'Módulos'}`,
+      message: `¿Estás seguro de que deseas eliminar los ${count} módulos seleccionados?`,
+      note: 'Los módulos que tengan subtemas asociados no podrán ser eliminados hasta remover sus contenidos.',
+      confirmText: `Eliminar (${count})`,
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          const { data: subtopicData } = await supabase
+            .from('subtopics')
+            .select('module_id')
+            .in('module_id', selectedIds);
 
-    try {
-      const { data: subtopicData } = await supabase
-        .from('subtopics')
-        .select('module_id')
-        .in('module_id', selectedIds);
+          const blockedModuleIds = new Set((subtopicData || []).map(s => s.module_id));
+          const deletableIds = selectedIds.filter(id => !blockedModuleIds.has(id));
 
-      const blockedModuleIds = new Set((subtopicData || []).map(s => s.module_id));
-      const deletableIds = selectedIds.filter(id => !blockedModuleIds.has(id));
+          if (deletableIds.length === 0) {
+            closeModal();
+            setTimeout(() => {
+              setModalConfig({
+                isOpen: true,
+                title: 'No se puede eliminar',
+                message: 'Ninguno de los módulos seleccionados se puede eliminar porque todos tienen subtemas asociados.',
+                confirmText: 'Entendido',
+                onConfirm: closeModal
+              });
+            }, 100);
+            return;
+          }
 
-      if (deletableIds.length === 0) {
-        alert('Ninguno de los módulos seleccionados se puede eliminar porque todos tienen subtemas asociados.');
-        return;
+          const { error: delErr } = await supabase
+            .from('modules')
+            .delete()
+            .in('id', deletableIds);
+
+          if (delErr) throw delErr;
+
+          setSelectedIds([]);
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error en eliminación múltiple:', err);
+        }
       }
+    });
+  };
 
-      const { error: delErr } = await supabase
-        .from('modules')
-        .delete()
-        .in('id', deletableIds);
+  const promptSingleDelete = (m) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Eliminar Módulo',
+      message: `¿Estás seguro de que deseas eliminar permanentemente el módulo "${m.title}"?`,
+      note: 'Esta acción no se podrá deshacer y eliminará sus contenidos asociados.',
+      confirmText: 'Eliminar Módulo',
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          const { count, error: countError } = await supabase
+            .from('subtopics')
+            .select('*', { count: 'exact', head: true })
+            .eq('module_id', m.id);
 
-      if (delErr) throw delErr;
+          if (countError) throw countError;
 
-      let msg = `${deletableIds.length} módulo(s) eliminado(s) exitosamente.`;
-      if (blockedModuleIds.size > 0) {
-        msg += ` (${blockedModuleIds.size} módulo(s) no se eliminaron por contener subtemas).`;
+          if (count && count > 0) {
+            closeModal();
+            setTimeout(() => {
+              setModalConfig({
+                isOpen: true,
+                title: 'Operación Denegada',
+                message: `No se puede eliminar el módulo "${m.title}" porque tiene ${count} subtema(s) asociado(s).`,
+                note: 'Para eliminarlo de forma segura, primero debes eliminar o reasignar sus subtemas.',
+                confirmText: 'Entendido',
+                onConfirm: closeModal
+              });
+            }, 100);
+            return;
+          }
+
+          const { error: deleteError } = await supabase
+            .from('modules')
+            .delete()
+            .eq('id', m.id);
+
+          if (deleteError) throw deleteError;
+
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error al eliminar módulo:', err);
+        }
       }
-      alert(msg);
-      setSelectedIds([]);
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error en la eliminación múltiple: ' + err.message);
-    }
+    });
   };
 
   // Limpiar el formulario al abrir modal de creación
@@ -826,39 +924,6 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
     setDescription(m.description || '');
     setOrderIndex(m.order_index || 1);
     setShowModal(true);
-  };
-
-  const handleDelete = async (m) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${m.title}"?`)) return;
-
-    try {
-      // Verificar si tiene subtemas asociados
-      const { count, error: countError } = await supabase
-        .from('subtopics')
-        .select('*', { count: 'exact', head: true })
-        .eq('module_id', m.id);
-      
-      if (countError) throw countError;
-
-      if (count && count > 0) {
-        alert(`Operación denegada:\n\nNo se puede eliminar el módulo "${m.title}" porque tiene ${count} subtema(s) asociado(s).\n\nPara eliminarlo de forma segura, primero debes reasignar o eliminar esos subtemas.`);
-        return;
-      }
-
-      // Eliminar el módulo
-      const { error: deleteError } = await supabase
-        .from('modules')
-        .delete()
-        .eq('id', m.id);
-
-      if (deleteError) throw deleteError;
-
-      alert('Módulo eliminado exitosamente.');
-      if (onRefresh) onRefresh();
-
-    } catch (err) {
-      alert('Error al eliminar el módulo: ' + err.message);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -914,12 +979,23 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
 
   return (
     <div>
+      <ConfirmModal
+        isOpen={modalConfig.isOpen}
+        onClose={closeModal}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        note={modalConfig.note}
+        confirmText={modalConfig.confirmText}
+        loading={modalConfig.loading}
+      />
+
       <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span className="section-title">Módulos del programa ({modules.length})</span>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           {selectedIds.length > 0 && (
             <button
-              onClick={handleBulkDelete}
+              onClick={promptBulkDelete}
               className="btn"
               style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
             >
@@ -965,17 +1041,35 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
-            <tr><th>#</th><th>Título</th><th>Descripción</th><th>Acciones</th></tr>
+            <tr>
+              <th style={{ width: '38px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={modules.length > 0 && selectedIds.length === modules.length}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
+              <th>#</th><th>Título</th><th>Descripción</th><th>Acciones</th>
+            </tr>
           </thead>
           <tbody>
-            {loading ? <LoadingRow cols={4} /> :
-             modules.length === 0 ? <EmptyRow cols={4} message="No hay módulos registrados." /> :
+            {loading ? <LoadingRow cols={5} /> :
+             modules.length === 0 ? <EmptyRow cols={5} message="No hay módulos registrados." /> :
              modules.map((m, i) => (
-              <tr key={m.id}>
+              <tr key={m.id} style={{ background: selectedIds.includes(m.id) ? '#fffbe6' : undefined }}>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(m.id)}
+                    onChange={() => toggleSelectOne(m.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </td>
                 <td><div className="order-badge">{m.order_index ?? i + 1}</div></td>
                 <td><span style={{ fontWeight: 600 }}>{m.title}</span></td>
                 <td style={{ color: 'var(--text-muted)', maxWidth: '240px' }}>{m.description}</td>
-                <td><ActionBtns onEdit={() => openEditModal(m)} onDelete={() => handleDelete(m)} /></td>
+                <td><ActionBtns onEdit={() => openEditModal(m)} onDelete={() => promptSingleDelete(m)} /></td>
               </tr>
             ))}
           </tbody>
@@ -1001,6 +1095,19 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
   const [success, setSuccess] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
 
+  // Estado para el modal de confirmación personalizado
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    note: '',
+    confirmText: 'Eliminar',
+    onConfirm: null,
+    loading: false
+  });
+
+  const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false, loading: false }));
+
   useEffect(() => {
     setSelectedIds([]);
   }, [subtopics]);
@@ -1019,42 +1126,107 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
     );
   };
 
-  const handleBulkDelete = async () => {
+  const promptBulkDelete = () => {
     if (selectedIds.length === 0) return;
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar los ${selectedIds.length} subtemas seleccionados?\n\nNota: Los subtemas que tengan clases asociadas no se podrán eliminar.`);
-    if (!confirmed) return;
+    const count = selectedIds.length;
+    setModalConfig({
+      isOpen: true,
+      title: `Eliminar ${count} ${count === 1 ? 'Subtema' : 'Subtemas'}`,
+      message: `¿Estás seguro de que deseas eliminar los ${count} subtemas seleccionados?`,
+      note: 'Los subtemas que tengan clases asociadas no podrán ser eliminados hasta remover sus contenidos.',
+      confirmText: `Eliminar (${count})`,
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          const { data: classData } = await supabase
+            .from('class_sessions')
+            .select('subtopic_id')
+            .in('subtopic_id', selectedIds);
 
-    try {
-      const { data: classData } = await supabase
-        .from('class_sessions')
-        .select('subtopic_id')
-        .in('subtopic_id', selectedIds);
+          const blockedIds = new Set((classData || []).map(c => c.subtopic_id));
+          const deletableIds = selectedIds.filter(id => !blockedIds.has(id));
 
-      const blockedIds = new Set((classData || []).map(c => c.subtopic_id));
-      const deletableIds = selectedIds.filter(id => !blockedIds.has(id));
+          if (deletableIds.length === 0) {
+            closeModal();
+            setTimeout(() => {
+              setModalConfig({
+                isOpen: true,
+                title: 'No se puede eliminar',
+                message: 'Ninguno de los subtemas seleccionados se puede eliminar porque todos tienen clases asociadas.',
+                confirmText: 'Entendido',
+                onConfirm: closeModal
+              });
+            }, 100);
+            return;
+          }
 
-      if (deletableIds.length === 0) {
-        alert('Ninguno de los subtemas seleccionados se puede eliminar porque todos tienen clases asociadas.');
-        return;
+          const { error: delErr } = await supabase
+            .from('subtopics')
+            .delete()
+            .in('id', deletableIds);
+
+          if (delErr) throw delErr;
+
+          setSelectedIds([]);
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error en eliminación múltiple de subtemas:', err);
+        }
       }
+    });
+  };
 
-      const { error: delErr } = await supabase
-        .from('subtopics')
-        .delete()
-        .in('id', deletableIds);
+  const promptSingleDelete = (st) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Eliminar Subtema',
+      message: `¿Estás seguro de que deseas eliminar permanentemente el subtema "${st.title}"?`,
+      note: 'Esta acción no se podrá deshacer y eliminará sus contenidos asociados.',
+      confirmText: 'Eliminar Subtema',
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          const { count, error: countError } = await supabase
+            .from('class_sessions')
+            .select('*', { count: 'exact', head: true })
+            .eq('subtopic_id', st.id);
 
-      if (delErr) throw delErr;
+          if (countError) throw countError;
 
-      let msg = `${deletableIds.length} subtema(s) eliminado(s) exitosamente.`;
-      if (blockedIds.size > 0) {
-        msg += ` (${blockedIds.size} subtema(s) no se eliminaron por contener clases).`;
+          if (count && count > 0) {
+            closeModal();
+            setTimeout(() => {
+              setModalConfig({
+                isOpen: true,
+                title: 'Operación Denegada',
+                message: `No se puede eliminar el subtema "${st.title}" porque tiene ${count} clase(s) asociada(s).`,
+                note: 'Para eliminarlo de forma segura, primero debes eliminar o reasignar sus clases.',
+                confirmText: 'Entendido',
+                onConfirm: closeModal
+              });
+            }, 100);
+            return;
+          }
+
+          const { error: deleteError } = await supabase
+            .from('subtopics')
+            .delete()
+            .eq('id', st.id);
+
+          if (deleteError) throw deleteError;
+
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error al eliminar subtema:', err);
+        }
       }
-      alert(msg);
-      setSelectedIds([]);
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error en la eliminación múltiple: ' + err.message);
-    }
+    });
   };
 
   const openCreateModal = () => {
@@ -1126,44 +1298,25 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
     }
   };
 
-  const handleDelete = async (st) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el subtema "${st.title}"?`)) return;
-
-    try {
-      const { count, error: countError } = await supabase
-        .from('class_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('subtopic_id', st.id);
-      
-      if (countError) throw countError;
-
-      if (count && count > 0) {
-        alert('No se puede eliminar este subtema porque tiene clases asociadas.');
-        return;
-      }
-
-      const { error: deleteError } = await supabase
-        .from('subtopics')
-        .delete()
-        .eq('id', st.id);
-
-      if (deleteError) throw deleteError;
-      
-      alert('Subtema eliminado exitosamente.');
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error al eliminar subtema: ' + err.message);
-    }
-  };
-
   return (
     <div>
+      <ConfirmModal
+        isOpen={modalConfig.isOpen}
+        onClose={closeModal}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        note={modalConfig.note}
+        confirmText={modalConfig.confirmText}
+        loading={modalConfig.loading}
+      />
+
       <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span className="section-title">Subtemas registrados ({subtopics.length})</span>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           {selectedIds.length > 0 && (
             <button
-              onClick={handleBulkDelete}
+              onClick={promptBulkDelete}
               className="btn"
               style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
             >
@@ -1246,7 +1399,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
                 <td><div className="order-badge">{st.order_index ?? i + 1}</div></td>
                 <td><span style={{ fontWeight: 600 }}>{st.title}</span></td>
                 <td style={{ color: 'var(--text-muted)', maxWidth: '260px' }}>{st.description}</td>
-                <td><ActionBtns onEdit={() => openEditModal(st)} onDelete={() => handleDelete(st)} /></td>
+                <td><ActionBtns onEdit={() => openEditModal(st)} onDelete={() => promptSingleDelete(st)} /></td>
               </tr>
             ))}
           </tbody>
@@ -1279,6 +1432,19 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const [success, setSuccess] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
 
+  // Estado para el modal de confirmación personalizado
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    note: '',
+    confirmText: 'Eliminar',
+    onConfirm: null,
+    loading: false
+  });
+
+  const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false, loading: false }));
+
   useEffect(() => {
     setSelectedIds([]);
   }, [classes]);
@@ -1297,29 +1463,89 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
     );
   };
 
-  const handleBulkDelete = async () => {
+  const promptBulkDelete = () => {
     if (selectedIds.length === 0) return;
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar las ${selectedIds.length} clases seleccionadas?`);
-    if (!confirmed) return;
+    const count = selectedIds.length;
+    setModalConfig({
+      isOpen: true,
+      title: `Eliminar ${count} ${count === 1 ? 'Clase' : 'Clases'}`,
+      message: `¿Estás seguro de que deseas eliminar las ${count} clases seleccionadas?`,
+      note: 'Esta acción eliminará también los recursos adjuntos a estas clases.',
+      confirmText: `Eliminar (${count})`,
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          try {
+            await supabase.from('resources').delete().in('class_id', selectedIds);
+          } catch {}
 
-    try {
-      try {
-        await supabase.from('resources').delete().in('class_id', selectedIds);
-      } catch {}
+          const { error: delErr } = await supabase
+            .from('class_sessions')
+            .delete()
+            .in('id', selectedIds);
 
-      const { error: delErr } = await supabase
-        .from('class_sessions')
-        .delete()
-        .in('id', selectedIds);
+          if (delErr) throw delErr;
 
-      if (delErr) throw delErr;
+          setSelectedIds([]);
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error en eliminación múltiple de clases:', err);
+        }
+      }
+    });
+  };
 
-      alert(`${selectedIds.length} clase(s) eliminada(s) exitosamente.`);
-      setSelectedIds([]);
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error en la eliminación múltiple: ' + err.message);
-    }
+  const promptSingleDelete = (c) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Eliminar Clase',
+      message: `¿Estás seguro de que deseas eliminar permanentemente la clase "${c.title}"?`,
+      note: 'Si esta clase posee recursos adjuntos, se deben remover antes de eliminar la sesión.',
+      confirmText: 'Eliminar Clase',
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          const { count, error: countError } = await supabase
+            .from('resources')
+            .select('*', { count: 'exact', head: true })
+            .eq('class_id', c.id);
+
+          if (countError) throw countError;
+
+          if (count && count > 0) {
+            closeModal();
+            setTimeout(() => {
+              setModalConfig({
+                isOpen: true,
+                title: 'Operación Denegada',
+                message: `Esta clase "${c.title}" tiene ${count} recurso(s) asociado(s).`,
+                note: 'Para eliminarla, primero debes eliminar o desvincular sus recursos.',
+                confirmText: 'Entendido',
+                onConfirm: closeModal
+              });
+            }, 100);
+            return;
+          }
+
+          const { error: deleteError } = await supabase
+            .from('class_sessions')
+            .delete()
+            .eq('id', c.id);
+
+          if (deleteError) throw deleteError;
+
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error al eliminar clase:', err);
+        }
+      }
+    });
   };
 
   const openCreateModal = () => {
@@ -1409,44 +1635,25 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
     }
   };
 
-  const handleDelete = async (c) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar la clase "${c.title}"?`)) return;
-
-    try {
-      const { count, error: countError } = await supabase
-        .from('resources')
-        .select('*', { count: 'exact', head: true })
-        .eq('class_id', c.id);
-      
-      if (countError) throw countError;
-
-      if (count && count > 0) {
-        alert('Esta clase tiene recursos asociados. Elimina primero los recursos.');
-        return;
-      }
-
-      const { error: deleteError } = await supabase
-        .from('class_sessions')
-        .delete()
-        .eq('id', c.id);
-
-      if (deleteError) throw deleteError;
-      
-      alert('Clase eliminada exitosamente.');
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error al eliminar clase: ' + err.message);
-    }
-  };
-
   return (
     <div>
+      <ConfirmModal
+        isOpen={modalConfig.isOpen}
+        onClose={closeModal}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        note={modalConfig.note}
+        confirmText={modalConfig.confirmText}
+        loading={modalConfig.loading}
+      />
+
       <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span className="section-title">Sesiones de clase ({classes.length})</span>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           {selectedIds.length > 0 && (
             <button
-              onClick={handleBulkDelete}
+              onClick={promptBulkDelete}
               className="btn"
               style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
             >
@@ -1568,7 +1775,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
                     : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Pendiente</span>
                   }
                 </td>
-                <td><ActionBtns onEdit={() => openEditModal(cls)} onDelete={() => handleDelete(cls)} /></td>
+                <td><ActionBtns onEdit={() => openEditModal(cls)} onDelete={() => promptSingleDelete(cls)} /></td>
               </tr>
             );
           })}
@@ -1600,6 +1807,19 @@ function RecursosTab({ resources, loading, onRefresh, programId }) {
   const [success, setSuccess] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
 
+  // Estado para el modal de confirmación personalizado
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    note: '',
+    confirmText: 'Eliminar',
+    onConfirm: null,
+    loading: false
+  });
+
+  const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false, loading: false }));
+
   useEffect(() => {
     setSelectedIds([]);
   }, [resources]);
@@ -1618,25 +1838,63 @@ function RecursosTab({ resources, loading, onRefresh, programId }) {
     );
   };
 
-  const handleBulkDelete = async () => {
+  const promptBulkDelete = () => {
     if (selectedIds.length === 0) return;
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar los ${selectedIds.length} recursos seleccionados?`);
-    if (!confirmed) return;
+    const count = selectedIds.length;
+    setModalConfig({
+      isOpen: true,
+      title: `Eliminar ${count} ${count === 1 ? 'Recurso' : 'Recursos'}`,
+      message: `¿Estás seguro de que deseas eliminar los ${count} recursos seleccionados?`,
+      note: 'Esta acción no se puede deshacer.',
+      confirmText: `Eliminar (${count})`,
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          const { error: delErr } = await supabase
+            .from('resources')
+            .delete()
+            .in('id', selectedIds);
 
-    try {
-      const { error: delErr } = await supabase
-        .from('resources')
-        .delete()
-        .in('id', selectedIds);
+          if (delErr) throw delErr;
 
-      if (delErr) throw delErr;
+          setSelectedIds([]);
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error en eliminación múltiple de recursos:', err);
+        }
+      }
+    });
+  };
 
-      alert(`${selectedIds.length} recurso(s) eliminado(s) exitosamente.`);
-      setSelectedIds([]);
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error en la eliminación múltiple: ' + err.message);
-    }
+  const promptSingleDelete = (r) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Eliminar Recurso',
+      message: `¿Estás seguro de que deseas eliminar permanentemente el recurso "${r.title}"?`,
+      note: 'Esta acción no se podrá deshacer.',
+      confirmText: 'Eliminar Recurso',
+      loading: false,
+      onConfirm: async () => {
+        setModalConfig(prev => ({ ...prev, loading: true }));
+        try {
+          const { error: deleteError } = await supabase
+            .from('resources')
+            .delete()
+            .eq('id', r.id);
+
+          if (deleteError) throw deleteError;
+
+          closeModal();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          closeModal();
+          console.error('Error al eliminar recurso:', err);
+        }
+      }
+    });
   };
 
   const openCreateModal = () => {
@@ -1714,36 +1972,25 @@ function RecursosTab({ resources, loading, onRefresh, programId }) {
     }
   };
 
-  const handleDelete = async (r) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el recurso "${r.title}"?`)) return;
-
-    try {
-      if (r.provider === 'supabase' && r.file_path) {
-        console.log('Documentado: Falta eliminar el archivo físico de Supabase Storage para', r.file_path);
-      }
-
-      const { error: deleteError } = await supabase
-        .from('resources')
-        .delete()
-        .eq('id', r.id);
-
-      if (deleteError) throw deleteError;
-      
-      alert('Recurso eliminado exitosamente.');
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      alert('Error al eliminar recurso: ' + err.message);
-    }
-  };
-
   return (
     <div>
+      <ConfirmModal
+        isOpen={modalConfig.isOpen}
+        onClose={closeModal}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        note={modalConfig.note}
+        confirmText={modalConfig.confirmText}
+        loading={modalConfig.loading}
+      />
+
       <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span className="section-title">Recursos del programa ({resources.length})</span>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           {selectedIds.length > 0 && (
             <button
-              onClick={handleBulkDelete}
+              onClick={promptBulkDelete}
               className="btn"
               style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
             >
@@ -1860,7 +2107,7 @@ function RecursosTab({ resources, loading, onRefresh, programId }) {
                     <LinkIcon size={13} /> Ver
                   </a>
                 </td>
-                <td><ActionBtns onEdit={() => openEditModal(r)} onDelete={() => handleDelete(r)} /></td>
+                <td><ActionBtns onEdit={() => openEditModal(r)} onDelete={() => promptSingleDelete(r)} /></td>
               </tr>
             ))}
           </tbody>
