@@ -703,16 +703,19 @@ export default function Profile() {
             left: 0, 
             right: 0, 
             bottom: 0, 
-            width: '100vw',
-            height: '100vh',
+            width: '100%',
+            height: '100%',
+            minHeight: '100vh',
             background: 'rgba(15, 23, 42, 0.65)', 
-            backdropFilter: 'blur(3px)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             display: 'flex', 
             alignItems: 'center', 
-            justify: 'center', 
+            justifyContent: 'center', 
             zIndex: 99999,
             padding: '1rem',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            overflowY: 'auto'
           }}
           onClick={handleClosePasswordModal}
         >
@@ -724,9 +727,11 @@ export default function Profile() {
               borderTop: '4px solid var(--gold)',
               maxWidth: '500px', 
               width: '100%', 
+              margin: 'auto',
               padding: '2rem', 
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-              position: 'relative'
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              position: 'relative',
+              boxSizing: 'border-box'
             }}
             onClick={e => e.stopPropagation()}
           >
