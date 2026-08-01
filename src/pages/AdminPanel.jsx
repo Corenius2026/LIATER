@@ -1841,39 +1841,80 @@ export default function AdminPanel() {
 
     async function fetchAll() {
       if (!programId) return;
+      setLoading(true);
       try {
-        const [programRes, teachersRes, modulesRes, subtopicsRes, classesRes, resourcesRes, enrolledRes] = await Promise.all([
-          supabase.from('diploma_programs').select('*').eq('id', programId).single(),
-          supabase.from('teacher_profiles').select('*'),
-          supabase.from('modules').select('*').eq('program_id', programId).order('order_index', { ascending: true }),
-          supabase.from('subtopics').select('*').eq('program_id', programId).order('order_index', { ascending: true }),
-          supabase.from('class_sessions').select('*, teacher_profiles(name)').eq('program_id', programId).order('class_date', { ascending: true }),
-          supabase.from('resources').select('*').eq('program_id', programId),
-          supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)').eq('program_id', programId)
-        ]);
+        const cleanId = decodeURIComponent(programId).trim();
+
+        // 1. Obtener datos del programa
+        const { data: programData, error: progErr } = await supabase
+          .from('diploma_programs')
+          .select('*')
+          .eq('id', cleanId)
+          .maybeSingle();
+
+        if (progErr) console.warn('Advertencia al consultar programa:', progErr);
+
+        // Actualizar contexto global de navegación
+        if (programData) {
+          localStorage.setItem('activeProgramId', cleanId);
+          if (programData.program_type) {
+            localStorage.setItem('activeProgramType', programData.program_type);
+          }
+          window.dispatchEvent(new Event('programContextChanged'));
+        }
+
+        // 2. Consultar colecciones asociadas con resiliencia individual
+        let teachersData = [], modulesData = [], subtopicsData = [], classesData = [], resourcesData = [], enrolledData = [];
+
+        try {
+          const { data } = await supabase.from('teacher_profiles').select('*');
+          teachersData = data || [];
+        } catch {}
+
+        try {
+          const { data } = await supabase.from('modules').select('*').eq('program_id', cleanId).order('order_index', { ascending: true });
+          modulesData = data || [];
+        } catch {}
+
+        try {
+          const { data } = await supabase.from('subtopics').select('*').eq('program_id', cleanId).order('order_index', { ascending: true });
+          subtopicsData = data || [];
+        } catch {}
+
+        try {
+          const { data } = await supabase.from('class_sessions').select('*, teacher_profiles(name)').eq('program_id', cleanId).order('class_date', { ascending: true });
+          classesData = data || [];
+        } catch {}
+
+        try {
+          const { data } = await supabase.from('resources').select('*').eq('program_id', cleanId);
+          resourcesData = data || [];
+        } catch {}
+
+        try {
+          const { data } = await supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)').eq('program_id', cleanId);
+          enrolledData = data || [];
+        } catch {}
 
         const now = new Date().toISOString();
-        const upcoming = (classesRes.data || []).filter(c => c.class_date && c.class_date > now).slice(0, 4);
-
-        const enrolledIds = (enrolledRes.data || []).map(e => e.student_id);
-        const allTeachers = teachersRes.data || [];
+        const upcoming = classesData.filter(c => c.class_date && c.class_date > now).slice(0, 4);
 
         setData({
-          program: programRes.data,
-          teachers: allTeachers,
-          modules: modulesRes.data || [],
-          subtopics: subtopicsRes.data || [],
-          classes: classesRes.data || [],
-          resources: resourcesRes.data || [],
+          program: programData,
+          teachers: teachersData,
+          modules: modulesData,
+          subtopics: subtopicsData,
+          classes: classesData,
+          resources: resourcesData,
           upcomingClasses: upcoming,
-          enrolledStudents: enrolledRes.data || [],
+          enrolledStudents: enrolledData,
           counts: {
-            usuarios: (enrolledRes.data || []).length,
-            profesores: allTeachers.length,
-            modulos: (modulesRes.data || []).length,
-            subtemas: (subtopicsRes.data || []).length,
-            clases: (classesRes.data || []).length,
-            recursos: (resourcesRes.data || []).length,
+            usuarios: enrolledData.length,
+            profesores: teachersData.length,
+            modulos: modulesData.length,
+            subtemas: subtopicsData.length,
+            clases: classesData.length,
+            recursos: resourcesData.length,
           }
         });
       } catch (err) {
@@ -1884,7 +1925,7 @@ export default function AdminPanel() {
     }
 
     fetchAll();
-  }, [role, refreshTrigger]);
+  }, [role, refreshTrigger, programId]);
 
   if (role !== 'admin') {
     return (
@@ -1893,6 +1934,18 @@ export default function AdminPanel() {
         <h2 style={{ color: 'var(--text-dark)' }}>Acceso Denegado</h2>
         <p>Este panel es exclusivo para administradores.</p>
         <p>Cambia tu rol en la parte superior para acceder.</p>
+      </div>
+    );
+  }
+
+  if (!loading && !data.program) {
+    return (
+      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)', animation: 'fadeSlideUp 0.35s ease-out' }}>
+        <h2>Programa no encontrado</h2>
+        <p style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>El programa solicitado no existe o fue eliminado.</p>
+        <Link to="/portal" className="btn btn-primary">
+          <ArrowLeft size={16} /> Volver al Panorama General
+        </Link>
       </div>
     );
   }

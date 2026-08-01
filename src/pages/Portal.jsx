@@ -767,7 +767,11 @@ function AdminPortal({ getDiplomadoLink }) {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto' }}>
                     <Link
-                      onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
+                      onClick={() => {
+                        localStorage.setItem('activeProgramId', dip.id);
+                        localStorage.setItem('activeProgramType', dip.program_type);
+                        window.dispatchEvent(new Event('programContextChanged'));
+                      }}
                       to={getDiplomadoLink(dip.id)}
                       className="btn btn-gold"
                       style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
@@ -865,7 +869,11 @@ function AdminPortal({ getDiplomadoLink }) {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto' }}>
                     <Link
-                      onClick={() => { localStorage.setItem('activeProgramId', dip.id); localStorage.setItem('activeProgramType', dip.program_type); }}
+                      onClick={() => {
+                        localStorage.setItem('activeProgramId', dip.id);
+                        localStorage.setItem('activeProgramType', dip.program_type);
+                        window.dispatchEvent(new Event('programContextChanged'));
+                      }}
                       to={getDiplomadoLink(dip.id)}
                       className="btn btn-navy"
                       style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700 }}
