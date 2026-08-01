@@ -45,40 +45,49 @@ function TagPill({ tag }) {
    TAB 1 — Resumen (Hero + stats rápidas)
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ResumenTab({ onChangeTab }) {
-  const { profile } = useTeacherContext();
-  const [stats, setStats] = useState({ totalClasses: 0, completed: 0, upcoming: 0, announcements: 0 });
+  const { profile, programId, currentProgram } = useTeacherContext();
+  const [stats, setStats] = useState({ totalClasses: 0, completed: 0, upcoming: 0, announcements: 0, students: 0, questions: 2 });
   const [loading, setLoading] = useState(true);
+  const [upcomingClasses, setUpcomingClasses] = useState([]);
 
   useEffect(() => {
     async function fetchStats() {
-      if (!profile?.id) return;
+      if (!profile?.id || !programId) return;
       try {
-        const { programId } = useTeacherContext();
-        // Filtrar clases por programa
         const teacherFilters = [profile.id, profile.user_id].filter(Boolean).map(id => `teacher_id.eq.${id}`).join(',');
 
         const pClasses = supabase.from('class_sessions')
-          .select('class_date, program_id')
+          .select('id, title, class_date, program_id')
           .eq('program_id', programId)
+          .order('class_date', { ascending: true })
           .or(teacherFilters);
           
         const pAnnouncements = supabase.from('announcements')
           .select('*', { count: 'exact', head: true })
           .eq('program_id', programId)
           .or(teacherFilters);
+          
+        const pStudents = supabase.from('enrollments')
+          .select('student_id, users_profile!inner(role)', { count: 'exact', head: true })
+          .eq('program_id', programId)
+          .eq('users_profile.role', 'student');
         
-        const [resClasses, resAnn] = await Promise.all([pClasses, pAnnouncements]);
+        const [resClasses, resAnn, resStudents] = await Promise.all([pClasses, pAnnouncements, pStudents]);
         
         const classes = resClasses.data || [];
         const now = new Date();
         const completed = classes.filter(c => new Date(c.class_date) < now).length;
-        const upcoming = classes.filter(c => new Date(c.class_date) >= now).length;
+        const upcomingList = classes.filter(c => new Date(c.class_date) >= now);
+        
+        setUpcomingClasses(upcomingList.slice(0, 3));
 
         setStats({
           totalClasses: classes.length,
           completed,
-          upcoming,
-          announcements: resAnn.count || 0
+          upcoming: upcomingList.length,
+          announcements: resAnn.count || 0,
+          students: resStudents.count || 0,
+          questions: 2 // Mock de preguntas
         });
       } catch (err) {
         console.error('Error fetching teacher stats', err);
@@ -87,129 +96,154 @@ function ResumenTab({ onChangeTab }) {
       }
     }
     fetchStats();
-  }, [profile?.id]);
+  }, [profile?.id, programId]);
+
+  const pendingQuestions = [
+    { id: 1, question: '¿Cómo puedo acceder a la presentación de la clase 2?', topic: 'Clase 2', time: 'Hace 35 min', status: 'Sin responder' },
+    { id: 2, question: 'No entiendo el ejemplo del módulo 1', topic: 'Módulo 1', time: 'Hace 2 h', status: 'En revisión' }
+  ];
+
+  if (loading) {
+    return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando resumen del programa...</div>;
+  }
 
   return (
     <div>
-      {/* Hero Banner */}
-      <div className="card teacher-hero" style={{ padding: '2rem', display: 'flex', gap: '2rem', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <img src={profile.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=14213D&color=FCA311&size=150`} alt={profile.name} className="teacher-hero-img" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />
-        <div className="teacher-hero-info">
-          <h1>{profile.name}</h1>
-          <p>{profile.area || 'Sin área especificada'} Â· {profile.users_profile?.email || ''}</p>
-          <p style={{ fontSize: '0.82rem', opacity: 0.7 }}>{profile.bio || 'Sin biografía'}</p>
-          <div className="teacher-hero-stats" style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
-            <div className="teacher-hero-stat" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 700 }}>{loading ? '-' : stats.totalClasses}</span>
-              <span style={{ fontSize: '0.75rem' }}>Clases Asignadas</span>
-            </div>
-            <div className="teacher-hero-stat" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 700 }}>{loading ? '-' : stats.upcoming}</span>
-              <span style={{ fontSize: '0.75rem' }}>Clases Pendientes</span>
-            </div>
-            <div className="teacher-hero-stat" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 700 }}>{loading ? '-' : stats.announcements}</span>
-              <span style={{ fontSize: '0.75rem' }}>Avisos Publicados</span>
-            </div>
-          </div>
+      {/* 1. Encabezado del programa */}
+      <div className="card" style={{ padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+        <div>
+           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>
+             {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'}
+           </div>
+           <h1 style={{ fontSize: '1.5rem', color: 'var(--navy)', margin: '0 0 0.5rem 0' }}>{currentProgram?.title || 'Cargando programa...'}</h1>
+           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+             <span>Profesor asignado: <strong style={{color: 'var(--navy)'}}>{profile.name}</strong></span>
+             <span style={{opacity: 0.5}}>•</span>
+             <span style={{ color: 'var(--green-600)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+               <div style={{width:'8px', height:'8px', borderRadius:'50%', background:'var(--green-600)'}}></div> Programa activo
+             </span>
+             <span style={{opacity: 0.5}}>•</span>
+             <span><strong>{stats.students}</strong> estudiantes</span>
+           </div>
+        </div>
+        <button className="btn btn-navy" onClick={() => onChangeTab('anuncios')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+          <Megaphone size={16} /> Crear anuncio
+        </button>
+      </div>
+
+      {/* 2. Primera fila de indicadores */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #dc2626' }}>
+           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.questions}</span>
+           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>PREGUNTAS PENDIENTES</span>
+        </div>
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #f59e0b' }}>
+           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.upcoming}</span>
+           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>PRÓXIMAS CLASES</span>
+        </div>
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderLeft: '4px solid #10b981' }}>
+           <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>{stats.announcements}</span>
+           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem' }}>ANUNCIOS ACTIVOS</span>
         </div>
       </div>
 
-      {/* Widgets inferiores */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-        {/* Progreso de clases */}
-        <div className="card">
-          <h3 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '1.25rem' }}>Progreso del Curso</h3>
-          {[
-            { label: 'Clases completadas', value: stats.completed, total: stats.totalClasses, color: '#10b981' },
-            { label: 'Clases próximas',    value: stats.upcoming,  total: stats.totalClasses, color: '#f59e0b' },
-          ].map(item => {
-            const percentage = item.total === 0 ? 0 : (item.value / item.total) * 100;
-            return (
-              <div key={item.label} style={{ marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.8rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
-                  <span style={{ fontWeight: 600 }}>{item.value} / {item.total}</span>
-                </div>
-                <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: `${percentage}%`, height: '100%', background: item.color, borderRadius: '4px', transition: 'width 0.6s ease' }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem' }}>
+         {/* 3. Columna principal */}
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            
+            {/* Preguntas que requieren atención */}
+            <div className="card" style={{ padding: '1.5rem' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                 <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Preguntas que requieren atención</h3>
+                 <button onClick={() => onChangeTab('dudas')} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Ver preguntas</button>
+               </div>
+               
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                 {pendingQuestions.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-light)', borderRadius: '8px' }}>
+                      <MessageSquare size={24} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                      <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay preguntas pendientes por el momento.</p>
+                    </div>
+                 ) : (
+                    pendingQuestions.map(q => (
+                       <div key={q.id} style={{ padding: '1.25rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--white)' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>{q.question}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                             {q.topic} <span style={{margin:'0 4px', opacity:0.5}}>•</span> {q.time} <span style={{margin:'0 4px', opacity:0.5}}>•</span> 
+                             <span style={{ color: q.status === 'Sin responder' ? '#dc2626' : '#f59e0b', fontWeight: 600 }}>{q.status}</span>
+                          </div>
+                       </div>
+                    ))
+                 )}
+               </div>
+            </div>
 
-        {/* Acciones Rápidas */}
-        <div className="card" style={{ background: 'var(--white)', padding: '1.5rem', borderRadius: '12px' }}>
-          <h3 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--navy)', marginBottom: '1.25rem' }}>
-            Acciones Rápidas
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
-            {/* 1. Leer preguntas */}
-            <button 
-              onClick={() => onChangeTab('dudas')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
-              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <MessageSquare size={18} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Leer preguntas</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Atender dudas de alumnos</div>
-              </div>
-            </button>
+            {/* Próximas clases */}
+            <div className="card" style={{ padding: '1.5rem' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                 <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Próximas clases</h3>
+                 <button onClick={() => onChangeTab('clases')} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Ver clases</button>
+               </div>
+               
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                 {upcomingClasses.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-light)', borderRadius: '8px' }}>
+                      <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay próximas clases programadas.</p>
+                    </div>
+                 ) : (
+                    upcomingClasses.map(c => (
+                       <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--white)' }}>
+                          <div style={{ background: 'rgba(252, 163, 17, 0.15)', color: 'var(--gold-dark)', padding: '0.6rem', borderRadius: '8px' }}>
+                            <CalendarDays size={20} />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '0.95rem' }}>{c.title}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{new Date(c.class_date).toLocaleDateString('es-ES', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
+                          </div>
+                       </div>
+                    ))
+                 )}
+               </div>
+            </div>
+         </div>
 
-            {/* 2. Crear anuncio */}
-            <button 
-              onClick={() => onChangeTab('anuncios')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
-              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Megaphone size={18} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Crear anuncio</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Publicar aviso general</div>
-              </div>
-            </button>
+         {/* 4. Columna secundaria */}
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+               <h3 style={{ margin: '0 0 1.25rem 0', color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>Actividad reciente</h3>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <button 
+                     onClick={() => onChangeTab('dudas')} 
+                     style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
+                     onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                     onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                     <div style={{ background: 'var(--white)', padding: '0.5rem', borderRadius: '50%', color: 'var(--navy)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                       <MessageSquare size={16} />
+                     </div>
+                     <div>
+                       <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>Responder consultas</div>
+                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ir a dudas de estudiantes</div>
+                     </div>
+                  </button>
 
-            {/* 3. Ver próxima clase */}
-            <button 
-              onClick={() => onChangeTab('clases')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
-              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(252, 163, 17, 0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <CalendarDays size={18} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Ver próxima clase</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Consultar horario activo</div>
-              </div>
-            </button>
-
-            {/* 4. Agregar material */}
-            <button 
-              onClick={() => onChangeTab('clases')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-light)', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}
-              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Upload size={18} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>Agregar material</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Subir recurso o lectura</div>
-              </div>
-            </button>
-          </div>
-        </div>
+                  <button 
+                     onClick={() => onChangeTab('anuncios')} 
+                     style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
+                     onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                     onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                     <div style={{ background: 'var(--white)', padding: '0.5rem', borderRadius: '50%', color: 'var(--navy)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                       <Megaphone size={16} />
+                     </div>
+                     <div>
+                       <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>Crear anuncio</div>
+                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Comunicado general al grupo</div>
+                     </div>
+                  </button>
+               </div>
+            </div>
+         </div>
       </div>
     </div>
   );
@@ -1319,7 +1353,7 @@ export default function TeacherPanel() {
   const ActiveComponent = TABS.find(t => t.id === activeTab)?.component ?? ResumenTab;
 
   return (
-    <TeacherContext.Provider value={{ id: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId }}>
+    <TeacherContext.Provider value={{ id: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId, currentProgram }}>
       <div>
 
         {/* --- RUTA DE NAVEGACIÓN (BREADCRUMB) Y ACCIONES DE PROGRAMA --- */}
