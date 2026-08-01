@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { createDoubt, fetchStudentDoubtsForClass } from '../services/doubtService';
 import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, Clock, Award, HelpCircle,
-  Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck
+  Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck,
+  MessageSquare, Check
 } from 'lucide-react';
 
 export default function ClassDetail() {
@@ -18,14 +20,16 @@ export default function ClassDetail() {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ESTADOS DEL MODAL DE DUDAS
+  // ESTADOS DEL MODAL DE DUDAS Y PERSISTENCIA
   const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [topic, setTopic] = useState('');
   const [touched, setTouched] = useState({ subject: false, description: false });
-  const [devNotice, setDevNotice] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [userDoubts, setUserDoubts] = useState([]);
 
   const doubtButtonRef = useRef(null);
   const firstInputRef = useRef(null);
@@ -95,6 +99,12 @@ export default function ClassDetail() {
           setResources(resData || []);
         }
 
+        // 4. Obtener las dudas enviadas previamente por el estudiante en esta clase
+        if (currentUser?.id) {
+          const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
+          setUserDoubts(doubts || []);
+        }
+
       } catch (err) {
         console.error('Error fetching class detail:', err.message);
       } finally {
@@ -103,12 +113,13 @@ export default function ClassDetail() {
     }
 
     fetchClassDetail();
-  }, [id]);
+  }, [id, currentUser?.id]);
 
   // MANEJO DE ACCESIBILIDAD Y ESCAPE EN EL MODAL DE DUDAS
   const openDoubtModal = () => {
     setIsDoubtModalOpen(true);
-    setDevNotice('');
+    setSubmitError('');
+    setSuccessMsg('');
     setTimeout(() => {
       firstInputRef.current?.focus();
     }, 100);
@@ -116,7 +127,8 @@ export default function ClassDetail() {
 
   const closeDoubtModal = () => {
     setIsDoubtModalOpen(false);
-    setDevNotice('');
+    setSubmitError('');
+    setSuccessMsg('');
     doubtButtonRef.current?.focus();
   };
 
@@ -148,18 +160,55 @@ export default function ClassDetail() {
                       description.trim().length > 0 &&
                       description.length <= 1500;
 
-  const handleSubmitDoubt = (e) => {
+  // ENVÍO DE LA DUDA A SUPABASE CON MANEJO DE ESTADOS
+  const handleSubmitDoubt = async (e) => {
     e.preventDefault();
     setTouched({ subject: true, description: true });
 
     if (!isFormValid || submitting) return;
 
+    if (!currentUser?.id) {
+      setSubmitError('Debes iniciar sesión para enviar una duda.');
+      return;
+    }
+
     setSubmitting(true);
-    setTimeout(() => {
-      // Como no se conecta aún a la BD: no mostrar "Duda enviada" falso, solo aviso de desarrollo y NO borrar datos
-      setDevNotice('El formulario está listo para conectarse al servicio de dudas.');
+    setSubmitError('');
+    setSuccessMsg('');
+
+    const { data, error } = await createDoubt({
+      class_id: id,
+      module_id: moduleId,
+      program_id: clsData?.program_id,
+      student_id: currentUser.id,
+      teacher_id: clsData?.teacher_id,
+      subject,
+      description,
+      topic
+    });
+
+    if (error) {
+      setSubmitError('Ocurrió un inconveniente al enviar tu duda. Por favor, intenta de nuevo.');
       setSubmitting(false);
-    }, 400);
+      return;
+    }
+
+    // ÉXITO EN INSERCIÓN: Mensaje requerido, limpiar campos y recargar dudas
+    setSuccessMsg('Tu duda fue enviada. El docente podrá revisarla para atenderla durante la clase.');
+    setSubject('');
+    setDescription('');
+    setTouched({ subject: false, description: false });
+    setSubmitting(false);
+
+    // Actualizar lista de dudas enviadas en la vista
+    const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
+    setUserDoubts(doubts || []);
+
+    // Cerrar modal automáticamente después de 2 segundos
+    setTimeout(() => {
+      setIsDoubtModalOpen(false);
+      setSuccessMsg('');
+    }, 2000);
   };
 
   if (loading) {
@@ -221,7 +270,6 @@ export default function ClassDetail() {
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         }
 
-        /* MODAL Y CAMPOS STYLES */
         .doubt-input:focus, .doubt-textarea:focus {
           outline: none;
           border-color: var(--gold-dark, #ca8a04) !important;
@@ -414,7 +462,7 @@ export default function ClassDetail() {
             </div>
           </div>
 
-          {/* 2. ENVIAR UNA DUDA Y PREPARACIÓN VISUAL DE ESTADOS */}
+          {/* 2. ENVIAR UNA DUDA Y LISTA DE DUDAS REGISTRADAS */}
           <div className="card-placeholder order-dudas">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -453,18 +501,66 @@ export default function ClassDetail() {
               <Send size={15} /> Enviar una duda
             </button>
 
-            {/* PREPARACIÓN VISUAL DE ETIQUETAS DE ESTADOS FUTUROS */}
-            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
-                ESTADOS DE REVISIÓN FUTUROS:
-              </span>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>Enviada</span>
-                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Revisada</span>
-                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Atendida en clase</span>
-                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>Archivada</span>
+            {/* LISTA DE DUDAS ENVIADAS POR EL ESTUDIANTE EN ESTA CLASE */}
+            {userDoubts.length > 0 && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <MessageSquare size={15} color="var(--gold-dark)" />
+                  Mis dudas enviadas ({userDoubts.length})
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {userDoubts.map(doubt => (
+                    <div key={doubt.id} style={{
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--surface-light)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3 }}>
+                          {doubt.subject}
+                        </span>
+                        <span style={{
+                          fontSize: '0.68rem',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '10px',
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                          background: doubt.status === 'atendida' ? '#dcfce7' :
+                                      doubt.status === 'revisada' ? '#fef3c7' :
+                                      doubt.status === 'archivada' ? '#f1f5f9' : '#dbeafe',
+                          color: doubt.status === 'atendida' ? '#166534' :
+                                 doubt.status === 'revisada' ? '#92400e' :
+                                 doubt.status === 'archivada' ? '#475569' : '#1e40af'
+                        }}>
+                          {doubt.status === 'atendida' ? 'Atendida en clase' :
+                           doubt.status === 'revisada' ? 'Revisada' :
+                           doubt.status === 'archivada' ? 'Archivada' : 'Enviada'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* PREPARACIÓN VISUAL DE ETIQUETAS DE ESTADOS FUTUROS CUANDO NO HAY DUDAS */}
+            {userDoubts.length === 0 && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                  ESTADOS DE REVISIÓN:
+                </span>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>Enviada</span>
+                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Revisada</span>
+                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Atendida en clase</span>
+                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>Archivada</span>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>
@@ -574,23 +670,43 @@ export default function ClassDetail() {
               </span>
             </div>
 
-            {/* AVISO DE DESARROLLO (NO FALSO MENSAJE DE ÉXITO Y NO BORRA DATOS) */}
-            {devNotice && (
+            {/* MENSAJE DE ÉXITO EXIGIDO TRAS INSERCIÓN */}
+            {successMsg && (
               <div style={{
-                background: '#eff6ff',
-                border: '1px solid #bfdbfe',
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
                 borderRadius: '8px',
                 padding: '0.75rem 1rem',
                 marginBottom: '1.25rem',
                 fontSize: '0.83rem',
-                color: '#1e40af',
+                color: '#166534',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem'
               }}>
-                <FileCheck size={18} color="#2563eb" />
-                <span>{devNotice}</span>
+                <FileCheck size={18} color="#16a34a" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            {/* MENSAJE DE ERROR AMIGABLE */}
+            {submitError && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+                fontSize: '0.83rem',
+                color: '#991b1b',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <AlertCircle size={18} color="#dc2626" />
+                <span>{submitError}</span>
               </div>
             )}
 
@@ -728,17 +844,17 @@ export default function ClassDetail() {
                     fontSize: '0.85rem',
                     fontWeight: 700,
                     borderRadius: '8px',
-                    background: isFormValid ? 'var(--navy)' : '#e2e8f0',
-                    color: isFormValid ? '#ffffff' : '#94a3b8',
+                    background: isFormValid && !submitting ? 'var(--navy)' : '#e2e8f0',
+                    color: isFormValid && !submitting ? '#ffffff' : '#94a3b8',
                     border: 'none',
-                    cursor: isFormValid ? 'pointer' : 'not-allowed',
+                    cursor: isFormValid && !submitting ? 'pointer' : 'not-allowed',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
-                    boxShadow: isFormValid ? '0 2px 4px rgba(20, 33, 61, 0.2)' : 'none'
+                    boxShadow: isFormValid && !submitting ? '0 2px 4px rgba(20, 33, 61, 0.2)' : 'none'
                   }}
                 >
-                  <Send size={15} /> {submitting ? 'Procesando...' : 'Enviar una duda'}
+                  <Send size={15} /> {submitting ? 'Guardando...' : 'Enviar una duda'}
                 </button>
               </div>
 
