@@ -118,28 +118,52 @@ export async function fetchUpcomingPrograms(studentId, limit = 3) {
  * @param {string} programId - ID del programa
  * @returns {Promise<number>} Porcentaje de avance (0 a 100)
  */
-export async function calculateProgramProgress(programId) {
+export async function calculateProgramProgressDetails(programId, studentId) {
   try {
-    if (!programId) return 0;
+    if (!programId || !studentId) return { percentage: 0, totalMandatory: 0, completedCount: 0 };
 
-    // Obtener total de clases registradas para el programa
-    const { data: classes, error: classError } = await supabase
-      .from('class_sessions')
-      .select('id, class_date')
-      .eq('program_id', programId);
+    const { data: mandatoryActivities, error: actError } = await supabase
+      .from('class_activities')
+      .select(`id, class_id, is_mandatory, is_published, class_sessions!inner(program_id)`)
+      .eq('is_mandatory', true)
+      .eq('is_published', true)
+      .eq('class_sessions.program_id', programId);
+      
+    if (actError) throw actError;
+    
+    const totalMandatory = mandatoryActivities ? mandatoryActivities.length : 0;
+    
+    if (totalMandatory === 0) return { percentage: 0, totalMandatory: 0, completedCount: 0 };
 
-    if (classError || !classes || classes.length === 0) return 0;
+    const activityIds = mandatoryActivities.map(a => a.id);
+    
+    if (activityIds.length === 0) return { percentage: 0, totalMandatory: 0, completedCount: 0 };
+    
+    const { data: completedAttempts, error: attError } = await supabase
+      .from('activity_attempts')
+      .select('activity_id')
+      .eq('student_id', studentId)
+      .eq('status', 'completed')
+      .in('activity_id', activityIds);
+      
+    if (attError) throw attError;
 
-    const totalClasses = classes.length;
-    const now = new Date();
-
-    // Contar clases pasadas
-    const pastClasses = classes.filter(c => c.class_date && new Date(c.class_date) <= now).length;
-
-    const percentage = Math.round((pastClasses / totalClasses) * 100);
-    return Math.min(100, Math.max(0, percentage));
+    const uniqueCompletedActivities = new Set((completedAttempts || []).map(a => a.activity_id));
+    const completedCount = uniqueCompletedActivities.size;
+    
+    const percentage = Math.round((completedCount / totalMandatory) * 100);
+    return {
+      percentage: Math.min(100, Math.max(0, percentage)),
+      totalMandatory,
+      completedCount
+    };
   } catch (err) {
-    console.error('Error al calcular progreso del programa:', err);
-    return 0;
+    console.error('Error al calcular detalles del progreso del programa:', err);
+    return { percentage: 0, totalMandatory: 0, completedCount: 0 };
   }
+}
+
+export async function calculateProgramProgress(programId, studentId) {
+  const details = await calculateProgramProgressDetails(programId, studentId);
+  return details.percentage;
 }

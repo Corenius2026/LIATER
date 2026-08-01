@@ -18,6 +18,7 @@ import {
 import './AdminPanel.css';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../utils/dateUtils';
 import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
+import AdminClassReinforcement from '../components/AdminClassReinforcement';
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    HELPERS (sin cambios)
@@ -1414,6 +1415,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
 ———————————————————————————————————————————————————— */
 function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const [showModal, setShowModal] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState('general');
   const [editClassId, setEditClassId] = useState(null);
   
   const [title, setTitle] = useState('');
@@ -1550,6 +1552,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
 
   const openCreateModal = () => {
     setEditClassId(null);
+    setActiveModalTab('general');
     setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl(''); setOrderIndex(1);
     if (subtopicsList.length > 0) setSubtopicId(subtopicsList[0].id);
     if (teachers && teachers.length > 0) setTeacherId(teachers[0].id);
@@ -1559,6 +1562,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
 
   const openEditModal = (c) => {
     setEditClassId(c.id);
+    setActiveModalTab('general');
     setTitle(c.title);
     setDescription(c.description || '');
     setSubtopicId(c.subtopic_id);
@@ -1673,63 +1677,81 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
               <X size={20} />
             </button>
             <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editClassId ? 'Editar Clase' : 'Crear Nueva Clase'}</h3>
+            <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>
+              <button 
+                onClick={() => setActiveModalTab('general')}
+                style={{ background: 'none', border: 'none', fontWeight: 600, color: activeModalTab === 'general' ? 'var(--navy)' : 'var(--text-muted)', borderBottom: activeModalTab === 'general' ? '2px solid var(--gold)' : '2px solid transparent', paddingBottom: '0.25rem', cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                Datos Generales
+              </button>
+              {editClassId && (
+                <button 
+                  onClick={() => setActiveModalTab('reinforcement')}
+                  style={{ background: 'none', border: 'none', fontWeight: 600, color: activeModalTab === 'reinforcement' ? 'var(--navy)' : 'var(--text-muted)', borderBottom: activeModalTab === 'reinforcement' ? '2px solid var(--gold)' : '2px solid transparent', paddingBottom: '0.25rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  Actividad de Reforzamiento
+                </button>
+              )}
+            </div>
+
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
-            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título de la Clase</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Clase 1 - HTML Básico" required />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (opcional)</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }} placeholder="Contenido breve de la clase..." />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Subtema Asociado</label>
-                <select value={subtopicId} onChange={e => setSubtopicId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  {subtopicsList.length === 0 ? <option value="">Cargando subtemas...</option> : subtopicsList.map(st => (
-                    <option key={st.id} value={st.id}>{st.title}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Docente Encargado</label>
-                <select value={teacherId} onChange={e => setTeacherId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  {teachers.length === 0 ? <option value="">Sin docentes registrados</option> : teachers.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Fecha y Hora</label>
-                <input type="datetime-local" value={classDate} onChange={e => setClassDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Duración (minutos)</label>
-              </div>
+            
+            {activeModalTab === 'general' ? (
+              <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título de la Clase</label>
+                  <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Clase 1 - HTML Básico" required />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (opcional)</label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }} placeholder="Contenido breve de la clase..." />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Subtema Asociado</label>
+                  <select value={subtopicId} onChange={e => setSubtopicId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                    {subtopicsList.length === 0 ? <option value="">Cargando subtemas...</option> : subtopicsList.map(st => (
+                      <option key={st.id} value={st.id}>{st.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Docente Encargado</label>
+                  <select value={teacherId} onChange={e => setTeacherId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                    {teachers.length === 0 ? <option value="">Sin docentes registrados</option> : teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Fecha y Hora</label>
+                  <input type="datetime-local" value={classDate} onChange={e => setClassDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Duración (minutos)</label>
+                  <input type="number" value={duration} onChange={e => setDuration(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+                </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Presentación</label>
-                <input type="url" value={presentationUrl} onChange={e => setPresentationUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
-              </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Presentación</label>
+                  <input type="url" value={presentationUrl} onChange={e => setPresentationUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
+                </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden</label>
-                <input type="number" value={orderIndex} onChange={e => setOrderIndex(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-              </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Orden</label>
+                  <input type="number" value={orderIndex} onChange={e => setOrderIndex(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+                </div>
 
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }} />
-              </div>
-
-              <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
-                <button type="submit" disabled={submitting} className="btn btn-primary" style={{ width: '100%' }}>
-                  {submitting ? 'Guardando...' : 'Guardar Clase'}
-                </button>
-              </div>
-            </form>
+                <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+                  <button type="submit" disabled={submitting} className="btn btn-primary" style={{ width: '100%' }}>
+                    {submitting ? 'Guardando...' : 'Guardar Clase'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <AdminClassReinforcement classId={editClassId} />
+            )}
           </div>
         </div>
       )}

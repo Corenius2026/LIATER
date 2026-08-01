@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
-import { uploadProgramCover, fetchUpcomingPrograms } from '../services/programService';
+import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
 import PendingActivitiesCard from '../components/PendingActivitiesCard';
 
@@ -52,22 +52,14 @@ function StudentPortal({ getDiplomadoLink }) {
         if (error) throw error;
         const enrolledDiplomas = (enrollData || []).map(enr => enr.diploma_programs).filter(Boolean);
 
-        // Obtener sesiones de clase para calcular el progreso dinámico real
+        // Obtener progreso para cada diplomado usando la nueva lógica basada en actividades de reforzamiento
         if (enrolledDiplomas.length > 0) {
-          const programIds = enrolledDiplomas.map(d => d.id);
-          const { data: classesData } = await supabase
-            .from('class_sessions')
-            .select('id, program_id, class_date')
-            .in('program_id', programIds);
-
-          const now = new Date();
-          const diplomasWithProgress = enrolledDiplomas.map(dip => {
-            const progClasses = (classesData || []).filter(c => c.program_id === dip.id);
-            const totalClasses = progClasses.length;
-            const completedClasses = progClasses.filter(c => c.class_date && new Date(c.class_date) <= now).length;
-            const progress = totalClasses === 0 ? 0 : Math.min(100, Math.max(0, Math.round((completedClasses / totalClasses) * 100)));
-            return { ...dip, progress };
-          });
+          const diplomasWithProgress = await Promise.all(
+            enrolledDiplomas.map(async (dip) => {
+              const progress = await calculateProgramProgress(dip.id, currentUser.id);
+              return { ...dip, progress };
+            })
+          );
           setDiplomas(diplomasWithProgress);
         } else {
           setDiplomas([]);

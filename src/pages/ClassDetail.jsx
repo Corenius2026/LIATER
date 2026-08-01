@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { createDoubt, fetchStudentDoubtsForClass } from '../services/doubtService';
+import { calculateProgramProgressDetails } from '../services/programService';
 import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
@@ -19,6 +20,7 @@ export default function ClassDetail() {
   const [moduleTitle, setModuleTitle] = useState(null);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [programProgressDetails, setProgramProgressDetails] = useState(null);
 
   // ESTADOS DE LA ACTIVIDAD DE REFORZAMIENTO
   const SAMPLE_REINFORCEMENT_ACTIVITY = {
@@ -26,6 +28,7 @@ export default function ClassDetail() {
     title: 'Actividad de reforzamiento: Conceptos clave',
     estimatedTimeMinutes: 10,
     maxAttempts: 2,
+    isMandatory: true,
     questions: [
       {
         id: 'q1',
@@ -140,6 +143,19 @@ export default function ClassDetail() {
     setActivityState('completada');
     setShowConfirmFinishModal(false);
     setViewingResultsMode(true);
+
+    // Actualización visual del progreso si es obligatoria
+    if (activityConfig.isMandatory && programProgressDetails) {
+      setProgramProgressDetails(prev => {
+        const newCompleted = Math.min(prev.totalMandatory, prev.completedCount + 1);
+        const newPct = prev.totalMandatory > 0 ? Math.round((newCompleted / prev.totalMandatory) * 100) : 0;
+        return {
+          ...prev,
+          completedCount: newCompleted,
+          percentage: newPct
+        };
+      });
+    }
   };
 
   // ESTADOS DEL MODAL DE DUDAS Y PERSISTENCIA
@@ -205,6 +221,11 @@ export default function ClassDetail() {
               localStorage.setItem('activeProgramType', progData.program_type);
             }
             window.dispatchEvent(new Event('programContextChanged'));
+            
+            if (currentUser?.id) {
+              const progDetails = await calculateProgramProgressDetails(classData.program_id, currentUser.id);
+              setProgramProgressDetails(progDetails);
+            }
           }
         }
 
@@ -637,6 +658,11 @@ export default function ClassDetail() {
                   <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: '2px' }}>
                     Puntaje: <strong>{completedResult.scorePct}%</strong> • Finalizada el {completedResult.completedAt}
                   </div>
+                  {activityConfig.isMandatory && programProgressDetails && (
+                    <div style={{ fontSize: '0.75rem', color: '#166534', marginTop: '6px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Award size={14} /> Aporte al progreso del programa: {programProgressDetails.percentage}% ({programProgressDetails.completedCount}/{programProgressDetails.totalMandatory} completadas)
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={handleOpenResults}
