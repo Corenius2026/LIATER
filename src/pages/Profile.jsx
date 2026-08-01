@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import {
@@ -692,7 +693,7 @@ export default function Profile() {
       )}
 
       {/* MODAL DE CAMBIO DE CONTRASEÑA */}
-      {showPasswordModal && (
+      {showPasswordModal && createPortal(
         <div 
           role="dialog" 
           aria-modal="true" 
@@ -702,13 +703,16 @@ export default function Profile() {
             left: 0, 
             right: 0, 
             bottom: 0, 
+            width: '100vw',
+            height: '100vh',
             background: 'rgba(15, 23, 42, 0.65)', 
             backdropFilter: 'blur(3px)',
             display: 'flex', 
             alignItems: 'center', 
             justify: 'center', 
-            zIndex: 1000,
-            padding: '1rem'
+            zIndex: 99999,
+            padding: '1rem',
+            boxSizing: 'border-box'
           }}
           onClick={handleClosePasswordModal}
         >
@@ -891,7 +895,8 @@ export default function Profile() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>
