@@ -119,18 +119,40 @@ export default function Profile() {
 
         // 2. Si es profesor, cargar teacher_profiles y diploma_programs
         if (isTeacher) {
-          const { data: tProfile } = await supabase
+          const userOrClause = currentUser?.auth_user_id 
+            ? `user_id.eq.${currentUser.id},user_id.eq.${currentUser.auth_user_id}` 
+            : `user_id.eq.${currentUser.id}`;
+
+          const { data: tProfiles } = await supabase
             .from('teacher_profiles')
             .select('*')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
+            .or(userOrClause);
+
+          const tProfile = tProfiles && tProfiles.length > 0 ? tProfiles[0] : null;
 
           if (tProfile) {
+            let bioText = tProfile.bio || '';
+            let expText = tProfile.experience || '';
+            let roleText = tProfile.title_role || 'Profesor Titular';
+
+            if (bioText && typeof bioText === 'string' && bioText.trim().startsWith('{') && bioText.trim().endsWith('}')) {
+              try {
+                const parsed = JSON.parse(bioText);
+                if (parsed && typeof parsed === 'object') {
+                  bioText = parsed.bio !== undefined ? parsed.bio : bioText;
+                  expText = parsed.experience !== undefined ? parsed.experience : expText;
+                  roleText = parsed.title_role !== undefined ? parsed.title_role : roleText;
+                }
+              } catch (e) {
+                // mantener texto plano
+              }
+            }
+
             const loadedData = {
               area: tProfile.area || '',
-              bio: tProfile.bio || '',
-              title_role: tProfile.title_role || 'Profesor Titular',
-              experience: tProfile.experience || ''
+              bio: bioText,
+              title_role: roleText,
+              experience: expText
             };
             setAcademicData(loadedData);
             setInitialAcademicData(loadedData);
@@ -148,7 +170,7 @@ export default function Profile() {
       }
     }
     loadProfileData();
-  }, [currentUser?.id, isTeacher]);
+  }, [currentUser?.id, currentUser?.auth_user_id, isTeacher]);
 
   const handleTabChange = (newTab) => {
     if (activeTab === 'academic' && hasUnsavedAcademicChanges) {
@@ -188,7 +210,13 @@ export default function Profile() {
     try {
       const teacherName = personalData.full_name || currentUser?.name || 'Profesor';
 
-      // 1. Buscar el perfil de profesor por user_id (sea id de users_profile o auth_user_id)
+      // Serializar bio, experience y title_role en bio de forma JSON para garantizar almacenamiento
+      const bioPayload = JSON.stringify({
+        bio: academicData.bio,
+        experience: academicData.experience,
+        title_role: academicData.title_role
+      });
+
       const userOrClause = currentUser?.auth_user_id 
         ? `user_id.eq.${currentUser.id},user_id.eq.${currentUser.auth_user_id}` 
         : `user_id.eq.${currentUser.id}`;
@@ -200,56 +228,28 @@ export default function Profile() {
 
       const tProfile = existingProfiles && existingProfiles.length > 0 ? existingProfiles[0] : null;
 
-      // Intentar primero actualizar con todos los campos
-      const fullPayload = {
+      const updateData = {
         name: teacherName,
         area: academicData.area,
-        bio: academicData.bio,
-        title_role: academicData.title_role,
-        experience: academicData.experience
+        bio: bioPayload
       };
 
       if (tProfile) {
-        let { error: updateErr } = await supabase
+        const { error: updateErr } = await supabase
           .from('teacher_profiles')
-          .update(fullPayload)
+          .update(updateData)
           .eq('id', tProfile.id);
 
-        if (updateErr) {
-          // Si falla por columnas inexistentes en la BD (title_role / experience), reintentar con las columnas estándar
-          const fallbackPayload = {
-            name: teacherName,
-            area: academicData.area,
-            bio: academicData.bio
-          };
-          const { error: fallbackErr } = await supabase
-            .from('teacher_profiles')
-            .update(fallbackPayload)
-            .eq('id', tProfile.id);
-
-          if (fallbackErr) throw fallbackErr;
-        }
+        if (updateErr) throw updateErr;
       } else {
-        let { error: insertErr } = await supabase
+        const { error: insertErr } = await supabase
           .from('teacher_profiles')
           .insert({
             user_id: currentUser.id,
-            ...fullPayload
+            ...updateData
           });
 
-        if (insertErr) {
-          const fallbackPayload = {
-            user_id: currentUser.id,
-            name: teacherName,
-            area: academicData.area,
-            bio: academicData.bio
-          };
-          const { error: fallbackInsertErr } = await supabase
-            .from('teacher_profiles')
-            .insert(fallbackPayload);
-
-          if (fallbackInsertErr) throw fallbackInsertErr;
-        }
+        if (insertErr) throw insertErr;
       }
 
       setInitialAcademicData({ ...academicData });

@@ -72,8 +72,24 @@ export default function Teachers() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
         {teachersList.map(teacher => {
+          let bioText = teacher.bio || '';
+          let expText = teacher.experience || '';
+          let roleText = teacher.title_role || 'Profesor Titular';
+
+          if (bioText && typeof bioText === 'string' && bioText.trim().startsWith('{') && bioText.trim().endsWith('}')) {
+            try {
+              const parsed = JSON.parse(bioText);
+              if (parsed && typeof parsed === 'object') {
+                bioText = parsed.bio !== undefined ? parsed.bio : bioText;
+                expText = parsed.experience !== undefined ? parsed.experience : expText;
+                roleText = parsed.title_role !== undefined ? parsed.title_role : roleText;
+              }
+            } catch (e) {
+              // mantener texto plano
+            }
+          }
+
           const teacherInitials = teacher.name ? teacher.name.charAt(0).toUpperCase() : 'P';
-          const teacherRole = teacher.title_role || 'Profesor Titular';
 
           return (
             <div 
@@ -110,7 +126,7 @@ export default function Teachers() {
                     {teacher.name || 'Profesor'}
                   </h3>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '0.15rem' }}>
-                    {teacherRole}
+                    {roleText}
                   </div>
                 </div>
               </div>
@@ -137,22 +153,22 @@ export default function Teachers() {
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
                   Biografía
                 </div>
-                <p style={{ fontSize: '0.85rem', color: teacher.bio && teacher.bio.trim() ? 'var(--navy)' : 'var(--text-muted)', margin: 0, lineHeight: 1.5, fontStyle: teacher.bio && teacher.bio.trim() ? 'normal' : 'italic' }}>
-                  {teacher.bio && teacher.bio.trim() ? teacher.bio : 'Sin biografía disponible.'}
+                <p style={{ fontSize: '0.85rem', color: bioText && bioText.trim() ? 'var(--navy)' : 'var(--text-muted)', margin: 0, lineHeight: 1.5, fontStyle: bioText && bioText.trim() ? 'normal' : 'italic' }}>
+                  {bioText && bioText.trim() ? bioText : 'Sin biografía disponible.'}
                 </p>
               </div>
 
               {/* FORMACIÓN Y TRAYECTORIA (SI EXISTE) */}
-              {teacher.experience && teacher.experience.trim() && (
+              {expText && expText.trim() ? (
                 <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem' }}>
                   <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
                     Formación y Trayectoria
                   </div>
                   <p style={{ fontSize: '0.85rem', color: 'var(--navy)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-line' }}>
-                    {teacher.experience}
+                    {expText}
                   </p>
                 </div>
-              )}
+              ) : null}
 
               {/* ENLACES / LINKEDIN (SI EXISTE) */}
               {(teacher.linkedin_url || teacher.linkedin) && String(teacher.linkedin_url || teacher.linkedin).trim().length > 0 && (
