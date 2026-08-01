@@ -3,7 +3,7 @@
  * Define la estructura de navegación utilizando React Router.
  */
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // --- Importación de Componentes de Layout ---
 import Layout from './components/Layout';
@@ -76,6 +76,8 @@ function App() {
             <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
             <Route path="/settings/:programId" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
           </Route>
+          {/* Ruta por defecto si la URL no coincide (evita pantallas blancas) */}
+          <Route path="*" element={<Navigate to="/portal" replace />} />
         </Routes>
       </Router>
     </AuthProvider>

@@ -2,17 +2,22 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', color: 'var(--text-muted)' }}>
+        <p style={{ fontWeight: 600 }}>Cargando sesión...</p>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
-    // Redirigir según el rol del usuario si no tiene permiso
-    if (currentUser.role === 'admin') return <Navigate to="/dashboard/admin" replace />;
-    if (currentUser.role === 'teacher') return <Navigate to="/dashboard/profesor" replace />;
-    return <Navigate to="/dashboard" replace />;
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role)) {
+    return <Navigate to="/portal" replace />;
   }
 
   return children;
