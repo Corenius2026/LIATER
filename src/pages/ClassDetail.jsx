@@ -5,9 +5,9 @@ import { supabase } from '../lib/supabaseClient';
 import { createDoubt, fetchStudentDoubtsForClass } from '../services/doubtService';
 import {
   Download, FileText, Video, Calendar, User, ExternalLink,
-  Paperclip, Presentation, ArrowLeft, Clock, Award, HelpCircle,
+  Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
   Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck,
-  MessageSquare, Check
+  MessageSquare, Check, Lock, RotateCcw
 } from 'lucide-react';
 
 export default function ClassDetail() {
@@ -19,6 +19,128 @@ export default function ClassDetail() {
   const [moduleTitle, setModuleTitle] = useState(null);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ESTADOS DE LA ACTIVIDAD DE REFORZAMIENTO
+  const SAMPLE_REINFORCEMENT_ACTIVITY = {
+    id: 'act-demo-1',
+    title: 'Actividad de reforzamiento: Conceptos clave',
+    estimatedTimeMinutes: 10,
+    maxAttempts: 2,
+    questions: [
+      {
+        id: 'q1',
+        type: 'single_choice',
+        statement: '¿Cuál es la función principal de la separación por capas en una aplicación web modular?',
+        options: [
+          { id: 'opt1', text: 'Desacoplar la interfaz de usuario de las reglas de negocio y el acceso a datos.' },
+          { id: 'opt2', text: 'Duplicar las tablas en la base de datos para acelerar las lecturas manuales.' },
+          { id: 'opt3', text: 'Permitir que los estudiantes editen el código fuente desde el navegador.' },
+          { id: 'opt4', text: 'Reemplazar las peticiones HTTP por almacenamiento en disco duro local.' }
+        ],
+        correctOptionId: 'opt1',
+        explanation: 'La separación por capas garantiza la independencia de componentes y la mantenibilidad del código.'
+      },
+      {
+        id: 'q2',
+        type: 'true_false',
+        statement: 'El progreso general del programa se actualiza al completar la actividad, independientemente de si todas las respuestas son correctas.',
+        options: [
+          { id: 'opt_true', text: 'Verdadero' },
+          { id: 'opt_false', text: 'Falso' }
+        ],
+        correctOptionId: 'opt_true',
+        explanation: 'Efectivamente, completar la evaluación registra el avance de la sesión en el programa.'
+      },
+      {
+        id: 'q3',
+        type: 'single_choice',
+        statement: '¿Qué patrón de arquitectura permite propagar cambios de estado sin acoplar directamente los componentes emisor y receptor?',
+        options: [
+          { id: 'opt3_1', text: 'Patrón Observer / Event-Driven' },
+          { id: 'opt3_2', text: 'Patrón Singleton Monolítico' },
+          { id: 'opt3_3', text: 'Patrón Hardcoded Callback' },
+          { id: 'opt3_4', text: 'Patrón Anti-pattern Global' }
+        ],
+        correctOptionId: 'opt3_1',
+        explanation: 'El patrón Observer / Suscriptor notifica sobre cambios manteniendo un desacoplamiento limpio.'
+      }
+    ]
+  };
+
+  const [activityConfig] = useState(SAMPLE_REINFORCEMENT_ACTIVITY);
+  const [activityState, setActivityState] = useState('no_iniciada'); // 'no_configurada' | 'bloqueada' | 'no_iniciada' | 'en_progreso' | 'completada'
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+  const [userAnswers, setUserAnswers] = useState({});
+  const [showConfirmFinishModal, setShowConfirmFinishModal] = useState(false);
+  const [completedResult, setCompletedResult] = useState(null);
+  const [viewingResultsMode, setViewingResultsMode] = useState(false);
+
+  const handleOptionSelect = (questionId, optionId) => {
+    setUserAnswers(prev => ({
+      ...prev,
+      [questionId]: optionId
+    }));
+    if (activityState === 'no_iniciada') {
+      setActivityState('en_progreso');
+    }
+  };
+
+  const handleStartActivity = () => {
+    setViewingResultsMode(false);
+    setShowConfirmFinishModal(false);
+    setIsActivityModalOpen(true);
+  };
+
+  const handleOpenResults = () => {
+    setViewingResultsMode(true);
+    setIsActivityModalOpen(true);
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQuestionIdx < activityConfig.questions.length - 1) {
+      setCurrentQuestionIdx(prev => prev + 1);
+    }
+  };
+
+  const handlePrevQuestion = () => {
+    if (currentQuestionIdx > 0) {
+      setCurrentQuestionIdx(prev => prev - 1);
+    }
+  };
+
+  const handleFinishAttempt = () => {
+    let correctCount = 0;
+    activityConfig.questions.forEach(q => {
+      if (userAnswers[q.id] === q.correctOptionId) {
+        correctCount++;
+      }
+    });
+
+    const totalCount = activityConfig.questions.length;
+    const scorePct = Math.round((correctCount / totalCount) * 100);
+
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const result = {
+      correctCount,
+      totalCount,
+      scorePct,
+      completedAt: formattedDate
+    };
+
+    setCompletedResult(result);
+    setActivityState('completada');
+    setShowConfirmFinishModal(false);
+    setViewingResultsMode(true);
+  };
 
   // ESTADOS DEL MODAL DE DUDAS Y PERSISTENCIA
   const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
@@ -422,19 +544,120 @@ export default function ClassDetail() {
             )}
           </div>
 
-          {/* 3. PLACEHOLDER DE ACTIVIDAD DE REFORZAMIENTO */}
-          <div className="card-placeholder order-actividad">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.6rem' }}>
+          {/* 3. ACTIVIDAD DE REFORZAMIENTO DE LA CLASE */}
+          <div className="card-placeholder order-actividad" style={{ background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Award size={18} color="var(--gold-dark)" /> Actividad de reforzamiento
               </h3>
-              <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 500 }}>
-                Actividad aún no configurada
-              </span>
+              
+              {/* STATUS CHIP DEPENDIENDO DEL ESTADO DE LA ACTIVIDAD */}
+              {activityState === 'no_configurada' && (
+                <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600 }}>
+                  Actividad aún no configurada
+                </span>
+              )}
+              {activityState === 'bloqueada' && (
+                <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Lock size={12} /> Bloqueada
+                </span>
+              )}
+              {activityState === 'no_iniciada' && (
+                <span style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600 }}>
+                  Disponible • No iniciada
+                </span>
+              )}
+              {activityState === 'en_progreso' && (
+                <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Clock size={12} /> En progreso ({Object.keys(userAnswers).length}/{activityConfig.questions.length})
+                </span>
+              )}
+              {activityState === 'completada' && (
+                <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <CheckCircle2 size={12} /> Completada
+                </span>
+              )}
             </div>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
-              Comprueba tu comprensión de los temas abordados en esta clase.
+
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: 1.45 }}>
+              Comprueba tu comprensión de los temas abordados en esta clase respondiendo la evaluación corta de reforzamiento.
             </p>
+
+            {/* METADATOS (Solo si existe la actividad y no está sin configurar) */}
+            {activityState !== 'no_configurada' && (
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <BookOpen size={14} color="var(--gold-dark)" /> {activityConfig.questions.length} preguntas
+                </span>
+                {activityConfig.estimatedTimeMinutes && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={14} color="var(--gold-dark)" /> Est. {activityConfig.estimatedTimeMinutes} min
+                  </span>
+                )}
+                {activityConfig.maxAttempts && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <RotateCcw size={14} color="var(--gold-dark)" /> {activityConfig.maxAttempts} intentos permitidos
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* VISTA SEGÚN ESTADO DE LA ACTIVIDAD */}
+            {activityState === 'no_configurada' && (
+              <div style={{ padding: '1rem', background: 'var(--bg-light)', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+                El profesor no ha publicado una actividad de reforzamiento para esta clase.
+              </div>
+            )}
+
+            {activityState === 'bloqueada' && (
+              <div style={{ padding: '1rem', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7', color: '#b45309', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Lock size={18} />
+                <span>Debes visualizar la clase o completar los requisitos previos para habilitar esta actividad.</span>
+              </div>
+            )}
+
+            {(activityState === 'no_iniciada' || activityState === 'en_progreso') && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={handleStartActivity}
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.85rem', padding: '0.55rem 1.2rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}
+                >
+                  <Award size={16} /> {activityState === 'en_progreso' ? 'Continuar actividad' : 'Comenzar actividad'}
+                </button>
+              </div>
+            )}
+
+            {activityState === 'completada' && completedResult && (
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem' }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} /> Actividad completada ({completedResult.correctCount}/{completedResult.totalCount} correctas)
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: '2px' }}>
+                    Puntaje: <strong>{completedResult.scorePct}%</strong> • Finalizada el {completedResult.completedAt}
+                  </div>
+                </div>
+                <button
+                  onClick={handleOpenResults}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', color: '#166534', borderColor: '#86efac', background: '#ffffff', fontWeight: 700 }}
+                >
+                  Revisar resultado
+                </button>
+              </div>
+            )}
+
+            {/* SELECTOR DE ESTADOS DE DEMOSTRACIÓN (SOLO PARA PRUEBAS E INSPECCIÓN VISUAL) */}
+            <div style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px border-dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span>Simular estado:</span>
+              <button onClick={() => setActivityState('no_iniciada')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #bfdbfe', background: activityState === 'no_iniciada' ? '#dbeafe' : '#fff', color: '#1e40af', cursor: 'pointer', fontSize: '0.72rem' }}>Disponible</button>
+              <button onClick={() => setActivityState('en_progreso')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #fde68a', background: activityState === 'en_progreso' ? '#fef3c7' : '#fff', color: '#92400e', cursor: 'pointer', fontSize: '0.72rem' }}>En progreso</button>
+              <button onClick={() => { setActivityState('completada'); if(!completedResult) setCompletedResult({ correctCount: 2, totalCount: 3, scorePct: 67, completedAt: '01 Aug 2026, 10:30' }); }} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #86efac', background: activityState === 'completada' ? '#dcfce7' : '#fff', color: '#166534', cursor: 'pointer', fontSize: '0.72rem' }}>Completada</button>
+              <button onClick={() => setActivityState('bloqueada')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'bloqueada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.72rem' }}>Bloqueada</button>
+              <button onClick={() => setActivityState('no_configurada')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'no_configurada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.72rem' }}>No configurada</button>
+            </div>
+
           </div>
 
         </div>
@@ -861,6 +1084,329 @@ export default function ClassDetail() {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODAL / EXPERIENCIA INTERACTIVA DE LA ACTIVIDAD DE REFORZAMIENTO */}
+      {/* =================================================================== */}
+      {isActivityModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(20, 33, 61, 0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '1rem', backdropFilter: 'blur(4px)'
+        }}>
+          <div className="card" style={{
+            width: '100%', maxWidth: '720px', maxHeight: '90vh',
+            overflowY: 'auto', background: 'var(--white)',
+            borderRadius: '16px', border: '1px solid var(--border-color)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)', padding: '2rem',
+            position: 'relative', animation: 'fadeSlideUp 0.3s ease-out'
+          }}>
+            
+            {/* BOTÓN CERRAR MODAL */}
+            <button
+              onClick={() => setIsActivityModalOpen(false)}
+              style={{
+                position: 'absolute', top: '1.25rem', right: '1.25rem',
+                background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                cursor: 'pointer', padding: '0.4rem', borderRadius: '50%'
+              }}
+              aria-label="Cerrar modal de actividad"
+            >
+              <X size={22} />
+            </button>
+
+            {/* ─── CASO 1: MODO REVISIÓN DE RESULTADOS ─── */}
+            {viewingResultsMode && completedResult ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ textAlign: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(252, 163, 17, 0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
+                    <Award size={36} />
+                  </div>
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--navy)', margin: '0 0 0.35rem 0' }}>
+                    Actividad completada
+                  </h2>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                    Resumen de evaluación para: <strong>{clsData?.title}</strong>
+                  </div>
+                </div>
+
+                {/* MENSAJE OBLIGATORIO DE PROGRESO */}
+                <div style={{
+                  background: '#f0fdf4', border: '1px solid #bbf7d0',
+                  color: '#166534', padding: '0.85rem 1.25rem', borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', gap: '0.65rem',
+                  fontWeight: 700, fontSize: '0.9rem'
+                }}>
+                  <CheckCircle2 size={20} color="#166534" />
+                  <span>Tu progreso del programa se ha actualizado.</span>
+                </div>
+
+                {/* TARJETA DE NOTA Y PUNTAJE */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '1rem', background: 'var(--bg-light)', padding: '1.25rem',
+                  borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Puntaje Obtenido</div>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.2, marginTop: '4px' }}>
+                      {completedResult.scorePct}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Aciertos</div>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#166534', lineHeight: 1.2, marginTop: '4px' }}>
+                      {completedResult.correctCount} / {completedResult.totalCount}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Fecha de Finalización</div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--navy)', marginTop: '8px' }}>
+                      {completedResult.completedAt}
+                    </div>
+                  </div>
+                </div>
+
+                {/* REVISIÓN DETALLADA DE PREGUNTAS */}
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem' }}>
+                    Revisión de respuestas
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {activityConfig.questions.map((q, idx) => {
+                      const userChoice = userAnswers[q.id];
+                      const isCorrect = userChoice === q.correctOptionId;
+
+                      return (
+                        <div key={q.id} style={{
+                          padding: '1rem 1.25rem', borderRadius: '10px',
+                          border: isCorrect ? '1px solid #bbf7d0' : '1px solid #fca5a5',
+                          background: isCorrect ? '#f0fdf4' : '#fef2f2'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>
+                              {idx + 1}. {q.statement}
+                            </span>
+                            <span style={{
+                              fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px',
+                              background: isCorrect ? '#dcfce7' : '#fee2e2',
+                              color: isCorrect ? '#166534' : '#dc2626'
+                            }}>
+                              {isCorrect ? 'Correcta' : 'Incorrecta'}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-dark)', margin: '0.4rem 0' }}>
+                            {q.options.map(opt => {
+                              const isSelected = userChoice === opt.id;
+                              const isRightOption = q.correctOptionId === opt.id;
+
+                              return (
+                                <div key={opt.id} style={{
+                                  padding: '0.45rem 0.75rem', borderRadius: '6px', margin: '4px 0',
+                                  background: isRightOption ? '#dcfce7' : isSelected ? '#fee2e2' : '#ffffff',
+                                  border: isRightOption ? '1px solid #86efac' : isSelected ? '1px solid #fca5a5' : '1px solid #e2e8f0',
+                                  fontWeight: isSelected || isRightOption ? 600 : 400,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                }}>
+                                  <span>{opt.text}</span>
+                                  {isRightOption && <span style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 700 }}>✓ Respuesta correcta</span>}
+                                  {isSelected && !isRightOption && <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 700 }}>Tu selección</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {q.explanation && (
+                            <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.7)', padding: '0.4rem 0.6rem', borderRadius: '6px' }}>
+                              💡 <strong>Explicación:</strong> {q.explanation}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                  <button onClick={() => setIsActivityModalOpen(false)} className="btn btn-primary" style={{ padding: '0.6rem 1.4rem', fontWeight: 700 }}>
+                    Cerrar y volver a la clase
+                  </button>
+                </div>
+              </div>
+
+            ) : showConfirmFinishModal ? (
+              
+              /* ─── CASO 2: MODAL DE CONFIRMACIÓN DE FINALIZACIÓN ─── */
+              <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(252, 163, 17, 0.15)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
+                  <HelpCircle size={32} color="var(--gold-dark)" />
+                </div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '0.5rem' }}>
+                  ¿Deseas finalizar la actividad?
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '480px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
+                  Has respondido <strong>{Object.keys(userAnswers).length}</strong> de <strong>{activityConfig.questions.length}</strong> preguntas.
+                  {Object.keys(userAnswers).length < activityConfig.questions.length && (
+                    <span style={{ display: 'block', color: '#dc2626', fontWeight: 600, marginTop: '0.5rem' }}>
+                      ⚠️ Tienes preguntas sin responder.
+                    </span>
+                  )}
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+                  <button
+                    onClick={() => setShowConfirmFinishModal(false)}
+                    className="btn btn-outline"
+                    style={{ padding: '0.55rem 1.25rem', fontSize: '0.85rem', fontWeight: 600 }}
+                  >
+                    Volver a revisar
+                  </button>
+                  <button
+                    onClick={handleFinishAttempt}
+                    className="btn btn-primary"
+                    style={{ padding: '0.55rem 1.4rem', fontSize: '0.85rem', fontWeight: 700 }}
+                  >
+                    Sí, finalizar actividad
+                  </button>
+                </div>
+              </div>
+
+            ) : (
+
+              /* ─── CASO 3: INTENTO ACTIVO EN PROGRESO (PREGUNTA X DE Y) ─── */
+              <div>
+                {/* HEADER CON BARRA DE PROGRESO */}
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gold-dark)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Actividad de reforzamiento
+                    </span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)', background: 'var(--bg-light)', padding: '0.2rem 0.65rem', borderRadius: '12px' }}>
+                      Pregunta {currentQuestionIdx + 1} de {activityConfig.questions.length}
+                    </span>
+                  </div>
+
+                  {/* BARRA DE AVANCE INTERNA (100% NEUTRAL - NAVY & GOLD) */}
+                  <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '9999px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${((currentQuestionIdx + 1) / activityConfig.questions.length) * 100}%`,
+                      height: '100%',
+                      background: 'var(--navy)',
+                      transition: 'width 0.3s ease-out'
+                    }} />
+                  </div>
+                </div>
+
+                {/* PREGUNTA ACTUAL */}
+                {(() => {
+                  const currentQ = activityConfig.questions[currentQuestionIdx];
+                  const selectedOptId = userAnswers[currentQ.id];
+
+                  return (
+                    <div style={{ minHeight: '280px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1.25rem', lineHeight: 1.35 }}>
+                          {currentQ.statement}
+                        </h3>
+
+                        {/* OPCIONES DE RESPUESTA CON ÁREAS CLICABLES AMPLIAS */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {currentQ.options.map(opt => {
+                            const isSelected = selectedOptId === opt.id;
+
+                            return (
+                              <div
+                                key={opt.id}
+                                onClick={() => handleOptionSelect(currentQ.id, opt.id)}
+                                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleOptionSelect(currentQ.id, opt.id)}
+                                tabIndex={0}
+                                role="radio"
+                                aria-checked={isSelected}
+                                style={{
+                                  padding: '1rem 1.25rem',
+                                  borderRadius: '12px',
+                                  border: isSelected ? '2px solid var(--navy)' : '1px solid var(--border-color)',
+                                  background: isSelected ? 'rgba(20, 33, 61, 0.04)' : 'var(--white)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease-in-out',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.85rem',
+                                  boxShadow: isSelected ? '0 2px 4px rgba(20, 33, 61, 0.08)' : 'none',
+                                  outline: 'none'
+                                }}
+                                onFocus={e => e.currentTarget.style.borderColor = 'var(--gold-dark)'}
+                                onBlur={e => e.currentTarget.style.borderColor = isSelected ? 'var(--navy)' : 'var(--border-color)'}
+                              >
+                                {/* CIRCULO INDICADOR RADIO (NEUTRAL) */}
+                                <div style={{
+                                  width: '20px', height: '20px', borderRadius: '50%',
+                                  border: isSelected ? '6px solid var(--navy)' : '2px solid #cbd5e1',
+                                  background: '#ffffff', flexShrink: 0,
+                                  transition: 'all 0.15s ease'
+                                }} />
+                                <span style={{ fontSize: '0.92rem', color: 'var(--navy)', fontWeight: isSelected ? 700 : 500 }}>
+                                  {opt.text}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* CONTROLES DE NAVEGACIÓN (ANTERIOR / SIGUIENTE / FINALIZAR) */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                        <button
+                          onClick={handlePrevQuestion}
+                          disabled={currentQuestionIdx === 0}
+                          className="btn btn-outline"
+                          style={{
+                            fontSize: '0.85rem', padding: '0.55rem 1rem',
+                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                            opacity: currentQuestionIdx === 0 ? 0.4 : 1,
+                            cursor: currentQuestionIdx === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <ArrowLeft size={16} /> Anterior
+                        </button>
+
+                        {currentQuestionIdx < activityConfig.questions.length - 1 ? (
+                          <button
+                            onClick={handleNextQuestion}
+                            className="btn btn-primary"
+                            style={{ fontSize: '0.85rem', padding: '0.55rem 1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+                          >
+                            Siguiente <ArrowRight size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setShowConfirmFinishModal(true)}
+                            className="btn"
+                            style={{
+                              fontSize: '0.85rem', padding: '0.55rem 1.25rem',
+                              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                              background: 'var(--navy)', color: '#ffffff', border: 'none',
+                              borderRadius: '8px', fontWeight: 700, cursor: 'pointer',
+                              boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)'
+                            }}
+                          >
+                            <CheckCircle2 size={16} /> Finalizar actividad
+                          </button>
+                        )}
+                      </div>
+
+                    </div>
+                  );
+                })()}
+
+              </div>
+            )}
+
           </div>
         </div>
       )}
