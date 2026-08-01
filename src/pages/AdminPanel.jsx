@@ -740,9 +740,9 @@ function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }
   );
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ────────────────────────────────────────────────────────
    TAB 4 — Módulos (Supabase)
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+──────────────────────────────────────────────────────── */
 function ModulosTab({ modules, loading, onRefresh, programId }) {
   const [showModal, setShowModal] = useState(false);
   const [editModuleId, setEditModuleId] = useState(null);
@@ -752,6 +752,63 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [modules]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === modules.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(modules.map(m => m.id));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar los ${selectedIds.length} módulos seleccionados?\n\nNota: Los módulos que tengan subtemas asociados no se podrán eliminar.`);
+    if (!confirmed) return;
+
+    try {
+      const { data: subtopicData } = await supabase
+        .from('subtopics')
+        .select('module_id')
+        .in('module_id', selectedIds);
+
+      const blockedModuleIds = new Set((subtopicData || []).map(s => s.module_id));
+      const deletableIds = selectedIds.filter(id => !blockedModuleIds.has(id));
+
+      if (deletableIds.length === 0) {
+        alert('Ninguno de los módulos seleccionados se puede eliminar porque todos tienen subtemas asociados.');
+        return;
+      }
+
+      const { error: delErr } = await supabase
+        .from('modules')
+        .delete()
+        .in('id', deletableIds);
+
+      if (delErr) throw delErr;
+
+      let msg = `${deletableIds.length} módulo(s) eliminado(s) exitosamente.`;
+      if (blockedModuleIds.size > 0) {
+        msg += ` (${blockedModuleIds.size} módulo(s) no se eliminaron por contener subtemas).`;
+      }
+      alert(msg);
+      setSelectedIds([]);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error en la eliminación múltiple: ' + err.message);
+    }
+  };
 
   // Limpiar el formulario al abrir modal de creación
   const openCreateModal = () => {
@@ -759,7 +816,6 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
     setTitle('');
     setDescription('');
     setOrderIndex(1);
-    // diplomaId se setea en el useEffect si está vacío
     setShowModal(true);
   };
 
@@ -827,7 +883,8 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
         title,
         description,
         order_index: parsedOrder,
-        program_id: programId
+        program_id: programId,
+        diploma_id: programId
       };
 
       let query;
@@ -841,7 +898,7 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
       if (opError) throw opError;
       
       setSuccess(editModuleId ? 'Módulo actualizado con éxito.' : 'Módulo creado con éxito.');
-      setTitle(''); setDescription('');
+      setTitle(''); setDescription(''); setOrderIndex(1);
       if (onRefresh) onRefresh();
       
       setTimeout(() => {
@@ -857,11 +914,22 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
 
   return (
     <div>
-      <div className="section-header-row">
+      <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span className="section-title">Módulos del programa ({modules.length})</span>
-        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Módulo
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="btn"
+              style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
+            >
+              <Trash2 size={15} /> Eliminar seleccionados ({selectedIds.length})
+            </button>
+          )}
+          <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+            <Plus size={16} /> Crear Módulo
+          </button>
+        </div>
       </div>
 
       {showModal && (
@@ -931,6 +999,63 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [subtopics]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === subtopics.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(subtopics.map(st => st.id));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar los ${selectedIds.length} subtemas seleccionados?\n\nNota: Los subtemas que tengan clases asociadas no se podrán eliminar.`);
+    if (!confirmed) return;
+
+    try {
+      const { data: classData } = await supabase
+        .from('class_sessions')
+        .select('subtopic_id')
+        .in('subtopic_id', selectedIds);
+
+      const blockedIds = new Set((classData || []).map(c => c.subtopic_id));
+      const deletableIds = selectedIds.filter(id => !blockedIds.has(id));
+
+      if (deletableIds.length === 0) {
+        alert('Ninguno de los subtemas seleccionados se puede eliminar porque todos tienen clases asociadas.');
+        return;
+      }
+
+      const { error: delErr } = await supabase
+        .from('subtopics')
+        .delete()
+        .in('id', deletableIds);
+
+      if (delErr) throw delErr;
+
+      let msg = `${deletableIds.length} subtema(s) eliminado(s) exitosamente.`;
+      if (blockedIds.size > 0) {
+        msg += ` (${blockedIds.size} subtema(s) no se eliminaron por contener clases).`;
+      }
+      alert(msg);
+      setSelectedIds([]);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error en la eliminación múltiple: ' + err.message);
+    }
+  };
 
   const openCreateModal = () => {
     setEditSubtopicId(null);
@@ -965,7 +1090,6 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
     }
     
     const parsedOrder = parseInt(orderIndex) || 0;
-    
     
     setSubmitting(true);
     try {
@@ -1034,11 +1158,22 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
 
   return (
     <div>
-      <div className="section-header-row">
+      <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span className="section-title">Subtemas registrados ({subtopics.length})</span>
-        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Subtema
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="btn"
+              style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
+            >
+              <Trash2 size={15} /> Eliminar seleccionados ({selectedIds.length})
+            </button>
+          )}
+          <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+            <Plus size={16} /> Crear Subtema
+          </button>
+        </div>
       </div>
 
       {showModal && (
@@ -1083,13 +1218,31 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
-            <tr><th>#</th><th>Título</th><th>Descripción</th><th>Acciones</th></tr>
+            <tr>
+              <th style={{ width: '38px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={subtopics.length > 0 && selectedIds.length === subtopics.length}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
+              <th>#</th><th>Título</th><th>Descripción</th><th>Acciones</th>
+            </tr>
           </thead>
           <tbody>
-            {loading ? <LoadingRow cols={4} /> :
-             subtopics.length === 0 ? <EmptyRow cols={4} message="No hay subtemas registrados." /> :
+            {loading ? <LoadingRow cols={5} /> :
+             subtopics.length === 0 ? <EmptyRow cols={5} message="No hay subtemas registrados." /> :
              subtopics.map((st, i) => (
-              <tr key={st.id}>
+              <tr key={st.id} style={{ background: selectedIds.includes(st.id) ? '#fffbe6' : undefined }}>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(st.id)}
+                    onChange={() => toggleSelectOne(st.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </td>
                 <td><div className="order-badge">{st.order_index ?? i + 1}</div></td>
                 <td><span style={{ fontWeight: 600 }}>{st.title}</span></td>
                 <td style={{ color: 'var(--text-muted)', maxWidth: '260px' }}>{st.description}</td>
@@ -1103,9 +1256,9 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
   );
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ————————————————————————————————————————————————————
    TAB 6 — Clases (Supabase)
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+———————————————————————————————————————————————————— */
 function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const [showModal, setShowModal] = useState(false);
   const [editClassId, setEditClassId] = useState(null);
@@ -1121,10 +1274,53 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const [orderIndex, setOrderIndex] = useState(1);
   
   const [subtopicsList, setSubtopicsList] = useState([]);
-  
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [classes]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === classes.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(classes.map(c => c.id));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar las ${selectedIds.length} clases seleccionadas?`);
+    if (!confirmed) return;
+
+    try {
+      try {
+        await supabase.from('resources').delete().in('class_id', selectedIds);
+      } catch {}
+
+      const { error: delErr } = await supabase
+        .from('class_sessions')
+        .delete()
+        .in('id', selectedIds);
+
+      if (delErr) throw delErr;
+
+      alert(`${selectedIds.length} clase(s) eliminada(s) exitosamente.`);
+      setSelectedIds([]);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error en la eliminación múltiple: ' + err.message);
+    }
+  };
 
   const openCreateModal = () => {
     setEditClassId(null);
@@ -1225,7 +1421,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
       if (countError) throw countError;
 
       if (count && count > 0) {
-        alert('Esta clase tiene recursos asociados. Elimina primero los recursos o confirma una eliminación completa si se implementa más adelante.');
+        alert('Esta clase tiene recursos asociados. Elimina primero los recursos.');
         return;
       }
 
@@ -1245,11 +1441,22 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
 
   return (
     <div>
-      <div className="section-header-row">
+      <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span className="section-title">Sesiones de clase ({classes.length})</span>
-        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Crear Clase
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="btn"
+              style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
+            >
+              <Trash2 size={15} /> Eliminar seleccionados ({selectedIds.length})
+            </button>
+          )}
+          <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+            <Plus size={16} /> Crear Clase
+          </button>
+        </div>
       </div>
 
       {showModal && (
@@ -1265,9 +1472,12 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
               
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título de la Clase</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Bases de React" required />
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Clase 1 - HTML Básico" required />
               </div>
-
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (opcional)</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }} placeholder="Contenido breve de la clase..." />
+              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Subtema Asociado</label>
                 <select value={subtopicId} onChange={e => setSubtopicId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
@@ -1276,29 +1486,20 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
                   ))}
                 </select>
               </div>
-
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Profesor Asignado</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Docente Encargado</label>
                 <select value={teacherId} onChange={e => setTeacherId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                  {teachers.length === 0 ? <option value="">No hay profesores asignados</option> : teachers.map(t => (
+                  {teachers.length === 0 ? <option value="">Sin docentes registrados</option> : teachers.map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
               </div>
-
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Fecha y Hora</label>
                 <input type="datetime-local" value={classDate} onChange={e => setClassDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
               </div>
-
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Duración (minutos)</label>
-                <input type="number" value={duration} onChange={e => setDuration(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: 90" />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Grabación</label>
-                <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
               </div>
 
               <div>
@@ -1328,16 +1529,34 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
-            <tr><th>Título</th><th>Profesor</th><th>Fecha</th><th>Duración</th><th>Estado</th><th>Grabación</th><th>Acciones</th></tr>
+            <tr>
+              <th style={{ width: '38px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={classes.length > 0 && selectedIds.length === classes.length}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
+              <th>Título</th><th>Profesor</th><th>Fecha</th><th>Duración</th><th>Estado</th><th>Grabación</th><th>Acciones</th>
+            </tr>
           </thead>
           <tbody>
-            {loading ? <LoadingRow cols={7} /> :
-             classes.length === 0 ? <EmptyRow cols={7} message="No hay clases registradas." /> :
+            {loading ? <LoadingRow cols={8} /> :
+             classes.length === 0 ? <EmptyRow cols={8} message="No hay clases registradas." /> :
              classes.map(cls => {
               const matchedTeacher = teachers.find(t => t.id === cls.teacher_id || t.user_id === cls.teacher_id);
               const teacherName = cls.teacher_profiles?.name || matchedTeacher?.name || '—';
               return (
-              <tr key={cls.id}>
+              <tr key={cls.id} style={{ background: selectedIds.includes(cls.id) ? '#fffbe6' : undefined }}>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(cls.id)}
+                    onChange={() => toggleSelectOne(cls.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </td>
                 <td style={{ fontWeight: 600 }}>{cls.title}</td>
                 <td>{teacherName}</td>
                 <td>{formatShortDate(cls.class_date)}</td>
@@ -1363,7 +1582,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    TAB 7 — Recursos (Supabase)
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function RecursosTab({ resources, loading, onRefresh }) {
+function RecursosTab({ resources, loading, onRefresh, programId }) {
   const [showModal, setShowModal] = useState(false);
   const [editResourceId, setEditResourceId] = useState(null);
   
@@ -1379,6 +1598,46 @@ function RecursosTab({ resources, loading, onRefresh }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [resources]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === resources.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(resources.map(r => r.id));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar los ${selectedIds.length} recursos seleccionados?`);
+    if (!confirmed) return;
+
+    try {
+      const { error: delErr } = await supabase
+        .from('resources')
+        .delete()
+        .in('id', selectedIds);
+
+      if (delErr) throw delErr;
+
+      alert(`${selectedIds.length} recurso(s) eliminado(s) exitosamente.`);
+      setSelectedIds([]);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error en la eliminación múltiple: ' + err.message);
+    }
+  };
 
   const openCreateModal = () => {
     setEditResourceId(null);
@@ -1479,11 +1738,22 @@ function RecursosTab({ resources, loading, onRefresh }) {
 
   return (
     <div>
-      <div className="section-header-row">
-        <span className="section-title">Recursos del diplomado ({resources.length})</span>
-        <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-          <Plus size={16} /> Agregar Recurso
-        </button>
+      <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+        <span className="section-title">Recursos del programa ({resources.length})</span>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="btn"
+              style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
+            >
+              <Trash2 size={15} /> Eliminar seleccionados ({selectedIds.length})
+            </button>
+          )}
+          <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+            <Plus size={16} /> Agregar Recurso
+          </button>
+        </div>
       </div>
 
       {showModal && (
@@ -1558,13 +1828,31 @@ function RecursosTab({ resources, loading, onRefresh }) {
       <div className="admin-table-wrapper">
         <table className="admin-table">
           <thead>
-            <tr><th>Nombre</th><th>Tipo</th><th>Enlace</th><th>Acciones</th></tr>
+            <tr>
+              <th style={{ width: '38px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={resources.length > 0 && selectedIds.length === resources.length}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
+              <th>Nombre</th><th>Tipo</th><th>Enlace</th><th>Acciones</th>
+            </tr>
           </thead>
           <tbody>
-            {loading ? <LoadingRow cols={4} /> :
-             resources.length === 0 ? <EmptyRow cols={4} message="No hay recursos registrados." /> :
+            {loading ? <LoadingRow cols={5} /> :
+             resources.length === 0 ? <EmptyRow cols={5} message="No hay recursos registrados." /> :
              resources.map(r => (
-              <tr key={r.id}>
+              <tr key={r.id} style={{ background: selectedIds.includes(r.id) ? '#fffbe6' : undefined }}>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(r.id)}
+                    onChange={() => toggleSelectOne(r.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </td>
                 <td style={{ fontWeight: 600 }}>{r.title}</td>
                 <td><TypeBadge type={r.resource_type} /></td>
                 <td>
