@@ -102,23 +102,16 @@ export default function ClassDetail() {
     // Guardar intento en Supabase si está disponible
     if (currentUser?.id && activityConfig.id) {
       try {
-        const { data: profile } = await supabase
-          .from('users_profile')
-          .select('id')
-          .eq('auth_user_id', currentUser.id)
-          .maybeSingle();
-
-        if (profile) {
-          await supabase
-            .from('activity_attempts')
-            .insert([{
-              activity_id: activityConfig.id,
-              student_id: profile.id,
-              status: 'completed',
-              score: scorePct,
-              completed_at: new Date().toISOString()
-            }]);
-        }
+        const studentIdToUse = currentUser.id;
+        await supabase
+          .from('activity_attempts')
+          .insert([{
+            activity_id: activityConfig.id,
+            student_id: studentIdToUse,
+            status: 'completed',
+            score: scorePct,
+            completed_at: new Date().toISOString()
+          }]);
       } catch (err) {
         console.error('Error guardando intento:', err);
       }
@@ -284,35 +277,32 @@ export default function ClassDetail() {
 
           let stateToSet = 'no_iniciada';
           if (currentUser?.id) {
-            const { data: profile } = await supabase
-              .from('users_profile')
-              .select('id')
-              .eq('auth_user_id', currentUser.id)
-              .maybeSingle();
+            const studentIdToUse = currentUser.id;
+            const filterClause = currentUser.auth_user_id 
+              ? `student_id.eq.${studentIdToUse},student_id.eq.${currentUser.auth_user_id}`
+              : `student_id.eq.${studentIdToUse}`;
 
-            if (profile) {
-              const { data: attempts } = await supabase
-                .from('activity_attempts')
-                .select('*')
-                .eq('activity_id', actData.id)
-                .eq('student_id', profile.id)
-                .order('completed_at', { ascending: false });
+            const { data: attempts } = await supabase
+              .from('activity_attempts')
+              .select('*')
+              .eq('activity_id', actData.id)
+              .or(filterClause)
+              .order('completed_at', { ascending: false });
 
-              if (attempts && attempts.length > 0) {
-                const lastAttempt = attempts[0];
-                if (lastAttempt.status === 'completed') {
-                  stateToSet = 'completada';
-                  setCompletedResult({
-                    correctCount: Math.round(((lastAttempt.score || 0) / 100) * formattedQuestions.length),
-                    totalCount: formattedQuestions.length,
-                    scorePct: lastAttempt.score || 0,
-                    completedAt: lastAttempt.completed_at
-                      ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
-                      : 'Reciente'
-                  });
-                } else if (lastAttempt.status === 'in_progress') {
-                  stateToSet = 'en_progreso';
-                }
+            if (attempts && attempts.length > 0) {
+              const lastAttempt = attempts[0];
+              if (lastAttempt.status === 'completed') {
+                stateToSet = 'completada';
+                setCompletedResult({
+                  correctCount: Math.round(((lastAttempt.score || 0) / 100) * formattedQuestions.length),
+                  totalCount: formattedQuestions.length,
+                  scorePct: lastAttempt.score || 0,
+                  completedAt: lastAttempt.completed_at
+                    ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
+                    : 'Reciente'
+                });
+              } else if (lastAttempt.status === 'in_progress') {
+                stateToSet = 'en_progreso';
               }
             }
           }

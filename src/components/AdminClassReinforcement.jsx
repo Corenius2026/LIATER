@@ -429,8 +429,8 @@ export default function AdminClassReinforcement({ classId }) {
       const savedQs = await persistQuestionsToDatabase(currentAct.id, questions);
       setQuestions(savedQs);
 
-      setSuccess('Actividad y preguntas guardadas correctamente en Supabase.');
-      setTimeout(() => setSuccess(''), 3000);
+      setSuccess('Las preguntas y la actividad han sido guardadas con éxito.');
+      setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       console.error(err);
       setError('Error al guardar la actividad: ' + err.message);
@@ -951,6 +951,14 @@ export default function AdminClassReinforcement({ classId }) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {questions.length > 0 && (
+          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+            <button onClick={saveActivityInfo} disabled={saving} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.25rem', fontWeight: 600 }}>
+              <Save size={16} /> {saving ? 'Guardando...' : 'Guardar Preguntas'}
+            </button>
           </div>
         )}
       </div>
