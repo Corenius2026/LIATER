@@ -963,15 +963,6 @@ export default function ClassDetail() {
               </div>
             )}
 
-            {/* SELECTOR DE ESTADOS DE DEMOSTRACIÓN (SOLO PARA PRUEBAS E INSPECCIÓN VISUAL) */}
-            <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px border-dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              <span>Simular:</span>
-              <button onClick={() => setActivityState('no_iniciada')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #bfdbfe', background: activityState === 'no_iniciada' ? '#dbeafe' : '#fff', color: '#1e40af', cursor: 'pointer', fontSize: '0.7rem' }}>Disponible</button>
-              <button onClick={() => setActivityState('en_progreso')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #fde68a', background: activityState === 'en_progreso' ? '#fef3c7' : '#fff', color: '#92400e', cursor: 'pointer', fontSize: '0.7rem' }}>En progreso</button>
-              <button onClick={() => { setActivityState('completada'); if(!completedResult) setCompletedResult({ correctCount: 5, totalCount: 5, scorePct: 100, completedAt: 'Reciente' }); }} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #86efac', background: activityState === 'completada' ? '#dcfce7' : '#fff', color: '#166534', cursor: 'pointer', fontSize: '0.7rem' }}>Completada</button>
-              <button onClick={() => setActivityState('bloqueada')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'bloqueada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.7rem' }}>Bloqueada</button>
-              <button onClick={() => setActivityState('no_configurada')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'no_configurada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.7rem' }}>No config.</button>
-            </div>
           </div>
 
           {/* 2. ENVIAR UNA DUDA Y LISTA DE DUDAS REGISTRADAS */}
