@@ -14,6 +14,7 @@ import {
 
 
 import './TeacherPanel.css';
+import AdminClassReinforcement from '../components/AdminClassReinforcement';
 
 /* ─────────────────────────────────────────
    HELPERS & CONFIG
@@ -450,8 +451,12 @@ function ClassDetailModal({ selectedClass, onClose }) {
               ))}
             </div>
           )}
-        </div>
+          {/* --- SECCIÓN 3: ACTIVIDAD DE REFORZAMIENTO --- */}
+          <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
+            <AdminClassReinforcement classId={selectedClass.id} />
+          </div>
 
+        </div>
       </div>
     </div>
   );

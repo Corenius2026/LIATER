@@ -429,8 +429,8 @@ export default function AdminClassReinforcement({ classId }) {
       const savedQs = await persistQuestionsToDatabase(currentAct.id, questions);
       setQuestions(savedQs);
 
-      setSuccess('Las preguntas y la actividad han sido guardadas con éxito.');
-      setTimeout(() => setSuccess(''), 4000);
+      setSuccess('Las preguntas y la actividad han sido guardadas en borrador. El profesor asignado o el administrador pueden revisarla y hacer clic en "Publicar Actividad".');
+      setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
       console.error(err);
       setError('Error al guardar la actividad: ' + err.message);
@@ -783,7 +783,7 @@ export default function AdminClassReinforcement({ classId }) {
               color: activity.is_published ? '#166534' : '#475569',
               fontWeight: 600
             }}>
-              {activity.is_published ? 'PUBLICADA' : 'BORRADOR'}
+              {activity.is_published ? 'PUBLICADA' : 'BORRADOR (Pendiente de revisión)'}
             </span>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
