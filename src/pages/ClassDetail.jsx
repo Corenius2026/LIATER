@@ -619,6 +619,20 @@ export default function ClassDetail() {
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                 />
+                {/* CAPA DE BLOQUEO EN LA ESQUINA SUPERIOR DERECHA PARA BLOQUEAR EL BOTÓN POP-OUT / VENTANA EMERGENTE */}
+                <div 
+                  style={{ 
+                    position: 'absolute', 
+                    top: 0, 
+                    right: 0, 
+                    width: '80px', 
+                    height: '65px', 
+                    zIndex: 20, 
+                    background: 'transparent',
+                    cursor: 'default'
+                  }} 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                />
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '1.75rem 1rem', background: 'var(--surface-light)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
