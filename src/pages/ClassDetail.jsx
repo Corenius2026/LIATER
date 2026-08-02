@@ -64,8 +64,9 @@ function PrivateVideoPlayer({ videoUrl, title }) {
     if (!iframeRef.current || !videoUrl) return;
 
     const realEmbedUrl = formatEmbedVideoUrl(videoUrl);
+    const obfuscatedUrl = btoa(encodeURIComponent(realEmbedUrl || ''));
     
-    // Encapsulamiento dentro de un objeto Blob en memoria de la ventana actual
+    // Documento en memoria que descifra la URL vía JS dinámico sin escribir jamás "src=https://..." en el código HTML
     const blobHtml = `
       <!DOCTYPE html>
       <html lang="es">
@@ -73,28 +74,66 @@ function PrivateVideoPlayer({ videoUrl, title }) {
           <meta charset="utf-8">
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+            html, body { width: 100%; height: 100%; overflow: hidden; background: #000; user-select: none; }
             iframe { width: 100%; height: 100%; border: none; }
             .popout-mask {
               position: absolute;
               top: 0;
               right: 0;
-              width: 90px;
-              height: 70px;
+              width: 100px;
+              height: 75px;
               z-index: 999999;
               background: transparent;
               cursor: default;
             }
           </style>
         </head>
-        <body oncontextmenu="return false;">
+        <body>
           <iframe 
-            src="${realEmbedUrl}" 
-            title="${title ? title.replace(/"/g, '&quot;') : 'Reproductor Privado'}"
+            id="streamPlayer" 
+            title="${title ? title.replace(/"/g, '&quot;') : 'Reproductor Protegido'}"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
             allowfullscreen
           ></iframe>
-          <div class="popout-mask" onclick="event.preventDefault(); event.stopPropagation();"></div>
+          <div class="popout-mask"></div>
+
+          <script>
+            (function() {
+              // Desactivar menú contextual
+              document.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; });
+              
+              // Desactivar atajos de inspección (F12, Ctrl+Shift+I/J/C, Ctrl+U)
+              document.addEventListener('keydown', function(e) {
+                if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
+                  e.preventDefault();
+                  return false;
+                }
+              });
+
+              // Bucle Anti-DevTools / Inspección
+              setInterval(function() {
+                try {
+                  (function(){}).constructor("debugger")();
+                } catch(e) {}
+              }, 150);
+
+              // Carga dinámica en memoria del video
+              var obfuscated = "${obfuscatedUrl}";
+              try {
+                var streamUrl = decodeURIComponent(atob(obfuscated));
+                var player = document.getElementById("streamPlayer");
+                if (player) {
+                  try {
+                    player.contentWindow.location.replace(streamUrl);
+                  } catch(err) {
+                    player.src = streamUrl;
+                  }
+                }
+              } catch(err) {
+                console.error("Stream init error");
+              }
+            })();
+          </script>
         </body>
       </html>
     `;
@@ -166,8 +205,35 @@ export default function ClassDetail() {
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
   const [showConfirmFinishModal, setShowConfirmFinishModal] = useState(false);
-  const [completedResult, setCompletedResult] = useState(null);
   const [viewingResultsMode, setViewingResultsMode] = useState(false);
+
+  // Protección Anti-Inspección y Menú Contextual para la vista del curso
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (
+        e.keyCode === 123 || // F12
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Ctrl+Shift+I/J/C
+        (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83)) // Ctrl+U, Ctrl+S
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      return false;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
 
   const handleOptionSelect = (questionId, optionId) => {
     setUserAnswers(prev => ({
