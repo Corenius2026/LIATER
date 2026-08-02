@@ -23,6 +23,91 @@ export default function AdminClassReinforcement({ classId }) {
   const [previewQuestionIndex, setPreviewQuestionIndex] = useState(0);
   const [previewSelectedOptions, setPreviewSelectedOptions] = useState({});
 
+  // ==========================================
+  // ESTADOS TEMPORALES PARA PRUEBA DE IA
+  // ==========================================
+  const [testTranscript, setTestTranscript] = useState('');
+  const [testQuestionCount, setTestQuestionCount] = useState(5);
+  const [testGenerating, setTestGenerating] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [testError, setTestError] = useState('');
+
+  const handleTestGenerate = async () => {
+    if (testTranscript.trim().length < 200) {
+      setTestError('La transcripción debe tener al menos 200 caracteres.');
+      return;
+    }
+    
+    setTestGenerating(true);
+    setTestError('');
+    setTestResult(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "generar-preguntas-reforzamiento",
+        {
+          body: {
+            transcript: testTranscript.trim(),
+            questionCount: testQuestionCount,
+            classTitle: localActivity.title,
+            promptRules: `
+- El enunciado no debe introducir escenarios, condiciones o términos que no aparezcan expresamente en la transcripción.
+- Las opciones incorrectas deben ser plausibles y basarse en confusiones conceptuales razonables; evita opciones absurdas o evidentemente falsas.
+            `.trim()
+          }
+        }
+      );
+      
+      if (error) throw error;
+      
+      setTestResult(data);
+    } catch (err) {
+      console.error('Error invocando Edge Function:', err);
+      setTestError(err.message || 'Error desconocido al invocar la función');
+    } finally {
+      setTestGenerating(false);
+    }
+  };
+
+  const handleLoadDraft = () => {
+    if (!testResult?.draft?.questions) return;
+
+    if (questions.length > 0) {
+      if (!window.confirm("El editor ya contiene preguntas. ¿Deseas reemplazarlas por el borrador generado con IA?")) {
+        return;
+      }
+    }
+
+    const newQuestions = testResult.draft.questions.map((q, qIndex) => {
+      const qId = `temp-q-${crypto.randomUUID()}`;
+      let correctOptId = null;
+
+      const newOptions = q.options.map((o, oIndex) => {
+        const oId = `temp-o-${crypto.randomUUID()}`;
+        if (o.is_correct) correctOptId = oId;
+        return {
+          id: oId,
+          question_id: qId,
+          text: o.text,
+          order_num: oIndex
+        };
+      });
+
+      return {
+        id: qId,
+        activity_id: activity?.id || 'temp-act',
+        text: q.text,
+        question_type: q.question_type,
+        order_num: qIndex,
+        options: newOptions,
+        correctOptionId: correctOptId
+      };
+    });
+
+    setQuestions(newQuestions);
+    window.alert("El borrador fue cargado en el editor. Revisa todas las preguntas antes de guardar o publicar.");
+  };
+
   useEffect(() => {
     if (classId) {
       loadActivityData();
@@ -649,6 +734,82 @@ export default function AdminClassReinforcement({ classId }) {
           </div>
         )}
       </div>
+
+      {/* ==========================================
+          SECCIÓN TEMPORAL: Prueba de generación con IA
+          ========================================== */}
+      <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+        <h3 style={{ fontSize: '1.1rem', color: '#0f172a', marginBottom: '1rem', fontWeight: 'bold' }}>
+          Prueba de generación con IA
+        </h3>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', fontWeight: 500, color: '#334155' }}>
+              Transcripción de la clase (Mín. 200 caracteres)
+            </label>
+            <textarea 
+              value={testTranscript}
+              onChange={(e) => setTestTranscript(e.target.value)}
+              placeholder="Pega la transcripción aquí..."
+              style={{ width: '100%', minHeight: '120px', padding: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', resize: 'vertical' }}
+            />
+            <div style={{ fontSize: '0.75rem', color: testTranscript.trim().length >= 200 ? '#16a34a' : '#64748b', marginTop: '0.2rem' }}>
+              {testTranscript.trim().length} caracteres
+            </div>
+          </div>
+          
+          <div>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', fontWeight: 500, color: '#334155' }}>
+              Cantidad de preguntas a generar
+            </label>
+            <input 
+              type="number" 
+              value={testQuestionCount}
+              onChange={(e) => setTestQuestionCount(parseInt(e.target.value) || 1)}
+              min="1" 
+              max="10" 
+              style={{ width: '120px', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+            />
+          </div>
+          
+          <button 
+            onClick={handleTestGenerate}
+            disabled={testGenerating || testTranscript.trim().length < 200}
+            className="btn btn-primary"
+            style={{ alignSelf: 'flex-start', padding: '0.6rem 1.2rem' }}
+          >
+            {testGenerating ? 'Generando...' : 'Generar borrador con IA'}
+          </button>
+          
+          {testError && (
+            <div style={{ padding: '0.75rem', background: '#fef2f2', color: '#b91c1c', border: '1px solid #f87171', borderRadius: '4px', fontSize: '0.9rem' }}>
+              {testError}
+            </div>
+          )}
+          
+          {testResult && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'flex-start', marginTop: '0.5rem' }}>
+              {testResult?.draft?.questions && (
+                <>
+                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    ✓ Borrador generado exitosamente ({testResult.draft.questions.length} preguntas)
+                  </div>
+                  <button 
+                    onClick={handleLoadDraft}
+                    className="btn btn-primary"
+                    style={{ padding: '0.6rem 1.2rem', background: '#0f172a', color: 'white', border: 'none' }}
+                  >
+                    Cargar borrador en el editor
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* FIN SECCIÓN TEMPORAL */}
+
     </div>
   );
 }
