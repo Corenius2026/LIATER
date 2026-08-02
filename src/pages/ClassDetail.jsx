@@ -61,17 +61,52 @@ function PrivateVideoPlayer({ videoUrl, title }) {
   const iframeRef = useRef(null);
 
   useEffect(() => {
-    if (iframeRef.current && videoUrl) {
-      // Inyección dinámica de la URL descifrada en memoria desvinculada del marcado React estático
-      const cipher = btoa(encodeURIComponent(formatEmbedVideoUrl(videoUrl) || ''));
-      try {
-        const plainUrl = decodeURIComponent(atob(cipher));
-        iframeRef.current.setAttribute('src', plainUrl);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-  }, [videoUrl]);
+    if (!iframeRef.current || !videoUrl) return;
+
+    const realEmbedUrl = formatEmbedVideoUrl(videoUrl);
+    
+    // Encapsulamiento dentro de un objeto Blob en memoria de la ventana actual
+    const blobHtml = `
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+            iframe { width: 100%; height: 100%; border: none; }
+            .popout-mask {
+              position: absolute;
+              top: 0;
+              right: 0;
+              width: 90px;
+              height: 70px;
+              z-index: 999999;
+              background: transparent;
+              cursor: default;
+            }
+          </style>
+        </head>
+        <body oncontextmenu="return false;">
+          <iframe 
+            src="${realEmbedUrl}" 
+            title="${title ? title.replace(/"/g, '&quot;') : 'Reproductor Privado'}"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+            allowfullscreen
+          ></iframe>
+          <div class="popout-mask" onclick="event.preventDefault(); event.stopPropagation();"></div>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([blobHtml], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    iframeRef.current.src = blobUrl;
+
+    return () => {
+      URL.revokeObjectURL(blobUrl);
+    };
+  }, [videoUrl, title]);
 
   return (
     <div 
