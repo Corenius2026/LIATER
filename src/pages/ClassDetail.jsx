@@ -95,27 +95,12 @@ function PrivateVideoPlayer({ videoUrl, title }) {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
             allowfullscreen
           ></iframe>
-          <div class="popout-mask"></div>
+          <div class="popout-mask" onclick="event.preventDefault(); event.stopPropagation();"></div>
 
           <script>
             (function() {
-              // Desactivar menú contextual
+              // Desactivar menú contextual en el marco del reproductor
               document.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; });
-              
-              // Desactivar atajos de inspección (F12, Ctrl+Shift+I/J/C, Ctrl+U)
-              document.addEventListener('keydown', function(e) {
-                if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
-                  e.preventDefault();
-                  return false;
-                }
-              });
-
-              // Bucle Anti-DevTools / Inspección
-              setInterval(function() {
-                try {
-                  (function(){}).constructor("debugger")();
-                } catch(e) {}
-              }, 150);
 
               // Carga dinámica en memoria del video
               var obfuscated = "${obfuscatedUrl}";
@@ -168,7 +153,7 @@ function PrivateVideoPlayer({ videoUrl, title }) {
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowFullScreen
       />
-      {/* CAPA DE SEGURIDAD PARA BLOQUEAR MENÚS CONTEXTUALES Y BOTONES POP-OUT */}
+      {/* MÁSCARA EXTERNA DE SEGURIDAD CONTRA BOTÓN POP-OUT */}
       <div 
         style={{ 
           position: 'absolute', 
@@ -205,35 +190,8 @@ export default function ClassDetail() {
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
   const [showConfirmFinishModal, setShowConfirmFinishModal] = useState(false);
+  const [completedResult, setCompletedResult] = useState(null);
   const [viewingResultsMode, setViewingResultsMode] = useState(false);
-
-  // Protección Anti-Inspección y Menú Contextual para la vista del curso
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (
-        e.keyCode === 123 || // F12
-        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Ctrl+Shift+I/J/C
-        (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83)) // Ctrl+U, Ctrl+S
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    };
-
-    const handleContextMenu = (e) => {
-      e.preventDefault();
-      return false;
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('contextmenu', handleContextMenu);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('contextmenu', handleContextMenu);
-    };
-  }, []);
 
   const handleOptionSelect = (questionId, optionId) => {
     setUserAnswers(prev => ({
