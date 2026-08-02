@@ -48,11 +48,12 @@ export default function AdminClassReinforcement({ classId }) {
         {
           body: {
             transcript: testTranscript.trim(),
-            questionCount: testQuestionCount,
+            questionCount: 5,
             classTitle: localActivity.title,
             promptRules: `
 - El enunciado no debe introducir escenarios, condiciones o términos que no aparezcan expresamente en la transcripción.
 - Las opciones incorrectas deben ser plausibles y basarse en confusiones conceptuales razonables; evita opciones absurdas o evidentemente falsas.
+- DEBES marcar exactamente una opción como correcta para cada pregunta (is_correct: true).
             `.trim()
           }
         }
@@ -78,26 +79,42 @@ export default function AdminClassReinforcement({ classId }) {
       }
     }
 
+    const isOptionCorrect = (o, oIndex, q) => {
+      if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
+      if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
+      if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
+      if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
+      if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
+      return false;
+    };
+
     const newQuestions = testResult.draft.questions.map((q, qIndex) => {
       const qId = `temp-q-${crypto.randomUUID()}`;
       let correctOptId = null;
 
-      const newOptions = q.options.map((o, oIndex) => {
+      const newOptions = (q.options || []).map((o, oIndex) => {
         const oId = `temp-o-${crypto.randomUUID()}`;
-        if (o.is_correct) correctOptId = oId;
+        if (isOptionCorrect(o, oIndex, q)) {
+          correctOptId = oId;
+        }
         return {
           id: oId,
           question_id: qId,
-          text: o.text,
+          text: o.text || `Opción ${oIndex + 1}`,
           order_num: oIndex
         };
       });
 
+      // Si por alguna razón la IA no especificó respuesta correcta, marcar la primera por defecto
+      if (!correctOptId && newOptions.length > 0) {
+        correctOptId = newOptions[0].id;
+      }
+
       return {
         id: qId,
         activity_id: activity?.id || 'temp-act',
-        text: q.text,
-        question_type: q.question_type,
+        text: q.text || 'Sin enunciado',
+        question_type: q.question_type || 'single_choice',
         order_num: qIndex,
         options: newOptions,
         correctOptionId: correctOptId
@@ -105,7 +122,7 @@ export default function AdminClassReinforcement({ classId }) {
     });
 
     setQuestions(newQuestions);
-    window.alert("El borrador fue cargado en el editor. Revisa todas las preguntas antes de guardar o publicar.");
+    window.alert("El borrador de 5 preguntas fue cargado en el editor con sus respuestas correctas seleccionadas. Revisa todas las preguntas antes de guardar o publicar.");
   };
 
   useEffect(() => {
@@ -905,20 +922,7 @@ export default function AdminClassReinforcement({ classId }) {
             </div>
           </div>
           
-          <div>
-            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', fontWeight: 500, color: '#334155' }}>
-              Cantidad de preguntas a generar
-            </label>
-            <input 
-              type="number" 
-              value={testQuestionCount}
-              onChange={(e) => setTestQuestionCount(parseInt(e.target.value) || 1)}
-              min="1" 
-              max="10" 
-              style={{ width: '120px', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-            />
-          </div>
-          
+
           <button 
             onClick={handleTestGenerate}
             disabled={testGenerating || testTranscript.trim().length < 200}
