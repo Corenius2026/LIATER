@@ -59,30 +59,6 @@ function formatEmbedVideoUrl(url) {
 
 function PrivateVideoPlayer({ videoUrl, title, studentName }) {
   const iframeRef = useRef(null);
-  const [isWindowBlur, setIsWindowBlur] = useState(false);
-
-  // Blackout automático cuando el estudiante cambia de pestaña o minimiza el navegador
-  useEffect(() => {
-    const handleBlur = () => setIsWindowBlur(true);
-    const handleFocus = () => setIsWindowBlur(false);
-    const handleVisibility = () => {
-      if (document.hidden) {
-        setIsWindowBlur(true);
-      } else {
-        setIsWindowBlur(false);
-      }
-    };
-
-    window.addEventListener('blur', handleBlur);
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, []);
 
   useEffect(() => {
     if (!iframeRef.current || !videoUrl) return;
@@ -173,30 +149,13 @@ function PrivateVideoPlayer({ videoUrl, title, studentName }) {
       <iframe
         ref={iframeRef}
         title={title}
-        style={{ 
-          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none',
-          filter: isWindowBlur ? 'blur(25px) brightness(0)' : 'none',
-          transition: 'filter 0.2s ease'
-        }}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowFullScreen
       />
 
-      {/* MÁSCARA NEGRA DE SEGURIDAD AL CAMBIAR DE PESTAÑA O MINIMIZAR */}
-      {isWindowBlur && (
-        <div style={{
-          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-          background: '#000000', color: '#ffffff', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', zIndex: 40, padding: '1rem', textAlign: 'center'
-        }}>
-          <Lock size={36} color="var(--gold-dark)" style={{ marginBottom: '0.6rem' }} />
-          <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Reproducción pausada por seguridad</div>
-          <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>Regresa a la pestaña activa para continuar</div>
-        </div>
-      )}
-
       {/* MARCA DE AGUA DINÁMICA ANTI-PIRATERÍA CON EL NOMBRE/USUARIO DEL ALUMNO */}
-      {studentName && !isWindowBlur && (
+      {studentName && (
         <div style={{
           position: 'absolute', bottom: '14px', left: '16px', zIndex: 25,
           pointerEvents: 'none', userSelect: 'none',
