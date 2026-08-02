@@ -302,11 +302,11 @@ export default function ClassDetail() {
     setShowConfirmFinishModal(false);
     setViewingResultsMode(true);
 
-    // Guardar intento en Supabase si está disponible
+    // Guardar intento en Supabase sin bloquear la UI
     if (currentUser?.id && activityConfig.id) {
       try {
         const studentIdToUse = currentUser.id;
-        await supabase
+        const { error: insertErr } = await supabase
           .from('activity_attempts')
           .insert([{
             activity_id: activityConfig.id,
@@ -315,6 +315,7 @@ export default function ClassDetail() {
             score: scorePct,
             completed_at: new Date().toISOString()
           }]);
+        if (insertErr) console.error('Error guardando intento:', insertErr);
       } catch (err) {
         console.error('Error guardando intento:', err);
       }
@@ -323,8 +324,9 @@ export default function ClassDetail() {
     // Actualización visual del progreso si es obligatoria
     if (activityConfig.isMandatory && programProgressDetails) {
       setProgramProgressDetails(prev => {
-        const newCompleted = Math.min(prev.totalMandatory, prev.completedCount + 1);
-        const newPct = prev.totalMandatory > 0 ? Math.round((newCompleted / prev.totalMandatory) * 100) : 0;
+        if (!prev) return prev;
+        const newCompleted = Math.min(prev.totalMandatory || 1, (prev.completedCount || 0) + 1);
+        const newPct = (prev.totalMandatory || 1) > 0 ? Math.round((newCompleted / prev.totalMandatory) * 100) : 0;
         return {
           ...prev,
           completedCount: newCompleted,
@@ -1432,19 +1434,19 @@ export default function ClassDetail() {
                   <div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Puntaje Obtenido</div>
                     <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.2, marginTop: '4px' }}>
-                      {completedResult.scorePct}%
+                      {completedResult?.scorePct ?? 0}%
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Aciertos</div>
                     <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#166534', lineHeight: 1.2, marginTop: '4px' }}>
-                      {completedResult.correctCount} / {completedResult.totalCount}
+                      {completedResult?.correctCount ?? 0} / {completedResult?.totalCount ?? (activityConfig?.questions?.length || 0)}
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Fecha de Finalización</div>
                     <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--navy)', marginTop: '8px' }}>
-                      {completedResult.completedAt}
+                      {completedResult?.completedAt || 'Reciente'}
                     </div>
                   </div>
                 </div>
@@ -1457,7 +1459,7 @@ export default function ClassDetail() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {activityConfig.questions.map((q, idx) => {
                       const userChoice = userAnswers[q.id];
-                      const isCorrect = userChoice === q.correctOptionId;
+                      const isCorrect = userChoice && q.correctOptionId && String(userChoice) === String(q.correctOptionId);
 
                       return (
                         <div key={q.id} style={{
@@ -1480,8 +1482,8 @@ export default function ClassDetail() {
 
                           <div style={{ fontSize: '0.82rem', color: 'var(--text-dark)', margin: '0.4rem 0' }}>
                             {q.options.map(opt => {
-                              const isSelected = userChoice === opt.id;
-                              const isRightOption = q.correctOptionId === opt.id;
+                              const isSelected = userChoice && String(userChoice) === String(opt.id);
+                              const isRightOption = q.correctOptionId && String(q.correctOptionId) === String(opt.id);
 
                               return (
                                 <div key={opt.id} style={{
