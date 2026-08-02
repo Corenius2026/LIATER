@@ -62,8 +62,11 @@ function ClassDetailModal({ selectedClass, onClose }) {
   // 1. Estado para Información de la Clase
   const [classTitle, setClassTitle] = useState(selectedClass?.title || '');
   const [classDesc, setClassDesc] = useState(selectedClass?.description || '');
+  const [classVideoUrl, setClassVideoUrl] = useState(selectedClass?.video_url || '');
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoMsg, setInfoMsg] = useState('');
+  const [savingVideo, setSavingVideo] = useState(false);
+  const [videoMsg, setVideoMsg] = useState('');
 
   // 2. Estado para Presentación y Materiales
   const [editId, setEditId] = useState(null);
@@ -97,9 +100,30 @@ function ClassDetailModal({ selectedClass, onClose }) {
     if (selectedClass) {
       setClassTitle(selectedClass.title || '');
       setClassDesc(selectedClass.description || '');
+      setClassVideoUrl(selectedClass.video_url || '');
       fetchMaterials();
     }
   }, [selectedClass]);
+
+  const handleSaveVideo = async (e) => {
+    e.preventDefault();
+    setSavingVideo(true);
+    setVideoMsg('');
+    try {
+      const { error: updateErr } = await supabase
+        .from('class_sessions')
+        .update({ video_url: classVideoUrl.trim() || null })
+        .eq('id', selectedClass.id);
+      if (updateErr) throw updateErr;
+      selectedClass.video_url = classVideoUrl.trim() || null;
+      setVideoMsg('URL de grabación guardada con éxito.');
+      setTimeout(() => setVideoMsg(''), 3000);
+    } catch (err) {
+      setVideoMsg('Error al guardar URL de grabación: ' + err.message);
+    } finally {
+      setSavingVideo(false);
+    }
+  };
 
   // Guardar Información de la clase
   const handleSaveInfo = async (e) => {
@@ -339,25 +363,40 @@ function ClassDetailModal({ selectedClass, onClose }) {
         {/* ─── SECCIÓN 3: GRABACIÓN DE LA CLASE ─── */}
         <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Video size={18} color="var(--navy)" /> 3. Grabación de la Clase
+            <Video size={18} color="var(--navy)" /> 3. Grabación / Transmisión de la Clase
           </h3>
-          <div style={{ background: 'var(--white)', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <form onSubmit={handleSaveVideo} style={{ background: 'var(--white)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>
-                {selectedClass.video_url ? 'Grabación Oficial Disponible' : 'Grabación Pendiente'}
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {selectedClass.video_url 
-                  ? 'La grabación de esta sesión ha sido publicada por el Administrador.' 
-                  : 'El enlace de la grabación debe ser registrado por el Administrador al finalizar la clase en vivo.'}
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)' }}>
+                URL del Video de la Clase (YouTube, Vimeo, Google Drive o Loom)
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input 
+                  type="url" 
+                  value={classVideoUrl} 
+                  onChange={e => setClassVideoUrl(e.target.value)} 
+                  placeholder="https://www.youtube.com/watch?v=... o Drive / Vimeo" 
+                  style={{ flex: 1, padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.88rem' }} 
+                />
+                <button type="submit" disabled={savingVideo} className="btn btn-navy" style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {savingVideo ? 'Guardando...' : 'Guardar Video'}
+                </button>
               </div>
             </div>
-            {selectedClass.video_url && (
-              <a href={selectedClass.video_url} target="_blank" rel="noreferrer" className="btn btn-navy" style={{ fontSize: '0.82rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
-                <Play size={14} /> Reproducir Grabación
-              </a>
+            {videoMsg && (
+              <div style={{ fontSize: '0.8rem', color: videoMsg.includes('Error') ? '#dc2626' : '#166534', fontWeight: 600 }}>
+                {videoMsg}
+              </div>
             )}
-          </div>
+            {selectedClass.video_url && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                <span>Visualización activa:</span>
+                <a href={selectedClass.video_url} target="_blank" rel="noreferrer" style={{ color: 'var(--navy)', fontWeight: 600 }}>
+                  Abrir enlace cargado ↗
+                </a>
+              </div>
+            )}
+          </form>
         </div>
 
         {/* ─── SECCIÓN 4: MATERIAL COMPLEMENTARIO ─── */}

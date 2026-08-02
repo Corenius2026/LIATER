@@ -11,6 +11,52 @@ import {
   MessageSquare, Check, Lock, RotateCcw
 } from 'lucide-react';
 
+function formatEmbedVideoUrl(url) {
+  if (!url) return null;
+  let trimmed = url.trim();
+
+  // YouTube Shorts
+  if (trimmed.includes('youtube.com/shorts/')) {
+    const videoId = trimmed.split('youtube.com/shorts/')[1]?.split('?')[0]?.split('&')[0];
+    if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+  }
+
+  // YouTube watch / youtu.be
+  if (trimmed.includes('youtube.com/watch')) {
+    try {
+      const urlObj = new URL(trimmed);
+      const videoId = urlObj.searchParams.get('v');
+      if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+    } catch (e) {
+      const match = trimmed.match(/[?&]v=([^&]+)/);
+      if (match) return `https://www.youtube.com/embed/${match[1]}`;
+    }
+  }
+  if (trimmed.includes('youtu.be/')) {
+    const videoId = trimmed.split('youtu.be/')[1]?.split('?')[0]?.split('&')[0];
+    if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+  }
+
+  // Google Drive
+  if (trimmed.includes('drive.google.com') && (trimmed.includes('/view') || trimmed.includes('/edit'))) {
+    return trimmed.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
+  }
+
+  // Vimeo
+  if (trimmed.includes('vimeo.com/') && !trimmed.includes('player.vimeo.com')) {
+    const videoId = trimmed.split('vimeo.com/')[1]?.split('?')[0]?.split('#')[0];
+    if (videoId) return `https://player.vimeo.com/video/${videoId}`;
+  }
+
+  // Loom
+  if (trimmed.includes('loom.com/share/')) {
+    const videoId = trimmed.split('loom.com/share/')[1]?.split('?')[0];
+    if (videoId) return `https://www.loom.com/embed/${videoId}`;
+  }
+
+  return trimmed;
+}
+
 export default function ClassDetail() {
   const { id } = useParams();
   const { currentUser } = useAuth();
@@ -565,13 +611,27 @@ export default function ClassDetail() {
             </h3>
 
             {clsData.video_url ? (
-              <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: '#000' }}>
-                <iframe
-                  src={clsData.video_url}
-                  title={clsData.title}
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                  allowFullScreen
-                />
+              <div>
+                <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: '#000' }}>
+                  <iframe
+                    src={formatEmbedVideoUrl(clsData.video_url)}
+                    title={clsData.title}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
+                  <a 
+                    href={clsData.video_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="btn btn-outline" 
+                    style={{ fontSize: '0.78rem', padding: '0.35rem 0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <ExternalLink size={13} /> Abrir enlace de la grabación en pestaña nueva
+                  </a>
+                </div>
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '1.75rem 1rem', background: 'var(--surface-light)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
