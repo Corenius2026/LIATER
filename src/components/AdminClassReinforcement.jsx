@@ -37,6 +37,12 @@ export default function AdminClassReinforcement({ classId }) {
       setTestError('La transcripción debe tener al menos 200 caracteres.');
       return;
     }
+
+    if (questions.length > 0) {
+      if (!window.confirm("El editor ya contiene preguntas. ¿Deseas reemplazarlas por las 5 preguntas que generará la IA?")) {
+        return;
+      }
+    }
     
     setTestGenerating(true);
     setTestError('');
@@ -62,67 +68,58 @@ export default function AdminClassReinforcement({ classId }) {
       if (error) throw error;
       
       setTestResult(data);
+
+      // Carga automática de preguntas en el editor
+      if (data?.draft?.questions) {
+        const isOptionCorrect = (o, oIndex, q) => {
+          if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
+          if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
+          if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
+          if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
+          if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
+          return false;
+        };
+
+        const newQuestions = data.draft.questions.map((q, qIndex) => {
+          const qId = `temp-q-${crypto.randomUUID()}`;
+          let correctOptId = null;
+
+          const newOptions = (q.options || []).map((o, oIndex) => {
+            const oId = `temp-o-${crypto.randomUUID()}`;
+            if (isOptionCorrect(o, oIndex, q)) {
+              correctOptId = oId;
+            }
+            return {
+              id: oId,
+              question_id: qId,
+              text: o.text || `Opción ${oIndex + 1}`,
+              order_num: oIndex
+            };
+          });
+
+          if (!correctOptId && newOptions.length > 0) {
+            correctOptId = newOptions[0].id;
+          }
+
+          return {
+            id: qId,
+            activity_id: activity?.id || 'temp-act',
+            text: q.text || 'Sin enunciado',
+            question_type: q.question_type || 'single_choice',
+            order_num: qIndex,
+            options: newOptions,
+            correctOptionId: correctOptId
+          };
+        });
+
+        setQuestions(newQuestions);
+      }
     } catch (err) {
       console.error('Error invocando Edge Function:', err);
       setTestError(err.message || 'Error desconocido al invocar la función');
     } finally {
       setTestGenerating(false);
     }
-  };
-
-  const handleLoadDraft = () => {
-    if (!testResult?.draft?.questions) return;
-
-    if (questions.length > 0) {
-      if (!window.confirm("El editor ya contiene preguntas. ¿Deseas reemplazarlas por el borrador generado con IA?")) {
-        return;
-      }
-    }
-
-    const isOptionCorrect = (o, oIndex, q) => {
-      if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
-      if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
-      if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
-      if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
-      if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
-      return false;
-    };
-
-    const newQuestions = testResult.draft.questions.map((q, qIndex) => {
-      const qId = `temp-q-${crypto.randomUUID()}`;
-      let correctOptId = null;
-
-      const newOptions = (q.options || []).map((o, oIndex) => {
-        const oId = `temp-o-${crypto.randomUUID()}`;
-        if (isOptionCorrect(o, oIndex, q)) {
-          correctOptId = oId;
-        }
-        return {
-          id: oId,
-          question_id: qId,
-          text: o.text || `Opción ${oIndex + 1}`,
-          order_num: oIndex
-        };
-      });
-
-      // Si por alguna razón la IA no especificó respuesta correcta, marcar la primera por defecto
-      if (!correctOptId && newOptions.length > 0) {
-        correctOptId = newOptions[0].id;
-      }
-
-      return {
-        id: qId,
-        activity_id: activity?.id || 'temp-act',
-        text: q.text || 'Sin enunciado',
-        question_type: q.question_type || 'single_choice',
-        order_num: qIndex,
-        options: newOptions,
-        correctOptionId: correctOptId
-      };
-    });
-
-    setQuestions(newQuestions);
-    window.alert("El borrador de 5 preguntas fue cargado en el editor con sus respuestas correctas seleccionadas. Revisa todas las preguntas antes de guardar o publicar.");
   };
 
   useEffect(() => {
@@ -938,22 +935,9 @@ export default function AdminClassReinforcement({ classId }) {
             </div>
           )}
           
-          {testResult && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'flex-start', marginTop: '0.5rem' }}>
-              {testResult?.draft?.questions && (
-                <>
-                  <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    ✓ Borrador generado exitosamente ({testResult.draft.questions.length} preguntas)
-                  </div>
-                  <button 
-                    onClick={handleLoadDraft}
-                    className="btn btn-primary"
-                    style={{ padding: '0.6rem 1.2rem', background: '#0f172a', color: 'white', border: 'none' }}
-                  >
-                    Cargar borrador en el editor
-                  </button>
-                </>
-              )}
+          {testResult?.draft?.questions && (
+            <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem' }}>
+              ✓ {testResult.draft.questions.length} preguntas generadas y cargadas automáticamente en el editor.
             </div>
           )}
         </div>
