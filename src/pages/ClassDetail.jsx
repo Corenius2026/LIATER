@@ -611,27 +611,14 @@ export default function ClassDetail() {
             </h3>
 
             {clsData.video_url ? (
-              <div>
-                <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: '#000' }}>
-                  <iframe
-                    src={formatEmbedVideoUrl(clsData.video_url)}
-                    title={clsData.title}
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
-                  <a 
-                    href={clsData.video_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="btn btn-outline" 
-                    style={{ fontSize: '0.78rem', padding: '0.35rem 0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                  >
-                    <ExternalLink size={13} /> Abrir enlace de la grabación en pestaña nueva
-                  </a>
-                </div>
+              <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: '#000' }}>
+                <iframe
+                  src={formatEmbedVideoUrl(clsData.video_url)}
+                  title={clsData.title}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '1.75rem 1rem', background: 'var(--surface-light)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
