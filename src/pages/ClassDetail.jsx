@@ -22,56 +22,9 @@ export default function ClassDetail() {
   const [loading, setLoading] = useState(true);
   const [programProgressDetails, setProgramProgressDetails] = useState(null);
 
-  // ESTADOS DE LA ACTIVIDAD DE REFORZAMIENTO
-  const SAMPLE_REINFORCEMENT_ACTIVITY = {
-    id: 'act-demo-1',
-    title: 'Actividad de reforzamiento: Conceptos clave',
-    estimatedTimeMinutes: 10,
-    maxAttempts: 2,
-    isMandatory: true,
-    questions: [
-      {
-        id: 'q1',
-        type: 'single_choice',
-        statement: '¿Cuál es la función principal de la separación por capas en una aplicación web modular?',
-        options: [
-          { id: 'opt1', text: 'Desacoplar la interfaz de usuario de las reglas de negocio y el acceso a datos.' },
-          { id: 'opt2', text: 'Duplicar las tablas en la base de datos para acelerar las lecturas manuales.' },
-          { id: 'opt3', text: 'Permitir que los estudiantes editen el código fuente desde el navegador.' },
-          { id: 'opt4', text: 'Reemplazar las peticiones HTTP por almacenamiento en disco duro local.' }
-        ],
-        correctOptionId: 'opt1',
-        explanation: 'La separación por capas garantiza la independencia de componentes y la mantenibilidad del código.'
-      },
-      {
-        id: 'q2',
-        type: 'true_false',
-        statement: 'El progreso general del programa se actualiza al completar la actividad, independientemente de si todas las respuestas son correctas.',
-        options: [
-          { id: 'opt_true', text: 'Verdadero' },
-          { id: 'opt_false', text: 'Falso' }
-        ],
-        correctOptionId: 'opt_true',
-        explanation: 'Efectivamente, completar la evaluación registra el avance de la sesión en el programa.'
-      },
-      {
-        id: 'q3',
-        type: 'single_choice',
-        statement: '¿Qué patrón de arquitectura permite propagar cambios de estado sin acoplar directamente los componentes emisor y receptor?',
-        options: [
-          { id: 'opt3_1', text: 'Patrón Observer / Event-Driven' },
-          { id: 'opt3_2', text: 'Patrón Singleton Monolítico' },
-          { id: 'opt3_3', text: 'Patrón Hardcoded Callback' },
-          { id: 'opt3_4', text: 'Patrón Anti-pattern Global' }
-        ],
-        correctOptionId: 'opt3_1',
-        explanation: 'El patrón Observer / Suscriptor notifica sobre cambios manteniendo un desacoplamiento limpio.'
-      }
-    ]
-  };
+  const [activityConfig, setActivityConfig] = useState(null);
+  const [activityState, setActivityState] = useState('no_configurada'); // 'no_configurada' | 'bloqueada' | 'no_iniciada' | 'en_progreso' | 'completada'
 
-  const [activityConfig] = useState(SAMPLE_REINFORCEMENT_ACTIVITY);
-  const [activityState, setActivityState] = useState('no_iniciada'); // 'no_configurada' | 'bloqueada' | 'no_iniciada' | 'en_progreso' | 'completada'
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
@@ -112,16 +65,18 @@ export default function ClassDetail() {
     }
   };
 
-  const handleFinishAttempt = () => {
+  const handleFinishAttempt = async () => {
+    if (!activityConfig || !activityConfig.questions) return;
+
     let correctCount = 0;
     activityConfig.questions.forEach(q => {
-      if (userAnswers[q.id] === q.correctOptionId) {
+      if (userAnswers[q.id] && q.correctOptionId && userAnswers[q.id] === q.correctOptionId) {
         correctCount++;
       }
     });
 
     const totalCount = activityConfig.questions.length;
-    const scorePct = Math.round((correctCount / totalCount) * 100);
+    const scorePct = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
 
     const now = new Date();
     const formattedDate = now.toLocaleDateString('es-ES', {
@@ -143,6 +98,31 @@ export default function ClassDetail() {
     setActivityState('completada');
     setShowConfirmFinishModal(false);
     setViewingResultsMode(true);
+
+    // Guardar intento en Supabase si está disponible
+    if (currentUser?.id && activityConfig.id) {
+      try {
+        const { data: profile } = await supabase
+          .from('users_profile')
+          .select('id')
+          .eq('auth_user_id', currentUser.id)
+          .maybeSingle();
+
+        if (profile) {
+          await supabase
+            .from('activity_attempts')
+            .insert([{
+              activity_id: activityConfig.id,
+              student_id: profile.id,
+              status: 'completed',
+              score: scorePct,
+              completed_at: new Date().toISOString()
+            }]);
+        }
+      } catch (err) {
+        console.error('Error guardando intento:', err);
+      }
+    }
 
     // Actualización visual del progreso si es obligatoria
     if (activityConfig.isMandatory && programProgressDetails) {
@@ -246,6 +226,100 @@ export default function ClassDetail() {
         if (currentUser?.id) {
           const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
           setUserDoubts(doubts || []);
+        }
+
+        // 5. Obtener la actividad de reforzamiento publicada para esta clase
+        const { data: actData, error: actError } = await supabase
+          .from('class_activities')
+          .select(`
+            *,
+            activity_questions (
+              *,
+              question_options (*)
+            )
+          `)
+          .eq('class_id', id)
+          .eq('is_published', true)
+          .maybeSingle();
+
+        if (actError) {
+          console.error('Error cargando actividad publicada:', actError);
+        }
+
+        if (actData && actData.activity_questions && actData.activity_questions.length > 0) {
+          const qIds = actData.activity_questions.map(q => q.id);
+          const { data: correctAnswers } = await supabase
+            .from('question_correct_answers')
+            .select('*')
+            .in('question_id', qIds);
+
+          const correctMap = {};
+          if (correctAnswers) {
+            correctAnswers.forEach(ca => {
+              correctMap[ca.question_id] = ca.correct_option_id;
+            });
+          }
+
+          const formattedQuestions = actData.activity_questions
+            .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+            .map(q => ({
+              id: q.id,
+              type: q.question_type,
+              statement: q.text,
+              options: (q.question_options || [])
+                .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+                .map(o => ({ id: o.id, text: o.text })),
+              correctOptionId: correctMap[q.id] || null
+            }));
+
+          setActivityConfig({
+            id: actData.id,
+            title: actData.title,
+            description: actData.description,
+            estimatedTimeMinutes: 10,
+            maxAttempts: actData.max_attempts || 1,
+            isMandatory: actData.is_mandatory,
+            questions: formattedQuestions
+          });
+
+          let stateToSet = 'no_iniciada';
+          if (currentUser?.id) {
+            const { data: profile } = await supabase
+              .from('users_profile')
+              .select('id')
+              .eq('auth_user_id', currentUser.id)
+              .maybeSingle();
+
+            if (profile) {
+              const { data: attempts } = await supabase
+                .from('activity_attempts')
+                .select('*')
+                .eq('activity_id', actData.id)
+                .eq('student_id', profile.id)
+                .order('completed_at', { ascending: false });
+
+              if (attempts && attempts.length > 0) {
+                const lastAttempt = attempts[0];
+                if (lastAttempt.status === 'completed') {
+                  stateToSet = 'completada';
+                  setCompletedResult({
+                    correctCount: Math.round(((lastAttempt.score || 0) / 100) * formattedQuestions.length),
+                    totalCount: formattedQuestions.length,
+                    scorePct: lastAttempt.score || 0,
+                    completedAt: lastAttempt.completed_at
+                      ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
+                      : 'Reciente'
+                  });
+                } else if (lastAttempt.status === 'in_progress') {
+                  stateToSet = 'en_progreso';
+                }
+              }
+            }
+          }
+          setActivityState(stateToSet);
+        } else {
+          setActivityConfig(null);
+          setActivityState('no_configurada');
         }
 
       } catch (err) {
