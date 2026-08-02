@@ -338,7 +338,7 @@ export default function AdminClassReinforcement({ classId }) {
             .eq('id', opt.id);
         }
 
-        if (q.correctOptionId === opt.id) {
+        if (q.correctOptionId && String(q.correctOptionId) === String(opt.id)) {
           realCorrectOptId = realOptId;
         }
 
@@ -349,14 +349,23 @@ export default function AdminClassReinforcement({ classId }) {
         });
       }
 
+      // Si por alguna razón no se detectó la respuesta correcta, usar la primera por defecto
+      if (!realCorrectOptId && savedOptions.length > 0) {
+        realCorrectOptId = savedOptions[0].id;
+      }
+
       // 3. Guardar la respuesta correcta en DB
       if (realCorrectOptId) {
-        await supabase
+        const { error: upsertErr } = await supabase
           .from('question_correct_answers')
           .upsert({
             question_id: realQId,
             correct_option_id: realCorrectOptId
           }, { onConflict: 'question_id' });
+          
+        if (upsertErr) {
+          console.error('Error guardando respuesta correcta en Supabase:', upsertErr);
+        }
       }
 
       savedQuestions.push({

@@ -70,7 +70,7 @@ export default function ClassDetail() {
 
     let correctCount = 0;
     activityConfig.questions.forEach(q => {
-      if (userAnswers[q.id] && q.correctOptionId && userAnswers[q.id] === q.correctOptionId) {
+      if (userAnswers[q.id] && q.correctOptionId && String(userAnswers[q.id]) === String(q.correctOptionId)) {
         correctCount++;
       }
     });
