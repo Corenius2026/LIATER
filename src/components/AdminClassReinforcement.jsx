@@ -207,52 +207,176 @@ export default function AdminClassReinforcement({ classId }) {
     }
   };
 
+  const persistQuestionsToDatabase = async (activityId, currentQuestions) => {
+    if (!activityId || !currentQuestions) return [];
+
+    const savedQuestions = [];
+
+    for (let qIndex = 0; qIndex < currentQuestions.length; qIndex++) {
+      const q = currentQuestions[qIndex];
+      let realQId = q.id;
+
+      // 1. Crear o actualizar la pregunta en DB
+      if (String(q.id).startsWith('temp-')) {
+        const { data: insertedQ, error: qErr } = await supabase
+          .from('activity_questions')
+          .insert([{
+            activity_id: activityId,
+            text: q.text || 'Sin enunciado',
+            question_type: q.question_type || 'single_choice',
+            order_num: qIndex
+          }])
+          .select()
+          .single();
+
+        if (qErr) throw qErr;
+        realQId = insertedQ.id;
+      } else {
+        await supabase
+          .from('activity_questions')
+          .update({
+            text: q.text,
+            question_type: q.question_type,
+            order_num: qIndex
+          })
+          .eq('id', q.id);
+      }
+
+      // 2. Crear o actualizar las opciones en DB
+      const savedOptions = [];
+      let realCorrectOptId = null;
+
+      for (let oIndex = 0; oIndex < (q.options || []).length; oIndex++) {
+        const opt = q.options[oIndex];
+        let realOptId = opt.id;
+
+        if (String(opt.id).startsWith('temp-')) {
+          const { data: insertedOpt, error: optErr } = await supabase
+            .from('question_options')
+            .insert([{
+              question_id: realQId,
+              text: opt.text || 'Opción',
+              order_num: oIndex
+            }])
+            .select()
+            .single();
+
+          if (optErr) throw optErr;
+          realOptId = insertedOpt.id;
+        } else {
+          await supabase
+            .from('question_options')
+            .update({
+              text: opt.text,
+              order_num: oIndex
+            })
+            .eq('id', opt.id);
+        }
+
+        if (q.correctOptionId === opt.id) {
+          realCorrectOptId = realOptId;
+        }
+
+        savedOptions.push({
+          ...opt,
+          id: realOptId,
+          question_id: realQId
+        });
+      }
+
+      // 3. Guardar la respuesta correcta en DB
+      if (realCorrectOptId) {
+        await supabase
+          .from('question_correct_answers')
+          .upsert({
+            question_id: realQId,
+            correct_option_id: realCorrectOptId
+          }, { onConflict: 'question_id' });
+      }
+
+      savedQuestions.push({
+        ...q,
+        id: realQId,
+        activity_id: activityId,
+        options: savedOptions,
+        correctOptionId: realCorrectOptId
+      });
+    }
+
+    return savedQuestions;
+  };
+
   const saveActivityInfo = async () => {
-    if (!activity) return;
+    let currentAct = activity;
     setSaving(true);
     setError('');
     try {
-      const { error: updateError } = await supabase
-        .from('class_activities')
-        .update({
+      if (!currentAct) {
+        // Crear la actividad si aún no existía en la base de datos
+        const { data: newAct, error: insertError } = await supabase
+          .from('class_activities')
+          .insert([{
+            class_id: classId,
+            title: localActivity.title,
+            description: localActivity.description,
+            is_mandatory: localActivity.is_mandatory,
+            max_attempts: localActivity.max_attempts,
+            is_published: false
+          }])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        currentAct = newAct;
+        setActivity(newAct);
+      } else {
+        const { error: updateError } = await supabase
+          .from('class_activities')
+          .update({
+            title: localActivity.title,
+            description: localActivity.description,
+            is_mandatory: localActivity.is_mandatory,
+            max_attempts: localActivity.max_attempts
+          })
+          .eq('id', currentAct.id);
+
+        if (updateError) throw updateError;
+
+        setActivity(prev => ({
+          ...prev,
           title: localActivity.title,
           description: localActivity.description,
           is_mandatory: localActivity.is_mandatory,
           max_attempts: localActivity.max_attempts
-        })
-        .eq('id', activity.id);
-      
-      if (updateError) throw updateError;
-      
-      // Actualizar el estado local
-      setActivity(prev => ({
-        ...prev,
-        title: localActivity.title,
-        description: localActivity.description,
-        is_mandatory: localActivity.is_mandatory,
-        max_attempts: localActivity.max_attempts
-      }));
-      
-      setSuccess('Configuración guardada.');
-      setTimeout(() => setSuccess(''), 2000);
+        }));
+      }
+
+      // Guardar en la BD todas las preguntas y opciones (incluyendo las generadas por IA)
+      const savedQs = await persistQuestionsToDatabase(currentAct.id, questions);
+      setQuestions(savedQs);
+
+      setSuccess('Actividad y preguntas guardadas correctamente en Supabase.');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error(err);
-      setError('Error al guardar configuración: ' + err.message);
+      setError('Error al guardar la actividad: ' + err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const addQuestion = async (type) => {
-    if (!activity) return;
+    let currentAct = activity;
+    if (!currentAct) {
+      return setError('Guarda primero la actividad para poder añadir preguntas.');
+    }
     try {
       const newOrder = questions.length;
       
-      // 1. Insertar pregunta
       const { data: qData, error: qError } = await supabase
         .from('activity_questions')
         .insert([{
-          activity_id: activity.id,
+          activity_id: currentAct.id,
           text: 'Nueva pregunta',
           question_type: type,
           order_num: newOrder
@@ -262,7 +386,6 @@ export default function AdminClassReinforcement({ classId }) {
         
       if (qError) throw qError;
 
-      // 2. Si es verdadero/falso, crear las opciones por defecto
       let initialOptions = [];
       if (type === 'true_false') {
         const { data: oData, error: oError } = await supabase
@@ -292,24 +415,22 @@ export default function AdminClassReinforcement({ classId }) {
   };
 
   const updateQuestionText = async (id, text) => {
-    try {
-      // Local optimista
-      setQuestions(questions.map(q => q.id === id ? { ...q, text } : q));
-      await supabase.from('activity_questions').update({ text }).eq('id', id);
-    } catch (err) {
-      console.error(err);
+    setQuestions(questions.map(q => q.id === id ? { ...q, text } : q));
+    if (!String(id).startsWith('temp-')) {
+      try {
+        await supabase.from('activity_questions').update({ text }).eq('id', id);
+      } catch (err) { console.error(err); }
     }
   };
 
   const deleteQuestion = async (id) => {
     if (!window.confirm('¿Eliminar pregunta? Se borrarán sus opciones y respuestas.')) return;
-    try {
-      await supabase.from('activity_questions').delete().eq('id', id);
-      setQuestions(questions.filter(q => q.id !== id));
-    } catch (err) {
-      console.error(err);
-      setError('Error al eliminar.');
+    if (!String(id).startsWith('temp-')) {
+      try {
+        await supabase.from('activity_questions').delete().eq('id', id);
+      } catch (err) { console.error(err); }
     }
+    setQuestions(questions.filter(q => q.id !== id));
   };
 
   const addOption = async (questionId) => {
@@ -317,122 +438,133 @@ export default function AdminClassReinforcement({ classId }) {
     if (qIndex < 0) return;
     const q = questions[qIndex];
     
-    try {
-      const { data, error } = await supabase
-        .from('question_options')
-        .insert([{
-          question_id: questionId,
-          text: 'Nueva opción',
-          order_num: q.options.length
-        }])
-        .select()
-        .single();
-        
-      if (error) throw error;
-      
-      const newQ = { ...q, options: [...q.options, data] };
-      const updatedQuestions = [...questions];
-      updatedQuestions[qIndex] = newQ;
-      setQuestions(updatedQuestions);
-    } catch (err) {
-      console.error(err);
-      setError('Error añadiendo opción.');
+    let newOpt = null;
+    if (!String(questionId).startsWith('temp-')) {
+      try {
+        const { data, error } = await supabase
+          .from('question_options')
+          .insert([{
+            question_id: questionId,
+            text: 'Nueva opción',
+            order_num: q.options.length
+          }])
+          .select()
+          .single();
+          
+        if (!error) newOpt = data;
+      } catch (err) { console.error(err); }
     }
+
+    if (!newOpt) {
+      newOpt = {
+        id: `temp-o-${crypto.randomUUID()}`,
+        question_id: questionId,
+        text: 'Nueva opción',
+        order_num: q.options.length
+      };
+    }
+
+    const updatedQuestions = [...questions];
+    updatedQuestions[qIndex] = { ...q, options: [...q.options, newOpt] };
+    setQuestions(updatedQuestions);
   };
 
   const updateOptionText = async (questionId, optionId, text) => {
-    try {
-      const updatedQs = questions.map(q => {
-        if (q.id === questionId) {
-          return {
-            ...q,
-            options: q.options.map(o => o.id === optionId ? { ...o, text } : o)
-          };
-        }
-        return q;
-      });
-      setQuestions(updatedQs);
-      await supabase.from('question_options').update({ text }).eq('id', optionId);
-    } catch (err) {
-      console.error(err);
+    setQuestions(questions.map(q => {
+      if (q.id === questionId) {
+        return {
+          ...q,
+          options: q.options.map(o => o.id === optionId ? { ...o, text } : o)
+        };
+      }
+      return q;
+    }));
+
+    if (!String(optionId).startsWith('temp-')) {
+      try {
+        await supabase.from('question_options').update({ text }).eq('id', optionId);
+      } catch (err) { console.error(err); }
     }
   };
 
   const deleteOption = async (questionId, optionId) => {
-    try {
-      const qIndex = questions.findIndex(q => q.id === questionId);
-      const q = questions[qIndex];
-      // Si era la correcta, hay que borrarla de correctOptionId
-      let correctId = q.correctOptionId;
-      if (correctId === optionId) {
-        await supabase.from('question_correct_answers').delete().eq('question_id', questionId);
-        correctId = null;
-      }
-      
-      await supabase.from('question_options').delete().eq('id', optionId);
-      
-      const newQ = { 
-        ...q, 
-        options: q.options.filter(o => o.id !== optionId),
-        correctOptionId: correctId
-      };
-      const updatedQs = [...questions];
-      updatedQs[qIndex] = newQ;
-      setQuestions(updatedQs);
-    } catch (err) {
-      console.error(err);
-      setError('Error al eliminar opción.');
+    const qIndex = questions.findIndex(q => q.id === questionId);
+    if (qIndex < 0) return;
+    const q = questions[qIndex];
+    let correctId = q.correctOptionId;
+
+    if (!String(optionId).startsWith('temp-')) {
+      try {
+        if (correctId === optionId) {
+          await supabase.from('question_correct_answers').delete().eq('question_id', questionId);
+          correctId = null;
+        }
+        await supabase.from('question_options').delete().eq('id', optionId);
+      } catch (err) { console.error(err); }
+    } else {
+      if (correctId === optionId) correctId = null;
     }
+
+    const updatedQuestions = [...questions];
+    updatedQuestions[qIndex] = { 
+      ...q, 
+      options: q.options.filter(o => o.id !== optionId),
+      correctOptionId: correctId
+    };
+    setQuestions(updatedQuestions);
   };
 
   const setCorrectOption = async (questionId, optionId) => {
-    try {
-      // 1. Upsert en la tabla oculta
-      const { error } = await supabase
-        .from('question_correct_answers')
-        .upsert({ question_id: questionId, correct_option_id: optionId }, { onConflict: 'question_id' });
-        
-      if (error) throw error;
-      
-      // 2. Local update
-      const updatedQs = questions.map(q => {
-        if (q.id === questionId) return { ...q, correctOptionId: optionId };
-        return q;
-      });
-      setQuestions(updatedQs);
-    } catch (err) {
-      console.error(err);
-      setError('Error marcando opción correcta.');
+    if (!String(questionId).startsWith('temp-') && !String(optionId).startsWith('temp-')) {
+      try {
+        const { error } = await supabase
+          .from('question_correct_answers')
+          .upsert({ question_id: questionId, correct_option_id: optionId }, { onConflict: 'question_id' });
+          
+        if (error) throw error;
+      } catch (err) { console.error(err); }
     }
+
+    setQuestions(questions.map(q => {
+      if (q.id === questionId) return { ...q, correctOptionId: optionId };
+      return q;
+    }));
   };
 
   const togglePublish = async () => {
-    if (!activity) return;
-    
-    const willPublish = !activity.is_published;
-    
-    // Validaciones antes de publicar
-    if (willPublish) {
-      if (questions.length === 0) {
-        return setError('La actividad debe tener al menos una pregunta para ser publicada.');
-      }
-      for (const q of questions) {
-        if (q.options.length < 2) {
-          return setError(`La pregunta "${q.text}" debe tener al menos 2 opciones.`);
-        }
-        if (!q.correctOptionId) {
-          return setError(`La pregunta "${q.text}" no tiene una opción correcta asignada.`);
-        }
-      }
+    let currentAct = activity;
+    if (!currentAct) {
+      return setError('Debes guardar la actividad antes de publicarla.');
     }
-
+    
     setSaving(true);
     setError('');
     try {
+      // 1. Guardar primero en DB todas las preguntas y opciones pendientes
+      const savedQs = await persistQuestionsToDatabase(currentAct.id, questions);
+      setQuestions(savedQs);
+
+      const willPublish = !currentAct.is_published;
+      
+      // 2. Validaciones antes de publicar
+      if (willPublish) {
+        if (savedQs.length === 0) {
+          throw new Error('La actividad debe tener al menos una pregunta para ser publicada.');
+        }
+        for (const q of savedQs) {
+          if (q.options.length < 2) {
+            throw new Error(`La pregunta "${q.text}" debe tener al menos 2 opciones.`);
+          }
+          if (!q.correctOptionId) {
+            throw new Error(`La pregunta "${q.text}" no tiene una opción correcta asignada.`);
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('class_activities')
         .update({ is_published: willPublish })
-        .eq('id', activity.id);
+        .eq('id', currentAct.id);
         
       if (error) throw error;
       
@@ -441,7 +573,7 @@ export default function AdminClassReinforcement({ classId }) {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error(err);
-      setError('Error al cambiar el estado de publicación.');
+      setError('Error al cambiar el estado de publicación: ' + err.message);
     } finally {
       setSaving(false);
     }
