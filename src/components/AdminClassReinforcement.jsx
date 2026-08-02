@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { Plus, Trash2, Edit2, CheckCircle2, AlertTriangle, PlayCircle, GripVertical, Save, FileText, Check } from 'lucide-react';
 
 export default function AdminClassReinforcement({ classId }) {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
+
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -953,63 +957,57 @@ export default function AdminClassReinforcement({ classId }) {
             ))}
           </div>
         )}
-
-        {questions.length > 0 && (
-          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-            <button onClick={saveActivityInfo} disabled={saving} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.25rem', fontWeight: 600 }}>
-              <Save size={16} /> {saving ? 'Guardando...' : 'Guardar Preguntas'}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ==========================================
-          SECCIÓN TEMPORAL: Prueba de generación con IA
+          SECCIÓN TEMPORAL: Prueba de generación con IA (Solo Admins)
           ========================================== */}
-      <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-        <h3 style={{ fontSize: '1.1rem', color: '#0f172a', marginBottom: '1rem', fontWeight: 'bold' }}>
-          Prueba de generación con IA
-        </h3>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', fontWeight: 500, color: '#334155' }}>
-              Transcripción de la clase (Mín. 200 caracteres)
-            </label>
-            <textarea 
-              value={testTranscript}
-              onChange={(e) => setTestTranscript(e.target.value)}
-              placeholder="Pega la transcripción aquí..."
-              style={{ width: '100%', minHeight: '120px', padding: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', resize: 'vertical' }}
-            />
-            <div style={{ fontSize: '0.75rem', color: testTranscript.trim().length >= 200 ? '#16a34a' : '#64748b', marginTop: '0.2rem' }}>
-              {testTranscript.trim().length} caracteres
-            </div>
-          </div>
+      {isAdmin && (
+        <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+          <h3 style={{ fontSize: '1.1rem', color: '#0f172a', marginBottom: '1rem', fontWeight: 'bold' }}>
+            Prueba de generación con IA
+          </h3>
           
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', fontWeight: 500, color: '#334155' }}>
+                Transcripción de la clase (Mín. 200 caracteres)
+              </label>
+              <textarea 
+                value={testTranscript}
+                onChange={(e) => setTestTranscript(e.target.value)}
+                placeholder="Pega la transcripción aquí..."
+                style={{ width: '100%', minHeight: '120px', padding: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', resize: 'vertical' }}
+              />
+              <div style={{ fontSize: '0.75rem', color: testTranscript.trim().length >= 200 ? '#16a34a' : '#64748b', marginTop: '0.2rem' }}>
+                {testTranscript.trim().length} caracteres
+              </div>
+            </div>
+            
 
-          <button 
-            onClick={handleTestGenerate}
-            disabled={testGenerating || testTranscript.trim().length < 200}
-            className="btn btn-primary"
-            style={{ alignSelf: 'flex-start', padding: '0.6rem 1.2rem' }}
-          >
-            {testGenerating ? 'Generando...' : 'Generar borrador con IA'}
-          </button>
-          
-          {testError && (
-            <div style={{ padding: '0.75rem', background: '#fef2f2', color: '#b91c1c', border: '1px solid #f87171', borderRadius: '4px', fontSize: '0.9rem' }}>
-              {testError}
-            </div>
-          )}
-          
-          {testResult?.draft?.questions && (
-            <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem' }}>
-              ✓ {testResult.draft.questions.length} preguntas generadas y cargadas automáticamente en el editor.
-            </div>
-          )}
+            <button 
+              onClick={handleTestGenerate}
+              disabled={testGenerating || testTranscript.trim().length < 200}
+              className="btn btn-primary"
+              style={{ alignSelf: 'flex-start', padding: '0.6rem 1.2rem' }}
+            >
+              {testGenerating ? 'Generando...' : 'Generar borrador con IA'}
+            </button>
+            
+            {testError && (
+              <div style={{ padding: '0.75rem', background: '#fef2f2', color: '#b91c1c', border: '1px solid #f87171', borderRadius: '4px', fontSize: '0.9rem' }}>
+                {testError}
+              </div>
+            )}
+            
+            {testResult?.draft?.questions && (
+              <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem' }}>
+                ✓ {testResult.draft.questions.length} preguntas generadas y cargadas automáticamente en el editor.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       {/* FIN SECCIÓN TEMPORAL */}
 
     </div>
