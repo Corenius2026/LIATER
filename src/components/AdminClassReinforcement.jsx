@@ -448,79 +448,93 @@ export default function AdminClassReinforcement({ classId }) {
   };
 
   // VISTA PREVIA
-  if (previewMode && activity) {
-    const currentQ = questions[previewQuestionIndex];
+  if (previewMode) {
+    const hasQuestions = questions && questions.length > 0;
+    const currentQ = hasQuestions ? questions[previewQuestionIndex] : null;
+    const currentOptions = currentQ?.options || [];
+
     return (
       <div style={{ background: '#f8fafc', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-color)', minHeight: '400px' }}>
         <button onClick={() => setPreviewMode(false)} className="btn btn-secondary" style={{ marginBottom: '1.5rem' }}>
           ← Salir de Vista Previa
         </button>
         
-        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-            <span style={{ fontWeight: 600, color: 'var(--navy)' }}>Pregunta {previewQuestionIndex + 1} de {questions.length}</span>
+        {!hasQuestions || !currentQ ? (
+          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
+            <h3 style={{ fontSize: '1.1rem', color: '#475569', marginBottom: '0.5rem' }}>
+              Esta actividad aún no tiene preguntas para previsualizar.
+            </h3>
+            <p style={{ fontSize: '0.9rem', color: '#64748b' }}>
+              Añade algunas preguntas en el editor o genera un borrador con IA.
+            </p>
           </div>
-          
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', fontWeight: 600 }}>{currentQ.text}</h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {currentQ.options.map(opt => {
-              const isSelected = previewSelectedOptions[currentQ.id] === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => setPreviewSelectedOptions({ ...previewSelectedOptions, [currentQ.id]: opt.id })}
-                  style={{
-                    padding: '1rem',
-                    textAlign: 'left',
-                    borderRadius: '8px',
-                    border: `1.5px solid ${isSelected ? 'var(--gold)' : 'var(--border-color)'}`,
-                    background: isSelected ? '#fbf8f1' : 'white',
-                    color: isSelected ? 'var(--navy)' : 'inherit',
-                    fontWeight: isSelected ? 600 : 400,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem'
-                  }}
-                >
-                  <div style={{
-                    width: '20px', height: '20px', borderRadius: '50%',
-                    border: `2px solid ${isSelected ? 'var(--gold)' : '#cbd5e1'}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    {isSelected && <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--gold)' }} />}
-                  </div>
-                  {opt.text}
-                </button>
-              );
-            })}
-          </div>
+        ) : (
+          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <span style={{ fontWeight: 600, color: 'var(--navy)' }}>Pregunta {previewQuestionIndex + 1} de {questions.length}</span>
+            </div>
+            
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', fontWeight: 600 }}>{currentQ.text || 'Sin enunciado'}</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {currentOptions.map(opt => {
+                const isSelected = previewSelectedOptions[currentQ.id] === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setPreviewSelectedOptions({ ...previewSelectedOptions, [currentQ.id]: opt.id })}
+                    style={{
+                      padding: '1rem',
+                      textAlign: 'left',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${isSelected ? 'var(--gold)' : 'var(--border-color)'}`,
+                      background: isSelected ? '#fbf8f1' : 'white',
+                      color: isSelected ? 'var(--navy)' : 'inherit',
+                      fontWeight: isSelected ? 600 : 400,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem'
+                    }}
+                  >
+                    <div style={{
+                      width: '20px', height: '20px', borderRadius: '50%',
+                      border: `2px solid ${isSelected ? 'var(--gold)' : '#cbd5e1'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      {isSelected && <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--gold)' }} />}
+                    </div>
+                    {opt.text}
+                  </button>
+                );
+              })}
+            </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2.5rem' }}>
-            <button
-              className="btn btn-secondary"
-              disabled={previewQuestionIndex === 0}
-              onClick={() => setPreviewQuestionIndex(prev => prev - 1)}
-            >
-              Anterior
-            </button>
-            <button
-              className="btn btn-primary"
-              disabled={!previewSelectedOptions[currentQ.id]}
-              onClick={() => {
-                if (previewQuestionIndex < questions.length - 1) {
-                  setPreviewQuestionIndex(prev => prev + 1);
-                } else {
-                  alert("¡Has llegado al final de la vista previa!");
-                }
-              }}
-            >
-              {previewQuestionIndex === questions.length - 1 ? 'Finalizar' : 'Siguiente'}
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2.5rem' }}>
+              <button
+                className="btn btn-secondary"
+                disabled={previewQuestionIndex === 0}
+                onClick={() => setPreviewQuestionIndex(prev => prev - 1)}
+              >
+                Anterior
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={!previewSelectedOptions[currentQ.id]}
+                onClick={() => {
+                  if (previewQuestionIndex < questions.length - 1) {
+                    setPreviewQuestionIndex(prev => prev + 1);
+                  } else {
+                    alert("¡Has llegado al final de la vista previa!");
+                  }
+                }}
+              >
+                {previewQuestionIndex === questions.length - 1 ? 'Finalizar' : 'Siguiente'}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
