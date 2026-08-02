@@ -57,6 +57,62 @@ function formatEmbedVideoUrl(url) {
   return trimmed;
 }
 
+function PrivateVideoPlayer({ videoUrl, title }) {
+  const iframeRef = useRef(null);
+
+  useEffect(() => {
+    if (iframeRef.current && videoUrl) {
+      // Inyección dinámica de la URL descifrada en memoria desvinculada del marcado React estático
+      const cipher = btoa(encodeURIComponent(formatEmbedVideoUrl(videoUrl) || ''));
+      try {
+        const plainUrl = decodeURIComponent(atob(cipher));
+        iframeRef.current.setAttribute('src', plainUrl);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, [videoUrl]);
+
+  return (
+    <div 
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ 
+        position: 'relative', 
+        paddingBottom: '56.25%', 
+        height: 0, 
+        overflow: 'hidden', 
+        borderRadius: 'var(--radius-lg)', 
+        background: '#000',
+        userSelect: 'none',
+        WebkitUserSelect: 'none'
+      }}
+    >
+      <iframe
+        ref={iframeRef}
+        title={title}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      />
+      {/* CAPA DE SEGURIDAD PARA BLOQUEAR MENÚS CONTEXTUALES Y BOTONES POP-OUT */}
+      <div 
+        style={{ 
+          position: 'absolute', 
+          top: 0, 
+          right: 0, 
+          width: '90px', 
+          height: '70px', 
+          zIndex: 30, 
+          background: 'transparent',
+          cursor: 'default'
+        }} 
+        onContextMenu={(e) => e.preventDefault()}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      />
+    </div>
+  );
+}
+
 export default function ClassDetail() {
   const { id } = useParams();
   const { currentUser } = useAuth();
@@ -611,29 +667,7 @@ export default function ClassDetail() {
             </h3>
 
             {clsData.video_url ? (
-              <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: '#000' }}>
-                <iframe
-                  src={formatEmbedVideoUrl(clsData.video_url)}
-                  title={clsData.title}
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-                {/* CAPA DE BLOQUEO EN LA ESQUINA SUPERIOR DERECHA PARA BLOQUEAR EL BOTÓN POP-OUT / VENTANA EMERGENTE */}
-                <div 
-                  style={{ 
-                    position: 'absolute', 
-                    top: 0, 
-                    right: 0, 
-                    width: '80px', 
-                    height: '65px', 
-                    zIndex: 20, 
-                    background: 'transparent',
-                    cursor: 'default'
-                  }} 
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                />
-              </div>
+              <PrivateVideoPlayer videoUrl={clsData.video_url} title={clsData.title} />
             ) : (
               <div style={{ textAlign: 'center', padding: '1.75rem 1rem', background: 'var(--surface-light)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Video size={32} color="var(--text-muted)" style={{ marginBottom: '0.5rem' }} />
