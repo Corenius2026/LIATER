@@ -494,11 +494,10 @@ export default function ClassDetail() {
           .class-detail-main, .class-detail-sidebar {
             display: contents;
           }
-          .order-progreso { order: 1; }
-          .order-grabacion { order: 2; }
+          .order-grabacion { order: 1; }
+          .order-actividad { order: 2; }
           .order-recursos { order: 3; }
-          .order-actividad { order: 4; }
-          .order-dudas { order: 5; }
+          .order-dudas { order: 4; }
         }
       `}</style>
 
@@ -629,7 +628,12 @@ export default function ClassDetail() {
             )}
           </div>
 
-          {/* 3. ACTIVIDAD DE REFORZAMIENTO DE LA CLASE */}
+        </div>
+
+        {/* COLUMNA LATERAL (BARRA LATERAL DE ACCIONES E INFORMACIÓN) */}
+        <div className="class-detail-sidebar">
+
+          {/* 1. ACTIVIDAD DE REFORZAMIENTO DE LA CLASE (REEMPLAZA EL PROGRESO DE LA CLASE) */}
           <div className="card-placeholder order-actividad" style={{ background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -639,7 +643,7 @@ export default function ClassDetail() {
               {/* STATUS CHIP DEPENDIENDO DEL ESTADO DE LA ACTIVIDAD */}
               {activityState === 'no_configurada' && (
                 <span style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600 }}>
-                  Actividad aún no configurada
+                  Aún no configurada
                 </span>
               )}
               {activityState === 'bloqueada' && (
@@ -649,12 +653,12 @@ export default function ClassDetail() {
               )}
               {activityState === 'no_iniciada' && (
                 <span style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600 }}>
-                  Disponible • No iniciada
+                  Disponible
                 </span>
               )}
               {activityState === 'en_progreso' && (
                 <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Clock size={12} /> En progreso ({Object.keys(userAnswers).length}/{activityConfig.questions.length})
+                  <Clock size={12} /> En progreso ({Object.keys(userAnswers).length}/{activityConfig?.questions?.length || 0})
                 </span>
               )}
               {activityState === 'completada' && (
@@ -664,24 +668,24 @@ export default function ClassDetail() {
               )}
             </div>
 
-            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: 1.45 }}>
-              Comprueba tu comprensión de los temas abordados en esta clase respondiendo la evaluación corta de reforzamiento.
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 0.85rem 0', lineHeight: 1.45 }}>
+              Comprueba tu comprensión de los temas abordados respondiendo esta evaluación corta.
             </p>
 
             {/* METADATOS (Solo si existe la actividad y no está sin configurar) */}
-            {activityState !== 'no_configurada' && (
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {activityConfig && activityState !== 'no_configurada' && (
+              <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <BookOpen size={14} color="var(--gold-dark)" /> {activityConfig.questions.length} preguntas
+                  <BookOpen size={13} color="var(--gold-dark)" /> {activityConfig.questions?.length || 0} preguntas
                 </span>
                 {activityConfig.estimatedTimeMinutes && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <Clock size={14} color="var(--gold-dark)" /> Est. {activityConfig.estimatedTimeMinutes} min
+                    <Clock size={13} color="var(--gold-dark)" /> {activityConfig.estimatedTimeMinutes} min
                   </span>
                 )}
                 {activityConfig.maxAttempts && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <RotateCcw size={14} color="var(--gold-dark)" /> {activityConfig.maxAttempts} intentos permitidos
+                    <RotateCcw size={13} color="var(--gold-dark)" /> {activityConfig.maxAttempts} intento(s)
                   </span>
                 )}
               </div>
@@ -689,49 +693,47 @@ export default function ClassDetail() {
 
             {/* VISTA SEGÚN ESTADO DE LA ACTIVIDAD */}
             {activityState === 'no_configurada' && (
-              <div style={{ padding: '1rem', background: 'var(--bg-light)', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
-                El profesor no ha publicado una actividad de reforzamiento para esta clase.
+              <div style={{ padding: '0.85rem', background: 'var(--bg-light)', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                La actividad de reforzamiento aún no está disponible.
               </div>
             )}
 
             {activityState === 'bloqueada' && (
-              <div style={{ padding: '1rem', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7', color: '#b45309', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <Lock size={18} />
-                <span>Debes visualizar la clase o completar los requisitos previos para habilitar esta actividad.</span>
+              <div style={{ padding: '0.85rem', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7', color: '#b45309', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Lock size={16} />
+                <span>Debes visualizar la clase para habilitar esta actividad.</span>
               </div>
             )}
 
             {(activityState === 'no_iniciada' || activityState === 'en_progreso') && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={handleStartActivity}
-                  className="btn btn-primary"
-                  style={{ fontSize: '0.85rem', padding: '0.55rem 1.2rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}
-                >
-                  <Award size={16} /> {activityState === 'en_progreso' ? 'Continuar actividad' : 'Comenzar actividad'}
-                </button>
-              </div>
+              <button
+                onClick={handleStartActivity}
+                className="btn btn-primary"
+                style={{ width: '100%', fontSize: '0.85rem', padding: '0.6rem 1rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 700 }}
+              >
+                <Award size={16} /> {activityState === 'en_progreso' ? 'Continuar actividad' : 'Comenzar actividad'}
+              </button>
             )}
 
             {activityState === 'completada' && completedResult && (
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem' }}>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 <div>
-                  <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <CheckCircle2 size={16} /> Actividad completada ({completedResult.correctCount}/{completedResult.totalCount} correctas)
+                  <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} /> Actividad completada ({completedResult.correctCount}/{completedResult.totalCount})
                   </div>
                   <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: '2px' }}>
-                    Puntaje: <strong>{completedResult.scorePct}%</strong> • Finalizada el {completedResult.completedAt}
+                    Puntaje: <strong>{completedResult.scorePct}%</strong> • {completedResult.completedAt}
                   </div>
-                  {activityConfig.isMandatory && programProgressDetails && (
-                    <div style={{ fontSize: '0.75rem', color: '#166534', marginTop: '6px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Award size={14} /> Aporte al progreso del programa: {programProgressDetails.percentage}% ({programProgressDetails.completedCount}/{programProgressDetails.totalMandatory} completadas)
+                  {activityConfig?.isMandatory && programProgressDetails && (
+                    <div style={{ fontSize: '0.74rem', color: '#166534', marginTop: '4px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Award size={13} /> Aporte al programa: {programProgressDetails.percentage}%
                     </div>
                   )}
                 </div>
                 <button
                   onClick={handleOpenResults}
                   className="btn btn-outline"
-                  style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', color: '#166534', borderColor: '#86efac', background: '#ffffff', fontWeight: 700 }}
+                  style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.8rem', color: '#166534', borderColor: '#86efac', background: '#ffffff', fontWeight: 700 }}
                 >
                   Revisar resultado
                 </button>
@@ -739,41 +741,13 @@ export default function ClassDetail() {
             )}
 
             {/* SELECTOR DE ESTADOS DE DEMOSTRACIÓN (SOLO PARA PRUEBAS E INSPECCIÓN VISUAL) */}
-            <div style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px border-dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              <span>Simular estado:</span>
-              <button onClick={() => setActivityState('no_iniciada')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #bfdbfe', background: activityState === 'no_iniciada' ? '#dbeafe' : '#fff', color: '#1e40af', cursor: 'pointer', fontSize: '0.72rem' }}>Disponible</button>
-              <button onClick={() => setActivityState('en_progreso')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #fde68a', background: activityState === 'en_progreso' ? '#fef3c7' : '#fff', color: '#92400e', cursor: 'pointer', fontSize: '0.72rem' }}>En progreso</button>
-              <button onClick={() => { setActivityState('completada'); if(!completedResult) setCompletedResult({ correctCount: 2, totalCount: 3, scorePct: 67, completedAt: '01 Aug 2026, 10:30' }); }} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #86efac', background: activityState === 'completada' ? '#dcfce7' : '#fff', color: '#166534', cursor: 'pointer', fontSize: '0.72rem' }}>Completada</button>
-              <button onClick={() => setActivityState('bloqueada')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'bloqueada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.72rem' }}>Bloqueada</button>
-              <button onClick={() => setActivityState('no_configurada')} style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'no_configurada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.72rem' }}>No configurada</button>
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* COLUMNA LATERAL (28% - 32%) */}
-        <div className="class-detail-sidebar">
-
-          {/* 1. PLACEHOLDER DE PROGRESO DE LA CLASE */}
-          <div className="card-placeholder order-progreso">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-              <CheckCircle2 size={18} color="var(--gold-dark)" />
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
-                Progreso de la clase
-              </h3>
-            </div>
-
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 0.85rem 0', lineHeight: 1.45 }}>
-              La actividad de reforzamiento aún no está disponible.
-            </p>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 500 }}>Avance de la sesión</span>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)' }}>0%</span>
-            </div>
-            <div style={{ height: '7px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-              <div style={{ width: '0%', height: '100%', background: 'var(--gold-dark)', transition: 'width 0.3s ease' }} />
+            <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px border-dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              <span>Simular:</span>
+              <button onClick={() => setActivityState('no_iniciada')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #bfdbfe', background: activityState === 'no_iniciada' ? '#dbeafe' : '#fff', color: '#1e40af', cursor: 'pointer', fontSize: '0.7rem' }}>Disponible</button>
+              <button onClick={() => setActivityState('en_progreso')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #fde68a', background: activityState === 'en_progreso' ? '#fef3c7' : '#fff', color: '#92400e', cursor: 'pointer', fontSize: '0.7rem' }}>En progreso</button>
+              <button onClick={() => { setActivityState('completada'); if(!completedResult) setCompletedResult({ correctCount: 5, totalCount: 5, scorePct: 100, completedAt: 'Reciente' }); }} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #86efac', background: activityState === 'completada' ? '#dcfce7' : '#fff', color: '#166534', cursor: 'pointer', fontSize: '0.7rem' }}>Completada</button>
+              <button onClick={() => setActivityState('bloqueada')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'bloqueada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.7rem' }}>Bloqueada</button>
+              <button onClick={() => setActivityState('no_configurada')} style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: activityState === 'no_configurada' ? '#f1f5f9' : '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.7rem' }}>No config.</button>
             </div>
           </div>
 
