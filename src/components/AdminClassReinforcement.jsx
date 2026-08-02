@@ -165,11 +165,16 @@ export default function AdminClassReinforcement({ classId }) {
 
         // Normalizar los datos
         const normalizedQuestions = (qData || []).map(q => {
-          // Ordenar opciones localmente
           const sortedOptions = (q.question_options || []).sort((a, b) => a.order_num - b.order_num);
-          const correctOption = q.question_correct_answers && q.question_correct_answers.length > 0 
-            ? q.question_correct_answers[0].correct_option_id 
-            : null;
+          let correctOption = null;
+
+          if (q.question_correct_answers) {
+            if (Array.isArray(q.question_correct_answers) && q.question_correct_answers.length > 0) {
+              correctOption = q.question_correct_answers[0].correct_option_id;
+            } else if (typeof q.question_correct_answers === 'object' && q.question_correct_answers.correct_option_id) {
+              correctOption = q.question_correct_answers.correct_option_id;
+            }
+          }
             
           return {
             ...q,
@@ -224,11 +229,38 @@ export default function AdminClassReinforcement({ classId }) {
   const persistQuestionsToDatabase = async (activityId, currentQuestions) => {
     if (!activityId || !currentQuestions) return [];
 
+    const normalizeQType = (t) => {
+      if (!t) return 'single_choice';
+      const str = String(t).toLowerCase();
+      if (str.includes('true') || str.includes('false') || str.includes('falso') || str.includes('verdadero')) {
+        return 'true_false';
+      }
+      return 'single_choice';
+    };
+
+    // 0. Eliminar de DB preguntas que ya no estén en currentQuestions
+    const { data: existingQs } = await supabase
+      .from('activity_questions')
+      .select('id')
+      .eq('activity_id', activityId);
+
+    if (existingQs && existingQs.length > 0) {
+      const currentRealIds = new Set(currentQuestions.filter(q => !String(q.id).startsWith('temp-')).map(q => q.id));
+      const idsToDelete = existingQs.map(q => q.id).filter(id => !currentRealIds.has(id));
+      if (idsToDelete.length > 0) {
+        await supabase
+          .from('activity_questions')
+          .delete()
+          .in('id', idsToDelete);
+      }
+    }
+
     const savedQuestions = [];
 
     for (let qIndex = 0; qIndex < currentQuestions.length; qIndex++) {
       const q = currentQuestions[qIndex];
       let realQId = q.id;
+      const validQType = normalizeQType(q.question_type);
 
       // 1. Crear o actualizar la pregunta en DB
       if (String(q.id).startsWith('temp-')) {
@@ -237,7 +269,7 @@ export default function AdminClassReinforcement({ classId }) {
           .insert([{
             activity_id: activityId,
             text: q.text || 'Sin enunciado',
-            question_type: q.question_type || 'single_choice',
+            question_type: validQType,
             order_num: qIndex
           }])
           .select()
@@ -250,10 +282,29 @@ export default function AdminClassReinforcement({ classId }) {
           .from('activity_questions')
           .update({
             text: q.text,
-            question_type: q.question_type,
+            question_type: validQType,
             order_num: qIndex
           })
           .eq('id', q.id);
+      }
+
+      // Eliminar de DB opciones huérfanas de esta pregunta
+      if (!String(q.id).startsWith('temp-')) {
+        const { data: existingOpts } = await supabase
+          .from('question_options')
+          .select('id')
+          .eq('question_id', realQId);
+
+        if (existingOpts && existingOpts.length > 0) {
+          const currentOptRealIds = new Set((q.options || []).filter(o => !String(o.id).startsWith('temp-')).map(o => o.id));
+          const optIdsToDelete = existingOpts.map(o => o.id).filter(id => !currentOptRealIds.has(id));
+          if (optIdsToDelete.length > 0) {
+            await supabase
+              .from('question_options')
+              .delete()
+              .in('id', optIdsToDelete);
+          }
+        }
       }
 
       // 2. Crear o actualizar las opciones en DB
