@@ -424,8 +424,8 @@ export default function ClassDetail() {
           setUserDoubts(doubts || []);
         }
 
-        // 5. Obtener la actividad de reforzamiento publicada para esta clase
-        const { data: actData, error: actError } = await supabase
+        // 5. Obtener la actividad de reforzamiento para esta clase
+        let actQuery = supabase
           .from('class_activities')
           .select(`
             *,
@@ -434,82 +434,109 @@ export default function ClassDetail() {
               question_options (*)
             )
           `)
-          .eq('class_id', id)
-          .eq('is_published', true)
-          .maybeSingle();
+          .eq('class_id', id);
+
+        // Si es estudiante (o sin rol especial), filtrar solo actividades publicadas
+        const userRole = currentUser?.role;
+        if (userRole !== 'admin' && userRole !== 'teacher') {
+          actQuery = actQuery.eq('is_published', true);
+        }
+
+        const { data: actList, error: actError } = await actQuery.order('created_at', { ascending: false });
 
         if (actError) {
           console.error('Error cargando actividad publicada:', actError);
         }
 
-        if (actData && actData.activity_questions && actData.activity_questions.length > 0) {
-          const qIds = actData.activity_questions.map(q => q.id);
-          const { data: correctAnswers } = await supabase
-            .from('question_correct_answers')
-            .select('*')
-            .in('question_id', qIds);
+        const actData = (actList && actList.length > 0) ? actList[0] : null;
 
-          const correctMap = {};
-          if (correctAnswers) {
-            correctAnswers.forEach(ca => {
-              correctMap[ca.question_id] = ca.correct_option_id;
-            });
-          }
+        if (actData) {
+          let questions = actData.activity_questions || [];
 
-          const formattedQuestions = actData.activity_questions
-            .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
-            .map(q => ({
-              id: q.id,
-              type: q.question_type,
-              statement: q.text,
-              options: (q.question_options || [])
-                .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
-                .map(o => ({ id: o.id, text: o.text })),
-              correctOptionId: correctMap[q.id] || null
-            }));
-
-          setActivityConfig({
-            id: actData.id,
-            title: actData.title,
-            description: actData.description,
-            estimatedTimeMinutes: 10,
-            maxAttempts: actData.max_attempts || 1,
-            isMandatory: actData.is_mandatory,
-            questions: formattedQuestions
-          });
-
-          let stateToSet = 'no_iniciada';
-          if (currentUser?.id) {
-            const studentIdToUse = currentUser.id;
-            const filterClause = currentUser.auth_user_id 
-              ? `student_id.eq.${studentIdToUse},student_id.eq.${currentUser.auth_user_id}`
-              : `student_id.eq.${studentIdToUse}`;
-
-            const { data: attempts } = await supabase
-              .from('activity_attempts')
-              .select('*')
+          // Si por alguna razón la relación anidada no trajo las preguntas, hacer consulta directa de respaldo
+          if (questions.length === 0) {
+            const { data: fetchedQ } = await supabase
+              .from('activity_questions')
+              .select('*, question_options(*)')
               .eq('activity_id', actData.id)
-              .or(filterClause)
-              .order('completed_at', { ascending: false });
-
-            if (attempts && attempts.length > 0) {
-              const lastAttempt = attempts[0];
-              if (lastAttempt.status === 'completed') {
-                stateToSet = 'completada';
-                setCompletedResult({
-                  correctCount: Math.round(((lastAttempt.score || 0) / 100) * formattedQuestions.length),
-                  totalCount: formattedQuestions.length,
-                  scorePct: lastAttempt.score || 0,
-                  completedAt: lastAttempt.completed_at
-                    ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
-                    : 'Reciente'
-                });
-              } else if (lastAttempt.status === 'in_progress') {
-                stateToSet = 'en_progreso';
-              }
+              .order('order_num', { ascending: true });
+            if (fetchedQ) {
+              questions = fetchedQ;
             }
           }
-          setActivityState(stateToSet);
+
+          if (questions.length > 0) {
+            const qIds = questions.map(q => q.id);
+            const { data: correctAnswers } = await supabase
+              .from('question_correct_answers')
+              .select('*')
+              .in('question_id', qIds);
+
+            const correctMap = {};
+            if (correctAnswers) {
+              correctAnswers.forEach(ca => {
+                correctMap[ca.question_id] = ca.correct_option_id;
+              });
+            }
+
+            const formattedQuestions = questions
+              .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+              .map(q => ({
+                id: q.id,
+                type: q.question_type,
+                statement: q.text,
+                options: (q.question_options || [])
+                  .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+                  .map(o => ({ id: o.id, text: o.text })),
+                correctOptionId: correctMap[q.id] || null
+              }));
+
+            setActivityConfig({
+              id: actData.id,
+              title: actData.title,
+              description: actData.description,
+              estimatedTimeMinutes: 10,
+              maxAttempts: actData.max_attempts || 1,
+              isMandatory: actData.is_mandatory,
+              questions: formattedQuestions
+            });
+
+            let stateToSet = 'no_iniciada';
+            if (currentUser?.id) {
+              const studentIdToUse = currentUser.id;
+              const filterClause = currentUser.auth_user_id 
+                ? `student_id.eq.${studentIdToUse},student_id.eq.${currentUser.auth_user_id}`
+                : `student_id.eq.${studentIdToUse}`;
+
+              const { data: attempts } = await supabase
+                .from('activity_attempts')
+                .select('*')
+                .eq('activity_id', actData.id)
+                .or(filterClause)
+                .order('completed_at', { ascending: false });
+
+              if (attempts && attempts.length > 0) {
+                const lastAttempt = attempts[0];
+                if (lastAttempt.status === 'completed') {
+                  stateToSet = 'completada';
+                  setCompletedResult({
+                    correctCount: Math.round(((lastAttempt.score || 0) / 100) * formattedQuestions.length),
+                    totalCount: formattedQuestions.length,
+                    scorePct: lastAttempt.score || 0,
+                    completedAt: lastAttempt.completed_at
+                      ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
+                      : 'Reciente'
+                  });
+                } else if (lastAttempt.status === 'in_progress') {
+                  stateToSet = 'en_progreso';
+                }
+              }
+            }
+            setActivityState(stateToSet);
+          } else {
+            setActivityConfig(null);
+            setActivityState('no_configurada');
+          }
         } else {
           setActivityConfig(null);
           setActivityState('no_configurada');
