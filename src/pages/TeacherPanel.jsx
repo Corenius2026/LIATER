@@ -10,7 +10,8 @@ import {
   CalendarDays, Timer, ShieldAlert, Eye, Pencil, Trash2,
   AlertCircle, Info, Layers, X, User, MessageSquare, Users,
   Search, Filter, Check, Archive, RefreshCw, FileCheck,
-  Sparkles, Bot, CheckCheck, XCircle, ChevronDown, ChevronUp
+  Sparkles, Bot, CheckCheck, XCircle, ChevronDown, ChevronUp,
+  Edit3, EyeOff, Save, PlusCircle
 } from 'lucide-react';
 
 
@@ -1875,6 +1876,106 @@ function BorradoresTab() {
 
   useEffect(() => { fetchDrafts(); }, [programId]);
 
+  // Helper para sincronizar la actividad en las tablas públicas de Supabase
+  const syncAndPublishActivity = async (classId, draftData) => {
+    // 1. Upsert / update en class_activities
+    const { data: existingAct } = await supabase
+      .from('class_activities')
+      .select('id')
+      .eq('class_id', classId)
+      .maybeSingle();
+
+    let activityId;
+
+    if (existingAct) {
+      const { data: updatedAct, error: updateErr } = await supabase
+        .from('class_activities')
+        .update({
+          title: draftData.activity_title || 'Actividad de Reforzamiento',
+          description: draftData.activity_description || '',
+          is_published: true,
+          max_attempts: 3,
+          is_mandatory: false,
+        })
+        .eq('id', existingAct.id)
+        .select('id')
+        .single();
+
+      if (updateErr) throw updateErr;
+      activityId = updatedAct.id;
+
+      // Limpiar preguntas anteriores para re-insertar limpiamente
+      await supabase.from('activity_questions').delete().eq('activity_id', activityId);
+    } else {
+      const { data: newAct, error: actErr } = await supabase
+        .from('class_activities')
+        .insert({
+          class_id: classId,
+          title: draftData.activity_title || 'Actividad de Reforzamiento',
+          description: draftData.activity_description || '',
+          is_published: true,
+          max_attempts: 3,
+          is_mandatory: false,
+        })
+        .select('id')
+        .single();
+
+      if (actErr) throw actErr;
+      activityId = newAct.id;
+    }
+
+    // 2. Insertar preguntas y opciones
+    const questions = draftData.questions || [];
+    for (let qIndex = 0; qIndex < questions.length; qIndex++) {
+      const q = questions[qIndex];
+
+      const { data: qData, error: qErr } = await supabase
+        .from('activity_questions')
+        .insert({
+          activity_id: activityId,
+          text: q.text,
+          question_type: q.question_type || 'single_choice',
+          order_num: qIndex + 1,
+        })
+        .select('id')
+        .single();
+
+      if (qErr) throw qErr;
+      const questionId = qData.id;
+
+      let correctOptId = null;
+
+      for (let oIndex = 0; oIndex < (q.options || []).length; oIndex++) {
+        const opt = q.options[oIndex];
+
+        const { data: optData, error: optErr } = await supabase
+          .from('question_options')
+          .insert({
+            question_id: questionId,
+            text: opt.text,
+            order_num: oIndex + 1,
+          })
+          .select('id')
+          .single();
+
+        if (optErr) throw optErr;
+
+        if (opt.is_correct) {
+          correctOptId = optData.id;
+        }
+      }
+
+      if (correctOptId) {
+        await supabase
+          .from('question_correct_answers')
+          .upsert({
+            question_id: questionId,
+            correct_option_id: correctOptId,
+          }, { onConflict: 'question_id' });
+      }
+    }
+  };
+
   const handleApprove = async (draft) => {
     if (!window.confirm(`¿Publicar la actividad "${draft.draft_data?.activity_title}" para los alumnos?`)) return;
     setActionLoading(draft.id + '-approve');
@@ -1882,104 +1983,8 @@ function BorradoresTab() {
       const classId = draft.class_id || draft.class_sessions?.id;
       if (!classId) throw new Error('No se encontró el ID de la clase vinculada.');
 
-      // 1. Verificar si ya existe una actividad para esta clase
-      const { data: existingAct } = await supabase
-        .from('class_activities')
-        .select('id')
-        .eq('class_id', classId)
-        .maybeSingle();
+      await syncAndPublishActivity(classId, draft.draft_data);
 
-      let activityId;
-
-      if (existingAct) {
-        const { data: updatedAct, error: updateErr } = await supabase
-          .from('class_activities')
-          .update({
-            title: draft.draft_data.activity_title || 'Actividad de Reforzamiento',
-            description: draft.draft_data.activity_description || '',
-            is_published: true,
-            max_attempts: 3,
-            is_mandatory: false,
-          })
-          .eq('id', existingAct.id)
-          .select('id')
-          .single();
-
-        if (updateErr) throw updateErr;
-        activityId = updatedAct.id;
-
-        // Limpiar preguntas anteriores si existían
-        await supabase.from('activity_questions').delete().eq('activity_id', activityId);
-      } else {
-        const { data: newAct, error: actErr } = await supabase
-          .from('class_activities')
-          .insert({
-            class_id: classId,
-            title: draft.draft_data.activity_title || 'Actividad de Reforzamiento',
-            description: draft.draft_data.activity_description || '',
-            is_published: true,
-            max_attempts: 3,
-            is_mandatory: false,
-          })
-          .select('id')
-          .single();
-
-        if (actErr) throw actErr;
-        activityId = newAct.id;
-      }
-
-      // 2. Insertar preguntas y opciones con los nombres de columna correctos (text, correct_option_id, order_num)
-      const questions = draft.draft_data.questions || [];
-      for (let qIndex = 0; qIndex < questions.length; qIndex++) {
-        const q = questions[qIndex];
-
-        const { data: qData, error: qErr } = await supabase
-          .from('activity_questions')
-          .insert({
-            activity_id: activityId,
-            text: q.text,
-            question_type: q.question_type || 'single_choice',
-            order_num: qIndex + 1,
-          })
-          .select('id')
-          .single();
-
-        if (qErr) throw qErr;
-        const questionId = qData.id;
-
-        let correctOptId = null;
-
-        for (let oIndex = 0; oIndex < (q.options || []).length; oIndex++) {
-          const opt = q.options[oIndex];
-
-          const { data: optData, error: optErr } = await supabase
-            .from('question_options')
-            .insert({
-              question_id: questionId,
-              text: opt.text,
-              order_num: oIndex + 1,
-            })
-            .select('id')
-            .single();
-
-          if (optErr) throw optErr;
-
-          if (opt.is_correct) {
-            correctOptId = optData.id;
-          }
-        }
-
-        if (correctOptId) {
-          await supabase
-            .from('question_correct_answers')
-            .upsert({
-              question_id: questionId,
-              correct_option_id: correctOptId,
-            }, { onConflict: 'question_id' });
-        }
-      }
-
-      // 3. Actualizar estado del borrador a aprobado
       await supabase
         .from('activity_drafts')
         .update({ status: 'approved', reviewed_at: new Date().toISOString() })
@@ -1990,6 +1995,65 @@ function BorradoresTab() {
     } catch (err) {
       console.error('Error aprobando borrador:', err);
       showToast(`Error al publicar: ${err.message || 'Intenta de nuevo'}`, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnpublish = async (draft) => {
+    if (!window.confirm(`¿Despublicar la actividad "${draft.draft_data?.activity_title}"? Los estudiantes ya no podrán verla ni responderla.`)) return;
+    setActionLoading(draft.id + '-unpublish');
+    try {
+      const classId = draft.class_id || draft.class_sessions?.id;
+      if (classId) {
+        await supabase
+          .from('class_activities')
+          .update({ is_published: false })
+          .eq('class_id', classId);
+      }
+
+      await supabase
+        .from('activity_drafts')
+        .update({ status: 'pending' })
+        .eq('id', draft.id);
+
+      showToast('Actividad despublicada. Ha vuelto a estado pendiente.', 'info');
+      fetchDrafts();
+    } catch (err) {
+      console.error('Error despublicando borrador:', err);
+      showToast(`Error al despublicar: ${err.message || 'Intenta de nuevo'}`, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async (draft) => {
+    if (!window.confirm(`¿Eliminar permanentemente el borrador "${draft.draft_data?.activity_title || 'este borrador'}"? Esta acción no se puede deshacer.`)) return;
+    setActionLoading(draft.id + '-delete');
+    try {
+      const classId = draft.class_id || draft.class_sessions?.id;
+      if (draft.status === 'approved' && classId) {
+        const deleteClassAct = window.confirm('Este borrador ya estaba publicado. ¿Deseas también eliminar la actividad de la clase para que los estudiantes ya no la vean?');
+        if (deleteClassAct) {
+          const { data: act } = await supabase.from('class_activities').select('id').eq('class_id', classId).maybeSingle();
+          if (act) {
+            await supabase.from('activity_questions').delete().eq('activity_id', act.id);
+            await supabase.from('class_activities').delete().eq('id', act.id);
+          }
+        }
+      }
+
+      const { error } = await supabase
+        .from('activity_drafts')
+        .delete()
+        .eq('id', draft.id);
+
+      if (error) throw error;
+      showToast('Borrador eliminado exitosamente.');
+      fetchDrafts();
+    } catch (err) {
+      console.error('Error eliminando borrador:', err);
+      showToast(`Error al eliminar: ${err.message || 'Intenta de nuevo'}`, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -2012,10 +2076,64 @@ function BorradoresTab() {
     }
   };
 
+  // --- LÓGICA DE EDICIÓN DEL BORRADOR ---
+  const [editingDraft, setEditingDraft] = useState(null);
+  const [editFormData, setEditFormData] = useState(null);
+
+  const startEditing = (draft) => {
+    setEditingDraft(draft);
+    setEditFormData(JSON.parse(JSON.stringify(draft.draft_data || {
+      activity_title: '',
+      activity_description: '',
+      questions: []
+    })));
+  };
+
+  const handleSaveEditedDraft = async (publishDirectly = false) => {
+    if (!editingDraft || !editFormData) return;
+    if (!editFormData.activity_title?.trim()) {
+      alert('Por favor asigna un título a la actividad.');
+      return;
+    }
+
+    setActionLoading('saving-edit');
+    try {
+      const classId = editingDraft.class_id || editingDraft.class_sessions?.id;
+      const shouldPublish = publishDirectly || editingDraft.status === 'approved';
+
+      // 1. Guardar cambios en activity_drafts
+      const { error: draftErr } = await supabase
+        .from('activity_drafts')
+        .update({
+          draft_data: editFormData,
+          status: shouldPublish ? 'approved' : editingDraft.status,
+          reviewed_at: shouldPublish ? new Date().toISOString() : editingDraft.reviewed_at
+        })
+        .eq('id', editingDraft.id);
+
+      if (draftErr) throw draftErr;
+
+      // 2. Si se publica o ya estaba aprobado, sincronizar en base de datos real
+      if (shouldPublish && classId) {
+        await syncAndPublishActivity(classId, editFormData);
+      }
+
+      showToast(shouldPublish ? '¡Borrador guardado y publicado exitosamente!' : 'Borrador guardado con éxito.');
+      setEditingDraft(null);
+      setEditFormData(null);
+      fetchDrafts();
+    } catch (err) {
+      console.error('Error guardando cambios del borrador:', err);
+      showToast(`Error al guardar: ${err.message || 'Intenta de nuevo'}`, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const statusBadge = (status) => {
     const styles = {
       pending:  { bg: '#fef9c3', color: '#854d0e', label: 'Pendiente',  icon: <Bot size={12} /> },
-      approved: { bg: '#dcfce7', color: '#166534', label: 'Aprobado',   icon: <CheckCheck size={12} /> },
+      approved: { bg: '#dcfce7', color: '#166534', label: 'Publicado',  icon: <CheckCheck size={12} /> },
       rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rechazado',  icon: <XCircle size={12} /> },
     };
     const s = styles[status] || styles.pending;
@@ -2070,8 +2188,8 @@ function BorradoresTab() {
       }}>
         <Bot size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
         <span>
-          Estos borradores fueron generados automáticamente desde las transcripciones de Google Drive.
-          Revisa cada uno antes de publicarlo. Al <strong>aprobar</strong>, la actividad quedará disponible para los alumnos.
+          Estos borradores fueron generados automáticamente desde las transcripciones de clase.
+          Puedes <strong>editar</strong> sus preguntas y retroalimentación, <strong>publicar</strong> para tus estudiantes, <strong>despublicar</strong> o <strong>eliminar</strong> cuando lo necesites.
         </span>
       </div>
 
@@ -2079,8 +2197,8 @@ function BorradoresTab() {
       {drafts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
           <Bot size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
-          <p style={{ margin: 0, fontWeight: 600 }}>No hay borradores pendientes</p>
-          <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>Cuando Apps Script procese una transcripción, aparecerá aquí.</p>
+          <p style={{ margin: 0, fontWeight: 600 }}>No hay borradores</p>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>Cuando se procese una transcripción de clase, el borrador aparecerá aquí.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -2111,20 +2229,34 @@ function BorradoresTab() {
                 </div>
 
                 {/* Acciones */}
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '0.45rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                  {/* Previsualizar */}
                   <button
                     onClick={() => setExpandedId(expandedId === draft.id ? null : draft.id)}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                      padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)',
+                      padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)',
                       background: '#fff', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600
                     }}
                   >
                     <Eye size={13} />
-                    {expandedId === draft.id ? 'Ocultar' : 'Previsualizar'}
+                    {expandedId === draft.id ? 'Ocultar' : 'Ver'}
                     {expandedId === draft.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                   </button>
 
+                  {/* Editar */}
+                  <button
+                    onClick={() => startEditing(draft)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                      padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid #93c5fd',
+                      background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700
+                    }}
+                  >
+                    <Edit3 size={13} /> Editar
+                  </button>
+
+                  {/* Botones según estado */}
                   {draft.status === 'pending' && (
                     <>
                       <button
@@ -2137,14 +2269,14 @@ function BorradoresTab() {
                           fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
                         }}
                       >
-                        {actionLoading === draft.id + '-approve' ? '...' : <><Check size={13} /> Aprobar</>}
+                        {actionLoading === draft.id + '-approve' ? '...' : <><Check size={13} /> Publicar</>}
                       </button>
                       <button
                         onClick={() => handleReject(draft)}
                         disabled={!!actionLoading}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                          padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid #fca5a5',
+                          padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid #fca5a5',
                           background: '#fff7f7', color: '#dc2626', cursor: 'pointer',
                           fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
                         }}
@@ -2153,6 +2285,51 @@ function BorradoresTab() {
                       </button>
                     </>
                   )}
+
+                  {draft.status === 'approved' && (
+                    <button
+                      onClick={() => handleUnpublish(draft)}
+                      disabled={!!actionLoading}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid #fde047',
+                        background: '#fef9c3', color: '#854d0e', cursor: 'pointer',
+                        fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
+                      }}
+                    >
+                      {actionLoading === draft.id + '-unpublish' ? '...' : <><EyeOff size={13} /> Despublicar</>}
+                    </button>
+                  )}
+
+                  {draft.status === 'rejected' && (
+                    <button
+                      onClick={() => handleApprove(draft)}
+                      disabled={!!actionLoading}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none',
+                        background: 'var(--navy)', color: '#fff', cursor: 'pointer',
+                        fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
+                      }}
+                    >
+                      {actionLoading === draft.id + '-approve' ? '...' : <><Check size={13} /> Publicar</>}
+                    </button>
+                  )}
+
+                  {/* Eliminar borrador */}
+                  <button
+                    onClick={() => handleDelete(draft)}
+                    disabled={!!actionLoading}
+                    title="Eliminar borrador permanentemente"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                      padding: '0.45rem 0.65rem', borderRadius: '8px', border: '1px solid #fecaca',
+                      background: '#fff1f2', color: '#e11d48', cursor: 'pointer',
+                      fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
+                    }}
+                  >
+                    {actionLoading === draft.id + '-delete' ? '...' : <Trash2 size={13} />}
+                  </button>
                 </div>
               </div>
 
@@ -2188,6 +2365,11 @@ function BorradoresTab() {
                             💡 {q.explanation}
                           </p>
                         )}
+                        {q.source_basis && (
+                          <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                            📌 <em>Fundamento: {q.source_basis}</em>
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2195,6 +2377,341 @@ function BorradoresTab() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ─── MODAL DE EDICIÓN DEL BORRADOR ─── */}
+      {editingDraft && editFormData && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '820px',
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)', border: '1px solid var(--border-color)',
+            overflow: 'hidden'
+          }}>
+            {/* Header del Modal */}
+            <div style={{
+              padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: 'var(--bg-light)'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  Editar Borrador de Actividad
+                </h3>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Clase: {editingDraft.class_sessions?.title}
+                </p>
+              </div>
+              <button
+                onClick={() => { setEditingDraft(null); setEditFormData(null); }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Cuerpo con scroll */}
+            <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Título de la actividad */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                  Título de la actividad *
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.activity_title || ''}
+                  onChange={e => setEditFormData({ ...editFormData, activity_title: e.target.value })}
+                  style={{
+                    width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px',
+                    border: '1px solid var(--border-color)', fontSize: '0.9rem', outline: 'none'
+                  }}
+                  placeholder="Ej: Cuestionario de Reforzamiento - Sesión 1"
+                />
+              </div>
+
+              {/* Descripción */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                  Instrucciones o descripción
+                </label>
+                <textarea
+                  rows={2}
+                  value={editFormData.activity_description || ''}
+                  onChange={e => setEditFormData({ ...editFormData, activity_description: e.target.value })}
+                  style={{
+                    width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px',
+                    border: '1px solid var(--border-color)', fontSize: '0.88rem', outline: 'none', resize: 'vertical'
+                  }}
+                  placeholder="Instrucciones para los estudiantes..."
+                />
+              </div>
+
+              {/* Lista de preguntas */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <label style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--navy)' }}>
+                    Preguntas ({editFormData.questions?.length || 0})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newQ = {
+                        text: 'Nueva pregunta...',
+                        question_type: 'single_choice',
+                        options: [
+                          { text: 'Opción 1', is_correct: true },
+                          { text: 'Opción 2', is_correct: false },
+                          { text: 'Opción 3', is_correct: false },
+                          { text: 'Opción 4', is_correct: false },
+                        ],
+                        explanation: '',
+                        source_basis: ''
+                      };
+                      setEditFormData({
+                        ...editFormData,
+                        questions: [...(editFormData.questions || []), newQ]
+                      });
+                    }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                      padding: '0.35rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)',
+                      background: '#fff', color: 'var(--navy)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer'
+                    }}
+                  >
+                    <PlusCircle size={14} /> Agregar Pregunta
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {(editFormData.questions || []).map((q, qIdx) => (
+                    <div key={qIdx} style={{
+                      background: 'var(--bg-light)', border: '1px solid var(--border-color)',
+                      borderRadius: '12px', padding: '1.1rem', position: 'relative'
+                    }}>
+                      {/* Header de la pregunta */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--navy)', background: '#e2e8f0', padding: '2px 8px', borderRadius: '6px' }}>
+                          Pregunta {qIdx + 1}
+                        </span>
+                        {editFormData.questions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = editFormData.questions.filter((_, idx) => idx !== qIdx);
+                              setEditFormData({ ...editFormData, questions: updated });
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', fontWeight: 600 }}
+                          >
+                            <Trash2 size={13} /> Eliminar
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Enunciado */}
+                      <div style={{ marginBottom: '0.85rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>
+                          Enunciado
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={q.text || ''}
+                          onChange={e => {
+                            const updated = [...editFormData.questions];
+                            updated[qIdx].text = e.target.value;
+                            setEditFormData({ ...editFormData, questions: updated });
+                          }}
+                          style={{
+                            width: '100%', padding: '0.5rem 0.75rem', borderRadius: '7px',
+                            border: '1px solid var(--border-color)', fontSize: '0.88rem', outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      {/* Opciones */}
+                      <div style={{ marginBottom: '0.85rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.35rem' }}>
+                          Opciones de respuesta (Marca cuál es la correcta)
+                        </label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                          {(q.options || []).map((opt, oIdx) => (
+                            <div key={oIdx} style={{
+                              display: 'flex', alignItems: 'center', gap: '0.5rem',
+                              background: '#ffffff', padding: '0.4rem 0.6rem', borderRadius: '8px',
+                              border: opt.is_correct ? '1.5px solid #22c55e' : '1px solid var(--border-color)'
+                            }}>
+                              <input
+                                type="radio"
+                                name={`correct-opt-${qIdx}`}
+                                checked={!!opt.is_correct}
+                                onChange={() => {
+                                  const updated = [...editFormData.questions];
+                                  updated[qIdx].options = updated[qIdx].options.map((o, i) => ({
+                                    ...o,
+                                    is_correct: i === oIdx
+                                  }));
+                                  setEditFormData({ ...editFormData, questions: updated });
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <input
+                                type="text"
+                                value={opt.text || ''}
+                                onChange={e => {
+                                  const updated = [...editFormData.questions];
+                                  updated[qIdx].options[oIdx].text = e.target.value;
+                                  setEditFormData({ ...editFormData, questions: updated });
+                                }}
+                                style={{
+                                  flex: 1, border: 'none', outline: 'none', fontSize: '0.85rem',
+                                  fontWeight: opt.is_correct ? 700 : 400, color: 'var(--navy)'
+                                }}
+                                placeholder={`Opción ${oIdx + 1}`}
+                              />
+                              {opt.is_correct && (
+                                <span style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 700, background: '#dcfce7', padding: '1px 6px', borderRadius: '4px' }}>
+                                  Correcta
+                                </span>
+                              )}
+                              {(q.options || []).length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...editFormData.questions];
+                                    updated[qIdx].options = updated[qIdx].options.filter((_, i) => i !== oIdx);
+                                    // Si eliminó la correcta, poner la primera como correcta
+                                    if (opt.is_correct && updated[qIdx].options.length > 0) {
+                                      updated[qIdx].options[0].is_correct = true;
+                                    }
+                                    setEditFormData({ ...editFormData, questions: updated });
+                                  }}
+                                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+                                  title="Eliminar opción"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...editFormData.questions];
+                            updated[qIdx].options = [
+                              ...(updated[qIdx].options || []),
+                              { text: '', is_correct: false }
+                            ];
+                            setEditFormData({ ...editFormData, questions: updated });
+                          }}
+                          style={{
+                            marginTop: '0.4rem', background: 'none', border: 'none',
+                            color: 'var(--navy)', fontSize: '0.75rem', fontWeight: 700,
+                            cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '3px'
+                          }}
+                        >
+                          + Agregar opción
+                        </button>
+                      </div>
+
+                      {/* Retroalimentación de la IA */}
+                      <div style={{ marginBottom: '0.6rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>
+                          💡 Retroalimentación Pedagógica (Explicación para el estudiante)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={q.explanation || ''}
+                          onChange={e => {
+                            const updated = [...editFormData.questions];
+                            updated[qIdx].explanation = e.target.value;
+                            setEditFormData({ ...editFormData, questions: updated });
+                          }}
+                          style={{
+                            width: '100%', padding: '0.5rem 0.75rem', borderRadius: '7px',
+                            border: '1px solid var(--border-color)', fontSize: '0.82rem', outline: 'none'
+                          }}
+                          placeholder="Explica por qué esta es la respuesta correcta y cómo se relaciona con el contenido..."
+                        />
+                      </div>
+
+                      {/* Fundamento en la clase */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>
+                          📌 Fundamento en la clase
+                        </label>
+                        <input
+                          type="text"
+                          value={q.source_basis || ''}
+                          onChange={e => {
+                            const updated = [...editFormData.questions];
+                            updated[qIdx].source_basis = e.target.value;
+                            setEditFormData({ ...editFormData, questions: updated });
+                          }}
+                          style={{
+                            width: '100%', padding: '0.45rem 0.75rem', borderRadius: '7px',
+                            border: '1px solid var(--border-color)', fontSize: '0.82rem', outline: 'none'
+                          }}
+                          placeholder="Ej: Minuto 14:20 - Introducción al concepto de..."
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer del modal con botones de acción */}
+            <div style={{
+              padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)',
+              display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem',
+              background: '#f8fafc'
+            }}>
+              <button
+                type="button"
+                onClick={() => { setEditingDraft(null); setEditFormData(null); }}
+                style={{
+                  padding: '0.55rem 1.15rem', borderRadius: '8px', border: '1px solid var(--border-color)',
+                  background: '#fff', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveEditedDraft(false)}
+                disabled={actionLoading === 'saving-edit'}
+                style={{
+                  padding: '0.55rem 1.25rem', borderRadius: '8px', border: '1px solid var(--navy)',
+                  background: '#fff', color: 'var(--navy)', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+                }}
+              >
+                <Save size={14} /> Guardar borrador
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveEditedDraft(true)}
+                disabled={actionLoading === 'saving-edit'}
+                style={{
+                  padding: '0.55rem 1.35rem', borderRadius: '8px', border: 'none',
+                  background: 'var(--navy)', color: '#fff', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                  boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)'
+                }}
+              >
+                <CheckCheck size={14} /> Guardar y Publicar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
