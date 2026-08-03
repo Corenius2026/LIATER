@@ -1830,21 +1830,44 @@ function BorradoresTab() {
   const fetchDrafts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Obtener clases del programa actual
+      const { data: classesData, error: classesErr } = await supabase
+        .from('class_sessions')
+        .select('id, title, program_id')
+        .eq('program_id', programId);
+
+      if (classesErr) {
+        console.warn('Error cargando clases del programa:', classesErr);
+      }
+
+      const classIds = (classesData || []).map(c => c.id);
+      const classMap = {};
+      (classesData || []).forEach(c => { classMap[c.id] = c; });
+
+      // 2. Consultar borradores
+      let query = supabase
         .from('activity_drafts')
-        .select(`
-          id, status, drive_folder_id, created_at, draft_data,
-          reviewed_at,
-          class_sessions!inner(id, title, program_id)
-        `)
-        .eq('class_sessions.program_id', programId)
+        .select('id, class_id, status, drive_folder_id, created_at, draft_data, reviewed_at')
         .order('created_at', { ascending: false });
 
+      if (classIds.length > 0) {
+        query = query.in('class_id', classIds);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
-      setDrafts(data || []);
+
+      // Vincular datos de clase para renderizar
+      const formattedDrafts = (data || []).map(d => ({
+        ...d,
+        class_sessions: classMap[d.class_id] || { id: d.class_id, title: 'Clase vinculada' }
+      }));
+
+      setDrafts(formattedDrafts);
     } catch (err) {
       console.error('Error cargando borradores:', err);
-      showToast('No se pudieron cargar los borradores.', 'error');
+      showToast(`Error: ${err.message || 'No se pudieron cargar los borradores'}`, 'error');
     } finally {
       setLoading(false);
     }
