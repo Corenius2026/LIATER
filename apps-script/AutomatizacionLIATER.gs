@@ -1,42 +1,17 @@
 /**
- * LIATER – Automatización Google Drive → Supabase
- * ================================================
- * Este script monitorea carpetas de Google Drive vinculadas a sesiones
- * de clase y, cuando detecta un Google Doc de transcripción nuevo (no
- * procesado), lo envía a la Edge Function `automatizacion-drive` para
- * generar una actividad de reforzamiento con IA.
+ * LIATER - Automatizacion Google Drive -> Supabase
  *
- * INSTALACIÓN:
- * 1. Abre https://script.google.com y crea un proyecto nuevo.
- * 2. Pega este código en el editor.
- * 3. Ve a "Proyecto" → "Propiedades" → "Propiedades del script" y agrega:
- *      - EDGE_FUNCTION_URL : URL de la Edge Function (ver constante abajo)
- *      - DRIVE_CRON_SECRET : El mismo secreto configurado en Supabase
- *      - ROOT_FOLDER_ID    : ID de la carpeta raíz en Google Drive
- *      - LOG_SHEET_ID      : ID del Google Sheet para el log de ejecuciones
- * 4. Configura un trigger: "Ejecutar" → "Agregar activador"
- *      Función: procesarTranscripciones
- *      Origen:  Basado en tiempo → Días → Cada día (hora preferida)
- *
- * NOMENCLATURA ESPERADA DE ARCHIVOS:
- *   Carpeta raíz/
- *     └── Subcarpeta de sesión (su ID está en class_sessions.drive_folder_id)
- *           ├── DIP-CTRL-2026-01_M01_S001_TRANSCRIPCION  ← Google Doc
- *           └── DIP-CTRL-2026-01_M01_S001_GRABACION      ← video (ignorado)
+ * Configura en Propiedades del Script:
+ *   - ROOT_FOLDER_ID: ID de la carpeta raiz en Drive donde estan las subcarpetas de sesion
+ *   - DRIVE_AUTOMATION_SECRET: Secreto configurado en Supabase (o DRIVE_CRON_SECRET)
+ *   - LOG_SHEET_ID: (Opcional) ID de una hoja de Google Sheets para registrar el historial
  */
 
-// ─── Configuración ──────────────────────────────────────────────────────────
-
-var EDGE_FUNCTION_URL =
-  "https://dbxkmasucybamylpkndm.supabase.co/functions/v1/automatizacion-drive";
-
-var QUESTION_COUNT = 5; // Número de preguntas a generar por sesión
-
-// ─── Punto de entrada principal ────────────────────────────────────────────
+var EDGE_FUNCTION_URL = "https://dbxkmasucybamylpkndm.supabase.co/functions/v1/automatizacion-drive";
+var QUESTION_COUNT = 5;
 
 /**
- * Función principal. Configura el trigger de tiempo para que se ejecute
- * automáticamente cada día.
+ * Funcion principal para ejecutar manualmente o por activador de tiempo
  */
 function procesarTranscripciones() {
   var props = PropertiesService.getScriptProperties();
@@ -45,9 +20,7 @@ function procesarTranscripciones() {
   var logSheetId = props.getProperty("LOG_SHEET_ID");
 
   if (!rootFolderId || !cronSecret) {
-    Logger.log(
-      "ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET."
-    );
+    Logger.log("ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET.");
     return;
   }
 
@@ -62,103 +35,65 @@ function procesarTranscripciones() {
     var folderId = subfolder.getId();
     var folderName = subfolder.getName();
 
-    // Busca un Google Doc cuyo nombre contenga "TRANSCRIPCION"
     var transcripcionDoc = encontrarTranscripcion(subfolder);
-
     if (!transcripcionDoc) {
-      Logger.log("Sin transcripción en: " + folderName);
+      Logger.log("Sin transcripcion en: " + folderName);
       continue;
     }
 
     var docId = transcripcionDoc.getId();
     var docName = transcripcionDoc.getName();
 
-    // Evita reprocesar: revisa si el doc ya está en el log
     if (log && yaFueProcesado(log, docId)) {
-      Logger.log("Ya procesado (log): " + docName);
+      Logger.log("Ya procesado anteriormente: " + docName);
       continue;
     }
 
     Logger.log("Procesando: " + docName + " en carpeta " + folderName);
 
     try {
-      // Lee el texto del Google Doc (sin tokens de PDF)
-      var transcript = leerTextoGoogleDoc(docId);
+      var transcript = DocumentApp.openById(docId).getBody().getText();
 
       if (transcript.length < 200) {
-        var msg = "Transcripción muy corta (" + transcript.length + " chars): " + docName;
+        var msg = "Transcripcion muy corta (" + transcript.length + " caracteres): " + docName;
         Logger.log("IGNORADO: " + msg);
         if (log) registrarEnLog(log, docId, docName, folderId, folderName, "IGNORADO", msg);
         continue;
       }
 
-      // Llama a la Edge Function de Supabase
-      var resultado = llamarEdgeFunction(
-        folderId,
-        transcript,
-        cronSecret
-      );
+      var resultado = llamarEdgeFunction(folderId, transcript, cronSecret);
 
       if (resultado.ok) {
-        Logger.log(
-          "OK: draft_id=" + resultado.draft_id +
-          " clase=" + resultado.class_title
-        );
+        Logger.log("OK: draft_id=" + resultado.draft_id + " clase=" + resultado.class_title);
         if (log) {
-          registrarEnLog(
-            log, docId, docName, folderId, folderName,
-            "OK",
-            "draft_id=" + resultado.draft_id + " | " + resultado.class_title
-          );
+          registrarEnLog(log, docId, docName, folderId, folderName, "OK", "draft_id=" + resultado.draft_id + " | " + resultado.class_title);
         }
         procesadas++;
       } else if (resultado.already_processed) {
-        Logger.log("Ya procesado (Supabase): " + docName);
+        Logger.log("Ya existe borrador previo: " + docName);
         if (log) {
-          registrarEnLog(
-            log, docId, docName, folderId, folderName,
-            "DUPLICADO",
-            resultado.error || "Ya existe borrador"
-          );
+          registrarEnLog(log, docId, docName, folderId, folderName, "DUPLICADO", resultado.error || "Ya existe borrador");
         }
       } else {
         Logger.log("ERROR en Edge Function: " + JSON.stringify(resultado));
         if (log) {
-          registrarEnLog(
-            log, docId, docName, folderId, folderName,
-            "ERROR",
-            resultado.error || "Error desconocido"
-          );
+          registrarEnLog(log, docId, docName, folderId, folderName, "ERROR", resultado.error || "Error desconocido");
         }
         errores++;
       }
     } catch (e) {
       var errMsg = e.toString();
-      Logger.log("EXCEPCIÓN procesando " + docName + ": " + errMsg);
+      Logger.log("EXCEPCION procesando " + docName + ": " + errMsg);
       if (log) {
-        registrarEnLog(
-          log, docId, docName, folderId, folderName,
-          "EXCEPCIÓN",
-          errMsg
-        );
+        registrarEnLog(log, docId, docName, folderId, folderName, "EXCEPCION", errMsg);
       }
       errores++;
     }
   }
 
-  Logger.log(
-    "Finalizado. Procesadas: " + procesadas + " | Errores: " + errores
-  );
+  Logger.log("Finalizado. Procesadas: " + procesadas + " | Errores: " + errores);
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Busca el primer Google Doc cuyo nombre contenga "TRANSCRIPCION"
- * dentro de la carpeta dada.
- * @param {GoogleAppsScript.Drive.Folder} folder
- * @returns {GoogleAppsScript.Drive.File|null}
- */
 function encontrarTranscripcion(folder) {
   var mimeGoogleDoc = "application/vnd.google-apps.document";
   var files = folder.getFilesByType(mimeGoogleDoc);
@@ -172,23 +107,6 @@ function encontrarTranscripcion(folder) {
   return null;
 }
 
-/**
- * Lee el texto plano de un Google Doc.
- * @param {string} docId
- * @returns {string}
- */
-function leerTextoGoogleDoc(docId) {
-  var doc = DocumentApp.openById(docId);
-  return doc.getBody().getText();
-}
-
-/**
- * Llama a la Edge Function automatizacion-drive vía HTTP POST.
- * @param {string} driveFolderId  ID de la subcarpeta de la sesión
- * @param {string} transcript     Texto de la transcripción
- * @param {string} cronSecret     Secreto de autenticación
- * @returns {Object} Respuesta JSON de la Edge Function
- */
 function llamarEdgeFunction(driveFolderId, transcript, cronSecret) {
   var payload = JSON.stringify({
     drive_folder_id: driveFolderId,
@@ -200,6 +118,7 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret) {
     method: "post",
     contentType: "application/json",
     headers: {
+      "x-automation-secret": cronSecret,
       "x-cron-secret": cronSecret,
     },
     payload: payload,
@@ -215,23 +134,16 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret) {
   try {
     return JSON.parse(responseText);
   } catch (e) {
-    return { ok: false, error: "Respuesta no válida: " + responseText };
+    return { ok: false, error: "Respuesta no valida: " + responseText };
   }
 }
 
-// ─── Log en Google Sheets ──────────────────────────────────────────────────
-
-/**
- * Obtiene (o crea) la hoja de log en un Google Sheet existente.
- * @param {string} sheetId
- * @returns {GoogleAppsScript.Spreadsheet.Sheet}
- */
 function obtenerHojaDeLog(sheetId) {
   var ss = SpreadsheetApp.openById(sheetId);
-  var sheet = ss.getSheetByName("Log Automatización");
+  var sheet = ss.getSheetByName("Log Automatizacion");
 
   if (!sheet) {
-    sheet = ss.insertSheet("Log Automatización");
+    sheet = ss.insertSheet("Log Automatizacion");
     sheet.appendRow([
       "Fecha",
       "Doc ID",
@@ -247,16 +159,9 @@ function obtenerHojaDeLog(sheetId) {
   return sheet;
 }
 
-/**
- * Verifica si un docId ya fue procesado exitosamente (estado OK).
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
- * @param {string} docId
- * @returns {boolean}
- */
 function yaFueProcesado(sheet, docId) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    // Col B = Doc ID (índice 1), Col F = Estado (índice 5)
     if (data[i][1] === docId && data[i][5] === "OK") {
       return true;
     }
@@ -264,9 +169,6 @@ function yaFueProcesado(sheet, docId) {
   return false;
 }
 
-/**
- * Registra una fila en el log de Google Sheets.
- */
 function registrarEnLog(sheet, docId, docName, folderId, folderName, estado, detalle) {
   sheet.appendRow([
     new Date(),
