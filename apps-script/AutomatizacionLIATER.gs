@@ -1,97 +1,153 @@
 /**
  * LIATER - Automatizacion Google Drive -> Supabase
  *
- * Configura en Propiedades del Script:
- *   - ROOT_FOLDER_ID: ID de la carpeta raiz en Drive donde estan las subcarpetas de sesion
- *   - DRIVE_AUTOMATION_SECRET: Secreto configurado en Supabase (o DRIVE_CRON_SECRET)
- *   - LOG_SHEET_ID: (Opcional) ID de una hoja de Google Sheets para registrar el historial
+ * Configura en Propiedades del Script (⚙️ Configuración del proyecto -> Propiedades del script):
+ *   - ROOT_FOLDER_ID: ID o enlace completo de la carpeta raiz en Google Drive
+ *   - DRIVE_AUTOMATION_SECRET: Secreto configurado en Supabase
+ *   - LOG_SHEET_ID: (Opcional) ID o enlace del Google Sheet para el historial
  */
 
 var EDGE_FUNCTION_URL = "https://dbxkmasucybamylpkndm.supabase.co/functions/v1/automatizacion-drive";
 var QUESTION_COUNT = 5;
 
 /**
- * Funcion principal para ejecutar manualmente o por activador de tiempo
+ * Limpia y extrae el ID de una URL de Drive o devuelve el ID limpio
+ */
+function extraerIdDeDrive(valor) {
+  if (!valor) return "";
+  var str = valor.toString().trim();
+  var match = str.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  var docMatch = str.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (docMatch) return docMatch[1];
+  var cleanMatch = str.match(/^([a-zA-Z0-9_-]+)/);
+  if (cleanMatch) return cleanMatch[1];
+  return str;
+}
+
+/**
+ * Funcion principal para procesar transcripciones
  */
 function procesarTranscripciones() {
   var props = PropertiesService.getScriptProperties();
-  var rootFolderId = props.getProperty("ROOT_FOLDER_ID");
+  var rawRootId = props.getProperty("ROOT_FOLDER_ID");
   var cronSecret = props.getProperty("DRIVE_AUTOMATION_SECRET") || props.getProperty("DRIVE_CRON_SECRET");
-  var logSheetId = props.getProperty("LOG_SHEET_ID");
+  var rawSheetId = props.getProperty("LOG_SHEET_ID");
+
+  var rootFolderId = extraerIdDeDrive(rawRootId);
+  var logSheetId = extraerIdDeDrive(rawSheetId);
 
   if (!rootFolderId || !cronSecret) {
     Logger.log("ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET.");
     return;
   }
 
-  var log = logSheetId ? obtenerHojaDeLog(logSheetId) : null;
-  var rootFolder = DriveApp.getFolderById(rootFolderId);
-  var subfolders = rootFolder.getFolders();
-  var procesadas = 0;
-  var errores = 0;
-
-  while (subfolders.hasNext()) {
-    var subfolder = subfolders.next();
-    var folderId = subfolder.getId();
-    var folderName = subfolder.getName();
-
-    var transcripcionDoc = encontrarTranscripcion(subfolder);
-    if (!transcripcionDoc) {
-      Logger.log("Sin transcripcion en: " + folderName);
-      continue;
-    }
-
-    var docId = transcripcionDoc.getId();
-    var docName = transcripcionDoc.getName();
-
-    if (log && yaFueProcesado(log, docId)) {
-      Logger.log("Ya procesado anteriormente: " + docName);
-      continue;
-    }
-
-    Logger.log("Procesando: " + docName + " en carpeta " + folderName);
-
+  var log = null;
+  if (logSheetId) {
     try {
-      var transcript = DocumentApp.openById(docId).getBody().getText();
-
-      if (transcript.length < 200) {
-        var msg = "Transcripcion muy corta (" + transcript.length + " caracteres): " + docName;
-        Logger.log("IGNORADO: " + msg);
-        if (log) registrarEnLog(log, docId, docName, folderId, folderName, "IGNORADO", msg);
-        continue;
-      }
-
-      var resultado = llamarEdgeFunction(folderId, transcript, cronSecret);
-
-      if (resultado.ok) {
-        Logger.log("OK: draft_id=" + resultado.draft_id + " clase=" + resultado.class_title);
-        if (log) {
-          registrarEnLog(log, docId, docName, folderId, folderName, "OK", "draft_id=" + resultado.draft_id + " | " + resultado.class_title);
-        }
-        procesadas++;
-      } else if (resultado.already_processed) {
-        Logger.log("Ya existe borrador previo: " + docName);
-        if (log) {
-          registrarEnLog(log, docId, docName, folderId, folderName, "DUPLICADO", resultado.error || "Ya existe borrador");
-        }
-      } else {
-        Logger.log("ERROR en Edge Function: " + JSON.stringify(resultado));
-        if (log) {
-          registrarEnLog(log, docId, docName, folderId, folderName, "ERROR", resultado.error || "Error desconocido");
-        }
-        errores++;
-      }
-    } catch (e) {
-      var errMsg = e.toString();
-      Logger.log("EXCEPCION procesando " + docName + ": " + errMsg);
-      if (log) {
-        registrarEnLog(log, docId, docName, folderId, folderName, "EXCEPCION", errMsg);
-      }
-      errores++;
+      log = obtenerHojaDeLog(logSheetId);
+    } catch (sheetErr) {
+      Logger.log("Aviso: No se pudo abrir la hoja de log (se omitirá el log en Sheets): " + sheetErr.message);
     }
   }
 
+  var rootFolder;
+  try {
+    rootFolder = DriveApp.getFolderById(rootFolderId);
+  } catch (err) {
+    Logger.log("ERROR: No se pudo acceder a la carpeta de Drive con ID '" + rootFolderId + "'. Verifica que el ID sea correcto y que tengas permisos de acceso.");
+    return;
+  }
+
+  Logger.log("Carpeta raiz encontrada: " + rootFolder.getName());
+
+  var subfolders = rootFolder.getFolders();
+  var procesadas = 0;
+  var errores = 0;
+  var carpetasRevisadas = 0;
+
+  // 1. Revisa subcarpetas (estructura recomendada: CarpetaRaiz -> SubcarpetaSesion -> Archivos)
+  while (subfolders.hasNext()) {
+    carpetasRevisadas++;
+    var subfolder = subfolders.next();
+    var resultado = procesarCarpeta(subfolder, log, cronSecret);
+    if (resultado === "OK") procesadas++;
+    else if (resultado === "ERROR") errores++;
+  }
+
+  // 2. Si la carpeta raiz no tenia subcarpetas pero contiene los archivos directamente
+  if (carpetasRevisadas === 0) {
+    Logger.log("No se encontraron subcarpetas. Buscando transcripcion directamente en la carpeta raiz...");
+    var resDirecto = procesarCarpeta(rootFolder, log, cronSecret);
+    if (resDirecto === "OK") procesadas++;
+    else if (resDirecto === "ERROR") errores++;
+  }
+
   Logger.log("Finalizado. Procesadas: " + procesadas + " | Errores: " + errores);
+}
+
+/**
+ * Procesa una carpeta de sesion individual
+ */
+function procesarCarpeta(folder, log, cronSecret) {
+  var folderId = folder.getId();
+  var folderName = folder.getName();
+
+  var transcripcionDoc = encontrarTranscripcion(folder);
+  if (!transcripcionDoc) {
+    Logger.log("Sin transcripcion en: " + folderName);
+    return "SKIP";
+  }
+
+  var docId = transcripcionDoc.getId();
+  var docName = transcripcionDoc.getName();
+
+  if (log && yaFueProcesado(log, docId)) {
+    Logger.log("Ya procesado anteriormente: " + docName);
+    return "DUPLICADO";
+  }
+
+  Logger.log("Procesando: " + docName + " en carpeta '" + folderName + "' (ID: " + folderId + ")");
+
+  try {
+    var transcript = DocumentApp.openById(docId).getBody().getText();
+
+    if (transcript.length < 200) {
+      var msg = "Transcripcion muy corta (" + transcript.length + " caracteres): " + docName;
+      Logger.log("IGNORADO: " + msg);
+      if (log) registrarEnLog(log, docId, docName, folderId, folderName, "IGNORADO", msg);
+      return "SKIP";
+    }
+
+    var resultado = llamarEdgeFunction(folderId, transcript, cronSecret);
+
+    if (resultado.ok) {
+      Logger.log("OK: Borrador creado con exito! draft_id=" + resultado.draft_id + " para la clase: " + resultado.class_title);
+      if (log) {
+        registrarEnLog(log, docId, docName, folderId, folderName, "OK", "draft_id=" + resultado.draft_id + " | " + resultado.class_title);
+      }
+      return "OK";
+    } else if (resultado.already_processed) {
+      Logger.log("Aviso: Ya existe un borrador para esta clase en Supabase (" + docName + ")");
+      if (log) {
+        registrarEnLog(log, docId, docName, folderId, folderName, "DUPLICADO", resultado.error || "Ya existe borrador");
+      }
+      return "DUPLICADO";
+    } else {
+      Logger.log("ERROR en Supabase: " + (resultado.error || JSON.stringify(resultado)));
+      if (log) {
+        registrarEnLog(log, docId, docName, folderId, folderName, "ERROR", resultado.error || "Error desconocido");
+      }
+      return "ERROR";
+    }
+  } catch (e) {
+    var errMsg = e.toString();
+    Logger.log("EXCEPCION procesando " + docName + ": " + errMsg);
+    if (log) {
+      registrarEnLog(log, docId, docName, folderId, folderName, "EXCEPCION", errMsg);
+    }
+    return "ERROR";
+  }
 }
 
 function encontrarTranscripcion(folder) {
@@ -129,7 +185,7 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret) {
   var statusCode = response.getResponseCode();
   var responseText = response.getContentText();
 
-  Logger.log("HTTP " + statusCode + ": " + responseText.substring(0, 300));
+  Logger.log("HTTP Respuesta " + statusCode + ": " + responseText.substring(0, 300));
 
   try {
     return JSON.parse(responseText);
