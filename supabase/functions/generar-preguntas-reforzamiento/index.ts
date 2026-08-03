@@ -122,49 +122,60 @@ ${transcript}
 `;
 
   const ai = new GoogleGenAI({ apiKey });
+  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  let lastError: Error | null = null;
 
-  const interaction = await ai.interactions.create({
-    model: "gemini-2.5-flash",
-    input: prompt,
-    store: false,
-    response_format: {
-      type: "text",
-      mime_type: "application/json",
-      schema: buildResponseSchema(questionCount),
-    },
-  });
+  for (const modelName of modelsToTry) {
+    try {
+      const interaction = await ai.interactions.create({
+        model: modelName,
+        input: prompt,
+        store: false,
+        response_format: {
+          type: "text",
+          mime_type: "application/json",
+          schema: buildResponseSchema(questionCount),
+        },
+      });
 
-  const outputText = interaction.output_text;
-  if (!outputText) {
-    throw new Error("Gemini no devolvió contenido");
-  }
+      const outputText = interaction.output_text;
+      if (!outputText) {
+        throw new Error(`Gemini (${modelName}) no devolvió contenido`);
+      }
 
-  const activity = JSON.parse(outputText);
+      const activity = JSON.parse(outputText);
 
-  if (
-    !Array.isArray(activity.questions) ||
-    activity.questions.length !== questionCount
-  ) {
-    throw new Error("La cantidad de preguntas generada no es válida");
-  }
+      if (
+        !Array.isArray(activity.questions) ||
+        activity.questions.length !== questionCount
+      ) {
+        throw new Error("La cantidad de preguntas generada no es válida");
+      }
 
-  for (const question of activity.questions) {
-    if (!Array.isArray(question.options) || question.options.length !== 4) {
-      throw new Error("Una pregunta no contiene cuatro opciones");
+      for (const question of activity.questions) {
+        if (!Array.isArray(question.options) || question.options.length !== 4) {
+          throw new Error("Una pregunta no contiene cuatro opciones");
+        }
+
+        const correctOptions = question.options.filter(
+          (option: { is_correct: boolean }) => option.is_correct === true,
+        );
+
+        if (correctOptions.length !== 1) {
+          throw new Error(
+            "Una pregunta no contiene exactamente una respuesta correcta",
+          );
+        }
+      }
+
+      return activity;
+    } catch (err) {
+      console.warn(`Intento con modelo '${modelName}' falló:`, err);
+      lastError = err as Error;
     }
-
-    const correctOptions = question.options.filter(
-      (option: { is_correct: boolean }) => option.is_correct === true,
-    );
-
-    if (correctOptions.length !== 1) {
-      throw new Error(
-        "Una pregunta no contiene exactamente una respuesta correcta",
-      );
-    }
   }
 
-  return activity;
+  throw lastError || new Error("No se pudo generar la actividad con ningún modelo de Gemini");
 }
 
 // ─── Handler Principal ─────────────────────────────────────────────────────
