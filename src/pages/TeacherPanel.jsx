@@ -1879,29 +1879,68 @@ function BorradoresTab() {
     if (!window.confirm(`¿Publicar la actividad "${draft.draft_data?.activity_title}" para los alumnos?`)) return;
     setActionLoading(draft.id + '-approve');
     try {
-      // 1. Insertar en class_activities
-      const { data: actData, error: actErr } = await supabase
+      const classId = draft.class_id || draft.class_sessions?.id;
+      if (!classId) throw new Error('No se encontró el ID de la clase vinculada.');
+
+      // 1. Verificar si ya existe una actividad para esta clase
+      const { data: existingAct } = await supabase
         .from('class_activities')
-        .insert({
-          class_id: draft.class_sessions.id,
-          title: draft.draft_data.activity_title,
-          description: draft.draft_data.activity_description,
-        })
         .select('id')
-        .single();
+        .eq('class_id', classId)
+        .maybeSingle();
 
-      if (actErr) throw actErr;
-      const activityId = actData.id;
+      let activityId;
 
-      // 2. Insertar preguntas y opciones
-      for (const q of draft.draft_data.questions) {
+      if (existingAct) {
+        const { data: updatedAct, error: updateErr } = await supabase
+          .from('class_activities')
+          .update({
+            title: draft.draft_data.activity_title || 'Actividad de Reforzamiento',
+            description: draft.draft_data.activity_description || '',
+            is_published: true,
+            max_attempts: 3,
+            is_mandatory: false,
+          })
+          .eq('id', existingAct.id)
+          .select('id')
+          .single();
+
+        if (updateErr) throw updateErr;
+        activityId = updatedAct.id;
+
+        // Limpiar preguntas anteriores si existían
+        await supabase.from('activity_questions').delete().eq('activity_id', activityId);
+      } else {
+        const { data: newAct, error: actErr } = await supabase
+          .from('class_activities')
+          .insert({
+            class_id: classId,
+            title: draft.draft_data.activity_title || 'Actividad de Reforzamiento',
+            description: draft.draft_data.activity_description || '',
+            is_published: true,
+            max_attempts: 3,
+            is_mandatory: false,
+          })
+          .select('id')
+          .single();
+
+        if (actErr) throw actErr;
+        activityId = newAct.id;
+      }
+
+      // 2. Insertar preguntas y opciones con los nombres de columna correctos (text, correct_option_id, order_num)
+      const questions = draft.draft_data.questions || [];
+      for (let qIndex = 0; qIndex < questions.length; qIndex++) {
+        const q = questions[qIndex];
+
         const { data: qData, error: qErr } = await supabase
           .from('activity_questions')
           .insert({
             activity_id: activityId,
-            question_text: q.text,
-            question_type: q.question_type,
-            explanation: q.explanation,
+            text: q.text,
+            question_type: q.question_type || 'single_choice',
+            explanation: q.explanation || null,
+            order_num: qIndex + 1,
           })
           .select('id')
           .single();
@@ -1909,12 +1948,17 @@ function BorradoresTab() {
         if (qErr) throw qErr;
         const questionId = qData.id;
 
-        for (const opt of q.options) {
+        let correctOptId = null;
+
+        for (let oIndex = 0; oIndex < (q.options || []).length; oIndex++) {
+          const opt = q.options[oIndex];
+
           const { data: optData, error: optErr } = await supabase
             .from('question_options')
             .insert({
               question_id: questionId,
-              option_text: opt.text,
+              text: opt.text,
+              order_num: oIndex + 1,
             })
             .select('id')
             .single();
@@ -1922,14 +1966,21 @@ function BorradoresTab() {
           if (optErr) throw optErr;
 
           if (opt.is_correct) {
-            await supabase
-              .from('question_correct_answers')
-              .insert({ question_id: questionId, option_id: optData.id });
+            correctOptId = optData.id;
           }
+        }
+
+        if (correctOptId) {
+          await supabase
+            .from('question_correct_answers')
+            .upsert({
+              question_id: questionId,
+              correct_option_id: correctOptId,
+            }, { onConflict: 'question_id' });
         }
       }
 
-      // 3. Actualizar estado del borrador
+      // 3. Actualizar estado del borrador a aprobado
       await supabase
         .from('activity_drafts')
         .update({ status: 'approved', reviewed_at: new Date().toISOString() })
@@ -1939,7 +1990,7 @@ function BorradoresTab() {
       fetchDrafts();
     } catch (err) {
       console.error('Error aprobando borrador:', err);
-      showToast('Error al publicar la actividad. Intenta de nuevo.', 'error');
+      showToast(`Error al publicar: ${err.message || 'Intenta de nuevo'}`, 'error');
     } finally {
       setActionLoading(null);
     }
