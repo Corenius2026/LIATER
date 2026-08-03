@@ -1939,7 +1939,6 @@ function BorradoresTab() {
             activity_id: activityId,
             text: q.text,
             question_type: q.question_type || 'single_choice',
-            explanation: q.explanation || null,
             order_num: qIndex + 1,
           })
           .select('id')
