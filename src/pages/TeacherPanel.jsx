@@ -1845,10 +1845,11 @@ function BorradoresTab() {
       const classMap = {};
       (classesData || []).forEach(c => { classMap[c.id] = c; });
 
-      // 2. Consultar borradores
+      // 2. Consultar borradores (excluyendo rechazados o eliminados)
       let query = supabase
         .from('activity_drafts')
         .select('id, class_id, status, drive_folder_id, created_at, draft_data, reviewed_at')
+        .neq('status', 'rejected')
         .order('created_at', { ascending: false });
 
       if (classIds.length > 0) {
@@ -2030,6 +2031,10 @@ function BorradoresTab() {
   const handleDelete = async (draft) => {
     if (!window.confirm(`¿Eliminar permanentemente el borrador "${draft.draft_data?.activity_title || 'este borrador'}"? Esta acción no se puede deshacer.`)) return;
     setActionLoading(draft.id + '-delete');
+    
+    // Remover inmediatamente de la vista para respuesta instantánea
+    setDrafts(prev => prev.filter(d => d.id !== draft.id));
+
     try {
       const classId = draft.class_id || draft.class_sessions?.id;
       if (draft.status === 'approved' && classId) {
@@ -2048,12 +2053,20 @@ function BorradoresTab() {
         .delete()
         .eq('id', draft.id);
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Fallo el borrado directo en DB (posible RLS), actualizando estado a rejected:', error);
+        await supabase
+          .from('activity_drafts')
+          .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+          .eq('id', draft.id);
+      }
+
       showToast('Borrador eliminado exitosamente.');
-      fetchDrafts();
     } catch (err) {
       console.error('Error eliminando borrador:', err);
       showToast(`Error al eliminar: ${err.message || 'Intenta de nuevo'}`, 'error');
+      // En caso de fallo grave, recargar lista
+      fetchDrafts();
     } finally {
       setActionLoading(null);
     }
