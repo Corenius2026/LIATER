@@ -189,26 +189,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── Autenticación: Soporta DRIVE_AUTOMATION_SECRET o DRIVE_CRON_SECRET ──
-  const incomingSecret =
+  const incomingSecret = (
     req.headers.get("x-automation-secret") ||
     req.headers.get("x-cron-secret") ||
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    ""
+  ).trim();
 
-  const expectedSecret =
+  const expectedSecret = (
     Deno.env.get("DRIVE_AUTOMATION_SECRET") ||
-    Deno.env.get("DRIVE_CRON_SECRET");
+    Deno.env.get("DRIVE_CRON_SECRET") ||
+    ""
+  ).trim();
 
   if (!expectedSecret) {
-    console.error("DRIVE_AUTOMATION_SECRET / DRIVE_CRON_SECRET no está configurado en Supabase Secrets");
+    console.error("DRIVE_AUTOMATION_SECRET no está configurado en Supabase -> Edge Functions -> Secrets");
     return jsonResponse(
-      { ok: false, error: "La función de automatización no está configurada correctamente" },
+      { ok: false, error: "DRIVE_AUTOMATION_SECRET no configurado en Supabase Secrets" },
       500,
     );
   }
 
   if (!incomingSecret || incomingSecret !== expectedSecret) {
     return jsonResponse(
-      { ok: false, error: "No autorizado. Secreto incorrecto o ausente." },
+      {
+        ok: false,
+        error: "No autorizado. El secreto en Apps Script no coincide con DRIVE_AUTOMATION_SECRET en Supabase.",
+        secret_recibido_longitud: incomingSecret.length,
+      },
       401,
     );
   }

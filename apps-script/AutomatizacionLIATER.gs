@@ -237,8 +237,9 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret, folderName, d
     method: "post",
     contentType: "application/json",
     headers: {
-      "x-automation-secret": cronSecret,
-      "x-cron-secret": cronSecret,
+      "x-automation-secret": cronSecret ? cronSecret.trim() : "",
+      "x-cron-secret": cronSecret ? cronSecret.trim() : "",
+      "Authorization": "Bearer " + (cronSecret ? cronSecret.trim() : ""),
     },
     payload: payload,
     muteHttpExceptions: true,
