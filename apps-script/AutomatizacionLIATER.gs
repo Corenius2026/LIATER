@@ -119,7 +119,7 @@ function procesarCarpeta(folder, log, cronSecret) {
       return "SKIP";
     }
 
-    var resultado = llamarEdgeFunction(folderId, transcript, cronSecret);
+    var resultado = llamarEdgeFunction(folderId, transcript, cronSecret, folderName, docName);
 
     if (resultado.ok) {
       Logger.log("OK: Borrador creado con exito! draft_id=" + resultado.draft_id + " para la clase: " + resultado.class_title);
@@ -163,9 +163,11 @@ function encontrarTranscripcion(folder) {
   return null;
 }
 
-function llamarEdgeFunction(driveFolderId, transcript, cronSecret) {
+function llamarEdgeFunction(driveFolderId, transcript, cronSecret, folderName, docName) {
   var payload = JSON.stringify({
     drive_folder_id: driveFolderId,
+    folder_name: folderName || "",
+    doc_name: docName || "",
     transcript: transcript,
     questionCount: QUESTION_COUNT,
   });

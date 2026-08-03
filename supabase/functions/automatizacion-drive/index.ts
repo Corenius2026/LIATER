@@ -216,6 +216,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── Leer body ────────────────────────────────────────────────────────────
   let body: {
     drive_folder_id?: unknown;
+    folder_name?: unknown;
+    doc_name?: unknown;
     transcript?: unknown;
     questionCount?: unknown;
   };
@@ -242,13 +244,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const folderId = normalizeDriveFolderId(rawFolderId);
+  const folderName = typeof body.folder_name === "string" ? body.folder_name.trim() : "";
+  const docName = typeof body.doc_name === "string" ? body.doc_name.trim() : "";
 
   const transcript =
     typeof body.transcript === "string" ? body.transcript.trim() : "";
 
   if (transcript.length < 200) {
     return jsonResponse(
-      { ok: false, error: "La transcripción es demasiado corta para generar preguntas" },
+      { ok: false, error: "La transcripción es demasiado corta para generar preguntas (mínimo 200 caracteres)" },
       400,
     );
   }
@@ -272,7 +276,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("Faltan variables de entorno SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY");
     return jsonResponse(
-      { ok: false, error: "Configuración interna incompleta" },
+      { ok: false, error: "Configuración interna incompleta (SUPABASE_SERVICE_ROLE_KEY)" },
       500,
     );
   }
@@ -281,31 +285,113 @@ Deno.serve(async (req: Request): Promise<Response> => {
     auth: { persistSession: false },
   });
 
-  // ── Buscar la clase por drive_folder_id ──────────────────────────────────
-  const { data: session, error: sessionError } = await supabaseAdmin
-    .from("class_sessions")
-    .select("id, title")
-    .or(`drive_folder_id.eq.${folderId},drive_folder_id.ilike.%${folderId}%`)
-    .maybeSingle();
+  // ── Buscar la clase inteligentemente ─────────────────────────────────────
+  let session: { id: string; title: string } | null = null;
 
-  if (sessionError) {
-    console.error("Error buscando clase:", sessionError);
-    return jsonResponse(
-      { ok: false, error: "Error al consultar la base de datos" },
-      500,
-    );
+  // 1. Intento por coincidencia directa de drive_folder_id o links
+  try {
+    const { data: directMatch } = await supabaseAdmin
+      .from("class_sessions")
+      .select("id, title")
+      .or(`drive_folder_id.eq.${folderId},drive_folder_id.ilike.%${folderId}%,presentation_url.ilike.%${folderId}%,video_url.ilike.%${folderId}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (directMatch) {
+      session = directMatch;
+    }
+  } catch (err) {
+    console.warn("Búsqueda directa por drive_folder_id falló:", err);
+  }
+
+  // 2. Si no se encontró, extraer número de sesión de la nomenclatura
+  // Ejemplos: "DIP-CTRL-2026-01_M01_S001_TRANSCRIPCION" -> S001 -> 1
+  // "Sesion_1", "Sesion 1", "Clase 1", "S01"
+  if (!session) {
+    const combinedName = `${folderName} ${docName}`;
+    let sessionNumber: number | null = null;
+
+    const sMatch =
+      combinedName.match(/_S0*(\d+)_/i) ||
+      combinedName.match(/_S0*(\d+)/i) ||
+      combinedName.match(/sesi[oó]n[_\s-]*0*(\d+)/i) ||
+      combinedName.match(/clase[_\s-]*0*(\d+)/i) ||
+      combinedName.match(/\bS0*(\d+)\b/i);
+
+    if (sMatch) {
+      sessionNumber = parseInt(sMatch[1], 10);
+    }
+
+    if (sessionNumber !== null) {
+      // Buscar por order_index
+      const { data: byOrder } = await supabaseAdmin
+        .from("class_sessions")
+        .select("id, title")
+        .eq("order_index", sessionNumber)
+        .limit(1)
+        .maybeSingle();
+
+      if (byOrder) {
+        session = byOrder;
+      } else {
+        // Buscar por título que contenga "Sesión X" o "Clase X"
+        const { data: byTitle } = await supabaseAdmin
+          .from("class_sessions")
+          .select("id, title")
+          .or(`title.ilike.%Sesión ${sessionNumber}%,title.ilike.%Sesion ${sessionNumber}%,title.ilike.%Clase ${sessionNumber}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (byTitle) {
+          session = byTitle;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback: Si hay una sola clase en el sistema
+  if (!session) {
+    const { data: allClasses } = await supabaseAdmin
+      .from("class_sessions")
+      .select("id, title")
+      .order("created_at", { ascending: true })
+      .limit(2);
+
+    if (allClasses && allClasses.length === 1) {
+      session = allClasses[0];
+    }
   }
 
   if (!session) {
+    // Listar las clases existentes para ayudar a diagnosticar
+    const { data: sampleClasses } = await supabaseAdmin
+      .from("class_sessions")
+      .select("id, title, order_index")
+      .limit(5);
+
+    const disponibles = (sampleClasses || [])
+      .map((c: { title: string; order_index: number }) => `[#${c.order_index || '?'}] ${c.title}`)
+      .join(", ");
+
     return jsonResponse(
       {
         ok: false,
-        error: `No se encontró ninguna clase vinculada al folder '${folderId}'. Asegúrate de que el campo drive_folder_id esté configurado en la clase.`,
+        error: `No se pudo asociar el archivo '${docName || folderName}' a ninguna clase de LIATER. Clases disponibles: ${disponibles || 'Ninguna registrada'}. Asegúrate de que el número de sesión (ej: S001) coincida con el orden de la clase.`,
         drive_folder_id: folderId,
+        doc_name: docName,
+        folder_name: folderName,
       },
       404,
     );
   }
+
+  // Auto-vincular drive_folder_id en class_sessions para que quede registrado
+  try {
+    await supabaseAdmin
+      .from("class_sessions")
+      .update({ drive_folder_id: folderId })
+      .eq("id", session.id);
+  } catch (_) {}
 
   const classId = session.id as string;
   const classTitle = (session.title as string) || "Clase";
