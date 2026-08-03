@@ -9,7 +9,8 @@ import {
   Play, Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
   CalendarDays, Timer, ShieldAlert, Eye, Pencil, Trash2,
   AlertCircle, Info, Layers, X, User, MessageSquare, Users,
-  Search, Filter, Check, Archive, RefreshCw, FileCheck
+  Search, Filter, Check, Archive, RefreshCw, FileCheck,
+  Sparkles, Bot, CheckCheck, XCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 
@@ -1811,12 +1812,329 @@ function EstudiantesTab() {
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    COMPONENTE PRINCIPAL
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Borradores IA ─────────────────────────────────────────────────────── */
+
+function BorradoresTab() {
+  const { programId } = useTeacherContext();
+  const [drafts, setDrafts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const fetchDrafts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('activity_drafts')
+        .select(`
+          id, status, drive_folder_id, created_at, draft_data,
+          reviewed_at,
+          class_sessions!inner(id, title, program_id)
+        `)
+        .eq('class_sessions.program_id', programId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setDrafts(data || []);
+    } catch (err) {
+      console.error('Error cargando borradores:', err);
+      showToast('No se pudieron cargar los borradores.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchDrafts(); }, [programId]);
+
+  const handleApprove = async (draft) => {
+    if (!window.confirm(`¿Publicar la actividad "${draft.draft_data?.activity_title}" para los alumnos?`)) return;
+    setActionLoading(draft.id + '-approve');
+    try {
+      // 1. Insertar en class_activities
+      const { data: actData, error: actErr } = await supabase
+        .from('class_activities')
+        .insert({
+          class_id: draft.class_sessions.id,
+          title: draft.draft_data.activity_title,
+          description: draft.draft_data.activity_description,
+        })
+        .select('id')
+        .single();
+
+      if (actErr) throw actErr;
+      const activityId = actData.id;
+
+      // 2. Insertar preguntas y opciones
+      for (const q of draft.draft_data.questions) {
+        const { data: qData, error: qErr } = await supabase
+          .from('activity_questions')
+          .insert({
+            activity_id: activityId,
+            question_text: q.text,
+            question_type: q.question_type,
+            explanation: q.explanation,
+          })
+          .select('id')
+          .single();
+
+        if (qErr) throw qErr;
+        const questionId = qData.id;
+
+        for (const opt of q.options) {
+          const { data: optData, error: optErr } = await supabase
+            .from('question_options')
+            .insert({
+              question_id: questionId,
+              option_text: opt.text,
+            })
+            .select('id')
+            .single();
+
+          if (optErr) throw optErr;
+
+          if (opt.is_correct) {
+            await supabase
+              .from('question_correct_answers')
+              .insert({ question_id: questionId, option_id: optData.id });
+          }
+        }
+      }
+
+      // 3. Actualizar estado del borrador
+      await supabase
+        .from('activity_drafts')
+        .update({ status: 'approved', reviewed_at: new Date().toISOString() })
+        .eq('id', draft.id);
+
+      showToast('¡Actividad publicada exitosamente!');
+      fetchDrafts();
+    } catch (err) {
+      console.error('Error aprobando borrador:', err);
+      showToast('Error al publicar la actividad. Intenta de nuevo.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (draft) => {
+    if (!window.confirm('¿Rechazar y descartar este borrador?')) return;
+    setActionLoading(draft.id + '-reject');
+    try {
+      await supabase
+        .from('activity_drafts')
+        .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+        .eq('id', draft.id);
+      showToast('Borrador rechazado.', 'info');
+      fetchDrafts();
+    } catch (err) {
+      showToast('Error al rechazar el borrador.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const statusBadge = (status) => {
+    const styles = {
+      pending:  { bg: '#fef9c3', color: '#854d0e', label: 'Pendiente',  icon: <Bot size={12} /> },
+      approved: { bg: '#dcfce7', color: '#166534', label: 'Aprobado',   icon: <CheckCheck size={12} /> },
+      rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rechazado',  icon: <XCircle size={12} /> },
+    };
+    const s = styles[status] || styles.pending;
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '4px',
+        background: s.bg, color: s.color,
+        padding: '2px 10px', borderRadius: '12px', fontSize: '0.74rem', fontWeight: 700
+      }}>
+        {s.icon} {s.label}
+      </span>
+    );
+  };
+
+  if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando borradores...</div>;
+
+  return (
+    <div style={{ padding: '1.5rem 0' }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 9999,
+          background: toast.type === 'error' ? '#dc2626' : toast.type === 'info' ? '#0369a1' : '#16a34a',
+          color: '#fff', padding: '0.75rem 1.25rem', borderRadius: '10px',
+          fontWeight: 600, fontSize: '0.88rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <Sparkles size={20} color="var(--gold-dark)" />
+          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)' }}>
+            Borradores generados por IA
+          </h3>
+        </div>
+        <button
+          onClick={fetchDrafts}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.35rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)' }}
+        >
+          <RefreshCw size={13} /> Actualizar
+        </button>
+      </div>
+
+      {/* Info banner */}
+      <div style={{
+        background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px',
+        padding: '0.75rem 1rem', marginBottom: '1.25rem',
+        display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.83rem', color: '#1e40af'
+      }}>
+        <Bot size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+        <span>
+          Estos borradores fueron generados automáticamente desde las transcripciones de Google Drive.
+          Revisa cada uno antes de publicarlo. Al <strong>aprobar</strong>, la actividad quedará disponible para los alumnos.
+        </span>
+      </div>
+
+      {/* Lista */}
+      {drafts.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+          <Bot size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
+          <p style={{ margin: 0, fontWeight: 600 }}>No hay borradores pendientes</p>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>Cuando Apps Script procese una transcripción, aparecerá aquí.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {drafts.map(draft => (
+            <div key={draft.id} style={{
+              background: '#fff', border: '1px solid var(--border-color)',
+              borderRadius: '12px', overflow: 'hidden',
+              boxShadow: draft.status === 'pending' ? '0 0 0 2px rgba(202,138,4,0.15)' : 'none'
+            }}>
+              {/* Cabecera del borrador */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '1rem 1.25rem', gap: '1rem', flexWrap: 'wrap'
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.3rem' }}>
+                    {statusBadge(draft.status)}
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {new Date(draft.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {draft.draft_data?.activity_title || 'Sin título'}
+                  </p>
+                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Clase: <strong>{draft.class_sessions?.title}</strong> · {draft.draft_data?.questions?.length || 0} preguntas
+                  </p>
+                </div>
+
+                {/* Acciones */}
+                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                  <button
+                    onClick={() => setExpandedId(expandedId === draft.id ? null : draft.id)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                      padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)',
+                      background: '#fff', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600
+                    }}
+                  >
+                    <Eye size={13} />
+                    {expandedId === draft.id ? 'Ocultar' : 'Previsualizar'}
+                    {expandedId === draft.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+
+                  {draft.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(draft)}
+                        disabled={!!actionLoading}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                          padding: '0.45rem 0.85rem', borderRadius: '8px', border: 'none',
+                          background: 'var(--navy)', color: '#fff', cursor: 'pointer',
+                          fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
+                        }}
+                      >
+                        {actionLoading === draft.id + '-approve' ? '...' : <><Check size={13} /> Aprobar</>}
+                      </button>
+                      <button
+                        onClick={() => handleReject(draft)}
+                        disabled={!!actionLoading}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                          padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1px solid #fca5a5',
+                          background: '#fff7f7', color: '#dc2626', cursor: 'pointer',
+                          fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
+                        }}
+                      >
+                        {actionLoading === draft.id + '-reject' ? '...' : <><XCircle size={13} /> Rechazar</>}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Previsualización expandida de preguntas */}
+              {expandedId === draft.id && (
+                <div style={{ borderTop: '1px solid var(--border-color)', padding: '1rem 1.25rem', background: '#fafafa' }}>
+                  <p style={{ margin: '0 0 0.75rem', fontSize: '0.83rem', color: 'var(--text-muted)' }}>
+                    {draft.draft_data?.activity_description}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {(draft.draft_data?.questions || []).map((q, qi) => (
+                      <div key={qi} style={{ background: '#fff', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '0.85rem 1rem' }}>
+                        <p style={{ margin: '0 0 0.6rem', fontWeight: 700, fontSize: '0.87rem', color: 'var(--navy)' }}>
+                          {qi + 1}. {q.text}
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          {(q.options || []).map((opt, oi) => (
+                            <div key={oi} style={{
+                              display: 'flex', alignItems: 'center', gap: '0.5rem',
+                              padding: '0.4rem 0.65rem', borderRadius: '7px', fontSize: '0.83rem',
+                              background: opt.is_correct ? '#dcfce7' : '#f8fafc',
+                              border: `1px solid ${opt.is_correct ? '#86efac' : 'var(--border-color)'}`,
+                              color: opt.is_correct ? '#166534' : 'var(--text-dark)',
+                              fontWeight: opt.is_correct ? 700 : 400
+                            }}>
+                              {opt.is_correct ? <Check size={13} /> : <span style={{ width: 13 }} />}
+                              {opt.text}
+                            </div>
+                          ))}
+                        </div>
+                        {q.explanation && (
+                          <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#0369a1', background: '#eff6ff', padding: '0.4rem 0.65rem', borderRadius: '6px' }}>
+                            💡 {q.explanation}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'resumen',     label: 'Resumen',              icon: <BookOpen size={16} />,      component: ResumenTab },
   { id: 'clases',      label: 'Clases',               icon: <Video size={16} />,         component: ClasesTab },
   { id: 'dudas',       label: 'Dudas de estudiantes', icon: <MessageSquare size={16} />,  component: DudasTab },
   { id: 'anuncios',    label: 'Anuncios',             icon: <Megaphone size={16} />,     component: AnunciosTab },
   { id: 'estudiantes', label: 'Estudiantes',          icon: <Users size={16} />,         component: EstudiantesTab },
+  { id: 'borradores',  label: 'Borradores IA',        icon: <Sparkles size={16} />,      component: BorradoresTab },
 ];
 
 export default function TeacherPanel() {
