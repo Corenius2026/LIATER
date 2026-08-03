@@ -2188,7 +2188,7 @@ function BorradoresTab() {
       }}>
         <Bot size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
         <span>
-          Estos borradores fueron generados automáticamente desde las transcripciones de clase.
+          Estos borradores fueron generados automáticamente a partir del contenido de las clases.
           Puedes <strong>editar</strong> sus preguntas y retroalimentación, <strong>publicar</strong> para tus estudiantes, <strong>despublicar</strong> o <strong>eliminar</strong> cuando lo necesites.
         </span>
       </div>
@@ -2198,7 +2198,7 @@ function BorradoresTab() {
         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
           <Bot size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
           <p style={{ margin: 0, fontWeight: 600 }}>No hay borradores</p>
-          <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>Cuando se procese una transcripción de clase, el borrador aparecerá aquí.</p>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>Cuando se procese una sesión de clase, el borrador aparecerá aquí.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -2363,34 +2363,28 @@ function BorradoresTab() {
                         {(q.explanation || q.source_basis) && (
                           <div style={{
                             margin: '0.6rem 0 0',
-                            padding: '0.6rem 0.85rem',
+                            padding: '0.55rem 0.8rem',
                             background: '#eff6ff',
                             border: '1px solid #bfdbfe',
                             borderRadius: '8px',
                             fontSize: '0.8rem',
                             color: '#1e40af',
-                            lineHeight: 1.45
+                            lineHeight: 1.45,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.45rem'
                           }}>
-                            {q.explanation && (
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', marginBottom: q.source_basis ? '0.35rem' : '0' }}>
-                                <span style={{ flexShrink: 0 }}>💡</span>
-                                <span>{q.explanation}</span>
-                              </div>
-                            )}
-                            {q.source_basis && (
-                              <div style={{
-                                fontSize: '0.76rem',
-                                color: '#1d4ed8',
-                                borderTop: q.explanation ? '1px dashed #bfdbfe' : 'none',
-                                paddingTop: q.explanation ? '0.35rem' : '0',
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: '0.45rem'
-                              }}>
-                                <span style={{ flexShrink: 0 }}>📌</span>
-                                <span><strong>Fundamento:</strong> <em>{q.source_basis}</em></span>
-                              </div>
-                            )}
+                            <span style={{ flexShrink: 0 }}>💡</span>
+                            <span>
+                              {(() => {
+                                const exp = (q.explanation || '').trim();
+                                const src = (q.source_basis || '').trim();
+                                if (exp && src && !exp.toLowerCase().includes(src.toLowerCase())) {
+                                  return `${exp} (Fundamentado en la clase: ${src})`;
+                                }
+                                return exp || src;
+                              })()}
+                            </span>
                           </div>
                         )}
                       </div>

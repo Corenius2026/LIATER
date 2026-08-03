@@ -61,9 +61,10 @@ export default function AdminClassReinforcement({ classId }) {
             questionCount: 5,
             classTitle: localActivity.title,
             promptRules: `
-- El enunciado no debe introducir escenarios, condiciones o términos que no aparezcan expresamente en la transcripción.
+- El enunciado no debe introducir escenarios, condiciones o términos que no aparezcan expresamente en el contenido de la clase.
 - Las opciones incorrectas deben ser plausibles y basarse en confusiones conceptuales razonables; evita opciones absurdas o evidentemente falsas.
 - DEBES marcar exactamente una opción como correcta para cada pregunta (is_correct: true).
+- Redacta una única aclaración pedagógica continua para cada pregunta explicando por qué la respuesta es correcta en base a lo expuesto en la clase.
             `.trim()
           }
         }

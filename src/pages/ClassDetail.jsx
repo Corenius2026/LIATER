@@ -1555,25 +1555,22 @@ export default function ClassDetail() {
                               marginTop: '0.85rem', fontSize: '0.84rem', color: '#1e40af',
                               background: '#eff6ff', padding: '0.75rem 1rem', borderRadius: '10px',
                               border: '1px solid #bfdbfe',
-                              lineHeight: 1.5
+                              lineHeight: 1.5,
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '0.45rem'
                             }}>
-                              {q.explanation && (
-                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', marginBottom: q.sourceBasis ? '0.35rem' : '0' }}>
-                                  <span style={{ flexShrink: 0 }}>💡</span>
-                                  <span>{q.explanation}</span>
-                                </div>
-                              )}
-                              {q.sourceBasis && (
-                                <div style={{
-                                  fontSize: '0.78rem', color: '#1d4ed8',
-                                  borderTop: q.explanation ? '1px dashed #bfdbfe' : 'none',
-                                  paddingTop: q.explanation ? '0.35rem' : '0',
-                                  display: 'flex', alignItems: 'flex-start', gap: '0.45rem'
-                                }}>
-                                  <span style={{ flexShrink: 0 }}>📌</span>
-                                  <span><strong>Fundamento:</strong> <em>{q.sourceBasis}</em></span>
-                                </div>
-                              )}
+                              <span style={{ flexShrink: 0 }}>💡</span>
+                              <span>
+                                {(() => {
+                                  const exp = (q.explanation || '').trim();
+                                  const src = (q.sourceBasis || '').trim();
+                                  if (exp && src && !exp.toLowerCase().includes(src.toLowerCase())) {
+                                    return `${exp} (Fundamentado en la clase: ${src})`;
+                                  }
+                                  return exp || src;
+                                })()}
+                              </span>
                             </div>
                           )}
                         </div>
