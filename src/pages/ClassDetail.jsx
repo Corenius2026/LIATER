@@ -208,10 +208,18 @@ export default function ClassDetail() {
   const [viewingResultsMode, setViewingResultsMode] = useState(false);
 
   const handleOptionSelect = (questionId, optionId) => {
-    setUserAnswers(prev => ({
-      ...prev,
-      [questionId]: optionId
-    }));
+    setUserAnswers(prev => {
+      const updated = {
+        ...prev,
+        [questionId]: optionId
+      };
+      if (activityConfig?.id && currentUser?.id) {
+        try {
+          localStorage.setItem(`liater_answers_${activityConfig.id}_${currentUser.id}`, JSON.stringify(updated));
+        } catch (_) {}
+      }
+      return updated;
+    });
     if (activityState === 'no_iniciada') {
       setActivityState('en_progreso');
     }
@@ -453,17 +461,42 @@ export default function ClassDetail() {
               });
             }
 
+            // Cargar explicaciones pedagógicas de la IA desde activity_drafts si existen
+            let draftQuestionsMap = {};
+            try {
+              const { data: draftData } = await supabase
+                .from('activity_drafts')
+                .select('draft_data')
+                .eq('class_id', id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              if (draftData?.draft_data?.questions) {
+                draftData.draft_data.questions.forEach(dq => {
+                  if (dq.text) {
+                    draftQuestionsMap[dq.text.trim().toLowerCase()] = dq;
+                  }
+                });
+              }
+            } catch (_) {}
+
             const formattedQuestions = questions
               .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
-              .map(q => ({
-                id: q.id,
-                type: q.question_type,
-                statement: q.text,
-                options: (q.question_options || [])
-                  .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
-                  .map(o => ({ id: o.id, text: o.text })),
-                correctOptionId: correctMap[q.id] || null
-              }));
+              .map(q => {
+                const dq = draftQuestionsMap[q.text?.trim().toLowerCase()];
+                return {
+                  id: q.id,
+                  type: q.question_type,
+                  statement: q.text,
+                  explanation: q.explanation || dq?.explanation || null,
+                  sourceBasis: q.source_basis || dq?.source_basis || null,
+                  options: (q.question_options || [])
+                    .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+                    .map(o => ({ id: o.id, text: o.text })),
+                  correctOptionId: correctMap[q.id] || null
+                };
+              });
 
             setActivityConfig({
               id: actData.id,
@@ -474,6 +507,16 @@ export default function ClassDetail() {
               isMandatory: actData.is_mandatory,
               questions: formattedQuestions
             });
+
+            // Recuperar respuestas guardadas si existen
+            if (currentUser?.id && actData.id) {
+              const savedAnswers = localStorage.getItem(`liater_answers_${actData.id}_${currentUser.id}`);
+              if (savedAnswers) {
+                try {
+                  setUserAnswers(JSON.parse(savedAnswers));
+                } catch (_) {}
+              }
+            }
 
             let stateToSet = 'no_iniciada';
             if (currentUser?.id) {
@@ -1426,56 +1469,108 @@ export default function ClassDetail() {
                 {/* REVISIÓN DETALLADA DE PREGUNTAS */}
                 <div>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem' }}>
-                    Revisión de respuestas
+                    Revisión de respuestas y retroalimentación
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     {activityConfig.questions.map((q, idx) => {
                       const userChoice = userAnswers[q.id];
                       const isCorrect = userChoice && q.correctOptionId && String(userChoice) === String(q.correctOptionId);
+                      const isAnswered = !!userChoice;
 
                       return (
                         <div key={q.id} style={{
-                          padding: '1rem 1.25rem', borderRadius: '10px',
-                          border: isCorrect ? '1px solid #bbf7d0' : '1px solid #fca5a5',
-                          background: isCorrect ? '#f0fdf4' : '#fef2f2'
+                          padding: '1.2rem 1.35rem', borderRadius: '12px',
+                          border: isCorrect ? '1.5px solid #86efac' : isAnswered ? '1.5px solid #fca5a5' : '1.5px solid #cbd5e1',
+                          background: isCorrect ? '#f0fdf4' : isAnswered ? '#fef2f2' : '#f8fafc',
+                          boxShadow: '0 2px 5px rgba(0,0,0,0.03)'
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--navy)', lineHeight: 1.4 }}>
                               {idx + 1}. {q.statement}
                             </span>
                             <span style={{
-                              fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px',
-                              background: isCorrect ? '#dcfce7' : '#fee2e2',
-                              color: isCorrect ? '#166534' : '#dc2626'
+                              fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '12px',
+                              background: isCorrect ? '#dcfce7' : isAnswered ? '#fee2e2' : '#f1f5f9',
+                              color: isCorrect ? '#166534' : isAnswered ? '#dc2626' : '#64748b',
+                              flexShrink: 0
                             }}>
-                              {isCorrect ? 'Correcta' : 'Incorrecta'}
+                              {isCorrect ? '✓ Correcta' : isAnswered ? '✗ Incorrecta' : 'Sin responder'}
                             </span>
                           </div>
 
-                          <div style={{ fontSize: '0.82rem', color: 'var(--text-dark)', margin: '0.4rem 0' }}>
+                          {/* LISTA DE OPCIONES */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', margin: '0.6rem 0' }}>
                             {q.options.map(opt => {
                               const isSelected = userChoice && String(userChoice) === String(opt.id);
                               const isRightOption = q.correctOptionId && String(q.correctOptionId) === String(opt.id);
 
                               return (
                                 <div key={opt.id} style={{
-                                  padding: '0.45rem 0.75rem', borderRadius: '6px', margin: '4px 0',
+                                  padding: '0.6rem 0.85rem', borderRadius: '8px',
                                   background: isRightOption ? '#dcfce7' : isSelected ? '#fee2e2' : '#ffffff',
-                                  border: isRightOption ? '1px solid #86efac' : isSelected ? '1px solid #fca5a5' : '1px solid #e2e8f0',
-                                  fontWeight: isSelected || isRightOption ? 600 : 400,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                  border: isRightOption ? '2px solid #22c55e' : isSelected ? '2px solid #ef4444' : '1px solid #e2e8f0',
+                                  fontWeight: isSelected || isRightOption ? 700 : 400,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                  gap: '0.75rem', fontSize: '0.88rem'
                                 }}>
-                                  <span>{opt.text}</span>
-                                  {isRightOption && <span style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 700 }}>✓ Respuesta correcta</span>}
-                                  {isSelected && !isRightOption && <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 700 }}>Tu selección</span>}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{
+                                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                      width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0,
+                                      background: isRightOption ? '#166534' : isSelected ? '#dc2626' : '#cbd5e1',
+                                      color: '#ffffff', fontSize: '11px', fontWeight: 700
+                                    }}>
+                                      {isRightOption ? '✓' : isSelected ? '✗' : '•'}
+                                    </span>
+                                    <span style={{ color: 'var(--navy)' }}>{opt.text}</span>
+                                  </div>
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                    {isSelected && (
+                                      <span style={{
+                                        fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px',
+                                        background: isRightOption ? '#15803d' : '#b91c1c',
+                                        color: '#ffffff', fontWeight: 700
+                                      }}>
+                                        {isRightOption ? 'Tu respuesta ✓' : 'Tu selección'}
+                                      </span>
+                                    )}
+                                    {isRightOption && !isSelected && (
+                                      <span style={{
+                                        fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px',
+                                        background: '#dcfce7', color: '#166534', fontWeight: 700, border: '1px solid #86efac'
+                                      }}>
+                                        Respuesta correcta
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             })}
                           </div>
 
-                          {q.explanation && (
-                            <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.7)', padding: '0.4rem 0.6rem', borderRadius: '6px' }}>
-                              💡 <strong>Explicación:</strong> {q.explanation}
+                          {/* RETROALIMENTACIÓN DE LA IA */}
+                          {(q.explanation || q.sourceBasis) && (
+                            <div style={{
+                              marginTop: '0.85rem', fontSize: '0.84rem', color: '#1e293b',
+                              background: '#ffffff', padding: '0.85rem 1.1rem', borderRadius: '10px',
+                              borderLeft: '4px solid var(--gold-dark)',
+                              borderTop: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0',
+                              lineHeight: 1.5, boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                            }}>
+                              {q.explanation && (
+                                <div style={{ marginBottom: q.sourceBasis ? '0.45rem' : '0' }}>
+                                  <strong style={{ color: 'var(--navy)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                    💡 Retroalimentación:
+                                  </strong>{' '}
+                                  <span>{q.explanation}</span>
+                                </div>
+                              )}
+                              {q.sourceBasis && (
+                                <div style={{ fontSize: '0.78rem', color: '#64748b', borderTop: q.explanation ? '1px dashed #e2e8f0' : 'none', paddingTop: q.explanation ? '0.4rem' : '0' }}>
+                                  📌 <strong>Fundamento en la clase:</strong> <em>{q.sourceBasis}</em>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1484,7 +1579,7 @@ export default function ClassDetail() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
                   <button onClick={() => setIsActivityModalOpen(false)} className="btn btn-primary" style={{ padding: '0.6rem 1.4rem', fontWeight: 700 }}>
                     Cerrar y volver a la clase
                   </button>
@@ -1583,28 +1678,42 @@ export default function ClassDetail() {
                                   padding: '1rem 1.25rem',
                                   borderRadius: '12px',
                                   border: isSelected ? '2px solid var(--navy)' : '1px solid var(--border-color)',
-                                  background: isSelected ? 'rgba(20, 33, 61, 0.04)' : 'var(--white)',
+                                  background: isSelected ? '#eff6ff' : 'var(--white)',
                                   cursor: 'pointer',
                                   transition: 'all 0.15s ease-in-out',
                                   display: 'flex',
                                   alignItems: 'center',
+                                  justifyContent: 'space-between',
                                   gap: '0.85rem',
-                                  boxShadow: isSelected ? '0 2px 4px rgba(20, 33, 61, 0.08)' : 'none',
+                                  boxShadow: isSelected ? '0 2px 6px rgba(20, 33, 61, 0.12)' : 'none',
                                   outline: 'none'
                                 }}
                                 onFocus={e => e.currentTarget.style.borderColor = 'var(--gold-dark)'}
                                 onBlur={e => e.currentTarget.style.borderColor = isSelected ? 'var(--navy)' : 'var(--border-color)'}
                               >
-                                {/* CIRCULO INDICADOR RADIO (NEUTRAL) */}
-                                <div style={{
-                                  width: '20px', height: '20px', borderRadius: '50%',
-                                  border: isSelected ? '6px solid var(--navy)' : '2px solid #cbd5e1',
-                                  background: '#ffffff', flexShrink: 0,
-                                  transition: 'all 0.15s ease'
-                                }} />
-                                <span style={{ fontSize: '0.92rem', color: 'var(--navy)', fontWeight: isSelected ? 700 : 500 }}>
-                                  {opt.text}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                                  {/* CIRCULO INDICADOR RADIO */}
+                                  <div style={{
+                                    width: '20px', height: '20px', borderRadius: '50%',
+                                    border: isSelected ? '6px solid var(--navy)' : '2px solid #cbd5e1',
+                                    background: '#ffffff', flexShrink: 0,
+                                    transition: 'all 0.15s ease'
+                                  }} />
+                                  <span style={{ fontSize: '0.92rem', color: 'var(--navy)', fontWeight: isSelected ? 700 : 500 }}>
+                                    {opt.text}
+                                  </span>
+                                </div>
+
+                                {isSelected && (
+                                  <span style={{
+                                    fontSize: '0.74rem', fontWeight: 700,
+                                    background: 'var(--navy)', color: '#ffffff',
+                                    padding: '2px 8px', borderRadius: '6px',
+                                    flexShrink: 0
+                                  }}>
+                                    Seleccionada
+                                  </span>
+                                )}
                               </div>
                             );
                           })}
