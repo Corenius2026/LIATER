@@ -11,6 +11,22 @@ var EDGE_FUNCTION_URL = "https://dbxkmasucybamylpkndm.supabase.co/functions/v1/a
 var QUESTION_COUNT = 5;
 
 /**
+ * Normaliza y quita tildes para comparaciones
+ */
+function limpiarTexto(str) {
+  if (!str) return "";
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+}
+
+/**
+ * Determina si el nombre de un archivo corresponde a una transcripcion
+ */
+function esArchivoTranscripcion(nombre) {
+  var norm = limpiarTexto(nombre);
+  return norm.indexOf("TRANSCRIP") !== -1 || norm.indexOf("TRANSCRIPT") !== -1;
+}
+
+/**
  * Limpia y extrae el ID de una URL de Drive o devuelve el ID limpio
  */
 function extraerIdDeDrive(valor) {
@@ -47,7 +63,7 @@ function procesarTranscripciones() {
     try {
       log = obtenerHojaDeLog(logSheetId);
     } catch (sheetErr) {
-      Logger.log("Aviso: No se pudo abrir la hoja de log (se omitirá el log en Sheets): " + sheetErr.message);
+      Logger.log("Aviso: No se pudo abrir la hoja de log (se omitira el log en Sheets): " + sheetErr.message);
     }
   }
 
@@ -59,110 +75,155 @@ function procesarTranscripciones() {
     return;
   }
 
-  Logger.log("Carpeta raiz encontrada: " + rootFolder.getName());
+  Logger.log("Carpeta raiz analizada: '" + rootFolder.getName() + "' (ID: " + rootFolder.getId() + ")");
 
-  var subfolders = rootFolder.getFolders();
+  // Buscar todas las carpetas que contengan archivos de transcripcion (recursivo)
+  var carpetasConTranscripcion = [];
+  buscarCarpetasConTranscripciones(rootFolder, carpetasConTranscripcion);
+
+  Logger.log("Carpetas con transcripciones encontradas: " + carpetasConTranscripcion.length);
+
   var procesadas = 0;
   var errores = 0;
-  var carpetasRevisadas = 0;
 
-  // 1. Revisa subcarpetas (estructura recomendada: CarpetaRaiz -> SubcarpetaSesion -> Archivos)
-  while (subfolders.hasNext()) {
-    carpetasRevisadas++;
-    var subfolder = subfolders.next();
-    var resultado = procesarCarpeta(subfolder, log, cronSecret);
+  for (var i = 0; i < carpetasConTranscripcion.length; i++) {
+    var folder = carpetasConTranscripcion[i];
+    var resultado = procesarCarpeta(folder, log, cronSecret);
     if (resultado === "OK") procesadas++;
     else if (resultado === "ERROR") errores++;
   }
 
-  // 2. Si la carpeta raiz no tenia subcarpetas pero contiene los archivos directamente
-  if (carpetasRevisadas === 0) {
-    Logger.log("No se encontraron subcarpetas. Buscando transcripcion directamente en la carpeta raiz...");
-    var resDirecto = procesarCarpeta(rootFolder, log, cronSecret);
-    if (resDirecto === "OK") procesadas++;
-    else if (resDirecto === "ERROR") errores++;
-  }
-
-  Logger.log("Finalizado. Procesadas: " + procesadas + " | Errores: " + errores);
+  Logger.log("==========================================");
+  Logger.log("Resumen: Procesadas: " + procesadas + " | Errores: " + errores);
+  Logger.log("==========================================");
 }
 
 /**
- * Procesa una carpeta de sesion individual
+ * Busca de forma recursiva carpetas que contengan archivos de transcripcion
+ */
+function buscarCarpetasConTranscripciones(folder, lista) {
+  var files = folder.getFiles();
+  var tiene = false;
+
+  while (files.hasNext()) {
+    var f = files.next();
+    var fName = f.getName();
+    if (esArchivoTranscripcion(fName)) {
+      tiene = true;
+      Logger.log("-> Encontrado archivo de transcripcion: '" + fName + "' en carpeta '" + folder.getName() + "'");
+      break;
+    }
+  }
+
+  if (tiene) {
+    lista.push(folder);
+  }
+
+  var subfolders = folder.getFolders();
+  while (subfolders.hasNext()) {
+    buscarCarpetasConTranscripciones(subfolders.next(), lista);
+  }
+}
+
+/**
+ * Procesa una carpeta individual
  */
 function procesarCarpeta(folder, log, cronSecret) {
   var folderId = folder.getId();
   var folderName = folder.getName();
 
-  var transcripcionDoc = encontrarTranscripcion(folder);
-  if (!transcripcionDoc) {
-    Logger.log("Sin transcripcion en: " + folderName);
+  var transcripcionFile = encontrarArchivoTranscripcion(folder);
+  if (!transcripcionFile) {
+    Logger.log("Sin archivo de transcripcion en: " + folderName);
     return "SKIP";
   }
 
-  var docId = transcripcionDoc.getId();
-  var docName = transcripcionDoc.getName();
+  var fileId = transcripcionFile.getId();
+  var fileName = transcripcionFile.getName();
 
-  if (log && yaFueProcesado(log, docId)) {
-    Logger.log("Ya procesado anteriormente: " + docName);
+  if (log && yaFueProcesado(log, fileId)) {
+    Logger.log("Ya procesado anteriormente segun el Log: " + fileName);
     return "DUPLICADO";
   }
 
-  Logger.log("Procesando: " + docName + " en carpeta '" + folderName + "' (ID: " + folderId + ")");
+  Logger.log("Leyendo contenido de: '" + fileName + "'...");
 
   try {
-    var transcript = DocumentApp.openById(docId).getBody().getText();
+    var transcript = extraerTexto(transcripcionFile);
 
-    if (transcript.length < 200) {
-      var msg = "Transcripcion muy corta (" + transcript.length + " caracteres): " + docName;
+    if (!transcript || transcript.length < 200) {
+      var len = transcript ? transcript.length : 0;
+      var msg = "Transcripcion muy corta (" + len + " caracteres): " + fileName;
       Logger.log("IGNORADO: " + msg);
-      if (log) registrarEnLog(log, docId, docName, folderId, folderName, "IGNORADO", msg);
+      if (log) registrarEnLog(log, fileId, fileName, folderId, folderName, "IGNORADO", msg);
       return "SKIP";
     }
 
-    var resultado = llamarEdgeFunction(folderId, transcript, cronSecret, folderName, docName);
+    Logger.log("Enviando " + transcript.length + " caracteres a Supabase Edge Function...");
+    var resultado = llamarEdgeFunction(folderId, transcript, cronSecret, folderName, fileName);
 
     if (resultado.ok) {
-      Logger.log("OK: Borrador creado con exito! draft_id=" + resultado.draft_id + " para la clase: " + resultado.class_title);
+      Logger.log("EXITO: Borrador creado en Supabase! ID=" + resultado.draft_id + " para la clase: '" + resultado.class_title + "'");
       if (log) {
-        registrarEnLog(log, docId, docName, folderId, folderName, "OK", "draft_id=" + resultado.draft_id + " | " + resultado.class_title);
+        registrarEnLog(log, fileId, fileName, folderId, folderName, "OK", "draft_id=" + resultado.draft_id + " | " + resultado.class_title);
       }
       return "OK";
     } else if (resultado.already_processed) {
-      Logger.log("Aviso: Ya existe un borrador para esta clase en Supabase (" + docName + ")");
+      Logger.log("Aviso: " + (resultado.error || "Ya existe un borrador para esta clase"));
       if (log) {
-        registrarEnLog(log, docId, docName, folderId, folderName, "DUPLICADO", resultado.error || "Ya existe borrador");
+        registrarEnLog(log, fileId, fileName, folderId, folderName, "DUPLICADO", resultado.error || "Ya existe borrador");
       }
       return "DUPLICADO";
     } else {
       Logger.log("ERROR en Supabase: " + (resultado.error || JSON.stringify(resultado)));
       if (log) {
-        registrarEnLog(log, docId, docName, folderId, folderName, "ERROR", resultado.error || "Error desconocido");
+        registrarEnLog(log, fileId, fileName, folderId, folderName, "ERROR", resultado.error || "Error desconocido");
       }
       return "ERROR";
     }
   } catch (e) {
     var errMsg = e.toString();
-    Logger.log("EXCEPCION procesando " + docName + ": " + errMsg);
+    Logger.log("EXCEPCION procesando " + fileName + ": " + errMsg);
     if (log) {
-      registrarEnLog(log, docId, docName, folderId, folderName, "EXCEPCION", errMsg);
+      registrarEnLog(log, fileId, fileName, folderId, folderName, "EXCEPCION", errMsg);
     }
     return "ERROR";
   }
 }
 
-function encontrarTranscripcion(folder) {
-  var mimeGoogleDoc = "application/vnd.google-apps.document";
-  var files = folder.getFilesByType(mimeGoogleDoc);
-
+/**
+ * Encuentra el archivo de transcripcion dentro de una carpeta
+ */
+function encontrarArchivoTranscripcion(folder) {
+  var files = folder.getFiles();
   while (files.hasNext()) {
     var file = files.next();
-    if (file.getName().toUpperCase().indexOf("TRANSCRIPCION") !== -1) {
+    if (esArchivoTranscripcion(file.getName())) {
       return file;
     }
   }
   return null;
 }
 
+/**
+ * Extrae texto de Google Docs, archivos TXT u otros formatos
+ */
+function extraerTexto(file) {
+  var mime = file.getMimeType();
+  if (mime === "application/vnd.google-apps.document") {
+    return DocumentApp.openById(file.getId()).getBody().getText();
+  }
+  // Archivo de texto plano / Markdown
+  try {
+    return file.getBlob().getDataAsString("UTF-8");
+  } catch (e) {
+    return file.getBlob().getDataAsString();
+  }
+}
+
+/**
+ * Realiza la peticion HTTP a la Edge Function
+ */
 function llamarEdgeFunction(driveFolderId, transcript, cronSecret, folderName, docName) {
   var payload = JSON.stringify({
     drive_folder_id: driveFolderId,
@@ -187,12 +248,12 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret, folderName, d
   var statusCode = response.getResponseCode();
   var responseText = response.getContentText();
 
-  Logger.log("HTTP Respuesta " + statusCode + ": " + responseText.substring(0, 300));
+  Logger.log("HTTP " + statusCode + ": " + responseText.substring(0, 300));
 
   try {
     return JSON.parse(responseText);
   } catch (e) {
-    return { ok: false, error: "Respuesta no valida: " + responseText };
+    return { ok: false, error: "Respuesta no valida (" + statusCode + "): " + responseText };
   }
 }
 
