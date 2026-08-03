@@ -46,6 +46,7 @@ create index if not exists idx_activity_drafts_drive_folder
 alter table public.activity_drafts enable row level security;
 
 -- Profesores y admins pueden ver todos los borradores
+drop policy if exists "Teachers y admins leen borradores" on public.activity_drafts;
 create policy "Teachers y admins leen borradores"
   on public.activity_drafts
   for select
@@ -53,13 +54,14 @@ create policy "Teachers y admins leen borradores"
     exists (
       select 1
       from public.users_profile
-      where id = auth.uid()
+      where (auth_user_id = auth.uid() or id = auth.uid())
         and role in ('admin', 'teacher')
         and is_active = true
     )
   );
 
 -- Solo admins y profesores pueden actualizar el estado (aprobar / rechazar)
+drop policy if exists "Teachers y admins actualizan borradores" on public.activity_drafts;
 create policy "Teachers y admins actualizan borradores"
   on public.activity_drafts
   for update
@@ -67,7 +69,7 @@ create policy "Teachers y admins actualizan borradores"
     exists (
       select 1
       from public.users_profile
-      where id = auth.uid()
+      where (auth_user_id = auth.uid() or id = auth.uid())
         and role in ('admin', 'teacher')
         and is_active = true
     )
@@ -76,7 +78,7 @@ create policy "Teachers y admins actualizan borradores"
     exists (
       select 1
       from public.users_profile
-      where id = auth.uid()
+      where (auth_user_id = auth.uid() or id = auth.uid())
         and role in ('admin', 'teacher')
         and is_active = true
     )
