@@ -84,5 +84,20 @@ create policy "Teachers y admins actualizan borradores"
     )
   );
 
+-- Admins y profesores pueden eliminar borradores
+drop policy if exists "Teachers y admins eliminan borradores" on public.activity_drafts;
+create policy "Teachers y admins eliminan borradores"
+  on public.activity_drafts
+  for delete
+  using (
+    exists (
+      select 1
+      from public.users_profile
+      where (auth_user_id = auth.uid() or id = auth.uid())
+        and role in ('admin', 'teacher')
+        and is_active = true
+    )
+  );
+
 -- ── Permisos de tabla (GRANT) ───────────────────────────────────────────────
 grant all on table public.activity_drafts to anon, authenticated, service_role;

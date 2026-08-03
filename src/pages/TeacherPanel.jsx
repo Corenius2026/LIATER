@@ -2048,17 +2048,24 @@ function BorradoresTab() {
         }
       }
 
-      const { error } = await supabase
+      // 1. Cambiar estado a 'rejected' en la base de datos (para asegurar la eliminación lógica incluso si RLS bloquea DELETE)
+      const { error: updateErr } = await supabase
+        .from('activity_drafts')
+        .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+        .eq('id', draft.id);
+
+      if (updateErr) {
+        console.error('Error al actualizar estado del borrador:', updateErr);
+      }
+
+      // 2. Intentar la eliminación física del registro
+      const { error: delErr } = await supabase
         .from('activity_drafts')
         .delete()
         .eq('id', draft.id);
 
-      if (error) {
-        console.warn('Fallo el borrado directo en DB (posible RLS), actualizando estado a rejected:', error);
-        await supabase
-          .from('activity_drafts')
-          .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
-          .eq('id', draft.id);
+      if (delErr) {
+        console.warn('No se pudo borrar físicamente (posible política RLS), pero se marcó como rejected:', delErr);
       }
 
       showToast('Borrador eliminado exitosamente.');
