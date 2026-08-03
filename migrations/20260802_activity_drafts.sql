@@ -84,19 +84,5 @@ create policy "Teachers y admins actualizan borradores"
     )
   );
 
--- La función de automatizacion-drive usa service_role, así que puede insertar
--- sin necesitar una política de INSERT para usuarios autenticados normales.
--- Si en el futuro quieres permitir inserción desde el frontend, descomenta:
---
--- create policy "Teachers insertan borradores manuales"
---   on public.activity_drafts
---   for insert
---   with check (
---     exists (
---       select 1
---       from public.users_profile
---       where id = auth.uid()
---         and role in ('admin', 'teacher')
---         and is_active = true
---     )
---   );
+-- ── Permisos de tabla (GRANT) ───────────────────────────────────────────────
+grant all on table public.activity_drafts to anon, authenticated, service_role;
