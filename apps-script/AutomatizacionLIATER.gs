@@ -209,16 +209,106 @@ function encontrarArchivoTranscripcion(folder) {
  * Extrae texto de Google Docs, archivos TXT u otros formatos
  */
 function extraerTexto(file) {
+  var raw = "";
   var mime = file.getMimeType();
   if (mime === "application/vnd.google-apps.document") {
-    return DocumentApp.openById(file.getId()).getBody().getText();
+    raw = DocumentApp.openById(file.getId()).getBody().getText();
+  } else {
+    try {
+      raw = file.getBlob().getDataAsString("UTF-8");
+    } catch (e) {
+      raw = file.getBlob().getDataAsString();
+    }
   }
-  // Archivo de texto plano / Markdown
-  try {
-    return file.getBlob().getDataAsString("UTF-8");
-  } catch (e) {
-    return file.getBlob().getDataAsString();
+
+  return limpiarYOptimizarTranscripcion(raw);
+}
+
+/**
+ * Limpia y optimiza la transcripcion antes de enviarla a Supabase:
+ * - Elimina timestamps [00:12:34] o subtitulos SRT/VTT
+ * - Elimina frases de relleno (saludos, pruebas de audio/pantalla, recesos)
+ * - Condensa si supera el limite optimo para ahorrar tokens
+ */
+function limpiarYOptimizarTranscripcion(texto) {
+  if (!texto) return "";
+
+  var originalLen = texto.length;
+
+  // 1. Eliminar marcas de tiempo [00:12:34], (12:34), 00:00:00,000 --> 00:00:05,000
+  var limpio = texto.replace(/\[?\b\d{1,2}:\d{2}(:\d{2})?(\.\d+)?\]?/g, " ");
+  limpio = limpio.replace(/\d{1,2}:\d{2}:\d{2}[\,\.]\d{3}\s*-->\s*\d{1,2}:\d{2}:\d{2}[\,\.]\d{3}/g, " ");
+
+  // 2. Separar lineas y filtrar relleno
+  var lineas = limpio.split(/\r?\n/);
+  var lineasUtiles = [];
+
+  var patronesRelleno = [
+    /^(buenos d[ií]as|buenas tardes|buenas noches|hola a todos|chao|hasta luego|adi[oó]s)/i,
+    /^(me escuchan|se escucha|ven mi pantalla|pueden ver mi pantalla|comparto pantalla)/i,
+    /^(vamos a pasar lista|asistencia|presente|un momento por favor|esperen un segundo)/i,
+    /^(vamos a un receso|cinco minutos de descanso|pausa activa|receso)/i,
+    /^(probando sonido|1 2 3|ok ok|bueno bueno)/i
+  ];
+
+  for (var i = 0; i < lineas.length; i++) {
+    var l = lineas[i].trim();
+    if (!l) continue;
+
+    // Omitir lineas demasiado cortas que no aportan contenido academico
+    if (l.length < 6) continue;
+
+    // Eliminar etiquetas de hablante iniciales como "Profesor:", "Speaker 1:"
+    l = l.replace(/^(profesor|docente|estudiante|alumno|speaker\s*\d+|persona\s*\d+)\s*:\s*/i, "");
+
+    var esRelleno = false;
+    for (var p = 0; p < patronesRelleno.length; p++) {
+      if (patronesRelleno[p].test(l)) {
+        esRelleno = true;
+        break;
+      }
+    }
+
+    if (!esRelleno) {
+      lineasUtiles.push(l);
+    }
   }
+
+  var resultado = lineasUtiles.join("\n");
+
+  // 3. Limite maximo inteligente: si supera los 35,000 caracteres (~7,000 palabras)
+  // seleccionamos los bloques mas significativos para no desbordar el modelo
+  var MAX_CARACTERES = 35000;
+  if (resultado.length > MAX_CARACTERES) {
+    resultado = condensarTexto(resultado, MAX_CARACTERES);
+  }
+
+  var ahorro = Math.round(((originalLen - resultado.length) / originalLen) * 100);
+  Logger.log("Limpieza completada: de " + originalLen + " a " + resultado.length + " caracteres (ahorro del " + ahorro + "% en tokens).");
+
+  return resultado;
+}
+
+/**
+ * Condensa un texto largo conservando los parrafos con mayor contenido conceptual
+ */
+function condensarTexto(texto, maxLen) {
+  var parrafos = texto.split(/\n{1,2}/);
+  var parrafosSeleccionados = [];
+  var acumulado = 0;
+
+  for (var i = 0; i < parrafos.length; i++) {
+    var p = parrafos[i].trim();
+    if (p.length > 20) {
+      if (acumulado + p.length > maxLen) {
+        break;
+      }
+      parrafosSeleccionados.push(p);
+      acumulado += p.length + 1;
+    }
+  }
+
+  return parrafosSeleccionados.join("\n\n");
 }
 
 /**
