@@ -135,7 +135,7 @@ ${transcript}
   const ai = new GoogleGenAI({ apiKey });
 
   const interaction = await ai.interactions.create({
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-2.5-flash",
     input: prompt,
     store: false,
     response_format: {
