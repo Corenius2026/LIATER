@@ -41,12 +41,12 @@ var QUESTION_COUNT = 5; // Número de preguntas a generar por sesión
 function procesarTranscripciones() {
   var props = PropertiesService.getScriptProperties();
   var rootFolderId = props.getProperty("ROOT_FOLDER_ID");
-  var cronSecret = props.getProperty("DRIVE_CRON_SECRET");
+  var cronSecret = props.getProperty("DRIVE_AUTOMATION_SECRET") || props.getProperty("DRIVE_CRON_SECRET");
   var logSheetId = props.getProperty("LOG_SHEET_ID");
 
   if (!rootFolderId || !cronSecret) {
     Logger.log(
-      "ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_CRON_SECRET."
+      "ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET."
     );
     return;
   }
