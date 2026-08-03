@@ -1549,26 +1549,29 @@ export default function ClassDetail() {
                             })}
                           </div>
 
-                          {/* RETROALIMENTACIÓN DE LA IA */}
+                          {/* ACLARACIÓN / RETROALIMENTACIÓN */}
                           {(q.explanation || q.sourceBasis) && (
                             <div style={{
-                              marginTop: '0.85rem', fontSize: '0.84rem', color: '#1e293b',
-                              background: '#ffffff', padding: '0.85rem 1.1rem', borderRadius: '10px',
-                              borderLeft: '4px solid var(--gold-dark)',
-                              borderTop: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0',
-                              lineHeight: 1.5, boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                              marginTop: '0.85rem', fontSize: '0.84rem', color: '#1e40af',
+                              background: '#eff6ff', padding: '0.75rem 1rem', borderRadius: '10px',
+                              border: '1px solid #bfdbfe',
+                              lineHeight: 1.5
                             }}>
                               {q.explanation && (
-                                <div style={{ marginBottom: q.sourceBasis ? '0.45rem' : '0' }}>
-                                  <strong style={{ color: 'var(--navy)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                    💡 Retroalimentación:
-                                  </strong>{' '}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', marginBottom: q.sourceBasis ? '0.35rem' : '0' }}>
+                                  <span style={{ flexShrink: 0 }}>💡</span>
                                   <span>{q.explanation}</span>
                                 </div>
                               )}
                               {q.sourceBasis && (
-                                <div style={{ fontSize: '0.78rem', color: '#64748b', borderTop: q.explanation ? '1px dashed #e2e8f0' : 'none', paddingTop: q.explanation ? '0.4rem' : '0' }}>
-                                  📌 <strong>Fundamento en la clase:</strong> <em>{q.sourceBasis}</em>
+                                <div style={{
+                                  fontSize: '0.78rem', color: '#1d4ed8',
+                                  borderTop: q.explanation ? '1px dashed #bfdbfe' : 'none',
+                                  paddingTop: q.explanation ? '0.35rem' : '0',
+                                  display: 'flex', alignItems: 'flex-start', gap: '0.45rem'
+                                }}>
+                                  <span style={{ flexShrink: 0 }}>📌</span>
+                                  <span><strong>Fundamento:</strong> <em>{q.sourceBasis}</em></span>
                                 </div>
                               )}
                             </div>

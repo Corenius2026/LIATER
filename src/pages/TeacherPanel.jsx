@@ -2360,15 +2360,38 @@ function BorradoresTab() {
                             </div>
                           ))}
                         </div>
-                        {q.explanation && (
-                          <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#0369a1', background: '#eff6ff', padding: '0.4rem 0.65rem', borderRadius: '6px' }}>
-                            💡 {q.explanation}
-                          </p>
-                        )}
-                        {q.source_basis && (
-                          <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                            📌 <em>Fundamento: {q.source_basis}</em>
-                          </p>
+                        {(q.explanation || q.source_basis) && (
+                          <div style={{
+                            margin: '0.6rem 0 0',
+                            padding: '0.6rem 0.85rem',
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '8px',
+                            fontSize: '0.8rem',
+                            color: '#1e40af',
+                            lineHeight: 1.45
+                          }}>
+                            {q.explanation && (
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', marginBottom: q.source_basis ? '0.35rem' : '0' }}>
+                                <span style={{ flexShrink: 0 }}>💡</span>
+                                <span>{q.explanation}</span>
+                              </div>
+                            )}
+                            {q.source_basis && (
+                              <div style={{
+                                fontSize: '0.76rem',
+                                color: '#1d4ed8',
+                                borderTop: q.explanation ? '1px dashed #bfdbfe' : 'none',
+                                paddingTop: q.explanation ? '0.35rem' : '0',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '0.45rem'
+                              }}>
+                                <span style={{ flexShrink: 0 }}>📌</span>
+                                <span><strong>Fundamento:</strong> <em>{q.source_basis}</em></span>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
