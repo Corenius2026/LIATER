@@ -419,10 +419,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (videoUrl) {
       updateData.video_url = videoUrl;
     }
-    await supabaseAdmin
+    const { data: updatedRows, error: updateErr } = await supabaseAdmin
       .from("class_sessions")
       .update(updateData)
-      .eq("id", session.id);
+      .eq("id", session.id)
+      .select();
+
+    if (updateErr) {
+      console.error("Error actualizando class_sessions:", updateErr);
+    } else {
+      console.log(`Clase '${session.title}' (${session.id}) actualizada con éxito:`, updatedRows);
+    }
   } catch (err) {
     console.warn("No se pudo actualizar drive_folder_id o video_url en class_sessions:", err);
   }
