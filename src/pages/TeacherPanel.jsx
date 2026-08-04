@@ -19,75 +19,40 @@ import './TeacherPanel.css';
 import AdminClassReinforcement from '../components/AdminClassReinforcement';
 
 /* ─────────────────────────────────────────
-   HELPERS & CONFIG
+   TAB: MIS CLASES — Vista jerárquica
+   Módulo → Subtema → Clase
 ───────────────────────────────────────── */
-// Context para pasar el teacher_profile completo a todos los tabs
-const TeacherContext = React.createContext(null);
-const useTeacherContext = () => React.useContext(TeacherContext);
+function ClasesTab() {
+  const { programId } = useTeacherContext();
+  const [classes, setClasses]           = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState(null);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [expandedModules, setExpandedModules]   = useState({});
+  const [expandedSubtopics, setExpandedSubtopics] = useState({});
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'upcoming' | 'completed'
 
-const TYPE_CONFIG = {
-  pdf:          { bg: '#fef2f2', color: '#dc2626', label: 'PDF' },
-  presentation: { bg: '#eff6ff', color: 'var(--navy)', label: 'Presentación' },
-  link:         { bg: '#f0fdf4', color: 'var(--green-600)', label: 'Enlace' },
-  file:         { bg: '#fef9c3', color: '#ca8a04', label: 'Archivo' },
-};
-
-function TypePill({ type }) {
-  const cfg = TYPE_CONFIG[type] ?? { bg: '#f1f5f9', color: '#64748b', label: type };
-  return (
-    <span style={{ padding: '3px 10px', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 600, background: cfg.bg, color: cfg.color }}>
-      {cfg.label}
-    </span>
-  );
-}
-
-function TagPill({ tag }) {
-  const map = { general: 'tag-general', urgent: 'tag-urgent', info: 'tag-info' };
-  const labels = { general: 'General', urgent: '⚠️ Urgente', info: '✓ Aviso' };
-  return <span className={`announcement-tag ${map[tag] ?? 'tag-general'}`}>{labels[tag] ?? tag}</span>;
-}
-
-
-
-
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   MODAL DE DETALLE DE CLASE Y MATERIALES
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* ─────────────────────────────────────────
-   MODAL DE DETALLE Y GESTIÓN DE CLASE
-───────────────────────────────────────── */
-function ClassDetailModal({ selectedClass, onClose }) {
-  const [materials, setMaterials] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  
-  // 1. Estado para Información de la Clase
-  const [classTitle, setClassTitle] = useState(selectedClass?.title || '');
-  const [classDesc, setClassDesc] = useState(selectedClass?.description || '');
-  const [savingInfo, setSavingInfo] = useState(false);
-  const [infoMsg, setInfoMsg] = useState('');
-
-  // 2. Estado para Presentación y Materiales
-  const [editId, setEditId] = useState(null);
-  const [matTitle, setMatTitle] = useState('');
-  const [matType, setMatType] = useState('presentation'); // 'presentation' | 'file' | 'pdf' | 'link'
-  const [matProvider, setMatProvider] = useState('drive'); // 'drive' | 'pc' | 'external'
-  const [matUrl, setMatUrl] = useState('');
-  const [isVisible, setIsVisible] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [activeAddSection, setActiveAddSection] = useState(null); // 'presentation' | 'complementary' | null
-
-  const fetchMaterials = async () => {
+  const fetchMyClasses = async () => {
     try {
       setLoading(true);
       const { data, error: fetchError } = await supabase
-        .from('resources')
-        .select('*')
-        .eq('class_id', selectedClass.id)
-        .order('created_at', { ascending: false });
+        .from('class_sessions')
+        .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
+        .eq('program_id', programId)
+        .order('class_date', { ascending: true });
 
       if (fetchError) throw fetchError;
-      setMaterials(data || []);
+      setClasses(data || []);
+
+      // Expandir todos los módulos por defecto
+      const mods = {};
+      const subs = {};
+      (data || []).forEach(c => {
+        if (c.subtopics?.module_id) mods[c.subtopics.module_id] = true;
+        if (c.subtopic_id) subs[c.subtopic_id] = true;
+      });
+      setExpandedModules(mods);
+      setExpandedSubtopics(subs);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -95,448 +60,154 @@ function ClassDetailModal({ selectedClass, onClose }) {
     }
   };
 
-  useEffect(() => {
-    if (selectedClass) {
-      setClassTitle(selectedClass.title || '');
-      setClassDesc(selectedClass.description || '');
-      fetchMaterials();
-    }
-  }, [selectedClass]);
+  useEffect(() => { if (programId) fetchMyClasses(); }, [programId]);
 
-  // Guardar Información de la clase
-  const handleSaveInfo = async (e) => {
-    e.preventDefault();
-    setSavingInfo(true);
-    setInfoMsg('');
-    try {
-      const { error: updateErr } = await supabase
-        .from('class_sessions')
-        .update({
-          title: classTitle.trim(),
-          description: classDesc.trim()
-        })
-        .eq('id', selectedClass.id);
-      if (updateErr) throw updateErr;
-      selectedClass.title = classTitle.trim();
-      selectedClass.description = classDesc.trim();
-      setInfoMsg('Información de la clase actualizada con éxito.');
-    } catch (err) {
-      setInfoMsg('Error al actualizar información: ' + err.message);
-    } finally {
-      setSavingInfo(false);
-    }
-  };
+  const toggleModule   = id => setExpandedModules(p => ({ ...p, [id]: !p[id] }));
+  const toggleSubtopic = id => setExpandedSubtopics(p => ({ ...p, [id]: !p[id] }));
 
-  const handleEditResource = (p) => {
-    setEditId(p.id);
-    setMatTitle(p.title);
-    setMatType(p.resource_type);
-    setMatProvider(p.provider || 'drive');
-    setMatUrl(p.url || '');
-    setIsVisible(p.is_visible);
-    setActiveAddSection(p.resource_type === 'presentation' ? 'presentation' : 'complementary');
-    setError('');
-  };
+  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando clases del programa...</div>;
+  if (error)   return <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>Error: {error}</div>;
 
-  const handleCancelEdit = () => {
-    setEditId(null);
-    setMatTitle('');
-    setMatType('presentation');
-    setMatProvider('drive');
-    setMatUrl('');
-    setIsVisible(true);
-    setActiveAddSection(null);
-    setError('');
-  };
+  const now = new Date();
 
-  const handleSubmitResource = async (e, sectionType) => {
-    e.preventDefault();
-    if (!matTitle.trim() || !matUrl.trim()) {
-      setError('El título y el enlace o archivo son obligatorios.');
-      return;
-    }
+  // Filtrar por estado
+  const filteredClasses = classes.filter(c => {
+    if (filterStatus === 'upcoming')  return new Date(c.class_date) >= now;
+    if (filterStatus === 'completed') return new Date(c.class_date) < now;
+    return true;
+  });
 
-    setSubmitting(true);
-    setError('');
+  // Agrupar: Módulo → Subtema → Clase
+  const grouped = {};
+  filteredClasses.forEach(cls => {
+    const modId    = cls.subtopics?.modules?.id    || 'sin-modulo';
+    const modTitle = cls.subtopics?.modules?.title || 'Sin Módulo';
+    const subId    = cls.subtopic_id               || 'sin-subtema';
+    const subTitle = cls.subtopics?.title          || 'Sin Subtema';
 
-    const targetType = sectionType === 'presentation' ? 'presentation' : (matType === 'presentation' ? 'file' : matType);
+    if (!grouped[modId]) grouped[modId] = { title: modTitle, subtopics: {} };
+    if (!grouped[modId].subtopics[subId]) grouped[modId].subtopics[subId] = { title: subTitle, classes: [] };
+    grouped[modId].subtopics[subId].classes.push(cls);
+  });
 
-    const payload = {
-      class_id: selectedClass.id,
-      title: matTitle.trim(),
-      resource_type: targetType,
-      provider: matProvider,
-      url: matUrl.trim(),
-      is_visible: isVisible
-    };
-
-    try {
-      if (editId) {
-        const { error: updateError } = await supabase
-          .from('resources')
-          .update(payload)
-          .eq('id', editId)
-          .eq('class_id', selectedClass.id);
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('resources')
-          .insert([payload]);
-        if (insertError) throw insertError;
-      }
-
-      handleCancelEdit();
-      await fetchMaterials();
-    } catch (err) {
-      setError('Error al guardar recurso: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeleteResource = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este material?')) return;
-    try {
-      const { error: deleteError } = await supabase
-        .from('resources')
-        .delete()
-        .eq('id', id)
-        .eq('class_id', selectedClass.id);
-      if (deleteError) throw deleteError;
-      await fetchMaterials();
-    } catch (err) {
-      alert('Error al eliminar: ' + err.message);
-    }
-  };
-
-  const presentations = materials.filter(m => m.resource_type === 'presentation');
-  const complementaryMaterials = materials.filter(m => m.resource_type !== 'presentation');
+  const totalCompleted = classes.filter(c => new Date(c.class_date) < now).length;
+  const totalUpcoming  = classes.filter(c => new Date(c.class_date) >= now).length;
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20, 33, 61, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(4px)' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--white)', position: 'relative', padding: '2.5rem', borderRadius: '12px' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-          <X size={24} />
-        </button>
-        
-        {/* ENCABEZADO DE LA CLASE */}
-        <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-          <span className="badge badge-navy" style={{ textTransform: 'uppercase', fontSize: '0.7rem', marginBottom: '0.5rem', display: 'inline-block' }}>
-            Gestión de Clase
-          </span>
-          <h2 style={{ marginBottom: '0.5rem', fontWeight: 800, fontSize: '1.5rem', color: 'var(--navy)' }}>{selectedClass.title}</h2>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Layers size={14} /> {selectedClass.subtopics?.modules?.title || 'Sin módulo'}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><BookOpen size={14} /> {selectedClass.subtopics?.title || 'Sin subtema'}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CalendarDays size={14} /> {formatClassDate(selectedClass.class_date, false)}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Timer size={14} /> {selectedClass.duration || 0} min</span>
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {/* Encabezado + Filtros */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+          <span><strong style={{ color: '#14213D' }}>{classes.length}</strong> clases totales</span>
+          <span>·</span>
+          <span><strong style={{ color: '#16a34a' }}>{totalCompleted}</strong> completadas</span>
+          <span>·</span>
+          <span><strong style={{ color: '#FCA311' }}>{totalUpcoming}</strong> próximas</span>
         </div>
-
-        {error && <div style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', padding: '0.75rem', borderRadius: '6px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>{error}</div>}
-
-        {/* ─── SECCIÓN 1: INFORMACIÓN DE LA CLASE ─── */}
-        <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Info size={18} color="var(--navy)" /> 1. Información de la Clase
-          </h3>
-          {infoMsg && <div style={{ fontSize: '0.82rem', marginBottom: '0.75rem', color: infoMsg.includes('Error') ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{infoMsg}</div>}
-          <form onSubmit={handleSaveInfo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)' }}>Título de la Clase</label>
-              <input type="text" value={classTitle} onChange={e => setClassTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--white)' }} required />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)' }}>Pequeña Descripción</label>
-              <textarea rows={2} value={classDesc} onChange={e => setClassDesc(e.target.value)} placeholder="Breve resumen o temas principales a abordar en esta sesión..." style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--white)' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="submit" disabled={savingInfo} className="btn btn-navy" style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', fontWeight: 700 }}>
-                {savingInfo ? 'Guardando...' : 'Guardar Información'}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* ─── SECCIÓN 2: PRESENTACIÓN DE LA CLASE ─── */}
-        <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Presentation size={18} color="var(--navy)" /> 2. Presentación de la Clase
-            </h3>
-            <button 
-              onClick={() => {
-                if (activeAddSection === 'presentation' && !editId) {
-                  setActiveAddSection(null);
-                } else {
-                  handleCancelEdit();
-                  setActiveAddSection('presentation');
-                }
-              }} 
-              className="btn btn-navy"
-              style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
-            >
-              <Plus size={15} /> {activeAddSection === 'presentation' ? 'Cerrar Formulario' : 'Cargar Presentación (PC / Drive)'}
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          {[{ id: 'all', label: 'Todas' }, { id: 'upcoming', label: 'Próximas' }, { id: 'completed', label: 'Finalizadas' }].map(f => (
+            <button key={f.id} onClick={() => setFilterStatus(f.id)}
+              style={{ padding: '0.35rem 0.85rem', borderRadius: '9999px', border: '1px solid', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease',
+                background: filterStatus === f.id ? '#14213D' : '#FFFFFF',
+                color:      filterStatus === f.id ? '#FFFFFF'  : '#14213D',
+                borderColor:filterStatus === f.id ? '#14213D'  : '#E5E5E5' }}>
+              {f.label}
             </button>
-          </div>
-
-          {/* Formulario de Presentación */}
-          {activeAddSection === 'presentation' && (
-            <form onSubmit={e => handleSubmitResource(e, 'presentation')} style={{ background: 'var(--white)', padding: '1.25rem', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid var(--border-color)' }}>
-              <h4 style={{ margin: '0 0 0.85rem 0', color: 'var(--navy)', fontSize: '0.9rem', fontWeight: 700 }}>
-                {editId ? 'Editar Presentación' : 'Cargar Nueva Presentación'}
-              </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Título del archivo / diapositivas</label>
-                  <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Presentación Módulo 1 - Diapositivas" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Origen / Proveedor</label>
-                  <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                    <option value="drive">Google Drive / OneDrive</option>
-                    <option value="pc">Archivo de PC (Enlace)</option>
-                    <option value="external">Otro Enlace Externo</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ marginBottom: '0.85rem' }}>
-                <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>URL del archivo o enlace de compartir</label>
-                <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <button type="button" onClick={handleCancelEdit} className="btn" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Cancelar</button>
-                <button type="submit" disabled={submitting} className="btn btn-navy" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700 }}>
-                  {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Cargar Presentación')}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Lista de Presentaciones */}
-          {presentations.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>No hay presentaciones vinculadas a esta clase.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              {presentations.map(p => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Presentation size={18} color="var(--navy)" />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>{p.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Origen: {p.provider}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <a href={p.url} target="_blank" rel="noreferrer" className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', textDecoration: 'none', color: 'var(--navy)' }}>Ver</a>
-                    <button onClick={() => handleEditResource(p)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Editar</button>
-                    <button onClick={() => handleDeleteResource(p.id)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid #fca5a5', color: '#dc2626', background: '#fef2f2' }}>Eliminar</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ─── SECCIÓN 3: MATERIAL COMPLEMENTARIO ─── */}
-        <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <FileText size={18} color="var(--navy)" /> 3. Material Complementario
-            </h3>
-            <button 
-              onClick={() => {
-                if (activeAddSection === 'complementary' && !editId) {
-                  setActiveAddSection(null);
-                } else {
-                  handleCancelEdit();
-                  setActiveAddSection('complementary');
-                }
-              }} 
-              className="btn btn-navy"
-              style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
-            >
-              <Plus size={15} /> {activeAddSection === 'complementary' ? 'Cerrar Formulario' : 'Agregar Material (PC / Drive)'}
-            </button>
-          </div>
-
-          {/* Formulario de Material Complementario */}
-          {activeAddSection === 'complementary' && (
-            <form onSubmit={e => handleSubmitResource(e, 'complementary')} style={{ background: 'var(--white)', padding: '1.25rem', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid var(--border-color)' }}>
-              <h4 style={{ margin: '0 0 0.85rem 0', color: 'var(--navy)', fontSize: '0.9rem', fontWeight: 700 }}>
-                {editId ? 'Editar Material Complementario' : 'Añadir Material Complementario'}
-              </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Título del recurso</label>
-                  <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Lectura recomendada, Guía PDF" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Tipo de Recurso</label>
-                  <select value={matType} onChange={e => setMatType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                    <option value="pdf">Documento PDF</option>
-                    <option value="link">Enlace Web</option>
-                    <option value="file">Archivo General</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Origen / Proveedor</label>
-                  <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-                    <option value="drive">Google Drive / OneDrive</option>
-                    <option value="pc">Archivo de PC (Enlace)</option>
-                    <option value="external">Otro Enlace Externo</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600 }}>URL del archivo o enlace de lectura</label>
-                  <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <button type="button" onClick={handleCancelEdit} className="btn" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Cancelar</button>
-                <button type="submit" disabled={submitting} className="btn btn-navy" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700 }}>
-                  {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Agregar Material')}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Lista de Material Complementario */}
-          {complementaryMaterials.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>No hay material complementario asociado a esta clase.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              {complementaryMaterials.map(p => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <FileText size={18} color="var(--navy)" />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>{p.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px' }}>
-                        <TypePill type={p.resource_type} />
-                        <span>Origen: {p.provider}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <a href={p.url} target="_blank" rel="noreferrer" className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', textDecoration: 'none', color: 'var(--navy)' }}>Ver</a>
-                    <button onClick={() => handleEditResource(p)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>Editar</button>
-                    <button onClick={() => handleDeleteResource(p.id)} className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem', border: '1px solid #fca5a5', color: '#dc2626', background: '#fef2f2' }}>Eliminar</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {/* --- SECCIÓN 3: ACTIVIDAD DE REFORZAMIENTO --- */}
-          <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
-            <AdminClassReinforcement classId={selectedClass.id} />
-          </div>
-
+          ))}
         </div>
       </div>
-    </div>
-  );
-}
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 3 — Mis Clases
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function ClasesTab() {
-  const { id: teacherId, profile, programId } = useTeacherContext();
-  const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  const [selectedClass, setSelectedClass] = useState(null);
-
-  useEffect(() => {
-    if (!programId) return;
-    async function fetchMyClasses() {
-      try {
-        setLoading(true);
-        // Fetch all classes for this program — teacher can see all classes assigned to the program
-        const { data, error: fetchError } = await supabase
-          .from('class_sessions')
-          .select('*, subtopics(title, module_id, modules(title, program_id))')
-          .eq('program_id', programId)
-          .order('class_date', { ascending: true });
-
-        if (fetchError) throw fetchError;
-        setClasses(data || []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchMyClasses();
-  }, [programId]);
-
-  if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando tus clases asignadas...</div>;
-  }
-
-  if (error) {
-    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger)' }}>Error al cargar clases: {error}</div>;
-  }
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <span style={{ fontWeight: 600, fontSize: '1rem' }}>Mis clases ({classes.length})</span>
-      </div>
-
-      {classes.length === 0 ? (
-        <div style={{ padding: '3rem', textAlign: 'center', background: 'var(--card-bg)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border-color)' }}>
-          <BookOpen size={48} color="var(--primary-light)" style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-          <h3 style={{ color: 'var(--text-dark)', marginBottom: '0.5rem' }}>Aún no tienes clases asignadas</h3>
-          <p style={{ color: 'var(--text-muted)' }}>Cuando un administrador te asigne una clase, aparecerá aquí.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {classes.map(cls => {
-            const isCompleted = new Date(cls.class_date) < new Date();
-            const statusClass = isCompleted ? 'completed' : 'upcoming';
-
-            return (
-              <div className="class-card" key={cls.id}>
-                <div className={`class-status-dot ${statusClass}`} />
-
-                <div className="class-card-body">
-                  <div className="class-title">{cls.title}</div>
-                  <div className="class-meta">
-                    <span>{cls.subtopics?.modules?.title || 'Módulo Desconocido'}</span> Â· 
-                    <span>{cls.subtopics?.title || 'Subtema Desconocido'}</span> Â· 
-                    <CalendarDays size={12} style={{ display:'inline', margin:'0 3px 0 6px', verticalAlign:'middle' }} />
-                    <span>{formatClassDate(cls.class_date, false)}</span> Â· 
-                    <Timer size={12} style={{ display:'inline', margin:'0 3px 0 6px', verticalAlign:'middle' }} />
-                    <span>{cls.duration || 0} min</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
-                  <button onClick={() => setSelectedClass(cls)} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '0.5rem 0.8rem' }}>
-                    <Eye size={14} /> Ver Clase
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+      {/* Sin resultados */}
+      {Object.keys(grouped).length === 0 && (
+        <div style={{ padding: '3rem', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #E5E5E5' }}>
+          <BookOpen size={40} color="#E5E5E5" style={{ margin: '0 auto 0.75rem' }} />
+          <h3 style={{ color: '#14213D', marginBottom: '0.5rem' }}>Sin clases para mostrar</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>Prueba cambiando el filtro.</p>
         </div>
       )}
 
+      {/* Árbol jerárquico: Módulo → Subtema → Clase */}
+      {Object.entries(grouped).map(([modId, mod], modIndex) => (
+        <div key={modId} style={{ border: '1px solid #E5E5E5', borderRadius: '10px', overflow: 'hidden' }}>
+          {/* ENCABEZADO DE MÓDULO */}
+          <button onClick={() => toggleModule(modId)} style={{ width: '100%', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#14213D', border: 'none', cursor: 'pointer', color: '#FFFFFF', textAlign: 'left' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <Layers size={16} color="#FCA311" />
+              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{mod.title}</span>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
+                {Object.values(mod.subtopics).reduce((acc, s) => acc + s.classes.length, 0)} clases
+              </span>
+            </div>
+            {expandedModules[modId] ? <ChevronUp size={16} color="#FCA311" /> : <ChevronDown size={16} color="#FCA311" />}
+          </button>
+
+          {/* SUBTEMAS */}
+          {expandedModules[modId] && Object.entries(mod.subtopics).map(([subId, sub]) => (
+            <div key={subId} style={{ borderTop: '1px solid #E5E5E5' }}>
+              {/* Encabezado Subtema */}
+              <button onClick={() => toggleSubtopic(subId)} style={{ width: '100%', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid #E5E5E5' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <BookOpen size={14} color="#FCA311" />
+                  <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{sub.title}</span>
+                  <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{sub.classes.length} clase{sub.classes.length !== 1 ? 's' : ''}</span>
+                </div>
+                {expandedSubtopics[subId] ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
+              </button>
+
+              {/* CLASES */}
+              {expandedSubtopics[subId] && sub.classes.map(cls => {
+                const isCompleted = new Date(cls.class_date) < now;
+                const hasVideo    = !!cls.video_url;
+                const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();
+
+                return (
+                  <div key={cls.id} style={{ padding: '1rem 1.75rem', borderBottom: '1px solid #f1f5f9', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', transition: 'background 0.2s ease' }}
+                    onMouseOver={e => e.currentTarget.style.background = '#fafafa'}
+                    onMouseOut={e => e.currentTarget.style.background = '#FFFFFF'}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', flex: 1, minWidth: 0 }}>
+                      {/* Indicador de estado */}
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', marginTop: '6px', flexShrink: 0,
+                        background: isCompleted ? '#16a34a' : isToday ? '#FCA311' : '#E5E5E5' }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cls.title}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><CalendarDays size={12} />{formatClassDate(cls.class_date, false)}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><Timer size={12} />{cls.duration || 0} min</span>
+                          {isCompleted && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: hasVideo ? '#16a34a' : '#FCA311', fontWeight: 600 }}>
+                              {hasVideo ? <><CheckCircle2 size={12} /> Grabación OK</> : <><AlertCircle size={12} /> Sin grabación</>}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button onClick={() => setSelectedClass(cls)}
+                      style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.45rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease' }}
+                      onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}>
+                      <Eye size={13} /> Gestionar clase
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Modal de detalle */}
       {selectedClass && (
-        <ClassDetailModal 
-          selectedClass={selectedClass} 
-          onClose={() => setSelectedClass(null)} 
+        <ClassDetailModal
+          selectedClass={selectedClass}
+          onClose={() => setSelectedClass(null)}
+          onClassUpdated={fetchMyClasses}
         />
       )}
     </div>
   );
 }
+
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    TAB 4 — Materiales de Apoyo (Global)
@@ -2915,13 +2586,13 @@ function BorradoresTab() {
 }
 
 const TABS = [
-  { id: 'resumen',     label: 'Resumen',              icon: <BookOpen size={16} />,      component: ResumenTab },
-  { id: 'clases',      label: 'Clases',               icon: <Video size={16} />,         component: ClasesTab },
-  { id: 'dudas',       label: 'Dudas de estudiantes', icon: <MessageSquare size={16} />,  component: DudasTab },
-  { id: 'anuncios',    label: 'Anuncios',             icon: <Megaphone size={16} />,     component: AnunciosTab },
-  { id: 'estudiantes', label: 'Estudiantes',          icon: <Users size={16} />,         component: EstudiantesTab },
-  { id: 'borradores',  label: 'Borradores IA',        icon: <Sparkles size={16} />,      component: BorradoresTab },
+  { id: 'resumen',     label: 'Inicio',                icon: <BookOpen size={16} />,     component: ResumenTab },
+  { id: 'clases',      label: 'Mis Clases',            icon: <Video size={16} />,        component: ClasesTab },
+  { id: 'dudas',       label: 'Dudas',                 icon: <MessageSquare size={16} />,component: DudasTab },
+  { id: 'anuncios',    label: 'Anuncios',              icon: <Megaphone size={16} />,    component: AnunciosTab },
+  { id: 'estudiantes', label: 'Estudiantes',           icon: <Users size={16} />,        component: EstudiantesTab },
 ];
+
 
 export default function TeacherPanel() {
   const { currentUser } = useAuth();
