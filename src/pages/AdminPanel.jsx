@@ -1426,6 +1426,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const [duration, setDuration] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [presentationUrl, setPresentationUrl] = useState('');
+  const [driveFolderId, setDriveFolderId] = useState('');
   const [orderIndex, setOrderIndex] = useState(1);
   
   const [subtopicsList, setSubtopicsList] = useState([]);
@@ -1553,7 +1554,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const openCreateModal = () => {
     setEditClassId(null);
     setActiveModalTab('general');
-    setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl(''); setOrderIndex(1);
+    setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl(''); setDriveFolderId(''); setOrderIndex(1);
     if (subtopicsList.length > 0) setSubtopicId(subtopicsList[0].id);
     if (teachers && teachers.length > 0) setTeacherId(teachers[0].id);
     setShowModal(true);
@@ -1572,6 +1573,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
     setDuration(c.duration || '');
     setVideoUrl(c.video_url || '');
     setPresentationUrl(c.presentation_url || '');
+    setDriveFolderId(c.drive_folder_id || '');
     setOrderIndex(c.order_index || 1);
     setShowModal(true);
     setError(''); setSuccess('');
@@ -1611,6 +1613,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
         duration: duration ? parseInt(duration) : null,
         video_url: videoUrl || null,
         presentation_url: presentationUrl || null,
+        drive_folder_id: driveFolderId.trim() || null,
         order_index: parseInt(orderIndex) || 1,
         program_id: programId
       };
@@ -1742,6 +1745,16 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
                 <div>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>URL de Presentación</label>
                   <input type="url" value={presentationUrl} onChange={e => setPresentationUrl(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="https://..." />
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem', color: '#0369a1' }}>
+                    📁 Carpeta / Enlace de Google Drive (Automatización IA)
+                  </label>
+                  <input type="text" value={driveFolderId} onChange={e => setDriveFolderId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #7dd3fc', borderRadius: '4px', background: '#f0f9ff' }} placeholder="https://drive.google.com/drive/folders/... o ID de carpeta" />
+                  <div style={{ fontSize: '0.74rem', color: '#0284c7', marginTop: '3px' }}>
+                    Conecta la carpeta de Google Drive donde se cargan los documentos/grabaciones de esta clase para la generación automática de actividades por IA.
+                  </div>
                 </div>
 
                 <div>

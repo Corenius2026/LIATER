@@ -65,10 +65,13 @@ function ClassDetailModal({ selectedClass, onClose }) {
   const [classTitle, setClassTitle] = useState(selectedClass?.title || '');
   const [classDesc, setClassDesc] = useState(selectedClass?.description || '');
   const [classVideoUrl, setClassVideoUrl] = useState(selectedClass?.video_url || '');
+  const [classDriveFolder, setClassDriveFolder] = useState(selectedClass?.drive_folder_id || '');
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoMsg, setInfoMsg] = useState('');
   const [savingVideo, setSavingVideo] = useState(false);
   const [videoMsg, setVideoMsg] = useState('');
+  const [savingDrive, setSavingDrive] = useState(false);
+  const [driveMsg, setDriveMsg] = useState('');
 
   // 2. Estado para Presentación y Materiales
   const [editId, setEditId] = useState(null);
@@ -103,6 +106,7 @@ function ClassDetailModal({ selectedClass, onClose }) {
       setClassTitle(selectedClass.title || '');
       setClassDesc(selectedClass.description || '');
       setClassVideoUrl(selectedClass.video_url || '');
+      setClassDriveFolder(selectedClass.drive_folder_id || '');
       fetchMaterials();
     }
   }, [selectedClass]);
@@ -124,6 +128,27 @@ function ClassDetailModal({ selectedClass, onClose }) {
       setVideoMsg('Error al guardar URL de grabación: ' + err.message);
     } finally {
       setSavingVideo(false);
+    }
+  };
+
+  const handleSaveDriveFolder = async (e) => {
+    e.preventDefault();
+    setSavingDrive(true);
+    setDriveMsg('');
+    try {
+      const val = classDriveFolder.trim() || null;
+      const { error: updateErr } = await supabase
+        .from('class_sessions')
+        .update({ drive_folder_id: val })
+        .eq('id', selectedClass.id);
+      if (updateErr) throw updateErr;
+      selectedClass.drive_folder_id = val;
+      setDriveMsg('Carpeta de Google Drive vinculada con éxito.');
+      setTimeout(() => setDriveMsg(''), 3000);
+    } catch (err) {
+      setDriveMsg('Error al vincular carpeta de Drive: ' + err.message);
+    } finally {
+      setSavingDrive(false);
     }
   };
 
@@ -362,12 +387,13 @@ function ClassDetailModal({ selectedClass, onClose }) {
           )}
         </div>
 
-        {/* ─── SECCIÓN 3: GRABACIÓN DE LA CLASE ─── */}
+        {/* ─── SECCIÓN 3: GRABACIÓN Y CARPETA DE GOOGLE DRIVE (IA) ─── */}
         <div style={{ background: 'var(--bg-light)', padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Video size={18} color="var(--navy)" /> 3. Grabación / Transmisión de la Clase
+            <Video size={18} color="var(--navy)" /> 3. Grabación y Conexión Google Drive (IA)
           </h3>
-          <form onSubmit={handleSaveVideo} style={{ background: 'var(--white)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+
+          <form onSubmit={handleSaveVideo} style={{ background: 'var(--white)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1rem' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)' }}>
                 URL del Video de la Clase (YouTube, Vimeo, Google Drive o Loom)
@@ -395,6 +421,49 @@ function ClassDetailModal({ selectedClass, onClose }) {
                 <span>Visualización activa:</span>
                 <a href={selectedClass.video_url} target="_blank" rel="noreferrer" style={{ color: 'var(--navy)', fontWeight: 600 }}>
                   Abrir enlace cargado ↗
+                </a>
+              </div>
+            )}
+          </form>
+
+          {/* Formulario de Carpeta de Google Drive */}
+          <form onSubmit={handleSaveDriveFolder} style={{ background: '#f0f9ff', padding: '1.25rem', borderRadius: '8px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#0369a1' }}>
+                📁 Carpeta de Google Drive de esta Clase (Automatización IA)
+              </label>
+              <div style={{ fontSize: '0.76rem', color: '#0284c7', marginBottom: '0.5rem' }}>
+                Pega el enlace o ID de la carpeta de Google Drive asociada a esta clase. Al subir documentos allí, la IA generará borradores automáticamente para esta sesión.
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input 
+                  type="text" 
+                  value={classDriveFolder} 
+                  onChange={e => setClassDriveFolder(e.target.value)} 
+                  placeholder="https://drive.google.com/drive/folders/... o ID de la carpeta" 
+                  style={{ flex: 1, padding: '0.5rem', border: '1px solid #7dd3fc', borderRadius: '6px', fontSize: '0.88rem', background: '#fff' }} 
+                />
+                <button type="submit" disabled={savingDrive} className="btn btn-navy" style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {savingDrive ? 'Guardando...' : 'Vincular Drive'}
+                </button>
+              </div>
+            </div>
+            {driveMsg && (
+              <div style={{ fontSize: '0.8rem', color: driveMsg.includes('Error') ? '#dc2626' : '#166534', fontWeight: 600 }}>
+                {driveMsg}
+              </div>
+            )}
+            {selectedClass.drive_folder_id && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#0369a1', marginTop: '0.2rem' }}>
+                <span>⚡ Estado: <strong>Carpeta de Drive conectada a la IA</strong></span>
+                ·
+                <a 
+                  href={selectedClass.drive_folder_id.startsWith('http') ? selectedClass.drive_folder_id : `https://drive.google.com/drive/folders/${selectedClass.drive_folder_id}`} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  style={{ color: '#0284c7', fontWeight: 700 }}
+                >
+                  Abrir carpeta en Drive ↗
                 </a>
               </div>
             )}
