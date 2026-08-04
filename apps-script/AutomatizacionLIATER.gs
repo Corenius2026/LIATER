@@ -45,6 +45,10 @@ function extraerIdDeDrive(valor) {
  * Funcion principal para procesar transcripciones
  */
 function procesarTranscripciones() {
+  console.log("==========================================");
+  console.log("Iniciando procesamiento de transcripciones y videos...");
+  console.log("==========================================");
+
   var props = PropertiesService.getScriptProperties();
   var rawRootId = props.getProperty("ROOT_FOLDER_ID");
   var cronSecret = props.getProperty("DRIVE_AUTOMATION_SECRET") || props.getProperty("DRIVE_CRON_SECRET");
@@ -54,7 +58,7 @@ function procesarTranscripciones() {
   var logSheetId = extraerIdDeDrive(rawSheetId);
 
   if (!rootFolderId || !cronSecret) {
-    Logger.log("ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET.");
+    console.error("ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET.");
     return;
   }
 
@@ -63,7 +67,7 @@ function procesarTranscripciones() {
     try {
       log = obtenerHojaDeLog(logSheetId);
     } catch (sheetErr) {
-      Logger.log("Aviso: No se pudo abrir la hoja de log (se omitira el log en Sheets): " + sheetErr.message);
+      console.warn("Aviso: No se pudo abrir la hoja de log (se omitira el log en Sheets): " + sheetErr.message);
     }
   }
 
@@ -71,17 +75,17 @@ function procesarTranscripciones() {
   try {
     rootFolder = DriveApp.getFolderById(rootFolderId);
   } catch (err) {
-    Logger.log("ERROR: No se pudo acceder a la carpeta de Drive con ID '" + rootFolderId + "'. Verifica que el ID sea correcto y que tengas permisos de acceso.");
+    console.error("ERROR: No se pudo acceder a la carpeta de Drive con ID '" + rootFolderId + "'. Verifica permisos.");
     return;
   }
 
-  Logger.log("Carpeta raiz analizada: '" + rootFolder.getName() + "' (ID: " + rootFolder.getId() + ")");
+  console.log("Carpeta raiz analizada: '" + rootFolder.getName() + "' (ID: " + rootFolder.getId() + ")");
 
   // Buscar todas las carpetas que contengan archivos de transcripcion (recursivo)
   var carpetasConTranscripcion = [];
   buscarCarpetasConTranscripciones(rootFolder, carpetasConTranscripcion);
 
-  Logger.log("Carpetas con transcripciones encontradas: " + carpetasConTranscripcion.length);
+  console.log("Carpetas con transcripciones encontradas: " + carpetasConTranscripcion.length);
 
   var procesadas = 0;
   var errores = 0;
@@ -93,9 +97,9 @@ function procesarTranscripciones() {
     else if (resultado === "ERROR") errores++;
   }
 
-  Logger.log("==========================================");
-  Logger.log("Resumen: Procesadas: " + procesadas + " | Errores: " + errores);
-  Logger.log("==========================================");
+  console.log("==========================================");
+  console.log("Resumen: Procesadas: " + procesadas + " | Errores: " + errores);
+  console.log("==========================================");
 }
 
 /**
@@ -110,7 +114,7 @@ function buscarCarpetasConTranscripciones(folder, lista) {
     var fName = f.getName();
     if (esArchivoTranscripcion(fName)) {
       tiene = true;
-      Logger.log("-> Encontrado archivo de transcripcion: '" + fName + "' en carpeta '" + folder.getName() + "'");
+      console.log("-> Encontrado archivo de transcripcion: '" + fName + "' en carpeta '" + folder.getName() + "'");
       break;
     }
   }
@@ -138,11 +142,11 @@ function procesarCarpeta(folder, log, cronSecret) {
 
   if (videoFile) {
     videoUrl = "https://drive.google.com/file/d/" + videoFile.getId() + "/preview";
-    Logger.log("-> Grabación de video encontrada: '" + videoFile.getName() + "' (ID: " + videoFile.getId() + ")");
+    console.log("-> Grabación de video encontrada: '" + videoFile.getName() + "' (ID: " + videoFile.getId() + ")");
   }
 
   if (!transcripcionFile) {
-    Logger.log("Sin archivo de transcripcion en: " + folderName);
+    console.log("Sin archivo de transcripcion en: " + folderName);
     return "SKIP";
   }
 
@@ -150,11 +154,11 @@ function procesarCarpeta(folder, log, cronSecret) {
   var fileName = transcripcionFile.getName();
 
   if (log && yaFueProcesado(log, fileId)) {
-    Logger.log("Ya procesado anteriormente segun el Log: " + fileName);
+    console.log("Ya procesado anteriormente segun el Log: " + fileName);
     return "DUPLICADO";
   }
 
-  Logger.log("Leyendo contenido de: '" + fileName + "'...");
+  console.log("Leyendo contenido de: '" + fileName + "'...");
 
   try {
     var transcript = extraerTexto(transcripcionFile);
@@ -162,34 +166,34 @@ function procesarCarpeta(folder, log, cronSecret) {
     if (!transcript || transcript.length < 200) {
       var len = transcript ? transcript.length : 0;
       var msg = "Transcripcion muy corta (" + len + " caracteres): " + fileName;
-      Logger.log("IGNORADO: " + msg);
+      console.log("IGNORADO: " + msg);
       if (log) registrarEnLog(log, fileId, fileName, folderId, folderName, "IGNORADO", msg);
       return "SKIP";
     }
 
-    Logger.log("Enviando " + transcript.length + " caracteres a Supabase Edge Function...");
+    console.log("Enviando " + transcript.length + " caracteres a Supabase Edge Function...");
     var resultado = llamarEdgeFunction(folderId, transcript, cronSecret, folderName, fileName, videoUrl);
 
     if (resultado.ok) {
-      Logger.log("EXITO: Borrador creado en Supabase! ID=" + resultado.draft_id + " para la clase: '" + resultado.class_title + "'");
+      console.log("EXITO: Borrador creado en Supabase! ID=" + resultado.draft_id + " para la clase: '" + resultado.class_title + "'");
       if (resultado.video_url) {
-        Logger.log("-> Enlace de video vinculado a la clase: " + resultado.video_url);
+        console.log("-> Enlace de video vinculado a la clase: " + resultado.video_url);
       }
       if (log) {
         registrarEnLog(log, fileId, fileName, folderId, folderName, "OK", "draft_id=" + resultado.draft_id + " | " + resultado.class_title + (videoUrl ? " | Video OK" : ""));
       }
       return "OK";
     } else if (resultado.already_processed) {
-      Logger.log("Aviso: " + (resultado.error || "Ya existe un borrador para esta clase"));
+      console.log("Aviso: " + (resultado.error || "Ya existe un borrador para esta clase"));
       if (resultado.video_url) {
-        Logger.log("-> Enlace de video actualizado en la clase: " + resultado.video_url);
+        console.log("-> Enlace de video actualizado en la clase: " + resultado.video_url);
       }
       if (log) {
         registrarEnLog(log, fileId, fileName, folderId, folderName, "DUPLICADO", resultado.error || "Ya existe borrador");
       }
       return "DUPLICADO";
     } else {
-      Logger.log("ERROR en Supabase: " + (resultado.error || JSON.stringify(resultado)));
+      console.error("ERROR en Supabase: " + (resultado.error || JSON.stringify(resultado)));
       if (log) {
         registrarEnLog(log, fileId, fileName, folderId, folderName, "ERROR", resultado.error || "Error desconocido");
       }
@@ -197,7 +201,7 @@ function procesarCarpeta(folder, log, cronSecret) {
     }
   } catch (e) {
     var errMsg = e.toString();
-    Logger.log("EXCEPCION procesando " + fileName + ": " + errMsg);
+    console.error("EXCEPCION procesando " + fileName + ": " + errMsg);
     if (log) {
       registrarEnLog(log, fileId, fileName, folderId, folderName, "EXCEPCION", errMsg);
     }
@@ -217,8 +221,6 @@ function encontrarArchivoTranscripcion(folder) {
     }
   }
   return null;
-}
-
 /**
  * Encuentra el archivo de video o grabacion dentro de una carpeta
  */
@@ -226,17 +228,54 @@ function encontrarArchivoVideo(folder) {
   var files = folder.getFiles();
   while (files.hasNext()) {
     var file = files.next();
-    var mime = file.getMimeType() || "";
-    var name = file.getName() || "";
-    if (
-      mime.indexOf("video/") === 0 ||
-      /\.(mp4|mov|mkv|avi|webm|m4v|wmv)$/i.test(name) ||
-      /GRABACI[OÓ]N|RECORDING/i.test(name)
-    ) {
+    if (esArchivoVideo(file)) {
       return file;
     }
   }
   return null;
+}
+
+/**
+ * Determina con precision si un archivo es un video o grabacion
+ */
+function esArchivoVideo(file) {
+  var mime = (file.getMimeType() || "").toLowerCase();
+  var name = (file.getName() || "").toLowerCase();
+  var norm = limpiarTexto(file.getName() || "");
+
+  // Excluir archivos de texto, documentos o transcripciones
+  if (
+    name.endsWith(".txt") ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx") ||
+    name.endsWith(".pdf") ||
+    name.endsWith(".gdoc") ||
+    norm.indexOf("TRANSCRIP") !== -1
+  ) {
+    return false;
+  }
+
+  // Extensiones tipicas de video
+  if (/\.(mp4|mov|mkv|avi|webm|m4v|wmv|flv|3gp|ts|mts)$/i.test(name)) {
+    return true;
+  }
+
+  // Mime types de video
+  if (mime.indexOf("video") !== -1 || mime === "application/vnd.google-apps.video") {
+    return true;
+  }
+
+  // Nombres que indiquen grabacion o video
+  if (
+    norm.indexOf("GRABACION") !== -1 ||
+    norm.indexOf("RECORDING") !== -1 ||
+    norm.indexOf("VIDEO") !== -1 ||
+    norm.indexOf("MEET") !== -1
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -318,7 +357,7 @@ function limpiarYOptimizarTranscripcion(texto) {
   }
 
   var ahorro = Math.round(((originalLen - resultado.length) / originalLen) * 100);
-  Logger.log("Limpieza completada: de " + originalLen + " a " + resultado.length + " caracteres (ahorro del " + ahorro + "% en tokens).");
+  console.log("Limpieza completada: de " + originalLen + " a " + resultado.length + " caracteres (ahorro del " + ahorro + "% en tokens).");
 
   return resultado;
 }
@@ -353,7 +392,7 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret, folderName, d
     drive_folder_id: driveFolderId,
     folder_name: folderName || "",
     doc_name: docName || "",
-    transcript: transcript,
+    transcript: transcript || "",
     video_url: videoUrl || "",
     questionCount: QUESTION_COUNT,
   });
@@ -374,7 +413,7 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret, folderName, d
   var statusCode = response.getResponseCode();
   var responseText = response.getContentText();
 
-  Logger.log("HTTP " + statusCode + ": " + responseText.substring(0, 300));
+  console.log("HTTP " + statusCode + ": " + responseText.substring(0, 300));
 
   try {
     return JSON.parse(responseText);
@@ -387,36 +426,61 @@ function llamarEdgeFunction(driveFolderId, transcript, cronSecret, folderName, d
  * Funcion auxiliar para sincronizar unicamente videos de clases encontrados en Drive
  */
 function sincronizarVideosDeClases() {
+  console.log("==========================================");
+  console.log("Iniciando sincronización de grabaciones...");
+  console.log("==========================================");
+
   var props = PropertiesService.getScriptProperties();
   var rawRootId = props.getProperty("ROOT_FOLDER_ID");
   var cronSecret = props.getProperty("DRIVE_AUTOMATION_SECRET") || props.getProperty("DRIVE_CRON_SECRET");
   var rootFolderId = extraerIdDeDrive(rawRootId);
 
   if (!rootFolderId || !cronSecret) {
-    Logger.log("ERROR: Faltan propiedades del script.");
+    console.error("ERROR: Faltan propiedades del script. Asegúrate de configurar ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET.");
     return;
   }
 
-  var rootFolder = DriveApp.getFolderById(rootFolderId);
+  var rootFolder;
+  try {
+    rootFolder = DriveApp.getFolderById(rootFolderId);
+  } catch (e) {
+    console.error("ERROR: No se pudo abrir la carpeta raíz con ID: " + rootFolderId + ". " + e.message);
+    return;
+  }
+
+  console.log("Carpeta raíz: '" + rootFolder.getName() + "' (ID: " + rootFolder.getId() + ")");
   var carpetas = [];
   buscarCarpetasRecursivas(rootFolder, carpetas);
 
-  Logger.log("Carpetas encontradas a revisar para videos: " + carpetas.length);
+  console.log("Total carpetas encontradas: " + carpetas.length);
+  var sincronizados = 0;
+
   for (var i = 0; i < carpetas.length; i++) {
     var folder = carpetas[i];
+    var folderName = folder.getName();
     var videoFile = encontrarArchivoVideo(folder);
+
     if (videoFile) {
       var videoUrl = "https://drive.google.com/file/d/" + videoFile.getId() + "/preview";
-      Logger.log("Sincronizando video: " + videoFile.getName() + " de la carpeta '" + folder.getName() + "'");
+      console.log("-> Encontrado video: '" + videoFile.getName() + "' en carpeta '" + folderName + "'");
+      console.log("   URL: " + videoUrl);
+
       var transcripcionFile = encontrarArchivoTranscripcion(folder);
       var transcript = transcripcionFile ? extraerTexto(transcripcionFile) : "";
-      if (transcript.length < 200) {
-        transcript = "Contenido sincronizado para vinculacion de video de clase y carpeta Drive.";
+
+      var res = llamarEdgeFunction(folder.getId(), transcript, cronSecret, folderName, videoFile.getName(), videoUrl);
+      console.log("   Resultado Supabase:", JSON.stringify(res));
+      if (res && res.ok) {
+        sincronizados++;
       }
-      llamarEdgeFunction(folder.getId(), transcript, cronSecret, folder.getName(), videoFile.getName(), videoUrl);
+    } else {
+      console.log("   Sin video en carpeta: '" + folderName + "'");
     }
   }
-  Logger.log("Sincronización de videos finalizada.");
+
+  console.log("==========================================");
+  console.log("Sincronización finalizada. Videos asociados: " + sincronizados);
+  console.log("==========================================");
 }
 
 function buscarCarpetasRecursivas(folder, lista) {

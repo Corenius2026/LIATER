@@ -283,13 +283,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const transcript =
     typeof body.transcript === "string" ? body.transcript.trim() : "";
 
-  if (transcript.length < 200) {
-    return jsonResponse(
-      { ok: false, error: "La transcripción es demasiado corta para generar preguntas (mínimo 200 caracteres)" },
-      400,
-    );
-  }
-
   if (transcript.length > 300_000) {
     return jsonResponse(
       { ok: false, error: "La transcripción supera el tamaño permitido" },
@@ -436,6 +429,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const classId = session.id as string;
   const classTitle = (session.title as string) || "Clase";
+
+  // Si no hay transcripción o es menor a 200 caracteres, terminamos con éxito la actualización del video/carpeta
+  if (transcript.length < 200) {
+    return jsonResponse({
+      ok: true,
+      updated_only: true,
+      class_id: classId,
+      class_title: classTitle,
+      video_url: videoUrl || null,
+      message: videoUrl
+        ? `Grabación de video y carpeta de Drive actualizados en la clase '${classTitle}'.`
+        : `Carpeta de Drive vinculada a '${classTitle}'.`,
+    });
+  }
 
   // ── Verificar si ya existe un borrador para esta clase ──────────────────
   const { data: existingDraft } = await supabaseAdmin
