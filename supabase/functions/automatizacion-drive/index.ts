@@ -238,6 +238,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     folder_name?: unknown;
     doc_name?: unknown;
     transcript?: unknown;
+    video_url?: unknown;
+    video_file_id?: unknown;
     questionCount?: unknown;
   };
 
@@ -265,6 +267,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const folderId = normalizeDriveFolderId(rawFolderId);
   const folderName = typeof body.folder_name === "string" ? body.folder_name.trim() : "";
   const docName = typeof body.doc_name === "string" ? body.doc_name.trim() : "";
+
+  // Normalizar URL del video de la clase si viene en el payload
+  let videoUrl = typeof body.video_url === "string" ? body.video_url.trim() : "";
+  const rawVideoFileId = typeof body.video_file_id === "string" ? body.video_file_id.trim() : "";
+  if (!videoUrl && rawVideoFileId) {
+    videoUrl = `https://drive.google.com/file/d/${rawVideoFileId}/preview`;
+  } else if (videoUrl && videoUrl.includes("drive.google.com/file/d/")) {
+    const fileIdMatch = videoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (fileIdMatch) {
+      videoUrl = `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+    }
+  }
 
   const transcript =
     typeof body.transcript === "string" ? body.transcript.trim() : "";
@@ -404,13 +418,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  // Auto-vincular drive_folder_id en class_sessions para que quede registrado
+  // Auto-vincular drive_folder_id y video_url en class_sessions
   try {
+    const updateData: Record<string, unknown> = {
+      drive_folder_id: folderId,
+    };
+    if (videoUrl) {
+      updateData.video_url = videoUrl;
+    }
     await supabaseAdmin
       .from("class_sessions")
-      .update({ drive_folder_id: folderId })
+      .update(updateData)
       .eq("id", session.id);
-  } catch (_) {}
+  } catch (err) {
+    console.warn("No se pudo actualizar drive_folder_id o video_url en class_sessions:", err);
+  }
 
   const classId = session.id as string;
   const classTitle = (session.title as string) || "Clase";
@@ -430,10 +452,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       {
         ok: false,
         already_processed: true,
-        error: `Esta clase ya tiene un borrador con estado '${existingDraft.status}'. No se generó uno nuevo.`,
+        error: `Esta clase ya tiene un borrador con estado '${existingDraft.status}'. La carpeta y el enlace del video fueron actualizados.`,
         draft_id: existingDraft.id,
         class_id: classId,
         class_title: classTitle,
+        video_url: videoUrl || null,
       },
       409,
     );
@@ -443,9 +466,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const apiKey = Deno.env.get("Gemini_KEY_preguntas");
 
   if (!apiKey) {
-    console.error("No se encontró el secreto Gemini_KEY_preguntas");
+    console.error("Falta la variable de entorno Gemini_KEY_preguntas");
     return jsonResponse(
-      { ok: false, error: "La función de inteligencia artificial no está configurada" },
+      { ok: false, error: "Configuración interna incompleta (Gemini_KEY_preguntas)" },
       500,
     );
   }
@@ -493,6 +516,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     draft_id: draft.id,
     class_id: classId,
     class_title: classTitle,
+    video_url: videoUrl || null,
     question_count: activity.questions.length,
     activity_title: activity.activity_title,
   });
