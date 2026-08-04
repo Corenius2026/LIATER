@@ -14,9 +14,11 @@ import {
   Edit3, EyeOff, Save, PlusCircle, ExternalLink
 } from 'lucide-react';
 
-
 import './TeacherPanel.css';
 import AdminClassReinforcement from '../components/AdminClassReinforcement';
+
+const TeacherContext = React.createContext(null);
+const useTeacherContext = () => React.useContext(TeacherContext);
 
 /* ─────────────────────────────────────────
    TAB: MIS CLASES — Vista jerárquica
