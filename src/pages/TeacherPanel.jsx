@@ -21,6 +21,643 @@ const TeacherContext = React.createContext(null);
 const useTeacherContext = () => React.useContext(TeacherContext);
 
 /* ─────────────────────────────────────────
+   MODAL DE DETALLE DE CLASE — CICLO 360°
+   Fases: PRE-CLASE | GRABACIÓN | ACTIVIDAD IA
+───────────────────────────────────────── */
+function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
+  const [activeSection, setActiveSection] = useState('preclass'); // 'preclass' | 'recording' | 'activity'
+  
+  // — PRE-CLASE: Materiales —
+  const [materials, setMaterials]         = useState([]);
+  const [matLoading, setMatLoading]       = useState(true);
+  const [matError, setMatError]           = useState('');
+  const [editId, setEditId]               = useState(null);
+  const [matTitle, setMatTitle]           = useState('');
+  const [matType, setMatType]             = useState('presentation');
+  const [matProvider, setMatProvider]     = useState('drive');
+  const [matUrl, setMatUrl]               = useState('');
+  const [submitting, setSubmitting]       = useState(false);
+  const [activeForm, setActiveForm]       = useState(null); // 'presentation' | 'complementary' | null
+
+  // — PRE-CLASE: Info de clase —
+  const [classTitle, setClassTitle]       = useState(selectedClass?.title || '');
+  const [classDesc, setClassDesc]         = useState(selectedClass?.description || '');
+  const [classMeetUrl, setClassMeetUrl]   = useState(selectedClass?.meet_url || '');
+  const [savingInfo, setSavingInfo]       = useState(false);
+  const [infoMsg, setInfoMsg]             = useState('');
+
+  // — GRABACIÓN —
+  const [videoUrl, setVideoUrl]           = useState(selectedClass?.video_url || '');
+  const [savingVideo, setSavingVideo]     = useState(false);
+  const [videoMsg, setVideoMsg]           = useState('');
+
+  // — ACTIVIDAD IA —
+  const [draft, setDraft]                 = useState(null);
+  const [draftLoading, setDraftLoading]   = useState(true);
+  const [draftError, setDraftError]       = useState('');
+  const [editingQuestions, setEditingQuestions] = useState(false);
+  const [localQuestions, setLocalQuestions]     = useState([]);
+  const [actionLoading, setActionLoading]       = useState(null);
+  const [activityMsg, setActivityMsg]           = useState('');
+  const [activityStats, setActivityStats]       = useState(null);
+
+  const isPastClass = new Date(selectedClass?.class_date) < new Date();
+
+  // Determina el estado de ciclo de vida de la clase
+  const classStatus = (() => {
+    const now = new Date();
+    const classDate = new Date(selectedClass?.class_date);
+    const diff = classDate - now;
+    if (diff > 0 && diff < 60 * 60 * 1000) return 'live';   // próxima hora
+    if (diff > 0) return 'upcoming';
+    return 'completed';
+  })();
+
+  const STATUS_LABELS = {
+    upcoming:  { label: 'Programada',  bg: 'rgba(20,33,61,0.08)',   color: '#14213D' },
+    live:      { label: '🔴 EN VIVO',  bg: 'rgba(220,38,38,0.1)',   color: '#dc2626' },
+    completed: { label: 'Finalizada',  bg: 'rgba(22,163,74,0.1)',   color: '#16a34a' },
+  };
+  const statusInfo = STATUS_LABELS[classStatus];
+
+  // ── FETCH MATERIALES ──
+  const fetchMaterials = async () => {
+    setMatLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('class_id', selectedClass.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setMaterials(data || []);
+    } catch (err) {
+      setMatError(err.message);
+    } finally {
+      setMatLoading(false);
+    }
+  };
+
+  // ── FETCH BORRADOR IA + STATS ──
+  const fetchDraftAndStats = async () => {
+    setDraftLoading(true);
+    try {
+      // Borrador IA para esta clase
+      const { data: draftData } = await supabase
+        .from('activity_drafts')
+        .select('*')
+        .eq('class_id', selectedClass.id)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setDraft(draftData || null);
+      if (draftData?.draft_data?.questions) {
+        setLocalQuestions(draftData.draft_data.questions.map((q, i) => ({ ...q, _key: i })));
+      }
+
+      // Stats de la actividad publicada para esta clase
+      const { data: actData } = await supabase
+        .from('class_activities')
+        .select('id, title, is_published')
+        .eq('class_id', selectedClass.id)
+        .maybeSingle();
+      
+      if (actData?.id) {
+        try {
+          const { count: totalResponses } = await supabase
+            .from('activity_responses')
+            .select('id', { count: 'exact', head: true })
+            .eq('activity_id', actData.id);
+          setActivityStats({ isPublished: actData.is_published, totalResponses: totalResponses || 0 });
+        } catch {
+          setActivityStats({ isPublished: actData.is_published, totalResponses: 0 });
+        }
+      }
+    } catch (err) {
+      setDraftError(err.message);
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedClass) {
+      setClassTitle(selectedClass.title || '');
+      setClassDesc(selectedClass.description || '');
+      setClassMeetUrl(selectedClass.meet_url || '');
+      setVideoUrl(selectedClass.video_url || '');
+      fetchMaterials();
+      fetchDraftAndStats();
+    }
+  }, [selectedClass?.id]);
+
+  // ── GUARDAR INFO DE CLASE ──
+  const handleSaveInfo = async (e) => {
+    e.preventDefault();
+    setSavingInfo(true);
+    setInfoMsg('');
+    try {
+      const { error } = await supabase
+        .from('class_sessions')
+        .update({ title: classTitle.trim(), description: classDesc.trim(), meet_url: classMeetUrl.trim() || null })
+        .eq('id', selectedClass.id);
+      if (error) throw error;
+      setInfoMsg('✓ Información actualizada correctamente.');
+      if (onClassUpdated) onClassUpdated();
+    } catch (err) {
+      setInfoMsg('Error: ' + err.message);
+    } finally {
+      setSavingInfo(false);
+    }
+  };
+
+  // ── GUARDAR GRABACIÓN ──
+  const handleSaveVideo = async (e) => {
+    e.preventDefault();
+    setSavingVideo(true);
+    setVideoMsg('');
+    try {
+      const { error } = await supabase
+        .from('class_sessions')
+        .update({ video_url: videoUrl.trim() || null })
+        .eq('id', selectedClass.id);
+      if (error) throw error;
+      setVideoMsg('✓ Enlace de grabación guardado correctamente.');
+      if (onClassUpdated) onClassUpdated();
+    } catch (err) {
+      setVideoMsg('Error: ' + err.message);
+    } finally {
+      setSavingVideo(false);
+    }
+  };
+
+  // ── MATERIALES: Guardar recurso ──
+  const handleCancelForm = () => {
+    setEditId(null); setMatTitle(''); setMatType('presentation');
+    setMatProvider('drive'); setMatUrl(''); setActiveForm(null); setMatError('');
+  };
+
+  const handleEditResource = (r) => {
+    setEditId(r.id); setMatTitle(r.title); setMatType(r.resource_type);
+    setMatProvider(r.provider || 'drive'); setMatUrl(r.url || '');
+    setActiveForm(r.resource_type === 'presentation' ? 'presentation' : 'complementary');
+    setMatError('');
+  };
+
+  const handleSubmitResource = async (e, sectionType) => {
+    e.preventDefault();
+    if (!matTitle.trim() || !matUrl.trim()) { setMatError('El título y el enlace son obligatorios.'); return; }
+    setSubmitting(true); setMatError('');
+    const targetType = sectionType === 'presentation' ? 'presentation' : (matType === 'presentation' ? 'file' : matType);
+    const payload = { class_id: selectedClass.id, title: matTitle.trim(), resource_type: targetType, provider: matProvider, url: matUrl.trim(), is_visible: true };
+    try {
+      if (editId) {
+        const { error } = await supabase.from('resources').update(payload).eq('id', editId).eq('class_id', selectedClass.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('resources').insert([payload]);
+        if (error) throw error;
+      }
+      handleCancelForm(); await fetchMaterials();
+    } catch (err) { setMatError('Error: ' + err.message); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleDeleteResource = async (id) => {
+    try {
+      const { error } = await supabase.from('resources').delete().eq('id', id).eq('class_id', selectedClass.id);
+      if (error) throw error;
+      await fetchMaterials();
+    } catch (err) { setMatError('Error al eliminar: ' + err.message); }
+  };
+
+  // ── ACTIVIDAD IA: Publicar / Despublicar ──
+  const syncAndPublish = async (draftData, classId) => {
+    const { data: existing } = await supabase.from('class_activities').select('id').eq('class_id', classId).maybeSingle();
+    let actId;
+    if (existing) {
+      const { data: updated, error } = await supabase.from('class_activities').update({ title: draftData.activity_title || 'Actividad de Reforzamiento', description: draftData.activity_description || '', is_published: true, max_attempts: 3 }).eq('id', existing.id).select('id').single();
+      if (error) throw error;
+      actId = updated.id;
+      await supabase.from('activity_questions').delete().eq('activity_id', actId);
+    } else {
+      const { data: newAct, error } = await supabase.from('class_activities').insert({ class_id: classId, title: draftData.activity_title || 'Actividad de Reforzamiento', description: draftData.activity_description || '', is_published: true, max_attempts: 3, is_mandatory: false }).select('id').single();
+      if (error) throw error;
+      actId = newAct.id;
+    }
+    for (let qi = 0; qi < (draftData.questions || []).length; qi++) {
+      const q = draftData.questions[qi];
+      const { data: qData, error: qErr } = await supabase.from('activity_questions').insert({ activity_id: actId, text: q.text, question_type: q.question_type || 'single_choice', order_num: qi + 1 }).select('id').single();
+      if (qErr) throw qErr;
+      let correctOptId = null;
+      for (let oi = 0; oi < (q.options || []).length; oi++) {
+        const opt = q.options[oi];
+        const { data: optData, error: optErr } = await supabase.from('question_options').insert({ question_id: qData.id, text: opt.text, order_num: oi + 1 }).select('id').single();
+        if (optErr) throw optErr;
+        if (opt.is_correct) correctOptId = optData.id;
+      }
+      if (correctOptId) {
+        await supabase.from('question_correct_answers').upsert({ question_id: qData.id, correct_option_id: correctOptId }, { onConflict: 'question_id' });
+      }
+    }
+  };
+
+  const handlePublishActivity = async () => {
+    if (!draft) return;
+    setActionLoading('publishing');
+    setActivityMsg('');
+    try {
+      const updatedDraftData = { ...draft.draft_data, questions: localQuestions };
+      await syncAndPublish(updatedDraftData, selectedClass.id);
+      await supabase.from('activity_drafts').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', draft.id);
+      setActivityMsg('✓ Actividad publicada correctamente. Los estudiantes ya pueden responderla.');
+      await fetchDraftAndStats();
+    } catch (err) {
+      setActivityMsg('Error al publicar: ' + err.message);
+    } finally { setActionLoading(null); }
+  };
+
+  const handleUnpublishActivity = async () => {
+    setActionLoading('unpublishing');
+    setActivityMsg('');
+    try {
+      await supabase.from('class_activities').update({ is_published: false }).eq('class_id', selectedClass.id);
+      await supabase.from('activity_drafts').update({ status: 'pending' }).eq('id', draft?.id);
+      setActivityMsg('Actividad despublicada. Los estudiantes ya no pueden verla.');
+      await fetchDraftAndStats();
+    } catch (err) {
+      setActivityMsg('Error: ' + err.message);
+    } finally { setActionLoading(null); }
+  };
+
+  const presentations = materials.filter(m => m.resource_type === 'presentation');
+  const complementary = materials.filter(m => m.resource_type !== 'presentation');
+
+  const SECTIONS = [
+    { id: 'preclass',   label: 'Pre-Clase',    icon: <Presentation size={15} />, alwaysEnabled: true },
+    { id: 'recording',  label: 'Grabación',    icon: <Video size={15} />,        alwaysEnabled: isPastClass },
+    { id: 'activity',   label: 'Actividad IA', icon: <Sparkles size={15} />,     alwaysEnabled: isPastClass,
+      badge: draft && draft.status === 'pending' ? '!' : null },
+  ];
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,33,61,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(6px)' }}>
+      <div style={{ width: '100%', maxWidth: '860px', maxHeight: '92vh', overflowY: 'auto', background: '#FFFFFF', borderRadius: '14px', boxShadow: '0 24px 60px rgba(20,33,61,0.3)', display: 'flex', flexDirection: 'column' }}>
+        {/* HEADER DEL MODAL */}
+        <div style={{ padding: '1.75rem 2rem 0', borderBottom: '1px solid #E5E5E5' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '3px 10px', borderRadius: '9999px', textTransform: 'uppercase', letterSpacing: '0.06em', background: statusInfo.bg, color: statusInfo.color }}>
+                  {statusInfo.label}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {selectedClass?.subtopics?.modules?.title || 'Sin módulo'} → {selectedClass?.subtopics?.title || 'Sin subtema'}
+                </span>
+              </div>
+              <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.4rem', color: '#14213D' }}>{selectedClass?.title}</h2>
+              <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <CalendarDays size={13} />
+                  {new Date(selectedClass?.class_date).toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Clock size={13} />
+                  {new Date(selectedClass?.class_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · {selectedClass?.duration || 0} min
+                </span>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', flexShrink: 0 }}>
+              <X size={22} />
+            </button>
+          </div>
+
+          {/* NAVEGACIÓN DE FASES */}
+          <div style={{ display: 'flex', gap: 0, borderBottom: 'none' }}>
+            {SECTIONS.map(sec => {
+              const isActive = activeSection === sec.id;
+              const isDisabled = !sec.alwaysEnabled;
+              return (
+                <button key={sec.id} onClick={() => !isDisabled && setActiveSection(sec.id)} disabled={isDisabled}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.75rem 1.25rem', border: 'none', borderBottom: isActive ? '3px solid #FCA311' : '3px solid transparent',
+                    background: 'transparent', color: isActive ? '#FCA311' : isDisabled ? '#ccc' : '#14213D',
+                    fontWeight: isActive ? 700 : 500, fontSize: '0.85rem', cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease', position: 'relative',
+                  }}>
+                  {sec.icon} {sec.label}
+                  {sec.badge && (
+                    <span style={{ position: 'absolute', top: '6px', right: '6px', width: '8px', height: '8px', borderRadius: '50%', background: '#FCA311' }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CONTENIDO DE SECCIÓN */}
+        <div style={{ padding: '1.75rem 2rem', flex: 1, overflowY: 'auto' }}>
+          {/* ════ SECCIÓN: PRE-CLASE ════ */}
+          {activeSection === 'preclass' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Información básica + Meet URL */}
+              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
+                <h3 style={{ margin: '0 0 1rem 0', color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Info size={16} color="#FCA311" /> Información de la Sesión
+                </h3>
+                {infoMsg && <div style={{ fontSize: '0.82rem', marginBottom: '0.75rem', fontWeight: 600, color: infoMsg.startsWith('✓') ? '#16a34a' : '#dc2626', background: infoMsg.startsWith('✓') ? '#f0fdf4' : '#fef2f2', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>{infoMsg}</div>}
+                <form onSubmit={handleSaveInfo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D' }}>Título de la Clase</label>
+                    <input type="text" value={classTitle} onChange={e => setClassTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem', outline: 'none' }} required />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D' }}>Descripción / Temas a cubrir</label>
+                    <textarea rows={2} value={classDesc} onChange={e => setClassDesc(e.target.value)} placeholder="Ej: Introducción a conceptos clave, ejercicios prácticos..." style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem', resize: 'vertical' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Video size={13} color="#FCA311" /> Enlace de sesión en vivo (Google Meet / Zoom)
+                    </label>
+                    <input type="url" value={classMeetUrl} onChange={e => setClassMeetUrl(e.target.value)} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="submit" disabled={savingInfo} style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.55rem 1.25rem', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                      onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}>
+                      {savingInfo ? 'Guardando...' : 'Guardar Información'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Presentación */}
+              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ margin: 0, color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Presentation size={16} color="#FCA311" /> Presentación de la Clase
+                  </h3>
+                  <button onClick={() => activeForm === 'presentation' && !editId ? setActiveForm(null) : (handleCancelForm(), setActiveForm('presentation'))}
+                    style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Plus size={13} /> {activeForm === 'presentation' ? 'Cerrar' : 'Cargar Presentación'}
+                  </button>
+                </div>
+                {matError && activeForm === 'presentation' && <div style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '0.75rem' }}>{matError}</div>}
+                {activeForm === 'presentation' && (
+                  <form onSubmit={e => handleSubmitResource(e, 'presentation')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #E5E5E5' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                      <div><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Título</label><input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Diapositivas Módulo 1" style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
+                      <div><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Origen</label>
+                        <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }}>
+                          <option value="drive">Google Drive / OneDrive</option>
+                          <option value="external">Otro enlace externo</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '0.85rem' }}><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>URL del archivo</label><input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                      <button type="submit" disabled={submitting} style={{ background: '#FCA311', color: '#14213D', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                        {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Cargar')}
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {matLoading ? <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando...</p>
+                : presentations.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Sin presentación cargada aún.</p>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {presentations.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 1rem', background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '7px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <Presentation size={16} color="#14213D" />
+                          <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{p.title}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', color: '#14213D', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
+                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
+                          <button onClick={() => handleDeleteResource(p.id)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #fca5a5', borderRadius: '5px', fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', cursor: 'pointer' }}>Eliminar</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>}
+              </div>
+
+              {/* Material Complementario */}
+              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ margin: 0, color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileText size={16} color="#FCA311" /> Material Complementario
+                  </h3>
+                  <button onClick={() => activeForm === 'complementary' && !editId ? setActiveForm(null) : (handleCancelForm(), setActiveForm('complementary'))}
+                    style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Plus size={13} /> {activeForm === 'complementary' ? 'Cerrar' : 'Agregar Material'}
+                  </button>
+                </div>
+                {matError && activeForm === 'complementary' && <div style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '0.75rem' }}>{matError}</div>}
+                {activeForm === 'complementary' && (
+                  <form onSubmit={e => handleSubmitResource(e, 'complementary')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #E5E5E5' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                      <div style={{ gridColumn: 'span 2' }}><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Título del recurso</label><input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Lectura PDF, Guía de estudio" style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
+                      <div><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Tipo</label>
+                        <select value={matType} onChange={e => setMatType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }}>
+                          <option value="pdf">PDF</option>
+                          <option value="link">Enlace Web</option>
+                          <option value="file">Archivo</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '0.85rem' }}><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>URL</label><input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                      <button type="submit" disabled={submitting} style={{ background: '#FCA311', color: '#14213D', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                        {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Agregar')}
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {complementary.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Sin material complementario agregado.</p>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {complementary.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 1rem', background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '7px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <FileText size={16} color="#14213D" />
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{p.title}</div>
+                            <TypePill type={p.resource_type} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', color: '#14213D', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
+                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
+                          <button onClick={() => handleDeleteResource(p.id)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #fca5a5', borderRadius: '5px', fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', cursor: 'pointer' }}>Eliminar</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>}
+              </div>
+            </div>
+          )}
+
+          {/* ════ SECCIÓN: GRABACIÓN ════ */}
+          {activeSection === 'recording' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Semáforo de estado */}
+              <div style={{ padding: '1.5rem', borderRadius: '10px', border: `2px solid ${videoUrl ? 'rgba(22,163,74,0.3)' : 'rgba(252,163,17,0.3)'}`, background: videoUrl ? 'rgba(22,163,74,0.05)' : 'rgba(252,163,17,0.05)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: videoUrl ? '#16a34a' : '#FCA311', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {videoUrl ? <CheckCircle2 size={24} color="#FFFFFF" /> : <AlertCircle size={24} color="#FFFFFF" />}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '1rem', color: '#14213D' }}>
+                    {videoUrl ? '✓ Grabación vinculada' : 'Grabación pendiente'}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {videoUrl ? 'La grabación está disponible para los estudiantes inscritos.' : 'La grabación de esta clase aún no ha sido vinculada.'}
+                  </div>
+                </div>
+                {videoUrl && (
+                  <a href={videoUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', background: '#14213D', color: '#FFFFFF', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                    <Play size={13} /> Ver grabación
+                  </a>
+                )}
+              </div>
+
+              {/* Formulario para vincular grabación */}
+              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
+                <h3 style={{ margin: '0 0 1rem 0', color: '#14213D', fontSize: '1rem', fontWeight: 700 }}>
+                  {videoUrl ? 'Actualizar enlace de grabación' : 'Vincular grabación'}
+                </h3>
+                {videoMsg && <div style={{ fontSize: '0.82rem', marginBottom: '0.75rem', fontWeight: 600, color: videoMsg.startsWith('✓') ? '#16a34a' : '#dc2626', background: videoMsg.startsWith('✓') ? '#f0fdf4' : '#fef2f2', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>{videoMsg}</div>}
+                <form onSubmit={handleSaveVideo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D' }}>URL de la grabación (Drive / YouTube / Loom)</label>
+                    <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="https://drive.google.com/... ó https://youtube.com/..." style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="submit" disabled={savingVideo} style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.55rem 1.25rem', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+                      {savingVideo ? 'Guardando...' : 'Guardar Grabación'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ════ SECCIÓN: ACTIVIDAD IA ════ */}
+          {activeSection === 'activity' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {draftLoading ? (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Cargando actividad...</p>
+              ) : !draft ? (
+                <div style={{ padding: '3rem', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #E5E5E5' }}>
+                  <Sparkles size={36} color="#E5E5E5" style={{ margin: '0 auto 0.75rem' }} />
+                  <h3 style={{ color: '#14213D', marginBottom: '0.5rem', fontWeight: 700 }}>Sin borrador IA disponible</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>El administrador enviará el borrador generado por IA una vez que la transcripción de la clase esté procesada.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Estado de la actividad */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderRadius: '8px', background: draft.status === 'approved' ? 'rgba(22,163,74,0.08)' : 'rgba(252,163,17,0.08)', border: `1px solid ${draft.status === 'approved' ? 'rgba(22,163,74,0.25)' : 'rgba(252,163,17,0.25)'}`, flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      {draft.status === 'approved'
+                        ? <CheckCircle2 size={18} color="#16a34a" />
+                        : <Sparkles size={18} color="#FCA311" />}
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#14213D' }}>
+                          {draft.status === 'approved' ? 'Actividad publicada a estudiantes' : 'Borrador IA pendiente de revisión'}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {draft.draft_data?.activity_title || 'Sin título'} · {(localQuestions.length)} preguntas
+                          {activityStats && ` · ${activityStats.totalResponses} respuestas recibidas`}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {draft.status === 'approved' ? (
+                        <button onClick={handleUnpublishActivity} disabled={actionLoading === 'unpublishing'}
+                          style={{ background: '#FFFFFF', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+                          {actionLoading === 'unpublishing' ? '...' : <><EyeOff size={12} /> Despublicar</>}
+                        </button>
+                      ) : (
+                        <button onClick={handlePublishActivity} disabled={actionLoading === 'publishing'}
+                          style={{ background: '#FCA311', color: '#14213D', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          {actionLoading === 'publishing' ? 'Publicando...' : <><CheckCheck size={13} /> Publicar a estudiantes</>}
+                        </button>
+                      )}
+                      <button onClick={() => setEditingQuestions(!editingQuestions)}
+                        style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Edit3 size={12} /> {editingQuestions ? 'Cerrar editor' : 'Editar preguntas'}
+                      </button>
+                    </div>
+                  </div>
+                  {activityMsg && <div style={{ fontSize: '0.82rem', fontWeight: 600, color: activityMsg.startsWith('✓') ? '#16a34a' : '#dc2626', background: activityMsg.startsWith('✓') ? '#f0fdf4' : '#fef2f2', padding: '0.6rem 0.85rem', borderRadius: '6px' }}>{activityMsg}</div>}
+
+                  {/* Lista de preguntas — modo visualización */}
+                  {!editingQuestions && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {localQuestions.map((q, qi) => (
+                        <div key={q._key ?? qi} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E5E5E5' }}>
+                          <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem', marginBottom: '0.6rem' }}>
+                            {qi + 1}. {q.text}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                            {(q.options || []).map((opt, oi) => (
+                              <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.6rem', borderRadius: '5px', background: opt.is_correct ? 'rgba(22,163,74,0.08)' : 'transparent', border: opt.is_correct ? '1px solid rgba(22,163,74,0.2)' : '1px solid transparent' }}>
+                                {opt.is_correct ? <Check size={13} color="#16a34a" /> : <span style={{ width: '13px' }} />}
+                                <span style={{ fontSize: '0.84rem', color: opt.is_correct ? '#166534' : '#14213D', fontWeight: opt.is_correct ? 600 : 400 }}>{opt.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Editor de preguntas — modo edición */}
+                  {editingQuestions && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {localQuestions.map((q, qi) => (
+                        <div key={q._key ?? qi} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E5E5E5' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#14213D' }}>Pregunta {qi + 1}</label>
+                            <button onClick={() => setLocalQuestions(prev => prev.filter((_, i) => i !== qi))}
+                              style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '5px', padding: '0.2rem 0.5rem', cursor: 'pointer', color: '#dc2626', fontSize: '0.75rem' }}>
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                          <textarea value={q.text} onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, text: e.target.value } : item))}
+                            rows={2} style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem', marginBottom: '0.6rem', resize: 'vertical' }} />
+                          {(q.options || []).map((opt, oi) => (
+                            <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                              <input type="radio" name={`correct-${qi}`} checked={!!opt.is_correct}
+                                onChange={() => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, options: item.options.map((o, j) => ({ ...o, is_correct: j === oi })) } : item))}
+                                style={{ accentColor: '#FCA311' }} title="Marcar como correcta" />
+                              <input type="text" value={opt.text} onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, options: item.options.map((o, j) => j === oi ? { ...o, text: e.target.value } : o) } : item))}
+                                style={{ flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.83rem' }} />
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      <button onClick={() => setLocalQuestions(prev => [...prev, { _key: Date.now(), text: '', question_type: 'single_choice', options: [{ text: '', is_correct: true }, { text: '', is_correct: false }, { text: '', is_correct: false }] }])}
+                        style={{ background: '#FFFFFF', border: '1px dashed #FCA311', borderRadius: '7px', padding: '0.6rem', color: '#FCA311', fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                        <PlusCircle size={15} /> Agregar pregunta
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ─────────────────────────────────────────
    TAB: MIS CLASES — Vista jerárquica
    Módulo → Subtema → Clase
 ───────────────────────────────────────── */
