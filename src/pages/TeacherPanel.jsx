@@ -296,9 +296,9 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
   const complementary = materials.filter(m => m.resource_type !== 'presentation');
 
   const SECTIONS = [
-    { id: 'preclass',   label: 'Pre-Clase',    icon: <Presentation size={15} />, alwaysEnabled: true },
-    { id: 'recording',  label: 'Grabación',    icon: <Video size={15} />,        alwaysEnabled: isPastClass },
-    { id: 'activity',   label: 'Actividad IA', icon: <Sparkles size={15} />,     alwaysEnabled: isPastClass,
+    { id: 'preclass',   label: 'Pre-Clase',    icon: <Presentation size={15} /> },
+    { id: 'recording',  label: 'Grabación',    icon: <Video size={15} /> },
+    { id: 'activity',   label: 'Actividad IA', icon: <Sparkles size={15} />,
       badge: draft && draft.status === 'pending' ? '!' : null },
   ];
 
@@ -334,18 +334,17 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
             </button>
           </div>
 
-          {/* NAVEGACIÓN DE FASES */}
+          {/* NAVEGACIÓN DE FASES — Todas habilitadas para clic fluido */}
           <div style={{ display: 'flex', gap: 0, borderBottom: 'none' }}>
             {SECTIONS.map(sec => {
               const isActive = activeSection === sec.id;
-              const isDisabled = !sec.alwaysEnabled;
               return (
-                <button key={sec.id} onClick={() => !isDisabled && setActiveSection(sec.id)} disabled={isDisabled}
+                <button key={sec.id} onClick={() => setActiveSection(sec.id)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                     padding: '0.75rem 1.25rem', border: 'none', borderBottom: isActive ? '3px solid #FCA311' : '3px solid transparent',
-                    background: 'transparent', color: isActive ? '#FCA311' : isDisabled ? '#ccc' : '#14213D',
-                    fontWeight: isActive ? 700 : 500, fontSize: '0.85rem', cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    background: 'transparent', color: isActive ? '#FCA311' : '#14213D',
+                    fontWeight: isActive ? 700 : 500, fontSize: '0.85rem', cursor: 'pointer',
                     transition: 'all 0.2s ease', position: 'relative',
                   }}>
                   {sec.icon} {sec.label}
@@ -504,6 +503,12 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
           {/* ════ SECCIÓN: GRABACIÓN ════ */}
           {activeSection === 'recording' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {!isPastClass && !videoUrl && (
+                <div style={{ padding: '0.85rem 1.1rem', borderRadius: '8px', background: 'rgba(20,33,61,0.04)', border: '1px solid rgba(20,33,61,0.12)', fontSize: '0.82rem', color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Info size={16} color="#FCA311" style={{ flexShrink: 0 }} />
+                  <span>Esta clase está programada para una fecha futura. Puedes vincular el enlace de la grabación con anticipación si ya dispones de él.</span>
+                </div>
+              )}
               {/* Semáforo de estado */}
               <div style={{ padding: '1.5rem', borderRadius: '10px', border: `2px solid ${videoUrl ? 'rgba(22,163,74,0.3)' : 'rgba(252,163,17,0.3)'}`, background: videoUrl ? 'rgba(22,163,74,0.05)' : 'rgba(252,163,17,0.05)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: videoUrl ? '#16a34a' : '#FCA311', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -552,9 +557,15 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
                 <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Cargando actividad...</p>
               ) : !draft ? (
                 <div style={{ padding: '3rem', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #E5E5E5' }}>
-                  <Sparkles size={36} color="#E5E5E5" style={{ margin: '0 auto 0.75rem' }} />
-                  <h3 style={{ color: '#14213D', marginBottom: '0.5rem', fontWeight: 700 }}>Sin borrador IA disponible</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>El administrador enviará el borrador generado por IA una vez que la transcripción de la clase esté procesada.</p>
+                  <Sparkles size={36} color="#FCA311" style={{ margin: '0 auto 0.75rem' }} />
+                  <h3 style={{ color: '#14213D', marginBottom: '0.5rem', fontWeight: 700 }}>
+                    {!isPastClass ? 'Actividad disponible tras realizar la clase' : 'Sin borrador IA disponible'}
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0, maxWidth: '500px', marginLeft: 'auto', marginRight: 'auto' }}>
+                    {!isPastClass
+                      ? 'El borrador de preguntas generado por la IA se procesará automáticamente una vez que la clase haya finalizado.'
+                      : 'El administrador enviará el borrador generado por IA una vez que la transcripción de la clase esté procesada.'}
+                  </p>
                 </div>
               ) : (
                 <>
@@ -655,6 +666,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
     </div>
   );
 }
+
 
 
 /* ─────────────────────────────────────────
