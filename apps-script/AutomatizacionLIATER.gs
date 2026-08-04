@@ -351,7 +351,7 @@ function limpiarYOptimizarTranscripcion(texto) {
 
   // 3. Limite maximo inteligente: si supera los 35,000 caracteres (~7,000 palabras)
   // seleccionamos los bloques mas significativos para no desbordar el modelo
-  var MAX_CARACTERES = 35000;
+  var MAX_CARACTERES = 12000;
   if (resultado.length > MAX_CARACTERES) {
     resultado = condensarTexto(resultado, MAX_CARACTERES);
   }
