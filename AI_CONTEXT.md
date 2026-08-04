@@ -76,4 +76,8 @@ El sistema implementa una navegación de dos niveles, definida en `App.jsx` y `S
 - **Mantén la Consistencia Visual**: El diseño "premium" es una directiva estricta. Continúa utilizando variables de color modernas (tonos azul oscuro/indigo), sombras suaves (`box-shadow`), interfaces limpias con fondo blanco/gris claro (`#f8fafc`), y mantén márgenes amplios (`gap` generoso).
 - **Respeta el Contexto de Curso**: Si implementas una funcionalidad nueva dentro de un panel específico (Ej. Dashboard, Modulos, Clases), asegúrate de que toda consulta de Base de Datos filtre rigurosamente usando `.eq('diploma_id', programId)` de forma directa o indirecta a través de *joins* `!inner`.
 - **Eliminación de Código Obsoleto**: Si refactorizas un sistema o descubres código de demostración obsoleto, destrúyelo por completo (como se hizo con `UsuariosTab` dentro de `AdminPanel.jsx`) para que la base de código sea lo más compacta y clara posible.
-- **Git Flow Continuo**: Al completar tareas o hitos, asegúrate de actualizar esta documentación exhaustivamente y pushear todo el progreso usando `git add .`, `git commit` y `git push`.
+- **Git Flow Continuo**: 
+  - **Antes de cualquier cambio**: Ejecutar siempre `git pull` para sincronizar la última versión del repositorio.
+  - **Después de implementar**: Ejecutar `git commit` y `git push` para subir los cambios implementados al repositorio.
+- **Mantener documentación al día**: Al completar tareas o hitos, actualizar esta documentación exhaustivamente.
+
