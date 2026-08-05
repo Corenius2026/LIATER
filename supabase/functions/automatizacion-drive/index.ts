@@ -316,13 +316,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
 
   // ── Buscar la clase inteligentemente ─────────────────────────────────────
-  let session: { id: string; title: string } | null = null;
+  let session: { id: string; title: string; video_url?: string | null; drive_folder_id?: string | null } | null = null;
 
   // 1. Intento por coincidencia directa de drive_folder_id o links
   try {
     const { data: directMatch } = await supabaseAdmin
       .from("class_sessions")
-      .select("id, title")
+      .select("id, title, video_url, drive_folder_id")
       .or(`drive_folder_id.eq.${folderId},drive_folder_id.ilike.%${folderId}%,presentation_url.ilike.%${folderId}%,video_url.ilike.%${folderId}%`)
       .limit(1)
       .maybeSingle();
@@ -335,8 +335,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // 2. Si no se encontró, extraer número de sesión de la nomenclatura
-  // Ejemplos: "DIP-CTRL-2026-01_M01_S001_TRANSCRIPCION" -> S001 -> 1
-  // "Sesion_1", "Sesion 1", "Clase 1", "S01"
   if (!session) {
     const combinedName = `${folderName} ${docName}`;
     let sessionNumber: number | null = null;
@@ -353,10 +351,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     if (sessionNumber !== null) {
-      // Buscar por order_index
       const { data: byOrder } = await supabaseAdmin
         .from("class_sessions")
-        .select("id, title")
+        .select("id, title, video_url, drive_folder_id")
         .eq("order_index", sessionNumber)
         .limit(1)
         .maybeSingle();
@@ -364,10 +361,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (byOrder) {
         session = byOrder;
       } else {
-        // Buscar por título que contenga "Sesión X" o "Clase X"
         const { data: byTitle } = await supabaseAdmin
           .from("class_sessions")
-          .select("id, title")
+          .select("id, title, video_url, drive_folder_id")
           .or(`title.ilike.%Sesión ${sessionNumber}%,title.ilike.%Sesion ${sessionNumber}%,title.ilike.%Clase ${sessionNumber}%`)
           .limit(1)
           .maybeSingle();
@@ -383,7 +379,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!session) {
     const { data: allClasses } = await supabaseAdmin
       .from("class_sessions")
-      .select("id, title")
+      .select("id, title, video_url, drive_folder_id")
       .order("created_at", { ascending: true })
       .limit(2);
 
@@ -393,7 +389,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (!session) {
-    // Listar las clases existentes para ayudar a diagnosticar
     const { data: sampleClasses } = await supabaseAdmin
       .from("class_sessions")
       .select("id, title, order_index")
@@ -406,7 +401,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse(
       {
         ok: false,
-        error: `No se pudo asociar el archivo '${docName || folderName}' a ninguna clase de LIATER. Clases disponibles: ${disponibles || 'Ninguna registrada'}. Asegúrate de que el número de sesión (ej: S001) coincida con el orden de la clase.`,
+        error: `No se pudo asociar el archivo '${docName || folderName}' a ninguna clase de LIATER. Clases disponibles: ${disponibles || 'Ninguna registrada'}.`,
         drive_folder_id: folderId,
         doc_name: docName,
         folder_name: folderName,
@@ -415,67 +410,78 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  // Auto-vincular drive_folder_id y video_url en class_sessions
-  // Auto-vincular drive_folder_id y video_url en class_sessions
-  let updatedRows = null;
-  try {
-    const updateData: Record<string, unknown> = {
-      drive_folder_id: folderId,
-    };
-    if (videoUrl) {
-      updateData.video_url = videoUrl;
-    }
-    const { data, error: updateErr } = await supabaseAdmin
-      .from("class_sessions")
-      .update(updateData)
-      .eq("id", session.id)
-      .select();
+  // ── Comprobar si el video ya está vinculado ──────────────────────────────
+  const videoAlreadyLinked = Boolean(
+    videoUrl &&
+    session.video_url === videoUrl &&
+    session.drive_folder_id === folderId
+  );
 
-    if (updateErr) {
-      console.error("Error actualizando class_sessions:", updateErr);
+  let updatedRows = null;
+  // Solo actualizar si hay un cambio real en video_url o drive_folder_id
+  if (!videoAlreadyLinked && (session.drive_folder_id !== folderId || (videoUrl && session.video_url !== videoUrl))) {
+    try {
+      const updateData: Record<string, unknown> = {
+        drive_folder_id: folderId,
+      };
+      if (videoUrl) {
+        updateData.video_url = videoUrl;
+      }
+      const { data, error: updateErr } = await supabaseAdmin
+        .from("class_sessions")
+        .update(updateData)
+        .eq("id", session.id)
+        .select();
+
+      if (updateErr) {
+        console.error("Error actualizando class_sessions:", updateErr);
+        return jsonResponse(
+          {
+            ok: false,
+            error: `Error al actualizar class_sessions en la BD: ${updateErr.message}`,
+            class_id: session.id,
+            class_title: session.title,
+          },
+          500,
+        );
+      }
+      updatedRows = data;
+      console.log(`Clase '${session.title}' (${session.id}) actualizada con éxito:`, updatedRows);
+    } catch (err) {
+      console.error("Excepción actualizando class_sessions:", err);
       return jsonResponse(
         {
           ok: false,
-          error: `Error al actualizar class_sessions en la BD: ${updateErr.message}`,
+          error: `Excepción al actualizar class_sessions: ${err instanceof Error ? err.message : String(err)}`,
           class_id: session.id,
-          class_title: session.title,
         },
         500,
       );
     }
-    updatedRows = data;
-    console.log(`Clase '${session.title}' (${session.id}) actualizada con éxito:`, updatedRows);
-  } catch (err) {
-    console.error("Excepción actualizando class_sessions:", err);
-    return jsonResponse(
-      {
-        ok: false,
-        error: `Excepción al actualizar class_sessions: ${err instanceof Error ? err.message : String(err)}`,
-        class_id: session.id,
-      },
-      500,
-    );
   }
 
   const classId = session.id as string;
   const classTitle = (session.title as string) || "Clase";
 
-  // Si no hay transcripción o es menor a 200 caracteres, terminamos con éxito la actualización del video/carpeta
+  // Si no hay transcripción o es menor a 200 caracteres, responder sobre el estado del video
   if (transcript.length < 200) {
     return jsonResponse({
       ok: true,
       updated_only: true,
+      already_synced: videoAlreadyLinked,
       class_id: classId,
       class_title: classTitle,
-      video_url: videoUrl || null,
+      video_url: videoUrl || session.video_url || null,
       updated_data: updatedRows,
-      message: videoUrl
-        ? `Grabación de video y carpeta de Drive actualizados en la clase '${classTitle}'.`
-        : `Carpeta de Drive vinculada a '${classTitle}'.`,
+      message: videoAlreadyLinked
+        ? `El video de la clase '${classTitle}' ya estaba previamente vinculado.`
+        : (videoUrl
+          ? `Grabación de video y carpeta de Drive vinculados exitosamente a '${classTitle}'.`
+          : `Carpeta de Drive vinculada a '${classTitle}'.`),
     });
   }
 
-  // ── Verificar si ya existe un borrador para esta clase ──────────────────
+  // ── Verificar si ya existen preguntas generadas o un borrador para esta clase ──
   const { data: existingDraft } = await supabaseAdmin
     .from("activity_drafts")
     .select("id, status, created_at")
@@ -488,15 +494,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (existingDraft) {
     return jsonResponse(
       {
-        ok: false,
+        ok: true,
         already_processed: true,
-        error: `Esta clase ya tiene un borrador con estado '${existingDraft.status}'. La carpeta y el enlace del video fueron actualizados.`,
         draft_id: existingDraft.id,
+        draft_status: existingDraft.status,
         class_id: classId,
         class_title: classTitle,
-        video_url: videoUrl || null,
+        video_url: videoUrl || session.video_url || null,
+        message: `La clase '${classTitle}' ya cuenta con preguntas generadas en estado '${existingDraft.status}'. No se gastaron tokens de IA.`,
       },
-      409,
+      200,
     );
   }
 

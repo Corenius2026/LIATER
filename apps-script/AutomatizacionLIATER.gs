@@ -85,13 +85,17 @@ function sincronizarSoloVideos() {
         }, config.cronSecret);
 
         if (res && res.ok) {
-          videosActualizados++;
-          console.log("   ✓ Video vinculado con éxito en Supabase para: '" + (res.class_title || folderName) + "'");
-          console.log("     - ID de Clase en BD: " + (res.class_id || "N/A"));
-          console.log("     - URL Video: " + (res.video_url || "N/A"));
-          console.log("     - ID Carpeta Drive: " + folderId);
+          if (res.already_synced) {
+            console.log("   ℹ Video ya estaba previamente vinculado en Supabase para: '" + (res.class_title || folderName) + "' (Sin cambios necesarios).");
+          } else {
+            videosActualizados++;
+            console.log("   ✓ Video vinculado con éxito en Supabase para: '" + (res.class_title || folderName) + "'");
+            console.log("     - ID de Clase en BD: " + (res.class_id || "N/A"));
+            console.log("     - URL Video: " + (res.video_url || "N/A"));
+            console.log("     - ID Carpeta Drive: " + folderId);
+          }
           if (config.logSheet) {
-            registrarEnLog(config.logSheet, videoFile.getId(), videoFile.getName(), folderId, folderName, "VIDEO_OK", "ID: " + res.class_id + " | Video: " + (res.video_url || videoUrl));
+            registrarEnLog(config.logSheet, videoFile.getId(), videoFile.getName(), folderId, folderName, res.already_synced ? "VIDEO_EXISTENTE" : "VIDEO_OK", "ID: " + res.class_id + " | Video: " + (res.video_url || videoUrl));
           }
         } else {
           errores++;
@@ -181,17 +185,17 @@ function procesarTranscripcionesEIA() {
         questionCount: QUESTION_COUNT,
       }, config.cronSecret);
 
-      if (resultado.ok && resultado.draft_id) {
+      if (resultado.ok && resultado.draft_id && !resultado.already_processed) {
         procesadas++;
-        console.log("   ✓ ÉXITO: Borrador creado (ID: " + resultado.draft_id + ") para clase: '" + resultado.class_title + "' (" + (resultado.question_count || QUESTION_COUNT) + " preguntas)");
+        console.log("   ✓ ÉXITO: Nuevo borrador creado (ID: " + resultado.draft_id + ") para clase: '" + resultado.class_title + "' (" + (resultado.question_count || QUESTION_COUNT) + " preguntas)");
         if (config.logSheet) {
           registrarEnLog(config.logSheet, fileId, fileName, folderId, folderName, "IA_OK", "draft_id=" + resultado.draft_id + " | " + resultado.class_title);
         }
       } else if (resultado.already_processed) {
         omitidas++;
-        console.log("   ℹ Aviso: " + (resultado.error || "Ya existe un borrador para esta clase"));
+        console.log("   ℹ Preguntas ya existen para: '" + (resultado.class_title || folderName) + "' (" + (resultado.message || "Borrador existente") + "). Omitiendo IA para no gastar cuota.");
         if (config.logSheet) {
-          registrarEnLog(config.logSheet, fileId, fileName, folderId, folderName, "DUPLICADO", resultado.error || "Borrador existente");
+          registrarEnLog(config.logSheet, fileId, fileName, folderId, folderName, "DUPLICADO", resultado.message || "Borrador existente");
         }
       } else {
         errores++;
