@@ -146,7 +146,7 @@ export default function Dashboard() {
               </Link>
             ) : (
               <Link to={isCourse ? `/syllabus/${cleanProgramId}` : `/modules/${cleanProgramId}`} className="btn btn-gold" style={{ width: '100%', justifyContent: 'center' }}>
-                <BookOpen size={18} /> {isCourse ? 'Ver Subtemas' : 'Ver Temario'}
+                <BookOpen size={18} /> {isCourse ? 'Ver Sesiones' : 'Ver Temario'}
               </Link>
             )}
           </div>

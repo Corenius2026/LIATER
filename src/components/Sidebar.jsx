@@ -202,7 +202,7 @@ export default function Sidebar() {
                     ) : (
                       <NavLink to={`/syllabus/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                         <ListTree size={18} />
-                        <span>Subtemas</span>
+                        <span>Sesiones</span>
                       </NavLink>
                     )}
                     <NavLink to={`/teachers/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
@@ -242,9 +242,9 @@ export default function Sidebar() {
                       </NavLink>
                     )}
 
-                    <NavLink to={`/dashboard/admin/${activeProgramId}?tab=subtemas`} className={({isActive}) => location.search.includes('subtemas') ? 'nav-item active' : 'nav-item'}>
+                    <NavLink to={`/dashboard/admin/${activeProgramId}?tab=sesiones`} className={({isActive}) => (location.search.includes('sesiones') || location.search.includes('subtemas')) ? 'nav-item active' : 'nav-item'}>
                       <ListTree size={18} />
-                      <span>Subtemas</span>
+                      <span>Sesiones</span>
                     </NavLink>
 
                     <NavLink to={`/dashboard/admin/${activeProgramId}?tab=clases`} className={({isActive}) => location.search.includes('clases') ? 'nav-item active' : 'nav-item'}>

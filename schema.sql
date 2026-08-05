@@ -54,22 +54,23 @@ CREATE TABLE IF NOT EXISTS public.modules (
   CONSTRAINT modules_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS public.subtopics (
+CREATE TABLE IF NOT EXISTS public.sessions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  module_id uuid NOT NULL,
+  module_id uuid,
   title character varying NOT NULL,
   description text,
   order_index integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   program_id uuid,
-  CONSTRAINT subtopics_pkey PRIMARY KEY (id),
-  CONSTRAINT subtopics_module_id_fkey FOREIGN KEY (module_id) REFERENCES public.modules(id) ON DELETE CASCADE,
-  CONSTRAINT subtopics_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
+  CONSTRAINT sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT sessions_module_id_fkey FOREIGN KEY (module_id) REFERENCES public.modules(id) ON DELETE CASCADE,
+  CONSTRAINT sessions_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS public.class_sessions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  subtopic_id uuid NOT NULL,
+  session_id uuid,
+  subtopic_id uuid,
   teacher_id uuid,
   title character varying NOT NULL,
   description text,
@@ -83,7 +84,7 @@ CREATE TABLE IF NOT EXISTS public.class_sessions (
   CONSTRAINT class_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT class_sessions_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE,
   CONSTRAINT class_sessions_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(id) ON DELETE SET NULL,
-  CONSTRAINT class_sessions_subtopic_id_fkey FOREIGN KEY (subtopic_id) REFERENCES public.subtopics(id) ON DELETE CASCADE
+  CONSTRAINT class_sessions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS public.resources (

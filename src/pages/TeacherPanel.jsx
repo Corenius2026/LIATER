@@ -314,7 +314,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
                   {statusInfo.label}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {selectedClass?.subtopics?.modules?.title || 'Sin módulo'} → {selectedClass?.subtopics?.title || 'Sin subtema'}
+                  {(selectedClass?.sessions?.modules?.title || selectedClass?.subtopics?.modules?.title || 'Sin módulo')} → {(selectedClass?.sessions?.title || selectedClass?.subtopics?.title || 'Sin sesión')}
                 </span>
               </div>
               <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.4rem', color: '#14213D' }}>{selectedClass?.title}</h2>
@@ -671,7 +671,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
 
 /* ─────────────────────────────────────────
    TAB: MIS CLASES — Vista jerárquica
-   Módulo → Subtema → Clase
+   Módulo → Sesión → Clase
 ───────────────────────────────────────── */
 function ClasesTab() {
   const { programId } = useTeacherContext();
@@ -680,30 +680,44 @@ function ClasesTab() {
   const [error, setError]               = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
   const [expandedModules, setExpandedModules]   = useState({});
-  const [expandedSubtopics, setExpandedSubtopics] = useState({});
+  const [expandedSessions, setExpandedSessions] = useState({});
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'upcoming' | 'completed'
 
   const fetchMyClasses = async () => {
     try {
       setLoading(true);
-      const { data, error: fetchError } = await supabase
+      let data = [];
+      const { data: sData, error: sErr } = await supabase
         .from('class_sessions')
-        .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
+        .select('*, sessions(id, title, module_id, modules(id, title, program_id)), meet_url')
         .eq('program_id', programId)
         .order('class_date', { ascending: true });
 
-      if (fetchError) throw fetchError;
-      setClasses(data || []);
+      if (sErr) {
+        const { data: oldData, error: oldErr } = await supabase
+          .from('class_sessions')
+          .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
+          .eq('program_id', programId)
+          .order('class_date', { ascending: true });
+        if (oldErr) throw oldErr;
+        data = oldData || [];
+      } else {
+        data = sData || [];
+      }
 
-      // Expandir todos los módulos por defecto
+      setClasses(data);
+
+      // Expandir todos los módulos y sesiones por defecto
       const mods = {};
       const subs = {};
       (data || []).forEach(c => {
-        if (c.subtopics?.module_id) mods[c.subtopics.module_id] = true;
-        if (c.subtopic_id) subs[c.subtopic_id] = true;
+        const parentMod = c.sessions?.module_id || c.subtopics?.module_id;
+        const parentSes = c.session_id || c.subtopic_id;
+        if (parentMod) mods[parentMod] = true;
+        if (parentSes) subs[parentSes] = true;
       });
       setExpandedModules(mods);
-      setExpandedSubtopics(subs);
+      setExpandedSessions(subs);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -714,7 +728,7 @@ function ClasesTab() {
   useEffect(() => { if (programId) fetchMyClasses(); }, [programId]);
 
   const toggleModule   = id => setExpandedModules(p => ({ ...p, [id]: !p[id] }));
-  const toggleSubtopic = id => setExpandedSubtopics(p => ({ ...p, [id]: !p[id] }));
+  const toggleSession  = id => setExpandedSessions(p => ({ ...p, [id]: !p[id] }));
 
   if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando clases del programa...</div>;
   if (error)   return <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>Error: {error}</div>;
@@ -728,17 +742,18 @@ function ClasesTab() {
     return true;
   });
 
-  // Agrupar: Módulo → Subtema → Clase
+  // Agrupar: Módulo → Sesión → Clase
   const grouped = {};
   filteredClasses.forEach(cls => {
-    const modId    = cls.subtopics?.modules?.id    || 'sin-modulo';
-    const modTitle = cls.subtopics?.modules?.title || 'Sin Módulo';
-    const subId    = cls.subtopic_id               || 'sin-subtema';
-    const subTitle = cls.subtopics?.title          || 'Sin Subtema';
+    const sesObj = cls.sessions || cls.subtopics;
+    const modId    = sesObj?.modules?.id    || 'sin-modulo';
+    const modTitle = sesObj?.modules?.title || 'Sin Módulo';
+    const sesId    = cls.session_id || cls.subtopic_id || 'sin-sesion';
+    const sesTitle = sesObj?.title          || 'Sin Sesión';
 
-    if (!grouped[modId]) grouped[modId] = { title: modTitle, subtopics: {} };
-    if (!grouped[modId].subtopics[subId]) grouped[modId].subtopics[subId] = { title: subTitle, classes: [] };
-    grouped[modId].subtopics[subId].classes.push(cls);
+    if (!grouped[modId]) grouped[modId] = { title: modTitle, sessions: {} };
+    if (!grouped[modId].sessions[sesId]) grouped[modId].sessions[sesId] = { title: sesTitle, classes: [] };
+    grouped[modId].sessions[sesId].classes.push(cls);
   });
 
   const totalCompleted = classes.filter(c => new Date(c.class_date) < now).length;
@@ -777,7 +792,7 @@ function ClasesTab() {
         </div>
       )}
 
-      {/* Árbol jerárquico: Módulo → Subtema → Clase */}
+      {/* Árbol jerárquico: Módulo → Sesión → Clase */}
       {Object.entries(grouped).map(([modId, mod], modIndex) => (
         <div key={modId} style={{ border: '1px solid #E5E5E5', borderRadius: '10px', overflow: 'hidden' }}>
           {/* ENCABEZADO DE MÓDULO */}
@@ -786,27 +801,27 @@ function ClasesTab() {
               <Layers size={16} color="#FCA311" />
               <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{mod.title}</span>
               <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
-                {Object.values(mod.subtopics).reduce((acc, s) => acc + s.classes.length, 0)} clases
+                {Object.values(mod.sessions).reduce((acc, s) => acc + s.classes.length, 0)} clases
               </span>
             </div>
             {expandedModules[modId] ? <ChevronUp size={16} color="#FCA311" /> : <ChevronDown size={16} color="#FCA311" />}
           </button>
 
-          {/* SUBTEMAS */}
-          {expandedModules[modId] && Object.entries(mod.subtopics).map(([subId, sub]) => (
-            <div key={subId} style={{ borderTop: '1px solid #E5E5E5' }}>
-              {/* Encabezado Subtema */}
-              <button onClick={() => toggleSubtopic(subId)} style={{ width: '100%', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid #E5E5E5' }}>
+          {/* SESIONES */}
+          {expandedModules[modId] && Object.entries(mod.sessions).map(([sesId, ses]) => (
+            <div key={sesId} style={{ borderTop: '1px solid #E5E5E5' }}>
+              {/* Encabezado Sesión */}
+              <button onClick={() => toggleSession(sesId)} style={{ width: '100%', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid #E5E5E5' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <BookOpen size={14} color="#FCA311" />
-                  <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{sub.title}</span>
-                  <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{sub.classes.length} clase{sub.classes.length !== 1 ? 's' : ''}</span>
+                  <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{ses.title}</span>
+                  <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{ses.classes.length} clase{ses.classes.length !== 1 ? 's' : ''}</span>
                 </div>
-                {expandedSubtopics[subId] ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
+                {expandedSessions[sesId] ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
               </button>
 
               {/* CLASES */}
-              {expandedSubtopics[subId] && sub.classes.map(cls => {
+              {expandedSessions[sesId] && ses.classes.map(cls => {
                 const isCompleted = new Date(cls.class_date) < now;
                 const hasVideo    = !!cls.video_url;
                 const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();

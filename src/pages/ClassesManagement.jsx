@@ -39,7 +39,7 @@ export default function ClassesManagement() {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
               <th style={{ padding: '12px' }}>Título de la Clase</th>
-              <th style={{ padding: '12px' }}>Módulo / Subtema</th>
+              <th style={{ padding: '12px' }}>Módulo / Sesión</th>
               {isAdmin && <th style={{ padding: '12px' }}>Profesor Asignado</th>}
               <th style={{ padding: '12px' }}>Fecha</th>
               <th style={{ padding: '12px' }}>Grabación</th>

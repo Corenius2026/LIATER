@@ -444,7 +444,7 @@ function TeacherPortal({ getDiplomadoLink }) {
 
         let classQuery = supabase
           .from('class_sessions')
-          .select('*, diploma_programs(id, title, program_type, description), subtopics(modules(diploma_programs(id, title, program_type, description)))')
+          .select('*, diploma_programs(id, title, program_type, description), sessions(modules(diploma_programs(id, title, program_type, description))), subtopics(modules(diploma_programs(id, title, program_type, description)))')
           .order('class_date', { ascending: true });
 
         const orConditions = [];
@@ -455,7 +455,22 @@ function TeacherPortal({ getDiplomadoLink }) {
           classQuery = classQuery.or(orConditions.join(','));
         }
 
-        const { data: classData } = await classQuery;
+        let { data: classData, error: classErr } = await classQuery;
+        
+        if (classErr) {
+          // Fallback en caso de incompatibilidad con join de sessions/subtopics
+          const fallbackQuery = supabase
+            .from('class_sessions')
+            .select('*, diploma_programs(id, title, program_type, description)')
+            .order('class_date', { ascending: true });
+          if (orConditions.length > 0) {
+            const { data: fbData } = await fallbackQuery.or(orConditions.join(','));
+            classData = fbData;
+          } else {
+            const { data: fbData } = await fallbackQuery;
+            classData = fbData;
+          }
+        }
         
         if (classData) {
           const seen = new Set();
@@ -538,9 +553,9 @@ function TeacherPortal({ getDiplomadoLink }) {
     nextClassDay = d.getDate();
     nextClassMonth = d.toLocaleString('es-ES', { month: 'short' });
     nextClassTimeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-    nextClassProgTitle = nextClass.diploma_programs?.title || nextClass.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
-    nextClassModuleName = nextClass.subtopics?.modules?.title || nextClass.module_name || '';
-    nextClassProgId = nextClass.diploma_programs?.id || nextClass.subtopics?.modules?.diploma_programs?.id || nextClass.program_id;
+    nextClassProgTitle = nextClass.diploma_programs?.title || nextClass.sessions?.modules?.diploma_programs?.title || nextClass.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
+    nextClassModuleName = nextClass.sessions?.modules?.title || nextClass.subtopics?.modules?.title || nextClass.module_name || '';
+    nextClassProgId = nextClass.diploma_programs?.id || nextClass.sessions?.modules?.diploma_programs?.id || nextClass.subtopics?.modules?.diploma_programs?.id || nextClass.program_id;
   }
 
   // Filtrado para la vista "Mis Programas"
@@ -608,6 +623,7 @@ function TeacherPortal({ getDiplomadoLink }) {
               // Métricas reales para este programa
               const progClasses = classes.filter(c => 
                 (c.diploma_programs?.id === program.id) || 
+                (c.sessions?.modules?.diploma_programs?.id === program.id) || 
                 (c.subtopics?.modules?.diploma_programs?.id === program.id) || 
                 (c.program_id === program.id)
               );
@@ -780,8 +796,8 @@ function TeacherPortal({ getDiplomadoLink }) {
               const day = d.getDate();
               const month = d.toLocaleString('es-ES', { month: 'short' });
               const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-              const progTitle = cls.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
-              const progId = cls.diploma_programs?.id || cls.subtopics?.modules?.diploma_programs?.id || cls.program_id;
+              const progTitle = cls.diploma_programs?.title || cls.sessions?.modules?.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
+              const progId = cls.diploma_programs?.id || cls.sessions?.modules?.diploma_programs?.id || cls.subtopics?.modules?.diploma_programs?.id || cls.program_id;
 
               return (
                 <div key={cls.id} className="card" style={{ display: 'flex', alignItems: 'center', padding: '1.25rem 1.5rem', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', gap: '1.25rem', flexWrap: 'wrap' }}>
@@ -1517,7 +1533,9 @@ function AdminPortal({ getDiplomadoLink }) {
       // 3. Eliminar clases del programa
       await supabase.from('class_sessions').delete().eq('program_id', program.id);
 
-      // 4. Eliminar módulos del programa (cascada a subtemas y clases)
+      // 4. Eliminar sesiones y módulos del programa (cascada a sesiones y clases)
+      await supabase.from('sessions').delete().eq('program_id', program.id);
+      await supabase.from('subtopics').delete().eq('program_id', program.id);
       await supabase.from('modules').delete().eq('program_id', program.id);
       await supabase.from('modules').delete().eq('diploma_id', program.id);
 

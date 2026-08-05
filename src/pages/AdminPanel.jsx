@@ -454,7 +454,7 @@ function ResumenTab({ counts, upcomingClasses, isCourse }) {
     { label: 'Alumnos Inscritos', value: counts.usuarios,  color: 'var(--navy)', bg: 'rgba(20, 33, 61, 0.08)', icon: <Users size={22} color="var(--navy)" /> },
     { label: 'Profesores',       value: counts.profesores, color: 'var(--gold-dark)', bg: 'var(--gold-subtle)', icon: <GraduationCap size={22} color="var(--gold-dark)" /> },
     { label: 'Módulos',          value: counts.modulos,    color: 'var(--green-700)', bg: '#f0fdf4', icon: <BookOpen size={22} color="var(--green-700)" /> },
-    { label: 'Subtemas',         value: counts.subtemas,   color: 'var(--navy)', bg: 'rgba(20, 33, 61, 0.08)', icon: <ListTree size={22} color="var(--navy)" /> },
+    { label: 'Sesiones',         value: counts.sesiones ?? counts.subtemas, color: 'var(--navy)', bg: 'rgba(20, 33, 61, 0.08)', icon: <ListTree size={22} color="var(--navy)" /> },
     { label: 'Clases',           value: counts.clases,     color: 'var(--gold-dark)', bg: 'var(--gold-subtle)', icon: <Video size={22} color="var(--gold-dark)" /> },
     { label: 'Recursos',         value: counts.recursos,   color: 'var(--green-700)', bg: '#f0fdf4', icon: <FileText size={22} color="var(--green-700)" /> },
   ];
@@ -813,18 +813,29 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
       isOpen: true,
       title: `Eliminar ${count} ${count === 1 ? 'Módulo' : 'Módulos'}`,
       message: `¿Estás seguro de que deseas eliminar los ${count} módulos seleccionados?`,
-      note: 'Los módulos que tengan subtemas asociados no podrán ser eliminados hasta remover sus contenidos.',
+      note: 'Los módulos que tengan sesiones asociadas no podrán ser eliminados hasta remover sus contenidos.',
       confirmText: `Eliminar (${count})`,
       loading: false,
       onConfirm: async () => {
         setModalConfig(prev => ({ ...prev, loading: true }));
         try {
-          const { data: subtopicData } = await supabase
-            .from('subtopics')
+          let sessionData = [];
+          const { data: sData, error: sErr } = await supabase
+            .from('sessions')
             .select('module_id')
             .in('module_id', selectedIds);
+          
+          if (sErr) {
+            const { data: oldData } = await supabase
+              .from('subtopics')
+              .select('module_id')
+              .in('module_id', selectedIds);
+            sessionData = oldData || [];
+          } else {
+            sessionData = sData || [];
+          }
 
-          const blockedModuleIds = new Set((subtopicData || []).map(s => s.module_id));
+          const blockedModuleIds = new Set((sessionData || []).map(s => s.module_id));
           const deletableIds = selectedIds.filter(id => !blockedModuleIds.has(id));
 
           if (deletableIds.length === 0) {
@@ -833,7 +844,7 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
               setModalConfig({
                 isOpen: true,
                 title: 'No se puede eliminar',
-                message: 'Ninguno de los módulos seleccionados se puede eliminar porque todos tienen subtemas asociados.',
+                message: 'Ninguno de los módulos seleccionados se puede eliminar porque todos tienen sesiones asociadas.',
                 confirmText: 'Entendido',
                 onConfirm: closeModal
               });
@@ -870,12 +881,21 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
       onConfirm: async () => {
         setModalConfig(prev => ({ ...prev, loading: true }));
         try {
-          const { count, error: countError } = await supabase
-            .from('subtopics')
+          let count = 0;
+          const { count: sCount, error: sErr } = await supabase
+            .from('sessions')
             .select('*', { count: 'exact', head: true })
             .eq('module_id', m.id);
 
-          if (countError) throw countError;
+          if (sErr) {
+            const { count: oldCount } = await supabase
+              .from('subtopics')
+              .select('*', { count: 'exact', head: true })
+              .eq('module_id', m.id);
+            count = oldCount || 0;
+          } else {
+            count = sCount || 0;
+          }
 
           if (count && count > 0) {
             closeModal();
@@ -883,8 +903,8 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
               setModalConfig({
                 isOpen: true,
                 title: 'Operación Denegada',
-                message: `No se puede eliminar el módulo "${m.title}" porque tiene ${count} subtema(s) asociado(s).`,
-                note: 'Para eliminarlo de forma segura, primero debes eliminar o reasignar sus subtemas.',
+                message: `No se puede eliminar el módulo "${m.title}" porque tiene ${count} sesión(es) asociada(s).`,
+                note: 'Para eliminarlo de forma segura, primero debes eliminar o reasignar sus sesiones.',
                 confirmText: 'Entendido',
                 onConfirm: closeModal
               });
@@ -1080,12 +1100,12 @@ function ModulosTab({ modules, loading, onRefresh, programId }) {
   );
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 5 — Subtemas (Supabase)
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse }) {
+/* ————————————————————————————————————
+   TAB 5 — Sesiones (Supabase)
+———————————————————————————————————— */
+function SesionesTab({ sessions = [], loading, onRefresh, modulesProp = [], isCourse, programId }) {
   const [showModal, setShowModal] = useState(false);
-  const [editSubtopicId, setEditSubtopicId] = useState(null);
+  const [editSessionId, setEditSessionId] = useState(null);
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -1111,13 +1131,13 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
 
   useEffect(() => {
     setSelectedIds([]);
-  }, [subtopics]);
+  }, [sessions]);
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === subtopics.length) {
+    if (selectedIds.length === sessions.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(subtopics.map(st => st.id));
+      setSelectedIds(sessions.map(s => s.id));
     }
   };
 
@@ -1132,20 +1152,31 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
     const count = selectedIds.length;
     setModalConfig({
       isOpen: true,
-      title: `Eliminar ${count} ${count === 1 ? 'Subtema' : 'Subtemas'}`,
-      message: `¿Estás seguro de que deseas eliminar los ${count} subtemas seleccionados?`,
-      note: 'Los subtemas que tengan clases asociadas no podrán ser eliminados hasta remover sus contenidos.',
+      title: `Eliminar ${count} ${count === 1 ? 'Sesión' : 'Sesiones'}`,
+      message: `¿Estás seguro de que deseas eliminar las ${count} sesiones seleccionadas?`,
+      note: 'Las sesiones que tengan clases asociadas no podrán ser eliminadas hasta remover sus contenidos.',
       confirmText: `Eliminar (${count})`,
       loading: false,
       onConfirm: async () => {
         setModalConfig(prev => ({ ...prev, loading: true }));
         try {
-          const { data: classData } = await supabase
+          let classData = [];
+          const { data: cData, error: cErr } = await supabase
             .from('class_sessions')
-            .select('subtopic_id')
-            .in('subtopic_id', selectedIds);
+            .select('session_id, subtopic_id')
+            .or(`session_id.in.(${selectedIds.join(',')}),subtopic_id.in.(${selectedIds.join(',')})`);
 
-          const blockedIds = new Set((classData || []).map(c => c.subtopic_id));
+          if (!cErr) {
+            classData = cData || [];
+          } else {
+            const { data: fallbackClasses } = await supabase
+              .from('class_sessions')
+              .select('subtopic_id')
+              .in('subtopic_id', selectedIds);
+            classData = fallbackClasses || [];
+          }
+
+          const blockedIds = new Set(classData.map(c => c.session_id || c.subtopic_id));
           const deletableIds = selectedIds.filter(id => !blockedIds.has(id));
 
           if (deletableIds.length === 0) {
@@ -1154,7 +1185,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
               setModalConfig({
                 isOpen: true,
                 title: 'No se puede eliminar',
-                message: 'Ninguno de los subtemas seleccionados se puede eliminar porque todos tienen clases asociadas.',
+                message: 'Ninguna de las sesiones seleccionadas se puede eliminar porque todas tienen clases asociadas.',
                 confirmText: 'Entendido',
                 onConfirm: closeModal
               });
@@ -1162,10 +1193,12 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
             return;
           }
 
-          const { error: delErr } = await supabase
-            .from('subtopics')
-            .delete()
-            .in('id', deletableIds);
+          let delErr;
+          const { error: err1 } = await supabase.from('sessions').delete().in('id', deletableIds);
+          if (err1) {
+            const { error: err2 } = await supabase.from('subtopics').delete().in('id', deletableIds);
+            delErr = err2;
+          }
 
           if (delErr) throw delErr;
 
@@ -1174,7 +1207,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
           if (onRefresh) onRefresh();
         } catch (err) {
           closeModal();
-          console.error('Error en eliminación múltiple de subtemas:', err);
+          console.error('Error en eliminación múltiple de sesiones:', err);
         }
       }
     });
@@ -1183,20 +1216,29 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
   const promptSingleDelete = (st) => {
     setModalConfig({
       isOpen: true,
-      title: 'Eliminar Subtema',
-      message: `¿Estás seguro de que deseas eliminar permanentemente el subtema "${st.title}"?`,
+      title: 'Eliminar Sesión',
+      message: `¿Estás seguro de que deseas eliminar permanentemente la sesión "${st.title}"?`,
       note: 'Esta acción no se podrá deshacer y eliminará sus contenidos asociados.',
-      confirmText: 'Eliminar Subtema',
+      confirmText: 'Eliminar Sesión',
       loading: false,
       onConfirm: async () => {
         setModalConfig(prev => ({ ...prev, loading: true }));
         try {
-          const { count, error: countError } = await supabase
+          let count = 0;
+          const { count: cCount, error: cErr } = await supabase
             .from('class_sessions')
             .select('*', { count: 'exact', head: true })
-            .eq('subtopic_id', st.id);
+            .or(`session_id.eq.${st.id},subtopic_id.eq.${st.id}`);
 
-          if (countError) throw countError;
+          if (!cErr) {
+            count = cCount || 0;
+          } else {
+            const { count: oldCount } = await supabase
+              .from('class_sessions')
+              .select('*', { count: 'exact', head: true })
+              .eq('subtopic_id', st.id);
+            count = oldCount || 0;
+          }
 
           if (count && count > 0) {
             closeModal();
@@ -1204,8 +1246,8 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
               setModalConfig({
                 isOpen: true,
                 title: 'Operación Denegada',
-                message: `No se puede eliminar el subtema "${st.title}" porque tiene ${count} clase(s) asociada(s).`,
-                note: 'Para eliminarlo de forma segura, primero debes eliminar o reasignar sus clases.',
+                message: `No se puede eliminar la sesión "${st.title}" porque tiene ${count} clase(s) asociada(s).`,
+                note: 'Para eliminarla de forma segura, primero debes eliminar o reasignar sus clases.',
                 confirmText: 'Entendido',
                 onConfirm: closeModal
               });
@@ -1213,52 +1255,54 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
             return;
           }
 
-          const { error: deleteError } = await supabase
-            .from('subtopics')
-            .delete()
-            .eq('id', st.id);
+          let delError;
+          const { error: err1 } = await supabase.from('sessions').delete().eq('id', st.id);
+          if (err1) {
+            const { error: err2 } = await supabase.from('subtopics').delete().eq('id', st.id);
+            delError = err2;
+          }
 
-          if (deleteError) throw deleteError;
+          if (delError) throw delError;
 
           closeModal();
           if (onRefresh) onRefresh();
         } catch (err) {
           closeModal();
-          console.error('Error al eliminar subtema:', err);
+          console.error('Error al eliminar sesión:', err);
         }
       }
     });
   };
 
   const openCreateModal = () => {
-    setEditSubtopicId(null);
+    setEditSessionId(null);
     setTitle(''); setDescription(''); setOrderIndex(1);
     setShowModal(true);
     setError(''); setSuccess('');
   };
 
   const openEditModal = (st) => {
-    setEditSubtopicId(st.id);
+    setEditSessionId(st.id);
     setTitle(st.title);
     setDescription(st.description || '');
     setOrderIndex(st.order_index || 1);
-    setModuleId(st.module_id);
+    setModuleId(st.module_id || '');
     setShowModal(true);
     setError(''); setSuccess('');
   };
 
   useEffect(() => {
-    if (showModal && modulesProp.length > 0 && !editSubtopicId) {
+    if (showModal && modulesProp.length > 0 && !editSessionId && !moduleId) {
       setModuleId(modulesProp[0].id);
     }
-  }, [showModal, modulesProp, editSubtopicId]);
+  }, [showModal, modulesProp, editSessionId, moduleId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
     
-    if (!title || !moduleId) {
-      setError('El título y el módulo asociado son obligatorios.');
+    if (!title || (!isCourse && !moduleId)) {
+      setError(isCourse ? 'El título de la sesión es obligatorio.' : 'El título y el módulo asociado son obligatorios.');
       return;
     }
     
@@ -1270,21 +1314,28 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
         title,
         description,
         order_index: parsedOrder,
-        module_id: moduleId,
+        module_id: isCourse ? null : moduleId,
         program_id: programId
       };
 
-      let query;
-      if (editSubtopicId) {
-        query = supabase.from('subtopics').update(payload).eq('id', editSubtopicId);
+      let opError;
+      if (editSessionId) {
+        const { error: err1 } = await supabase.from('sessions').update(payload).eq('id', editSessionId);
+        if (err1) {
+          const { error: err2 } = await supabase.from('subtopics').update(payload).eq('id', editSessionId);
+          opError = err2;
+        }
       } else {
-        query = supabase.from('subtopics').insert([payload]);
+        const { error: err1 } = await supabase.from('sessions').insert([payload]);
+        if (err1) {
+          const { error: err2 } = await supabase.from('subtopics').insert([payload]);
+          opError = err2;
+        }
       }
       
-      const { error: opError } = await query;
       if (opError) throw opError;
       
-      setSuccess(editSubtopicId ? 'Subtema actualizado con éxito.' : 'Subtema creado con éxito.');
+      setSuccess(editSessionId ? 'Sesión actualizada con éxito.' : 'Sesión creada con éxito.');
       setTitle(''); setDescription('');
       if (onRefresh) onRefresh();
       
@@ -1293,7 +1344,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
         setSuccess('');
       }, 1500);
     } catch (err) {
-      setError('Error al guardar subtema: ' + err.message);
+      setError('Error al guardar sesión: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -1313,7 +1364,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
       />
 
       <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <span className="section-title">Subtemas registrados ({subtopics.length})</span>
+        <span className="section-title">Sesiones registradas ({sessions.length})</span>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           {selectedIds.length > 0 && (
             <button
@@ -1321,11 +1372,11 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
               className="btn"
               style={{ background: '#dc2626', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 0.95rem', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer' }}
             >
-              <Trash2 size={15} /> Eliminar seleccionados ({selectedIds.length})
+              <Trash2 size={15} /> Eliminar seleccionadas ({selectedIds.length})
             </button>
           )}
           <button onClick={openCreateModal} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
-            <Plus size={16} /> Crear Subtema
+            <Plus size={16} /> Crear Sesión
           </button>
         </div>
       </div>
@@ -1336,13 +1387,13 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
             <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editSubtopicId ? 'Editar Subtema' : 'Crear Nuevo Subtema'}</h3>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{editSessionId ? 'Editar Sesión' : 'Crear Nueva Sesión'}</h3>
             {error && <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
             {success && <div style={{ color: 'green', marginBottom: '1rem', fontSize: '0.85rem' }}>{success}</div>}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título del Subtema</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Introducción a HTML" required />
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Título de la Sesión</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} placeholder="Ej: Sesión 1 - Introducción y Fundamentos" required />
               </div>
               {!isCourse && (
                 <div>
@@ -1360,10 +1411,10 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Descripción (opcional)</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '80px', fontFamily: 'inherit' }} placeholder="Descripción corta del subtema..." />
+                <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '80px', fontFamily: 'inherit' }} placeholder="Descripción corta de la sesión..." />
               </div>
               <button type="submit" disabled={submitting} className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
-                {submitting ? 'Guardando...' : 'Guardar Subtema'}
+                {submitting ? 'Guardando...' : 'Guardar Sesión'}
               </button>
             </form>
           </div>
@@ -1376,7 +1427,7 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
               <th style={{ width: '38px', textAlign: 'center' }}>
                 <input
                   type="checkbox"
-                  checked={subtopics.length > 0 && selectedIds.length === subtopics.length}
+                  checked={sessions.length > 0 && selectedIds.length === sessions.length}
                   onChange={toggleSelectAll}
                   style={{ cursor: 'pointer' }}
                 />
@@ -1386,8 +1437,8 @@ function SubtemasTab({ subtopics, loading, onRefresh, modulesProp = [], isCourse
           </thead>
           <tbody>
             {loading ? <LoadingRow cols={5} /> :
-             subtopics.length === 0 ? <EmptyRow cols={5} message="No hay subtemas registrados." /> :
-             subtopics.map((st, i) => (
+             sessions.length === 0 ? <EmptyRow cols={5} message="No hay sesiones registradas." /> :
+             sessions.map((st, i) => (
               <tr key={st.id} style={{ background: selectedIds.includes(st.id) ? '#fffbe6' : undefined }}>
                 <td style={{ textAlign: 'center' }}>
                   <input
@@ -1420,7 +1471,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [subtopicId, setSubtopicId] = useState('');
+  const [sessionId, setSessionId] = useState('');
   const [teacherId, setTeacherId] = useState('');
   const [classDate, setClassDate] = useState('');
   const [duration, setDuration] = useState('');
@@ -1429,7 +1480,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const [driveFolderId, setDriveFolderId] = useState('');
   const [orderIndex, setOrderIndex] = useState(1);
   
-  const [subtopicsList, setSubtopicsList] = useState([]);
+  const [sessionsList, setSessionsList] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1473,16 +1524,12 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
       isOpen: true,
       title: `Eliminar ${count} ${count === 1 ? 'Clase' : 'Clases'}`,
       message: `¿Estás seguro de que deseas eliminar las ${count} clases seleccionadas?`,
-      note: 'Esta acción eliminará también los recursos adjuntos a estas clases.',
+      note: 'Esta acción no se puede deshacer y eliminará los recursos y actividades vinculadas.',
       confirmText: `Eliminar (${count})`,
       loading: false,
       onConfirm: async () => {
         setModalConfig(prev => ({ ...prev, loading: true }));
         try {
-          try {
-            await supabase.from('resources').delete().in('class_id', selectedIds);
-          } catch {}
-
           const { error: delErr } = await supabase
             .from('class_sessions')
             .delete()
@@ -1506,40 +1553,18 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
       isOpen: true,
       title: 'Eliminar Clase',
       message: `¿Estás seguro de que deseas eliminar permanentemente la clase "${c.title}"?`,
-      note: 'Si esta clase posee recursos adjuntos, se deben remover antes de eliminar la sesión.',
+      note: 'Esta acción no se podrá deshacer y eliminará sus recursos vinculados.',
       confirmText: 'Eliminar Clase',
       loading: false,
       onConfirm: async () => {
         setModalConfig(prev => ({ ...prev, loading: true }));
         try {
-          const { count, error: countError } = await supabase
-            .from('resources')
-            .select('*', { count: 'exact', head: true })
-            .eq('class_id', c.id);
-
-          if (countError) throw countError;
-
-          if (count && count > 0) {
-            closeModal();
-            setTimeout(() => {
-              setModalConfig({
-                isOpen: true,
-                title: 'Operación Denegada',
-                message: `Esta clase "${c.title}" tiene ${count} recurso(s) asociado(s).`,
-                note: 'Para eliminarla, primero debes eliminar o desvincular sus recursos.',
-                confirmText: 'Entendido',
-                onConfirm: closeModal
-              });
-            }, 100);
-            return;
-          }
-
-          const { error: deleteError } = await supabase
+          const { error: delErr } = await supabase
             .from('class_sessions')
             .delete()
             .eq('id', c.id);
 
-          if (deleteError) throw deleteError;
+          if (delErr) throw delErr;
 
           closeModal();
           if (onRefresh) onRefresh();
@@ -1554,8 +1579,10 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
   const openCreateModal = () => {
     setEditClassId(null);
     setActiveModalTab('general');
-    setTitle(''); setDescription(''); setClassDate(''); setDuration(''); setVideoUrl(''); setPresentationUrl(''); setDriveFolderId(''); setOrderIndex(1);
-    if (subtopicsList.length > 0) setSubtopicId(subtopicsList[0].id);
+    setTitle(''); setDescription(''); setDuration(''); setVideoUrl(''); setPresentationUrl(''); setDriveFolderId('');
+    setClassDate(toLocalDatetimeString(new Date().toISOString()));
+    setOrderIndex(1);
+    if (sessionsList && sessionsList.length > 0) setSessionId(sessionsList[0].id);
     if (teachers && teachers.length > 0) setTeacherId(teachers[0].id);
     setShowModal(true);
     setError(''); setSuccess('');
@@ -1566,7 +1593,7 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
     setActiveModalTab('general');
     setTitle(c.title);
     setDescription(c.description || '');
-    setSubtopicId(c.subtopic_id);
+    setSessionId(c.session_id || c.subtopic_id || '');
     const matchedT = teachers.find(t => t.id === c.teacher_id || t.user_id === c.teacher_id);
     setTeacherId(matchedT ? matchedT.id : (c.teacher_id || (teachers[0]?.id || '')));
     setClassDate(toLocalDatetimeString(c.class_date));
@@ -1581,24 +1608,34 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
 
   useEffect(() => {
     if (showModal) {
-      let query = supabase.from('subtopics').select('id, title').order('order_index', { ascending: true });
-      if (programId) query = query.eq('program_id', programId);
-      
-      query.then(({ data }) => {
-        const list = data || [];
-        setSubtopicsList(list);
-        if (list.length > 0 && !editClassId && !subtopicId) setSubtopicId(list[0].id);
+      const fetchSessions = async () => {
+        let list = [];
+        let query = supabase.from('sessions').select('id, title').order('order_index', { ascending: true });
+        if (programId) query = query.eq('program_id', programId);
+        const { data, error } = await query;
+        if (error) {
+          let oldQuery = supabase.from('subtopics').select('id, title').order('order_index', { ascending: true });
+          if (programId) oldQuery = oldQuery.eq('program_id', programId);
+          const { data: oldData } = await oldQuery;
+          list = oldData || [];
+        } else {
+          list = data || [];
+        }
+
+        setSessionsList(list);
+        if (list.length > 0 && !editClassId && !sessionId) setSessionId(list[0].id);
         if (teachers && teachers.length > 0 && !editClassId && !teacherId) setTeacherId(teachers[0].id);
-      });
+      };
+      fetchSessions();
     }
-  }, [showModal, programId, editClassId, teachers, subtopicId, teacherId]);
+  }, [showModal, programId, editClassId, teachers, sessionId, teacherId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
     
-    if (!title || !subtopicId || !teacherId) {
-      setError('El título, subtema y profesor son obligatorios.');
+    if (!title || !sessionId || !teacherId) {
+      setError('El título, sesión y profesor son obligatorios.');
       return;
     }
     
@@ -1607,7 +1644,8 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
       const payload = {
         title,
         description,
-        subtopic_id: subtopicId,
+        session_id: sessionId,
+        subtopic_id: sessionId,
         teacher_id: teacherId,
         class_date: parseLocalDatetime(classDate),
         duration: duration ? parseInt(duration) : null,
@@ -1625,7 +1663,27 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
         query = supabase.from('class_sessions').insert([payload]);
       }
       
-      const { error: opError } = await query;
+      let { error: opError } = await query;
+      if (opError && (opError.message?.includes('session_id') || opError.message?.includes('column "session_id" does not exist'))) {
+        delete payload.session_id;
+        if (editClassId) {
+          const res = await supabase.from('class_sessions').update(payload).eq('id', editClassId);
+          opError = res.error;
+        } else {
+          const res = await supabase.from('class_sessions').insert([payload]);
+          opError = res.error;
+        }
+      } else if (opError && (opError.message?.includes('subtopic_id') || opError.message?.includes('column "subtopic_id" does not exist'))) {
+        delete payload.subtopic_id;
+        if (editClassId) {
+          const res = await supabase.from('class_sessions').update(payload).eq('id', editClassId);
+          opError = res.error;
+        } else {
+          const res = await supabase.from('class_sessions').insert([payload]);
+          opError = res.error;
+        }
+      }
+      
       if (opError) throw opError;
       
       setSuccess(editClassId ? 'Clase actualizada con éxito.' : 'Clase creada con éxito.');
@@ -1712,9 +1770,9 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
                   <textarea value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }} placeholder="Contenido breve de la clase..." />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Subtema Asociado</label>
-                  <select value={subtopicId} onChange={e => setSubtopicId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
-                    {subtopicsList.length === 0 ? <option value="">Cargando subtemas...</option> : subtopicsList.map(st => (
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Sesión Asociada</label>
+                  <select value={sessionId} onChange={e => setSessionId(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required>
+                    {sessionsList.length === 0 ? <option value="">Cargando sesiones...</option> : sessionsList.map(st => (
                       <option key={st.id} value={st.id}>{st.title}</option>
                     ))}
                   </select>
@@ -2367,13 +2425,11 @@ const TABS = [
   { id: 'alumnos',    label: 'Alumnos',    icon: <Users size={16} /> },
   { id: 'profesores',label: 'Profesores', icon: <GraduationCap size={16} /> },
   { id: 'modulos',   label: 'Módulos',    icon: <BookOpen size={16} /> },
-  { id: 'subtemas',  label: 'Subtemas',   icon: <ListTree size={16} /> },
+  { id: 'sesiones',  label: 'Sesiones',   icon: <ListTree size={16} /> },
   { id: 'clases',    label: 'Clases',     icon: <Video size={16} /> },
   { id: 'recursos',  label: 'Recursos',   icon: <FileText size={16} /> },
   { id: 'anuncios',  label: 'Anuncios',   icon: <Megaphone size={16} /> },
 ];
-
-
 
 export default function AdminPanel() {
   const { currentUser } = useAuth();
@@ -2382,14 +2438,16 @@ export default function AdminPanel() {
   const { programId } = useParams();
   
   const queryParams = new URLSearchParams(location.search);
-  const tabFromUrl = queryParams.get('tab');
+  const rawTab = queryParams.get('tab');
+  const tabFromUrl = rawTab === 'subtemas' ? 'sesiones' : rawTab;
   
   const [activeTab, setActiveTab] = useState(tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : 'resumen');
   const role = currentUser?.role;
 
   // Actualizar la pestaña activa si cambia la URL
   useEffect(() => {
-    const currentTab = queryParams.get('tab');
+    const currentRaw = queryParams.get('tab');
+    const currentTab = currentRaw === 'subtemas' ? 'sesiones' : currentRaw;
     if (currentTab && currentTab !== activeTab && TABS.some(t => t.id === currentTab)) {
       setActiveTab(currentTab);
     }
@@ -2404,9 +2462,9 @@ export default function AdminPanel() {
   // Estado centralizado de datos
   const [data, setData] = useState({
     program: null,
-    teachers: [], modules: [], subtopics: [], classes: [], resources: [],
+    teachers: [], modules: [], sessions: [], subtopics: [], classes: [], resources: [],
     upcomingClasses: [], enrolledStudents: [],
-    counts: { usuarios: 0, profesores: 0, modulos: 0, subtemas: 0, clases: 0, recursos: 0 }
+    counts: { usuarios: 0, profesores: 0, modulos: 0, sesiones: 0, subtemas: 0, clases: 0, recursos: 0 }
   });
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -2440,7 +2498,7 @@ export default function AdminPanel() {
         }
 
         // 2. Consultar colecciones asociadas con resiliencia individual
-        let teachersData = [], modulesData = [], subtopicsData = [], classesData = [], resourcesData = [], enrolledData = [];
+        let teachersData = [], modulesData = [], sessionsData = [], classesData = [], resourcesData = [], enrolledData = [];
 
         try {
           const { data } = await supabase.from('teacher_profiles').select('*');
@@ -2453,9 +2511,19 @@ export default function AdminPanel() {
         } catch {}
 
         try {
-          const { data } = await supabase.from('subtopics').select('*').eq('program_id', cleanId).order('order_index', { ascending: true });
-          subtopicsData = data || [];
-        } catch {}
+          const { data, error } = await supabase.from('sessions').select('*').eq('program_id', cleanId).order('order_index', { ascending: true });
+          if (error) {
+            const { data: oldData } = await supabase.from('subtopics').select('*').eq('program_id', cleanId).order('order_index', { ascending: true });
+            sessionsData = oldData || [];
+          } else {
+            sessionsData = data || [];
+          }
+        } catch {
+          try {
+            const { data: oldData } = await supabase.from('subtopics').select('*').eq('program_id', cleanId).order('order_index', { ascending: true });
+            sessionsData = oldData || [];
+          } catch {}
+        }
 
         try {
           const { data } = await supabase.from('class_sessions').select('*, teacher_profiles(name)').eq('program_id', cleanId).order('class_date', { ascending: true });
@@ -2479,7 +2547,8 @@ export default function AdminPanel() {
           program: programData,
           teachers: teachersData,
           modules: modulesData,
-          subtopics: subtopicsData,
+          sessions: sessionsData,
+          subtopics: sessionsData,
           classes: classesData,
           resources: resourcesData,
           upcomingClasses: upcoming,
@@ -2488,7 +2557,8 @@ export default function AdminPanel() {
             usuarios: enrolledData.length,
             profesores: teachersData.length,
             modulos: modulesData.length,
-            subtemas: subtopicsData.length,
+            sesiones: sessionsData.length,
+            subtemas: sessionsData.length,
             clases: classesData.length,
             recursos: resourcesData.length,
           }
@@ -2535,7 +2605,8 @@ export default function AdminPanel() {
       case 'alumnos':    return <AlumnosTab enrolledStudents={data.enrolledStudents} programId={programId} programTitle={data.program?.title} onRefresh={refreshData} />;
       case 'profesores': return <ProfesoresTab teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} programTitle={data.program?.title} />;
       case 'modulos':    return <ModulosTab modules={data.modules} loading={loading} onRefresh={refreshData} programId={programId} />;
-      case 'subtemas':   return <SubtemasTab subtopics={data.subtopics} loading={loading} onRefresh={refreshData} modulesProp={data.modules} isCourse={isCourse} />;
+      case 'sesiones':
+      case 'subtemas':   return <SesionesTab sessions={data.sessions || data.subtopics} loading={loading} onRefresh={refreshData} modulesProp={data.modules} isCourse={isCourse} programId={programId} />;
       case 'clases':     return <ClasesTab classes={data.classes} teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} />;
       case 'recursos':   return <RecursosTab resources={data.resources} loading={loading} onRefresh={refreshData} />;
       case 'anuncios':   return <AnunciosTab />;

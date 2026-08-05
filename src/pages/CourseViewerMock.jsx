@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   PlayCircle, 
   CheckCircle2, 
@@ -16,10 +16,10 @@ import { useNavigate } from 'react-router-dom';
 const MOCK_DATA = {
   courseTitle: "Sistemas Fotovoltaicos Avanzados",
   progress: 35,
-  subtopics: [
+  sessions: [
     {
       id: 1,
-      title: "Tema 1: Fundamentos de Energía Solar",
+      title: "Sesión 1: Fundamentos de Energía Solar",
       classes: [
         { id: 101, title: "Clase 1: Introducción a la Radiación Solar", duration: "1h 45m", date: "02 de Oct", type: "video", completed: true, isCurrent: false },
         { id: 102, title: "Clase 2: Tipos de Paneles Fotovoltaicos", duration: "2h 10m", date: "04 de Oct", type: "video", completed: true, isCurrent: false },
@@ -28,7 +28,7 @@ const MOCK_DATA = {
     },
     {
       id: 2,
-      title: "Tema 2: Diseño y Dimensionamiento",
+      title: "Sesión 2: Diseño y Dimensionamiento",
       classes: [
         { id: 201, title: "Clase 3: Cálculo de Consumo Energético", duration: "2h 05m", date: "09 de Oct", type: "video", completed: false, isCurrent: true },
         { id: 202, title: "Clase 4: Selección de Inversores", duration: "Próximamente", date: "11 de Oct", type: "video", completed: false, isCurrent: false, locked: true },
@@ -36,7 +36,7 @@ const MOCK_DATA = {
     },
     {
       id: 3,
-      title: "Tema 3: Instalación y Mantenimiento",
+      title: "Sesión 3: Instalación y Mantenimiento",
       classes: [
         { id: 301, title: "Clase 5: Normativas de Seguridad", duration: "Próximamente", date: "16 de Oct", type: "video", completed: false, isCurrent: false, locked: true },
       ]
@@ -54,14 +54,14 @@ const MOCK_DATA = {
 
 export default function CourseViewerMock() {
   const navigate = useNavigate();
-  const [expandedSubtopics, setExpandedSubtopics] = useState([2]); // El subtema 2 está expandido por defecto
+  const [expandedSessions, setExpandedSessions] = useState([2]); // La sesión 2 está expandida por defecto
   const [activeTab, setActiveTab] = useState('resumen');
 
-  const toggleSubtopic = (id) => {
-    if (expandedSubtopics.includes(id)) {
-      setExpandedSubtopics(expandedSubtopics.filter(subId => subId !== id));
+  const toggleSession = (id) => {
+    if (expandedSessions.includes(id)) {
+      setExpandedSessions(expandedSessions.filter(sessionId => sessionId !== id));
     } else {
-      setExpandedSubtopics([...expandedSubtopics, id]);
+      setExpandedSessions([...expandedSessions, id]);
     }
   };
 
@@ -226,28 +226,28 @@ export default function CourseViewerMock() {
           </div>
           
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {MOCK_DATA.subtopics.map(subtopic => (
-              <div key={subtopic.id} style={{ borderBottom: '1px solid #334155' }}>
+            {MOCK_DATA.sessions.map(session => (
+              <div key={session.id} style={{ borderBottom: '1px solid #334155' }}>
                 
                 {/* Accordion Header */}
                 <button 
-                  onClick={() => toggleSubtopic(subtopic.id)}
+                  onClick={() => toggleSession(session.id)}
                   style={{ 
                     width: '100%', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    background: expandedSubtopics.includes(subtopic.id) ? '#0f172a' : 'transparent', border: 'none', cursor: 'pointer',
+                    background: expandedSessions.includes(session.id) ? '#0f172a' : 'transparent', border: 'none', cursor: 'pointer',
                     color: '#f8fafc', textAlign: 'left', transition: 'background 0.2s'
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingRight: '1rem' }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{subtopic.title}</span>
+                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{session.title}</span>
                   </div>
-                  {expandedSubtopics.includes(subtopic.id) ? <ChevronUp size={20} color="#94a3b8" /> : <ChevronDown size={20} color="#94a3b8" />}
+                  {expandedSessions.includes(session.id) ? <ChevronUp size={20} color="#94a3b8" /> : <ChevronDown size={20} color="#94a3b8" />}
                 </button>
 
                 {/* Accordion Body (Classes) */}
-                {expandedSubtopics.includes(subtopic.id) && (
+                {expandedSessions.includes(session.id) && (
                   <div style={{ backgroundColor: '#1e293b' }}>
-                    {subtopic.classes.map((cls, idx) => (
+                    {session.classes.map((cls, idx) => (
                       <div 
                         key={cls.id}
                         style={{ 

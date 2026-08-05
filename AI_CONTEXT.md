@@ -58,7 +58,7 @@ El sistema implementa una navegación de dos niveles, definida en `App.jsx` y `S
    - La barra lateral (`Sidebar.jsx`) reacciona ocultando el menú global y mostrando únicamente el menú del programa. **Adaptación UI**: Si el `program_type` es `'curso'`, la pestaña de "Módulos" desaparece de la barra lateral, conectando al usuario más rápido a sus temas.
    - *Paneles Específicos*:
      - `Dashboard.jsx`: La página de inicio del programa, renderiza de forma condicional las estadísticas y próximos eventos basándose en el ID del programa actual.
-     - `AdminPanel.jsx` (`/dashboard/admin/:programId`): Un gran panel administrativo contextual con pestañas para "Resumen", "Alumnos" (sólo los que están en la tabla `enrollments` con este `diploma_id`), "Profesores", "Módulos", "Subtemas", "Clases".
+     - `AdminPanel.jsx` (`/dashboard/admin/:programId`): Un gran panel administrativo contextual con pestañas para "Resumen", "Alumnos" (sólo los que están en la tabla `enrollments` con este `diploma_id`), "Profesores", "Módulos", "Sesiones", "Clases".
      - `TeacherPanel.jsx` (`/dashboard/profesor/:programId`): Espacio donde los profesores pueden gestionar las clases que tienen asignadas *exclusivamente* en este programa.
 
 ## 5. Decisiones Arquitectónicas Recientes (Historial de Cambios)
@@ -68,9 +68,13 @@ El sistema implementa una navegación de dos niveles, definida en `App.jsx` y `S
 2. **Contexto Activo Inteligente**: 
    - Modificación de `Portal.jsx` para almacenar no sólo `activeProgramId` sino también `activeProgramType` ('curso' o 'diplomado') en `localStorage`. Esto permite a `Sidebar.jsx` adaptar su UI instantáneamente (por ejemplo, ocultar el botón de Módulos y renombrar "Inicio del Diplomado" a "Inicio del Curso") sin necesidad de consultas asíncronas lentas a la BD durante la carga de la ruta.
 3. **Filtro de Datos Dinámicos con Supabase Joins**: 
-   - Se migró toda la lógica de obtención de clases, anuncios y materiales en `AdminPanel` y `TeacherPanel` para usar joins relacionales estrictos (`subtopics!inner(modules!inner(diploma_id))`), asegurando que, incluso para entidades profundamente anidadas como una clase, únicamente se obtengan las que pertenezcan al programa del contexto (`programId`).
+   - Se migró toda la lógica de obtención de clases, anuncios y materiales en `AdminPanel` y `TeacherPanel` para usar joins relacionales estrictos (`sessions!inner(modules!inner(diploma_id))` con fallback a `subtopics`), asegurando que, incluso para entidades profundamente anidadas como una clase, únicamente se obtengan las que pertenezcan al programa del contexto (`programId`).
 4. **Cliente Secundario de Supabase para Creación de Usuarios**: 
    - Para que el Administrador pueda registrar nuevos usuarios mediante `supabase.auth.signUp()` sin que Supabase cierre la sesión actual del administrador y cause deslogueo, se utiliza una instancia secundaria `supabaseCreator` que tiene inhabilitado la persistencia de la sesión.
+5. **Reestructuración de Subtemas a Sesiones**:
+   - Para Diplomados: La jerarquía académica es `Módulos` → `Sesiones` → `Clases`.
+   - Para Cursos Cortos: La jerarquía es `Sesiones` → `Clases`.
+   - Se implementó la tabla `sessions` con compatibilidad y fallback hacia `subtopics` para no romper instancias previas ni vistas en transición.
 
 ## 6. Instrucciones y Reglas Futuras para IAs (Code Guidelines)
 - **Mantén la Consistencia Visual**: El diseño "premium" es una directiva estricta. Continúa utilizando variables de color modernas (tonos azul oscuro/indigo), sombras suaves (`box-shadow`), interfaces limpias con fondo blanco/gris claro (`#f8fafc`), y mantén márgenes amplios (`gap` generoso).

@@ -7,7 +7,7 @@ export default function ModuleDetail() {
   const { id } = useParams();
   
   const [moduleData, setModuleData] = useState(null);
-  const [subtopics, setSubtopics] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,36 +44,55 @@ export default function ModuleDetail() {
             window.dispatchEvent(new Event('programContextChanged'));
           }
 
-          // 2. Obtener los subtemas
-          const { data: subData, error: subError } = await supabase
-            .from('subtopics')
+          // 2. Obtener las sesiones
+          let sessionsData = [];
+          const { data: sData, error: sError } = await supabase
+            .from('sessions')
             .select('*')
             .eq('module_id', id)
             .order('order_index', { ascending: true });
           
-          if (subError) console.error('Error fetching subtopics:', subError);
+          if (sError) {
+            const { data: oldData } = await supabase
+              .from('subtopics')
+              .select('*')
+              .eq('module_id', id)
+              .order('order_index', { ascending: true });
+            sessionsData = oldData || [];
+          } else {
+            sessionsData = sData || [];
+          }
 
-          let subtopicsWithClasses = subData || [];
+          let sessionsWithClasses = sessionsData;
 
-          // 3. Obtener las clases si hay subtemas
-          if (subtopicsWithClasses.length > 0) {
-            const subtopicIds = subtopicsWithClasses.map(s => s.id);
+          // 3. Obtener las clases si hay sesiones
+          if (sessionsWithClasses.length > 0) {
+            const sessionIds = sessionsWithClasses.map(s => s.id);
             
-            const { data: classesData, error: classesError } = await supabase
+            let classesData = [];
+            const { data: cData, error: cError } = await supabase
               .from('class_sessions')
               .select('*, teacher_profiles(name)')
-              .in('subtopic_id', subtopicIds);
+              .or(`session_id.in.(${sessionIds.join(',')}),subtopic_id.in.(${sessionIds.join(',')})`);
 
-            if (classesError) console.error('Error fetching classes:', classesError);
+            if (cError) {
+              const { data: fallbackData } = await supabase
+                .from('class_sessions')
+                .select('*, teacher_profiles(name)')
+                .in('subtopic_id', sessionIds);
+              classesData = fallbackData || [];
+            } else {
+              classesData = cData || [];
+            }
 
-            // Agrupamos las clases dentro de su respectivo subtema
-            subtopicsWithClasses = subtopicsWithClasses.map(sub => ({
-              ...sub,
-              classes: (classesData || []).filter(c => c.subtopic_id === sub.id)
+            // Agrupamos las clases dentro de su respectiva sesión
+            sessionsWithClasses = sessionsWithClasses.map(session => ({
+              ...session,
+              classes: (classesData || []).filter(c => (c.session_id === session.id || c.subtopic_id === session.id))
             }));
           }
 
-          setSubtopics(subtopicsWithClasses);
+          setSessions(sessionsWithClasses);
         }
       } catch (err) {
         console.error('Error fetching module details:', err.message);
@@ -123,17 +142,17 @@ export default function ModuleDetail() {
         <p className="page-description">{moduleData.description || 'Sin descripción detallada'}</p>
       </div>
 
-      {/* CONTENIDO Y SUBTEMAS */}
+      {/* CONTENIDO Y SESIONES */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {subtopics.length === 0 ? (
+        {sessions.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem', color: 'var(--text-muted)' }}>
             <BookOpen size={36} color="var(--gold-dark)" style={{ marginBottom: '0.5rem' }} />
-            <h3 style={{ color: 'var(--navy)', marginBottom: '0.25rem' }}>Sin subtemas registrados aún</h3>
+            <h3 style={{ color: 'var(--navy)', marginBottom: '0.25rem' }}>Sin sesiones registradas aún</h3>
             <p style={{ fontSize: '0.85rem' }}>Los contenidos de este módulo están en desarrollo.</p>
           </div>
         ) : (
-          subtopics.map((sub, sIdx) => (
-            <div key={sub.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          sessions.map((session, sIdx) => (
+            <div key={session.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
                 <div style={{
                   width: '34px', height: '34px', borderRadius: 'var(--radius-md)',
@@ -141,28 +160,28 @@ export default function ModuleDetail() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontWeight: 800, fontSize: '0.9rem', flexShrink: 0
                 }}>
-                  {sub.order_index ?? (sIdx + 1)}
+                  {session.order_index ?? (sIdx + 1)}
                 </div>
                 <div>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
-                    {sub.title}
+                    {session.title}
                   </h3>
-                  {sub.description && (
+                  {session.description && (
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                      {sub.description}
+                      {session.description}
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* LISTA DE CLASES DEL SUBTEMA */}
+              {/* LISTA DE CLASES DE LA SESIÓN */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {!sub.classes || sub.classes.length === 0 ? (
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', italic: 'true', padding: '0.5rem 0' }}>
-                    No hay sesiones programadas en este subtema.
+                {!session.classes || session.classes.length === 0 ? (
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                    No hay clases programadas en esta sesión.
                   </p>
                 ) : (
-                  sub.classes.map(cls => (
+                  session.classes.map(cls => (
                     <div key={cls.id} style={{
                       padding: '0.85rem 1rem',
                       border: '1px solid var(--border-color)',

@@ -351,18 +351,31 @@ export default function ClassDetail() {
 
         // 2. Obtener el módulo y su nombre para el encabezado y botón "Volver"
         if (classData) {
-          if (classData.subtopic_id) {
-            const { data: subData } = await supabase
-              .from('subtopics')
+          const parentSessionId = classData.session_id || classData.subtopic_id;
+          if (parentSessionId) {
+            let sessionData = null;
+            const { data: sData } = await supabase
+              .from('sessions')
               .select('module_id, modules(title)')
-              .eq('id', classData.subtopic_id)
+              .eq('id', parentSessionId)
               .maybeSingle();
             
-            if (subData) {
-              setModuleId(subData.module_id);
-              if (subData.modules?.title) {
-                setModuleTitle(subData.modules.title);
-                setTopic(subData.modules.title);
+            if (sData) {
+              sessionData = sData;
+            } else {
+              const { data: subData } = await supabase
+                .from('subtopics')
+                .select('module_id, modules(title)')
+                .eq('id', parentSessionId)
+                .maybeSingle();
+              sessionData = subData;
+            }
+            
+            if (sessionData) {
+              setModuleId(sessionData.module_id);
+              if (sessionData.modules?.title) {
+                setModuleTitle(sessionData.modules.title);
+                setTopic(sessionData.modules.title);
               }
             }
           }
