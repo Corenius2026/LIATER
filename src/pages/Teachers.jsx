@@ -24,14 +24,36 @@ export default function Teachers() {
             localStorage.setItem('activeProgramType', progData.program_type);
           }
           window.dispatchEvent(new Event('programContextChanged'));
-        }
 
-        const { data, error } = await supabase
-          .from('teacher_profiles')
-          .select('*');
-        
-        if (error) throw error;
-        setTeachersList(data || []);
+          const { data: enrollData } = await supabase
+            .from('enrollments')
+            .select('student_id')
+            .eq('program_id', cleanProgramId);
+
+          const { data: classData } = await supabase
+            .from('class_sessions')
+            .select('teacher_id')
+            .eq('program_id', cleanProgramId);
+
+          const enrolledUserIds = new Set((enrollData || []).map(e => e.student_id).filter(Boolean));
+          const teacherIdsInClasses = new Set((classData || []).map(c => c.teacher_id).filter(Boolean));
+
+          const { data: allTeachers, error } = await supabase
+            .from('teacher_profiles')
+            .select('*');
+
+          if (error) throw error;
+
+          const assigned = (allTeachers || []).filter(t => enrolledUserIds.has(t.user_id) || teacherIdsInClasses.has(t.id));
+          setTeachersList(assigned);
+        } else {
+          const { data, error } = await supabase
+            .from('teacher_profiles')
+            .select('*');
+          
+          if (error) throw error;
+          setTeachersList(data || []);
+        }
       } catch (err) {
         console.error('Error fetching teachers:', err.message);
       } finally {

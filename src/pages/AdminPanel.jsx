@@ -2501,11 +2501,6 @@ export default function AdminPanel() {
         let teachersData = [], modulesData = [], sessionsData = [], classesData = [], resourcesData = [], enrolledData = [];
 
         try {
-          const { data } = await supabase.from('teacher_profiles').select('*');
-          teachersData = data || [];
-        } catch {}
-
-        try {
           const { data } = await supabase.from('modules').select('*').eq('program_id', cleanId).order('order_index', { ascending: true });
           modulesData = data || [];
         } catch {}
@@ -2538,6 +2533,16 @@ export default function AdminPanel() {
         try {
           const { data } = await supabase.from('enrollments').select('*, users_profile(*), diploma_programs(title)').eq('program_id', cleanId);
           enrolledData = data || [];
+        } catch {}
+
+        try {
+          const enrolledUserIds = new Set((enrolledData || []).map(e => e.student_id).filter(Boolean));
+          const teacherIdsInClasses = new Set((classesData || []).map(c => c.teacher_id).filter(Boolean));
+
+          const { data: allTeacherProfiles } = await supabase.from('teacher_profiles').select('*');
+          if (allTeacherProfiles) {
+            teachersData = allTeacherProfiles.filter(t => enrolledUserIds.has(t.user_id) || teacherIdsInClasses.has(t.id));
+          }
         } catch {}
 
         const now = new Date().toISOString();
