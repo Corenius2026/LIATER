@@ -250,30 +250,37 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     // -------------------------------------------------------------
     // 5. CONSULTAR ANUNCIOS URGENTES E IMPORTANTES (announcements)
     // -------------------------------------------------------------
-    try {
-      const { data: urgentAnnouncements, error: annErr } = await supabase
-        .from('announcements')
-        .select('id, title, created_at, tag')
-        .eq('tag', 'urgent')
-        .order('created_at', { ascending: false })
-        .limit(3);
+    if (programIds.length > 0) {
+      try {
+        const { data: urgentAnnouncements, error: annErr } = await supabase
+          .from('announcements')
+          .select('id, title, created_at, tag, program_id, diploma_programs(id, is_published, status)')
+          .eq('tag', 'urgent')
+          .in('program_id', programIds)
+          .order('created_at', { ascending: false })
+          .limit(3);
 
-      if (!annErr && urgentAnnouncements) {
-        urgentAnnouncements.forEach(ann => {
-          pendingActivities.push({
-            id: ann.id,
-            title: ann.title,
-            type: 'Anuncio importante',
-            programTitle: 'Aviso Institucional',
-            date: ann.created_at,
-            urgency: 'upcoming',
-            statusLabel: 'Importante',
-            link: `/portal`
+        if (!annErr && urgentAnnouncements) {
+          urgentAnnouncements.forEach(ann => {
+            const prog = ann.diploma_programs;
+            if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
+              return;
+            }
+            pendingActivities.push({
+              id: ann.id,
+              title: ann.title,
+              type: 'Anuncio importante',
+              programTitle: 'Aviso Institucional',
+              date: ann.created_at,
+              urgency: 'upcoming',
+              statusLabel: 'Importante',
+              link: `/portal`
+            });
           });
-        });
+        }
+      } catch (err) {
+        console.info('Información sobre anuncios:', err);
       }
-    } catch (err) {
-      console.info('Información sobre anuncios:', err);
     }
 
     // -------------------------------------------------------------
