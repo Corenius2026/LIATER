@@ -3358,6 +3358,14 @@ export default function TeacherPanel() {
     <TeacherContext.Provider value={{ id: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId, currentProgram }}>
       <div>
 
+        {/* ALERTA DE PROGRAMA INHABILITADO */}
+        {currentProgram && (currentProgram.is_published === false || currentProgram.status === 'draft' || currentProgram.status === 'disabled') && (
+          <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.85rem 1.25rem', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 600, fontSize: '0.88rem' }}>
+            <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0 }} />
+            <span>Este programa se encuentra inhabilitado por la administración. Los estudiantes no pueden acceder ni reciben notificaciones ni fechas de este curso.</span>
+          </div>
+        )}
+
         {/* --- RUTA DE NAVEGACIÓN (BREADCRUMB) Y ACCIONES DE PROGRAMA --- */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: 500 }}>
@@ -3368,6 +3376,11 @@ export default function TeacherPanel() {
             <span style={{ color: 'var(--navy)', fontWeight: 700 }}>
               {currentProgram?.title || 'Cargando programa...'}
             </span>
+            {currentProgram && (currentProgram.is_published === false || currentProgram.status === 'draft' || currentProgram.status === 'disabled') && (
+              <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', marginLeft: '0.5rem' }}>
+                INHABILITADO
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

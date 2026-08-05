@@ -157,6 +157,7 @@ function StudentPortal({ getDiplomadoLink }) {
               (activeFilter === 'Talleres' && d.program_type === 'taller')
             ).map(dip => {
               const isCourse = dip.program_type === 'curso';
+              const isPublished = dip.is_published !== false && dip.status !== 'draft' && dip.status !== 'disabled';
               const progress = dip.progress || 0;
               const buttonText = getButtonLabel(progress);
               const badgeText = getBadgeLabel(dip.program_type);
@@ -174,10 +175,11 @@ function StudentPortal({ getDiplomadoLink }) {
                     padding: 0, 
                     overflow: 'hidden', 
                     boxShadow: 'var(--shadow-sm)',
+                    opacity: isPublished ? 1 : 0.88,
                     transition: 'all 0.25s ease' 
                   }}
-                  onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
-                  onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+                  onMouseOver={e => { if (isPublished) { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; } }}
+                  onMouseOut={e => { if (isPublished) { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; } }}
                 >
                   {/* 1. IMAGEN DE PORTADA (RELACIÓN DE ASPECTO 16:9) */}
                   <div style={{ width: '100%', aspectRatio: '16 / 9', overflow: 'hidden', position: 'relative', background: 'var(--navy)' }}>
@@ -189,7 +191,7 @@ function StudentPortal({ getDiplomadoLink }) {
                           e.target.style.display = 'none'; 
                           if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; 
                         }}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: isPublished ? 'none' : 'grayscale(60%)' }} 
                       />
                     ) : null}
                     
@@ -215,11 +217,16 @@ function StudentPortal({ getDiplomadoLink }) {
                   {/* CUERPO DE LA TARJETA */}
                   <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                     
-                    {/* 2. ETIQUETA DEL TIPO DE PROGRAMA */}
-                    <div style={{ marginBottom: '0.5rem' }}>
+                    {/* 2. ETIQUETA DEL TIPO DE PROGRAMA Y ESTADO INHABILITADO */}
+                    <div style={{ marginBottom: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span className={isCourse ? 'badge badge-green' : 'badge badge-navy'} style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         {badgeText}
                       </span>
+                      {!isPublished && (
+                        <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          INHABILITADO
+                        </span>
+                      )}
                     </div>
 
                     {/* 3. TÍTULO DEL PROGRAMA */}
@@ -245,26 +252,46 @@ function StudentPortal({ getDiplomadoLink }) {
                     </div>
 
                     {/* 7. BOTÓN PRINCIPAL CON TEXTO SEGÚN EL AVANCE */}
-                    <Link 
-                      onClick={() => { 
-                        localStorage.setItem('activeProgramId', dip.id); 
-                        localStorage.setItem('activeProgramType', dip.program_type); 
-                      }} 
-                      to={getDiplomadoLink(dip.id)} 
-                      className="btn btn-primary" 
-                      style={{ 
-                        textAlign: 'center', 
-                        width: '100%', 
-                        justifyContent: 'center', 
-                        padding: '0.65rem', 
-                        fontWeight: 700, 
-                        fontSize: '0.88rem',
-                        borderRadius: 'var(--radius-md)',
-                        boxShadow: 'var(--shadow-sm)'
-                      }}
-                    >
-                      {buttonText}
-                    </Link>
+                    {isPublished ? (
+                      <Link 
+                        onClick={() => { 
+                          localStorage.setItem('activeProgramId', dip.id); 
+                          localStorage.setItem('activeProgramType', dip.program_type); 
+                        }} 
+                        to={getDiplomadoLink(dip.id)} 
+                        className="btn btn-primary" 
+                        style={{ 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          justifyContent: 'center', 
+                          padding: '0.65rem', 
+                          fontWeight: 700, 
+                          fontSize: '0.88rem',
+                          borderRadius: 'var(--radius-md)',
+                          boxShadow: 'var(--shadow-sm)'
+                        }}
+                      >
+                        {buttonText}
+                      </Link>
+                    ) : (
+                      <button 
+                        disabled
+                        style={{ 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          padding: '0.65rem', 
+                          fontWeight: 700, 
+                          fontSize: '0.88rem',
+                          borderRadius: 'var(--radius-md)',
+                          background: '#cbd5e1',
+                          color: '#64748b',
+                          border: 'none',
+                          cursor: 'not-allowed'
+                        }}
+                      >
+                        Programa Inhabilitado
+                      </button>
+                    )}
 
                   </div>
                 </div>
@@ -477,6 +504,10 @@ function TeacherPortal({ getDiplomadoLink }) {
           teacherClasses = classData.filter(c => {
             if (seen.has(c.id)) return false;
             seen.add(c.id);
+            const prog = c.diploma_programs || c.sessions?.modules?.diploma_programs || c.subtopics?.modules?.diploma_programs;
+            if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
+              return false;
+            }
             return true;
           });
         }
@@ -493,7 +524,9 @@ function TeacherPortal({ getDiplomadoLink }) {
               ),
               diploma_programs (
                 id,
-                title
+                title,
+                is_published,
+                status
               ),
               users_profile:student_id (
                 id,
@@ -505,7 +538,13 @@ function TeacherPortal({ getDiplomadoLink }) {
 
           if (qErr) console.error('Error al obtener class_doubts:', qErr);
 
-          doubtsData = qData || [];
+          doubtsData = (qData || []).filter(d => {
+            const prog = d.diploma_programs;
+            if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
+              return false;
+            }
+            return true;
+          });
           doubtsCount = doubtsData.filter(d => d.status === 'enviada' || d.status === 'revisada').length;
         } catch (e) {
           console.error('Error querying class_doubts:', e);
@@ -517,7 +556,7 @@ function TeacherPortal({ getDiplomadoLink }) {
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= startOfToday).length || teacherClasses.length;
-        const activeProgramsCount = teacherDiplomas.length;
+        const activeProgramsCount = teacherDiplomas.filter(p => p.is_published !== false && p.status !== 'draft' && p.status !== 'disabled').length;
 
         setCounts({
           doubts: doubtsCount,
@@ -684,16 +723,30 @@ function TeacherPortal({ getDiplomadoLink }) {
                       }}>
                         {program.program_type === 'curso' ? 'Curso Corto' : (program.program_type === 'taller' ? 'Taller' : 'Diplomado')}
                       </span>
-                      <span style={{ 
-                        background: 'rgba(20, 33, 61, 0.05)', 
-                        color: 'var(--navy)', 
-                        padding: '0.25rem 0.65rem', 
-                        borderRadius: '9999px', 
-                        fontSize: '0.68rem', 
-                        fontWeight: 700 
-                      }}>
-                        Asignado
-                      </span>
+                      {(program.is_published === false || program.status === 'draft' || program.status === 'disabled') ? (
+                        <span style={{ 
+                          background: '#fee2e2', 
+                          color: '#dc2626', 
+                          padding: '0.25rem 0.65rem', 
+                          borderRadius: '9999px', 
+                          fontSize: '0.68rem', 
+                          fontWeight: 700,
+                          textTransform: 'uppercase' 
+                        }}>
+                          INHABILITADO
+                        </span>
+                      ) : (
+                        <span style={{ 
+                          background: 'rgba(20, 33, 61, 0.05)', 
+                          color: 'var(--navy)', 
+                          padding: '0.25rem 0.65rem', 
+                          borderRadius: '9999px', 
+                          fontSize: '0.68rem', 
+                          fontWeight: 700 
+                        }}>
+                          Asignado
+                        </span>
+                      )}
                     </div>
 
                     {/* Título del programa (Sin descripción larga) */}

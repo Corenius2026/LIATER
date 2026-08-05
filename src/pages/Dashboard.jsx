@@ -30,9 +30,11 @@ export default function Dashboard() {
         // 1. Obtener Diplomado / Curso activo
         const { data: diplomaData } = await supabase
           .from('diploma_programs')
-          .select('title, program_type')
+          .select('title, program_type, is_published, status')
           .eq('id', cleanProgramId)
           .maybeSingle();
+
+        const isPublished = diplomaData ? (diplomaData.is_published !== false && diplomaData.status !== 'draft' && diplomaData.status !== 'disabled') : true;
 
         // 2. Obtener conteo de módulos y el ID del primer módulo
         const { data: modulesData } = await supabase
@@ -71,11 +73,12 @@ export default function Dashboard() {
         setDashboardData({
           diplomaTitle: diplomaData?.title || 'Programa Académico',
           programType: diplomaData?.program_type || 'diplomado',
+          isPublished,
           modulesCount: modulesData?.length || 0,
-          upcomingClasses: upcomingData || [],
-          latestRecordings: recordingsData || [],
+          upcomingClasses: isPublished ? (upcomingData || []) : [],
+          latestRecordings: isPublished ? (recordingsData || []) : [],
           firstModuleId: modulesData?.[0]?.id || null,
-          announcements: announcementsData || []
+          announcements: isPublished ? (announcementsData || []) : []
         });
 
         // Actualizar contexto global para el Sidebar
@@ -103,7 +106,7 @@ export default function Dashboard() {
     );
   }
 
-  const { diplomaTitle, programType, modulesCount, upcomingClasses, latestRecordings, firstModuleId, announcements } = dashboardData;
+  const { diplomaTitle, programType, isPublished, modulesCount, upcomingClasses, latestRecordings, firstModuleId, announcements } = dashboardData;
   const isCourse = programType === 'curso';
 
   return (
@@ -114,6 +117,15 @@ export default function Dashboard() {
           <ArrowLeft size={14} /> Volver a Mis Programas
         </Link>
       </div>
+
+      {!isPublished && (
+        <div className="card" style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '1.5rem', borderRadius: 'var(--radius-lg)', marginBottom: '1.5rem', textAlign: 'center' }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: 800, color: '#991b1b', fontSize: '1.15rem' }}>Este programa se encuentra inhabilitado</h3>
+          <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: '#7f1d1d' }}>
+            La administración ha suspendido temporalmente el acceso a los contenidos, clases y notificaciones de este curso.
+          </p>
+        </div>
+      )}
 
       {/* --- ENCABEZADO --- */}
       <div className="page-header" style={{ marginBottom: '2rem' }}>

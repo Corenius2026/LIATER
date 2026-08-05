@@ -22,31 +22,37 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     let programIds = [];
 
     // -------------------------------------------------------------
-    // 1. OBTENER PROGRAMAS A LOS QUE ESTÁ INSCRITO EL ESTUDIANTE
+    // 1. OBTENER PROGRAMAS A LOS QUE ESTÁ INSCRITO EL ESTUDIANTE (SOLO PUBLICADOS)
     // -------------------------------------------------------------
     try {
       let { data: enrollments, error: enrollErr } = await supabase
         .from('enrollments')
-        .select('program_id, diploma_programs(id, title)')
+        .select('program_id, diploma_programs(id, title, is_published, status)')
         .eq('student_id', studentId);
 
       if (enrollErr || !enrollments || enrollments.length === 0) {
         const { data: legacyEnrollments } = await supabase
           .from('enrollments')
-          .select('diploma_id, diploma_programs(id, title)')
+          .select('diploma_id, diploma_programs(id, title, is_published, status)')
           .eq('student_id', studentId);
         enrollments = legacyEnrollments;
       }
 
       if (enrollments) {
-        programIds = enrollments.map(e => {
-          const pId = e.program_id || e.diploma_id;
-          if (pId) {
-            programMap[pId] = e.diploma_programs?.title || 'Programa Inscrito';
-            return pId;
-          }
-          return null;
-        }).filter(Boolean);
+        programIds = enrollments
+          .filter(e => {
+            const prog = e.diploma_programs;
+            if (!prog) return true; // si no hay relación cargada, mantenemos resiliencia
+            return prog.is_published !== false && prog.status !== 'draft' && prog.status !== 'disabled';
+          })
+          .map(e => {
+            const pId = e.program_id || e.diploma_id;
+            if (pId) {
+              programMap[pId] = e.diploma_programs?.title || 'Programa Inscrito';
+              return pId;
+            }
+            return null;
+          }).filter(Boolean);
       }
     } catch (err) {
       console.warn('Advertencia al consultar inscripciones:', err);
@@ -194,54 +200,51 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     // -------------------------------------------------------------
     // 4. CONSULTAR SESIONES EN VIVO PRÓXIMAS (class_sessions)
     // -------------------------------------------------------------
-    try {
-      let classQuery = supabase
-        .from('class_sessions')
-        .select('id, title, class_date, program_id')
-        .order('class_date', { ascending: true })
-        .limit(10);
+    if (programIds.length > 0) {
+      try {
+        const { data: classes, error: classErr } = await supabase
+          .from('class_sessions')
+          .select('id, title, class_date, program_id')
+          .in('program_id', programIds)
+          .order('class_date', { ascending: true })
+          .limit(10);
 
-      if (programIds.length > 0) {
-        classQuery = classQuery.in('program_id', programIds);
-      }
+        if (!classErr && classes) {
+          classes.forEach(cls => {
+            if (!cls.class_date) return;
+            const clsDate = new Date(cls.class_date);
+            if (clsDate < now) return; // Solo clases futuras
 
-      const { data: classes, error: classErr } = await classQuery;
+            const programTitle = programMap[cls.program_id] || 'Programa Inscrito';
+            const clsDateStr = clsDate.toISOString().split('T')[0];
 
-      if (!classErr && classes) {
-        classes.forEach(cls => {
-          if (!cls.class_date) return;
-          const clsDate = new Date(cls.class_date);
-          if (clsDate < now) return; // Solo clases futuras
+            let urgency = 'upcoming';
+            let statusLabel = 'Próxima';
 
-          const programTitle = programMap[cls.program_id] || 'Programa Inscrito';
-          const clsDateStr = clsDate.toISOString().split('T')[0];
+            if (clsDateStr === todayStr) {
+              urgency = 'today';
+              statusLabel = 'Hoy';
+            } else if (clsDateStr === tomorrowStr) {
+              urgency = 'tomorrow';
+              statusLabel = 'Mañana';
+            }
 
-          let urgency = 'upcoming';
-          let statusLabel = 'Próxima';
-
-          if (clsDateStr === todayStr) {
-            urgency = 'today';
-            statusLabel = 'Hoy';
-          } else if (clsDateStr === tomorrowStr) {
-            urgency = 'tomorrow';
-            statusLabel = 'Mañana';
-          }
-
-          pendingActivities.push({
-            id: cls.id,
-            title: cls.title,
-            type: 'Sesión en vivo',
-            programId: cls.program_id,
-            programTitle,
-            date: cls.class_date,
-            urgency,
-            statusLabel,
-            link: `/class/${cls.id}`
+            pendingActivities.push({
+              id: cls.id,
+              title: cls.title,
+              type: 'Sesión en vivo',
+              programId: cls.program_id,
+              programTitle,
+              date: cls.class_date,
+              urgency,
+              statusLabel,
+              link: `/class/${cls.id}`
+            });
           });
-        });
+        }
+      } catch (err) {
+        console.info('Información sobre clases:', err);
       }
-    } catch (err) {
-      console.info('Información sobre clases:', err);
     }
 
     // -------------------------------------------------------------
