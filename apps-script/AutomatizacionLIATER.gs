@@ -87,8 +87,11 @@ function sincronizarSoloVideos() {
         if (res && res.ok) {
           videosActualizados++;
           console.log("   ✓ Video vinculado con éxito en Supabase para: '" + (res.class_title || folderName) + "'");
+          console.log("     - ID de Clase en BD: " + (res.class_id || "N/A"));
+          console.log("     - URL Video: " + (res.video_url || "N/A"));
+          console.log("     - ID Carpeta Drive: " + folderId);
           if (config.logSheet) {
-            registrarEnLog(config.logSheet, videoFile.getId(), videoFile.getName(), folderId, folderName, "VIDEO_OK", "Video: " + videoUrl);
+            registrarEnLog(config.logSheet, videoFile.getId(), videoFile.getName(), folderId, folderName, "VIDEO_OK", "ID: " + res.class_id + " | Video: " + (res.video_url || videoUrl));
           }
         } else {
           errores++;

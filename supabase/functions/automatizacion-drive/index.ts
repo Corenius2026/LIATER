@@ -412,6 +412,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // Auto-vincular drive_folder_id y video_url en class_sessions
+  // Auto-vincular drive_folder_id y video_url en class_sessions
+  let updatedRows = null;
   try {
     const updateData: Record<string, unknown> = {
       drive_folder_id: folderId,
@@ -419,7 +421,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (videoUrl) {
       updateData.video_url = videoUrl;
     }
-    const { data: updatedRows, error: updateErr } = await supabaseAdmin
+    const { data, error: updateErr } = await supabaseAdmin
       .from("class_sessions")
       .update(updateData)
       .eq("id", session.id)
@@ -427,11 +429,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (updateErr) {
       console.error("Error actualizando class_sessions:", updateErr);
-    } else {
-      console.log(`Clase '${session.title}' (${session.id}) actualizada con éxito:`, updatedRows);
+      return jsonResponse(
+        {
+          ok: false,
+          error: `Error al actualizar class_sessions en la BD: ${updateErr.message}`,
+          class_id: session.id,
+          class_title: session.title,
+        },
+        500,
+      );
     }
+    updatedRows = data;
+    console.log(`Clase '${session.title}' (${session.id}) actualizada con éxito:`, updatedRows);
   } catch (err) {
-    console.warn("No se pudo actualizar drive_folder_id o video_url en class_sessions:", err);
+    console.error("Excepción actualizando class_sessions:", err);
+    return jsonResponse(
+      {
+        ok: false,
+        error: `Excepción al actualizar class_sessions: ${err instanceof Error ? err.message : String(err)}`,
+        class_id: session.id,
+      },
+      500,
+    );
   }
 
   const classId = session.id as string;
@@ -445,6 +464,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       class_id: classId,
       class_title: classTitle,
       video_url: videoUrl || null,
+      updated_data: updatedRows,
       message: videoUrl
         ? `Grabación de video y carpeta de Drive actualizados en la clase '${classTitle}'.`
         : `Carpeta de Drive vinculada a '${classTitle}'.`,
