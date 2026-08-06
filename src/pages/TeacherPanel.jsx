@@ -1013,39 +1013,31 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const TAG_OPTIONS = [
+    { value: 'general',   label: 'General',     icon: '📢', color: '#14213D', bg: '#EEF2F8' },
+    { value: 'info',      label: 'Informativo', icon: '📌', color: '#1d4ed8', bg: '#dbeafe' },
+    { value: 'urgent',    label: 'Urgente',     icon: '🔴', color: '#991b1b', bg: '#fee2e2' },
+    { value: 'clase',     label: 'Clase',       icon: '🎓', color: '#065f46', bg: '#d1fae5' },
+    { value: 'evaluacion',label: 'Evaluación',  icon: '📝', color: '#92400e', bg: '#fef3c7' },
+  ];
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
       setError('El título y el mensaje son obligatorios.');
       return;
     }
-
     setSubmitting(true);
     setError('');
-
-    const payload = {
-      teacher_id: teacherId,
-      program_id: programId,
-      title: title.trim(),
-      body: body.trim(),
-      tag
-    };
-
+    const payload = { teacher_id: teacherId, program_id: programId, title: title.trim(), body: body.trim(), tag };
     try {
       if (announcement?.id) {
-        const { error: updateError } = await supabase
-          .from('announcements')
-          .update(payload)
-          .eq('id', announcement.id)
-          .eq('teacher_id', teacherId);
+        const { error: updateError } = await supabase.from('announcements').update(payload).eq('id', announcement.id).eq('teacher_id', teacherId);
         if (updateError) throw updateError;
       } else {
-        const { error: insertError } = await supabase
-          .from('announcements')
-          .insert([payload]);
+        const { error: insertError } = await supabase.from('announcements').insert([payload]);
         if (insertError) throw insertError;
       }
-
       onRefresh();
       onClose();
     } catch (err) {
@@ -1055,43 +1047,176 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
     }
   };
 
+  const inputStyle = {
+    width: '100%', padding: '0.7rem 0.9rem',
+    border: '1.5px solid #E2E8F0', borderRadius: '10px',
+    fontSize: '0.9rem', color: 'var(--navy)',
+    background: '#FAFBFD', outline: 'none',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+    boxSizing: 'border-box'
+  };
+
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '500px', background: 'white', position: 'relative', padding: '2rem' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-          <X size={24} />
-        </button>
-        
-        <h2 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>{announcement ? 'Editar Anuncio' : 'Nuevo Anuncio'}</h2>
-
-        {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
-
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Título del anuncio</label>
-            <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+    <div style={{
+      position: 'fixed', inset: 0,
+      backgroundColor: 'rgba(14,21,50,0.65)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, padding: '1rem',
+      animation: 'fadeIn 0.2s ease'
+    }}>
+      <div style={{
+        width: '100%', maxWidth: '560px',
+        background: 'var(--white)',
+        borderRadius: '20px',
+        boxShadow: '0 25px 60px rgba(14,21,50,0.18)',
+        overflow: 'hidden',
+        animation: 'slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)'
+      }}>
+        {/* HEADER */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--navy) 0%, #1e3a5f 100%)',
+          padding: '1.5rem 2rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{
+              width: '38px', height: '38px', borderRadius: '10px',
+              background: 'rgba(252,163,17,0.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Megaphone size={20} color="var(--gold)" />
+            </div>
+            <div>
+              <div style={{ color: 'var(--white)', fontWeight: 700, fontSize: '1rem' }}>
+                {announcement ? 'Editar Anuncio' : 'Nuevo Anuncio'}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.75rem' }}>
+                Comunicación con estudiantes del programa
+              </div>
+            </div>
           </div>
-          
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Nivel de importancia (Etiqueta)</label>
-            <select value={tag} onChange={e => setTag(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
-              <option value="general">General</option>
-              <option value="info">Aviso Importante (Info)</option>
-              <option value="urgent">Urgente</option>
-            </select>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.1)', border: 'none', cursor: 'pointer',
+            borderRadius: '8px', padding: '0.4rem', color: 'rgba(255,255,255,0.7)',
+            display: 'flex', transition: 'background 0.2s'
+          }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* FORM BODY */}
+        <form onSubmit={handleSubmit} style={{ padding: '1.75rem 2rem 2rem' }}>
+          {error && (
+            <div style={{
+              background: '#fee2e2', color: '#991b1b',
+              padding: '0.65rem 1rem', borderRadius: '10px',
+              fontSize: '0.83rem', fontWeight: 500,
+              marginBottom: '1.25rem', display: 'flex', gap: '0.5rem', alignItems: 'center'
+            }}>
+              <AlertCircle size={15} /> {error}
+            </div>
+          )}
+
+          {/* TÍTULO */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Título del Anuncio
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Ej: Cambio de horario de la sesión 3..."
+              style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(252,163,17,0.12)'; }}
+              onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; }}
+              required
+            />
           </div>
 
+          {/* TAG PILLS */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Categoría
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {TAG_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTag(opt.value)}
+                  style={{
+                    padding: '0.4rem 0.85rem',
+                    borderRadius: '999px',
+                    border: tag === opt.value ? `2px solid ${opt.color}` : '1.5px solid #E2E8F0',
+                    background: tag === opt.value ? opt.bg : 'var(--white)',
+                    color: tag === opt.value ? opt.color : 'var(--text-muted)',
+                    fontWeight: tag === opt.value ? 700 : 500,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex', alignItems: 'center', gap: '0.3rem'
+                  }}
+                >
+                  <span>{opt.icon}</span> {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* MENSAJE */}
           <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Mensaje</label>
-            <textarea value={body} onChange={e => setBody(e.target.value)} rows={5} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', resize: 'vertical' }} required />
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Mensaje
+            </label>
+            <textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              rows={5}
+              placeholder="Escribe el contenido del anuncio para tus estudiantes..."
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+              onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(252,163,17,0.12)'; }}
+              onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; }}
+              required
+            />
+            <div style={{ textAlign: 'right', fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              {body.length} caracteres
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="submit" disabled={submitting} className="btn btn-primary" style={{ flex: 1 }}>
-              {submitting ? 'Guardando...' : (announcement ? 'Guardar Cambios' : 'Publicar Anuncio')}
-            </button>
-            <button type="button" onClick={onClose} className="btn btn-outline" style={{ flex: 1 }}>
+          {/* ACTIONS */}
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button type="button" onClick={onClose} style={{
+              flex: 1, padding: '0.75rem',
+              borderRadius: '10px', border: '1.5px solid #E2E8F0',
+              background: 'var(--white)', color: 'var(--text-muted)',
+              fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.color = 'var(--navy)'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
               Cancelar
+            </button>
+            <button type="submit" disabled={submitting} style={{
+              flex: 2, padding: '0.75rem',
+              borderRadius: '10px', border: 'none',
+              background: submitting ? '#9ca3af' : 'linear-gradient(135deg, var(--navy) 0%, #1e3a5f 100%)',
+              color: 'var(--white)',
+              fontWeight: 700, fontSize: '0.88rem', cursor: submitting ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+              transition: 'all 0.2s',
+              boxShadow: submitting ? 'none' : '0 4px 14px rgba(14,21,50,0.25)'
+            }}>
+              {submitting ? (
+                <><RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> Guardando...</>
+              ) : (
+                <><Megaphone size={15} /> {announcement ? 'Guardar Cambios' : 'Publicar Anuncio'}</>
+              )}
             </button>
           </div>
         </form>
@@ -1100,15 +1225,25 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
   );
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   TAB 7 — Anuncios
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─────────────────────────────────────────
+   TAB — Anuncios (Premium Rewrite)
+───────────────────────────────────────── */
 function AnunciosTab() {
-  const { id: teacherId, programId } = useTeacherContext();
+  const { id: teacherId, programId, currentProgram } = useTeacherContext();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [filterTag, setFilterTag] = useState('todos');
+
+  const TAG_CONFIG = {
+    general:    { label: 'General',     emoji: '📢', color: '#14213D', bg: '#EEF2F8', border: '#C7D2E7' },
+    info:       { label: 'Informativo', emoji: '📌', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+    urgent:     { label: 'Urgente',     emoji: '🔴', color: '#991b1b', bg: '#fee2e2', border: '#fca5a5' },
+    clase:      { label: 'Clase',       emoji: '🎓', color: '#065f46', bg: '#d1fae5', border: '#6ee7b7' },
+    evaluacion: { label: 'Evaluación',  emoji: '📝', color: '#92400e', bg: '#fef3c7', border: '#fcd34d' },
+  };
 
   const fetchAnnouncements = async () => {
     if (!teacherId || !programId) return;
@@ -1120,7 +1255,6 @@ function AnunciosTab() {
         .eq('teacher_id', teacherId)
         .eq('program_id', programId)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       setAnnouncements(data || []);
     } catch (err) {
@@ -1130,51 +1264,132 @@ function AnunciosTab() {
     }
   };
 
-  useEffect(() => {
-    fetchAnnouncements();
-  }, [teacherId]);
+  useEffect(() => { fetchAnnouncements(); }, [teacherId, programId]);
 
-  const handleEdit = (a) => {
-    setSelectedAnnouncement(a);
-    setShowModal(true);
-  };
-
-  const handleCreate = () => {
-    setSelectedAnnouncement(null);
-    setShowModal(true);
-  };
+  const handleEdit = (a) => { setSelectedAnnouncement(a); setShowModal(true); };
+  const handleCreate = () => { setSelectedAnnouncement(null); setShowModal(true); };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio?')) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio? Esta acción es irreversible.')) return;
+    setDeletingId(id);
     try {
-      const { error } = await supabase
-        .from('announcements')
-        .delete()
-        .eq('id', id)
-        .eq('teacher_id', teacherId);
+      const { error } = await supabase.from('announcements').delete().eq('id', id).eq('teacher_id', teacherId);
       if (error) throw error;
-      fetchAnnouncements();
+      setAnnouncements(prev => prev.filter(a => a.id !== id));
     } catch (err) {
       alert('Error al eliminar: ' + err.message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
+  const filtered = filterTag === 'todos'
+    ? announcements
+    : announcements.filter(a => a.tag === filterTag);
+
+  const formatDate = (d) => {
+    if (!d) return '';
+    const date = new Date(d);
+    return date.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <span style={{ fontWeight: 600, fontSize: '1rem' }}>Anuncios publicados ({announcements.length})</span>
-        <button onClick={handleCreate} className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.6rem 1.1rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+      {/* HEADER */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Megaphone size={20} color="var(--gold-dark)" /> Tablero de Anuncios
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: '4px 0 0 0' }}>
+            Comunícate con los estudiantes de <strong>{currentProgram?.title}</strong>. Los anuncios son visibles en el portal del estudiante.
+          </p>
+        </div>
+        <button
+          onClick={handleCreate}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.65rem 1.25rem', borderRadius: '10px', border: 'none',
+            background: 'linear-gradient(135deg, var(--navy) 0%, #1e3a5f 100%)',
+            color: 'var(--white)', fontWeight: 700, fontSize: '0.88rem',
+            cursor: 'pointer', boxShadow: '0 4px 14px rgba(14,21,50,0.2)',
+            transition: 'transform 0.15s, box-shadow 0.15s'
+          }}
+          onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(14,21,50,0.28)'; }}
+          onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(14,21,50,0.2)'; }}
+        >
           <Plus size={16} /> Nuevo Anuncio
         </button>
       </div>
 
+      {/* STATS RÁPIDAS + FILTRO */}
+      <div style={{
+        background: 'var(--white)', borderRadius: '14px',
+        border: '1px solid var(--border-color)',
+        padding: '1rem 1.5rem',
+        display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center'
+      }}>
+        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filtrar:</span>
+        {[{ value: 'todos', label: `Todos (${announcements.length})` }, ...Object.entries(TAG_CONFIG).map(([k, v]) => ({
+          value: k,
+          label: `${v.emoji} ${v.label} (${announcements.filter(a => a.tag === k).length})`
+        }))].map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => setFilterTag(opt.value)}
+            style={{
+              padding: '0.35rem 0.85rem', borderRadius: '999px',
+              border: filterTag === opt.value ? '2px solid var(--navy)' : '1.5px solid #E2E8F0',
+              background: filterTag === opt.value ? '#EEF2F8' : 'transparent',
+              color: filterTag === opt.value ? 'var(--navy)' : 'var(--text-muted)',
+              fontWeight: filterTag === opt.value ? 700 : 500,
+              fontSize: '0.78rem', cursor: 'pointer', transition: 'all 0.15s'
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENIDO */}
       {loading ? (
-        <p style={{ color: 'var(--text-muted)' }}>Cargando anuncios...</p>
-      ) : announcements.length === 0 ? (
-        <div style={{ padding: '3rem', textAlign: 'center', background: 'var(--card-bg)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border-color)' }}>
-          <Megaphone size={48} color="var(--primary-light)" style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-          <h3 style={{ color: 'var(--text-dark)', marginBottom: '0.5rem' }}>No hay anuncios publicados</h3>
-          <p style={{ color: 'var(--text-muted)' }}>Publica un anuncio para comunicarte con tus estudiantes.</p>
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+          <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+          Cargando anuncios...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{
+          padding: '4rem 2rem', textAlign: 'center',
+          background: 'var(--white)', borderRadius: '14px',
+          border: '2px dashed #E2E8F0'
+        }}>
+          <div style={{
+            width: '64px', height: '64px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, #EEF2F8, #dbeafe)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1.25rem'
+          }}>
+            <Megaphone size={28} color="#94a3b8" />
+          </div>
+          <h3 style={{ color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>
+            {filterTag === 'todos' ? 'No hay anuncios publicados aún' : `Sin anuncios de categoría "${TAG_CONFIG[filterTag]?.label}"`}
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '360px', margin: '0 auto 1.5rem' }}>
+            {filterTag === 'todos'
+              ? 'Publica tu primer anuncio para comunicarte directamente con los estudiantes del programa.'
+              : 'No hay anuncios con esta categoría. Cambia el filtro o crea uno nuevo.'}
+          </p>
+          {filterTag === 'todos' && (
+            <button onClick={handleCreate} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.65rem 1.5rem', borderRadius: '10px', border: 'none',
+              background: 'var(--navy)', color: 'var(--white)',
+              fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer'
+            }}>
+              <Plus size={16} /> Publicar primer anuncio
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
