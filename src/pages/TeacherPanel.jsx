@@ -14,7 +14,8 @@ import {
   Edit3, EyeOff, Save, PlusCircle, ExternalLink, Download,
   ChevronLeft, ChevronRight, Award, GraduationCap, Percent,
   Calendar, FileSpreadsheet, Folder, Brain, BarChart3,
-  TrendingUp, Target, Lightbulb, Activity, HelpCircle
+  TrendingUp, Target, Lightbulb, Activity, HelpCircle,
+  AlertTriangle, Star
 } from 'lucide-react';
 
 import './TeacherPanel.css';
