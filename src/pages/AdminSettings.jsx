@@ -17,6 +17,7 @@ export default function AdminSettings() {
   const [imageUrl, setImageUrl] = useState(null);
   const [isPublished, setIsPublished] = useState(true);
   const [meetUrl, setMeetUrl] = useState('');
+  const [whatsappGroupId, setWhatsappGroupId] = useState('');
   
   // Estados para subida de imagen de portada
   const [coverFile, setCoverFile] = useState(null);
@@ -34,7 +35,7 @@ export default function AdminSettings() {
       try {
         const { data, error } = await supabase
           .from('diploma_programs')
-          .select('title, description, program_type, image_url, is_published, status, meet_url')
+          .select('title, description, program_type, image_url, is_published, status, meet_url, whatsapp_group_id')
           .eq('id', programId)
           .single();
         
@@ -45,6 +46,7 @@ export default function AdminSettings() {
         setImageUrl(data.image_url || null);
         setIsPublished(data.is_published !== false && data.status !== 'draft');
         setMeetUrl(data.meet_url || '');
+        setWhatsappGroupId(data.whatsapp_group_id || '');
         if (data.image_url) {
           setCoverPreview(data.image_url);
         }
@@ -178,7 +180,8 @@ export default function AdminSettings() {
           title, 
           description,
           image_url: finalImageUrl,
-          meet_url: meetUrl
+          meet_url: meetUrl,
+          whatsapp_group_id: whatsappGroupId
         })
         .eq('id', programId);
       
@@ -272,6 +275,21 @@ export default function AdminSettings() {
             />
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
               Este enlace estará disponible de forma destacada para administradores, profesores y estudiantes de este programa.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="settings-whatsapp-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>ID Grupo WhatsApp (Bot)</label>
+            <input 
+              id="settings-whatsapp-input"
+              type="text"
+              placeholder="Ej: 120363xxxxxxxx@g.us"
+              value={whatsappGroupId}
+              onChange={(e) => setWhatsappGroupId(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+            />
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              El bot enviará recordatorios automáticos 10 horas antes de cada clase a este ID de grupo.
             </p>
           </div>
 
