@@ -3329,7 +3329,7 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
 
   useEffect(() => {
     async function loadActivityResults() {
-      const effectiveProgId = programId || classData?.program_id;
+      const effectiveProgId = programId || classData?.program_id || classData?.sessions?.modules?.program_id;
       let effectiveActId = activity?.id || classData?.activity?.id;
 
       try {
@@ -3347,20 +3347,55 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
           }
         }
 
-        // 1. Cargar estudiantes matriculados en el programa
-        let studentList = [];
+        // 1. Cargar estudiantes matriculados en el programa (FILTRADO ESTRICTO ROLE === 'student')
+        let enrolledStudentProfiles = [];
         if (effectiveProgId) {
-          const { data: enrollmentsData, error: enrollErr } = await supabase
-            .from('enrollments')
-            .select('student_id, enrolled_at, users_profile(id, full_name, email, role, avatar_url)')
-            .eq('program_id', effectiveProgId);
+          try {
+            // Estrategia A: select con join directo a users_profile
+            const { data: enrollData, error: enrollErr } = await supabase
+              .from('enrollments')
+              .select('student_id, created_at, users_profile(*)')
+              .eq('program_id', effectiveProgId);
 
-          if (enrollErr) {
-            console.error('Error cargando estudiantes de enrollments:', enrollErr);
-          } else {
-            studentList = (enrollmentsData || [])
-              .map(e => e.users_profile)
-              .filter(p => p && (p.role === 'student' || !p.role));
+            if (!enrollErr && enrollData && enrollData.length > 0) {
+              enrolledStudentProfiles = enrollData
+                .map(e => e.users_profile)
+                .filter(p => p && p.role === 'student');
+            }
+          } catch (err) {
+            console.warn('Error en join enrollments-users_profile:', err);
+          }
+
+          // Estrategia B (Fallback): Si no se obtuvieron perfiles mediante el join, consultar por IDs
+          if (enrolledStudentProfiles.length === 0) {
+            try {
+              const { data: rawEnroll } = await supabase
+                .from('enrollments')
+                .select('student_id')
+                .eq('program_id', effectiveProgId);
+
+              const rawIds = (rawEnroll || []).map(e => e.student_id).filter(Boolean);
+              if (rawIds.length > 0) {
+                const { data: profsById } = await supabase
+                  .from('users_profile')
+                  .select('*')
+                  .in('id', rawIds)
+                  .eq('role', 'student');
+
+                const { data: profsByAuth } = await supabase
+                  .from('users_profile')
+                  .select('*')
+                  .in('auth_user_id', rawIds)
+                  .eq('role', 'student');
+
+                const pMap = new Map();
+                (profsById || []).forEach(p => pMap.set(p.id, p));
+                (profsByAuth || []).forEach(p => pMap.set(p.id, p));
+                enrolledStudentProfiles = Array.from(pMap.values());
+              }
+            } catch (fallbackErr) {
+              console.warn('Error en fallback enrollments:', fallbackErr);
+            }
           }
         }
 
@@ -3377,36 +3412,75 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
           attemptsList = attemptsData || [];
         }
 
-        // Mapear el último intento por cada estudiante
-        const attemptByStudent = {};
-        attemptsList.forEach(att => {
-          if (!attemptByStudent[att.student_id] || new Date(att.completed_at) > new Date(attemptByStudent[att.student_id].completed_at)) {
-            attemptByStudent[att.student_id] = att;
-          }
+        // 3. Auto-inclusión de estudiantes con intentos (por si no estaban en enrolledStudentProfiles)
+        const matchedProfileIds = new Set();
+        enrolledStudentProfiles.forEach(st => {
+          if (st.id) matchedProfileIds.add(st.id);
+          if (st.auth_user_id) matchedProfileIds.add(st.auth_user_id);
         });
 
-        // 3. Combinar estudiantes matriculados con sus intentos
-        const combinedStudents = studentList.map(st => {
-          const att = attemptByStudent[st.id];
+        const unmatchedAttemptUserIds = attemptsList
+          .map(a => a.student_id)
+          .filter(id => id && !matchedProfileIds.has(id));
+
+        if (unmatchedAttemptUserIds.length > 0) {
+          try {
+            const { data: extraById } = await supabase
+              .from('users_profile')
+              .select('*')
+              .in('id', unmatchedAttemptUserIds);
+
+            const { data: extraByAuth } = await supabase
+              .from('users_profile')
+              .select('*')
+              .in('auth_user_id', unmatchedAttemptUserIds);
+
+            const extraProfiles = [...(extraById || []), ...(extraByAuth || [])];
+            extraProfiles.forEach(p => {
+              if (p && (p.role === 'student' || !p.role)) {
+                if (!enrolledStudentProfiles.some(st => st.id === p.id)) {
+                  enrolledStudentProfiles.push(p);
+                }
+              }
+            });
+          } catch (extraErr) {
+            console.warn('Error resolviendo perfiles de intentos extra:', extraErr);
+          }
+        }
+
+        // 4. Combinar cada estudiante con sus intentos (matching bidireccional por id y auth_user_id)
+        const combinedStudents = enrolledStudentProfiles.map(st => {
+          const studentAttempts = attemptsList.filter(att => {
+            if (!att.student_id) return false;
+            return (
+              att.student_id === st.id ||
+              (st.auth_user_id && att.student_id === st.auth_user_id)
+            );
+          });
+
+          studentAttempts.sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0));
+          const lastAttempt = studentAttempts[0] || null;
+          const isCompleted = lastAttempt && (lastAttempt.status === 'completed' || typeof lastAttempt.score === 'number');
+
           return {
             ...st,
-            attempt: att || null,
-            status: att && att.status === 'completed' ? 'completed' : 'not_started',
-            score: att && typeof att.score === 'number' ? att.score : null,
-            completedAt: att?.completed_at || null,
+            attempt: lastAttempt,
+            status: isCompleted ? 'completed' : 'not_started',
+            score: isCompleted && typeof lastAttempt.score === 'number' ? lastAttempt.score : null,
+            completedAt: lastAttempt?.completed_at || null,
           };
         });
 
         setStudents(combinedStudents);
 
-        // 4. Calcular métricas estadísticas del grupo
+        // 5. Calcular métricas estadísticas del grupo
         const completedAttempts = combinedStudents.filter(s => s.status === 'completed');
         const scores = completedAttempts.map(s => s.score).filter(sc => typeof sc === 'number');
         const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-        const passing = scores.filter(sc => sc >= 70).length;
+        const passing = scores.filter(sc => sc >= 60).length;
 
         setStats({
-          totalStudents: studentList.length,
+          totalStudents: combinedStudents.length,
           completedCount: completedAttempts.length,
           averageScore: avg,
           passingCount: passing,
@@ -3572,7 +3646,7 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: '#6C757D', fontWeight: 600 }}>Promedio de Dominio</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: stats.averageScore >= 70 ? '#166534' : '#B45309' }}>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: stats.averageScore >= 60 ? '#166534' : '#B45309' }}>
                 {stats.averageScore}% <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>promedio</span>
               </div>
             </div>
@@ -3594,7 +3668,7 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
             <div>
               <div style={{ fontSize: '0.75rem', color: '#6C757D', fontWeight: 600 }}>Tasa de Aprobación</div>
               <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#166534' }}>
-                {stats.passingCount} estudiantes <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>(&ge;70%)</span>
+                {stats.passingCount} estudiantes <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>(&ge;60%)</span>
               </div>
             </div>
           </div>
@@ -3673,8 +3747,8 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
                         </td>
                       </tr>
                     ) : (
-                      filteredStudents.map((st) => (
-                        <tr key={st.id} style={{ borderBottom: '1px solid #F0F0F0' }}>
+                      filteredStudents.map((st, idx) => (
+                        <tr key={st.id || st.student_id || st.email || idx} style={{ borderBottom: '1px solid #F0F0F0' }}>
                           <td style={{ padding: '12px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <div style={{
@@ -3731,7 +3805,7 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span style={{
                                   fontWeight: 800,
-                                  color: st.score >= 70 ? '#166534' : '#B45309',
+                                  color: st.score >= 60 ? '#166534' : '#B45309',
                                   fontSize: '0.92rem',
                                   minWidth: '38px'
                                 }}>
@@ -3747,7 +3821,7 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
                                   <div style={{
                                     width: `${Math.min(100, Math.max(0, st.score))}%`,
                                     height: '100%',
-                                    background: st.score >= 70 ? '#22C55E' : '#FCA311',
+                                    background: st.score >= 60 ? '#22C55E' : '#FCA311',
                                     borderRadius: '4px'
                                   }} />
                                 </div>
@@ -3923,21 +3997,29 @@ function ReforzamientoIATab({ onChangeTab }) {
         });
       }
 
-      // 6. Obtener conteo de estudiantes matriculados
-      const { count: studentCount } = await supabase
-        .from('enrollments')
-        .select('student_id, users_profile!inner(role)', { count: 'exact', head: true })
-        .eq('program_id', programId)
-        .eq('users_profile.role', 'student');
+      // 6. Obtener conteo de estudiantes matriculados (filtrado por role === 'student')
+      let totalStudents = 0;
+      try {
+        const { data: rawEnroll } = await supabase
+          .from('enrollments')
+          .select('student_id, users_profile(role)')
+          .eq('program_id', programId);
 
-      const totalStudents = studentCount || 0;
+        const studentEnrollments = (rawEnroll || []).filter(e => {
+          if (!e.users_profile) return true;
+          return e.users_profile.role === 'student';
+        });
+        totalStudents = studentEnrollments.length;
+      } catch (errEnroll) {
+        console.warn('Error leyendo conteo de estudiantes:', errEnroll);
+      }
 
       // 7. Enlazar datos por cada clase
       const enriched = classes.map(c => {
         const act = activityByClass[c.id] || null;
         const draft = draftByClass[c.id] || null;
         const attempts = act ? (attemptsByActivity[act.id] || []) : [];
-        const completedAttempts = attempts.filter(a => a.status === 'completed');
+        const completedAttempts = attempts.filter(a => a.status === 'completed' || typeof a.score === 'number');
         
         // Estudiantes únicos que completaron
         const uniqueStudentsCompleted = new Set(completedAttempts.map(a => a.student_id)).size;
@@ -3954,16 +4036,18 @@ function ReforzamientoIATab({ onChangeTab }) {
           actStatus = 'draft_pending';
         }
 
+        const effectiveTotal = totalStudents > 0 ? totalStudents : uniqueStudentsCompleted;
+
         return {
           ...c,
           activity: act,
           draft: draft,
           actStatus,
-          totalStudents,
+          totalStudents: effectiveTotal,
           completedCount: uniqueStudentsCompleted,
           attemptsCount: attempts.length,
           avgScore,
-          participationPct: totalStudents > 0 ? Math.round((uniqueStudentsCompleted / totalStudents) * 100) : 0,
+          participationPct: effectiveTotal > 0 ? Math.round((uniqueStudentsCompleted / effectiveTotal) * 100) : 0,
         };
       });
 
@@ -4176,7 +4260,7 @@ function ReforzamientoIATab({ onChangeTab }) {
           </div>
           <div>
             <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Nivel de Dominio</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: globalAverage >= 70 ? '#166534' : '#B45309' }}>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: globalAverage >= 60 ? '#166534' : '#B45309' }}>
               {globalAverage}% <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>aciertos</span>
             </div>
           </div>
@@ -4467,7 +4551,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                           <span style={{
                             fontSize: '0.85rem',
                             fontWeight: 800,
-                            color: cls.avgScore >= 70 ? '#166534' : '#B45309'
+                            color: cls.avgScore >= 60 ? '#166534' : '#B45309'
                           }}>
                             {cls.avgScore}%
                           </span>
