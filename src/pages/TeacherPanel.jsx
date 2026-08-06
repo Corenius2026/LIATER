@@ -11,7 +11,9 @@ import {
   AlertCircle, Info, Layers, X, User, MessageSquare, Users,
   Search, Filter, Check, Archive, RefreshCw, FileCheck,
   Sparkles, Bot, CheckCheck, XCircle, ChevronDown, ChevronUp,
-  Edit3, EyeOff, Save, PlusCircle, ExternalLink
+  Edit3, EyeOff, Save, PlusCircle, ExternalLink, Download,
+  ChevronLeft, ChevronRight, Award, GraduationCap, Percent,
+  Calendar, FileSpreadsheet, Folder
 } from 'lucide-react';
 
 import './TeacherPanel.css';
@@ -1337,13 +1339,14 @@ function ResumenTab({ onChangeTab }) {
     announcements: 0,
     students: 0,
     pendingDoubts: 0,
-    pendingDrafts: 0,      // NUEVO: borradores IA pendientes de revisión
-    missingRecordings: 0,  // NUEVO: clases pasadas sin video_url
+    pendingDrafts: 0,      // borradores IA pendientes de revisión
+    missingRecordings: 0,  // clases pasadas sin video_url
+    pendingEvaluations: 0, // entregas de estudiantes pendientes por calificar
   });
   const [loading, setLoading] = useState(true);
   const [upcomingClasses, setUpcomingClasses] = useState([]);  // máx 1 (la más próxima)
   const [pendingDoubts, setPendingDoubts] = useState([]);
-  const [urgentAlerts, setUrgentAlerts] = useState([]);        // NUEVO: bandeja de acción
+  const [urgentAlerts, setUrgentAlerts] = useState([]);        // bandeja de acción
 
   const fetchStatsAndDoubts = async () => {
     if (!programId) return;
@@ -1401,8 +1404,15 @@ function ResumenTab({ onChangeTab }) {
         .lt('class_date', new Date().toISOString())
         .is('video_url', null);
 
-      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts, resDrafts, resMissingRec] = await Promise.all([
-        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts, pPendingDrafts, pMissingRecordings
+      // Query C: Entregas de tareas pendientes por calificar en este programa
+      const pPendingSubmissions = supabase
+        .from('assignment_submissions')
+        .select('id, assignment_id, assignments!inner(id, title, program_id)', { count: 'exact' })
+        .eq('assignments.program_id', programId)
+        .eq('status', 'submitted');
+
+      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts, resDrafts, resMissingRec, resSubmissions] = await Promise.all([
+        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts, pPendingDrafts, pMissingRecordings, pPendingSubmissions
       ]);
       
       const classes = resClasses.data || [];
@@ -1416,6 +1426,21 @@ function ResumenTab({ onChangeTab }) {
       setPendingDoubts(resTopDoubts.data || []);
 
       const alerts = [];
+      // Alerta: entregas de evaluación pendientes por calificar
+      const pendingSubCount = (resSubmissions.data || []).length;
+      if (pendingSubCount > 0) {
+        alerts.push({
+          id: 'pending-submissions-alert',
+          type: 'evaluation',
+          title: `Evaluaciones por calificar (${pendingSubCount})`,
+          subtitle: `${pendingSubCount} entrega(s) de estudiantes esperando tu calificación y feedback`,
+          action: 'Calificar ahora',
+          tab: 'evaluaciones',
+          icon: 'fileCheck',
+          color: '#FCA311',
+        });
+      }
+
       // Alerta: borradores IA pendientes
       if ((resDrafts.data || []).length > 0) {
         (resDrafts.data || []).forEach(d => {
@@ -1457,6 +1482,7 @@ function ResumenTab({ onChangeTab }) {
         pendingDoubts: resUnreviewed.count || 0,
         pendingDrafts: (resDrafts.data || []).length,
         missingRecordings: (resMissingRec.data || []).length,
+        pendingEvaluations: pendingSubCount,
       });
     } catch (err) {
       console.error('Error fetching teacher stats:', err);
@@ -1603,7 +1629,13 @@ function ResumenTab({ onChangeTab }) {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                   <div style={{ background: alert.color === '#FCA311' ? 'rgba(252,163,17,0.12)' : 'rgba(20,33,61,0.08)', padding: '0.5rem', borderRadius: '8px' }}>
-                    {alert.type === 'draft' ? <Sparkles size={18} color={alert.color} /> : <Video size={18} color={alert.color} />}
+                    {alert.type === 'draft' ? (
+                      <Sparkles size={18} color={alert.color} />
+                    ) : alert.type === 'evaluation' ? (
+                      <FileCheck size={18} color={alert.color} />
+                    ) : (
+                      <Video size={18} color={alert.color} />
+                    )}
                   </div>
                   <div>
                     <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem' }}>{alert.title}</div>
@@ -3276,12 +3308,1652 @@ function BorradoresTab() {
   );
 }
 
+/* ─────────────────────────────────────────────────────────────
+   MODAL DE CALIFICACIÓN Y RETROALIMENTACIÓN (GradingModal)
+───────────────────────────────────────────────────────────── */
+function GradingModal({ evaluation, onClose, onGraded, teacherId }) {
+  const [students, setStudents] = useState([]);
+  const [submissions, setSubmissions] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'submitted' | 'graded' | 'pending'
+  const [searchStudent, setSearchStudent] = useState('');
+  const [gradeInput, setGradeInput] = useState('');
+  const [feedbackInput, setFeedbackInput] = useState('');
+  const [savingGrade, setSavingGrade] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState('');
+
+  const isAssignment = evaluation.evalType === 'assignment';
+  const maxScore = Number(evaluation.max_score) || 100;
+
+  // Cargar estudiantes inscritos y sus entregas
+  const loadSubmissionsData = async () => {
+    setLoading(true);
+    try {
+      // 1. Obtener alumnos inscritos
+      const { data: enrollData } = await supabase
+        .from('enrollments')
+        .select('student_id, users_profile!inner(id, full_name, email)')
+        .eq('program_id', evaluation.program_id)
+        .eq('users_profile.role', 'student');
+
+      const studentList = (enrollData || []).map(e => ({
+        id: e.users_profile?.id || e.student_id,
+        name: e.users_profile?.full_name || 'Estudiante',
+        email: e.users_profile?.email || ''
+      }));
+
+      // 2. Obtener entregas según tipo
+      let subMap = {};
+      if (isAssignment) {
+        const { data: subs } = await supabase
+          .from('assignment_submissions')
+          .select('*')
+          .eq('assignment_id', evaluation.id);
+
+        (subs || []).forEach(s => {
+          subMap[s.student_id] = s;
+        });
+      } else {
+        const { data: qSubs } = await supabase
+          .from('quiz_submissions')
+          .select('*')
+          .eq('quiz_id', evaluation.id);
+
+        (qSubs || []).forEach(qs => {
+          subMap[qs.student_id] = {
+            id: qs.id,
+            student_id: qs.student_id,
+            grade: qs.score,
+            feedback: qs.feedback || '',
+            submitted_at: qs.completed_at,
+            status: qs.status || 'graded',
+            comments: 'Cuestionario completado por el estudiante'
+          };
+        });
+      }
+
+      setStudents(studentList);
+      setSubmissions(subMap);
+
+      if (studentList.length > 0 && !selectedStudentId) {
+        // Seleccionar primer alumno por calificar o primero de la lista
+        const firstSubmitted = studentList.find(st => subMap[st.id]?.status === 'submitted');
+        const initial = firstSubmitted || studentList[0];
+        setSelectedStudentId(initial.id);
+        const currentSub = subMap[initial.id];
+        setGradeInput(currentSub?.grade !== null && currentSub?.grade !== undefined ? currentSub.grade : '');
+        setFeedbackInput(currentSub?.feedback || '');
+      }
+    } catch (err) {
+      console.error('Error al cargar entregas:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSubmissionsData();
+  }, [evaluation?.id]);
+
+  const handleSelectStudent = (stId) => {
+    setSelectedStudentId(stId);
+    setFeedbackMsg('');
+    const sub = submissions[stId];
+    setGradeInput(sub?.grade !== null && sub?.grade !== undefined ? sub.grade : '');
+    setFeedbackInput(sub?.feedback || '');
+  };
+
+  // Guardar calificación
+  const handleSaveGrade = async () => {
+    if (!selectedStudentId) return;
+    setSavingGrade(true);
+    setFeedbackMsg('');
+
+    const numericGrade = gradeInput === '' ? null : Number(gradeInput);
+    if (numericGrade !== null && (isNaN(numericGrade) || numericGrade < 0 || numericGrade > maxScore)) {
+      setFeedbackMsg(`La calificación debe estar entre 0 y ${maxScore}`);
+      setSavingGrade(false);
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      let existingSub = submissions[selectedStudentId];
+
+      if (isAssignment) {
+        if (existingSub?.id) {
+          // Actualizar entrega existente
+          const { error } = await supabase
+            .from('assignment_submissions')
+            .update({
+              grade: numericGrade,
+              feedback: feedbackInput,
+              status: numericGrade !== null ? 'graded' : existingSub.status,
+              graded_at: now,
+              graded_by: teacherId || null
+            })
+            .eq('id', existingSub.id);
+          if (error) throw error;
+        } else {
+          // Crear registro de entrega con la nota asignada directamente por el docente
+          const { data: newSub, error } = await supabase
+            .from('assignment_submissions')
+            .insert([{
+              assignment_id: evaluation.id,
+              student_id: selectedStudentId,
+              grade: numericGrade,
+              feedback: feedbackInput,
+              status: numericGrade !== null ? 'graded' : 'submitted',
+              graded_at: now,
+              graded_by: teacherId || null
+            }])
+            .select()
+            .single();
+          if (error) throw error;
+          if (newSub) existingSub = newSub;
+        }
+      } else {
+        // Cuestionario
+        if (existingSub?.id) {
+          await supabase
+            .from('quiz_submissions')
+            .update({
+              score: numericGrade,
+              feedback: feedbackInput,
+              status: 'graded'
+            })
+            .eq('id', existingSub.id);
+        } else {
+          await supabase
+            .from('quiz_submissions')
+            .insert([{
+              quiz_id: evaluation.id,
+              student_id: selectedStudentId,
+              score: numericGrade,
+              feedback: feedbackInput,
+              status: 'graded'
+            }]);
+        }
+      }
+
+      // Actualizar estado local
+      setSubmissions(prev => ({
+        ...prev,
+        [selectedStudentId]: {
+          ...(prev[selectedStudentId] || {}),
+          grade: numericGrade,
+          feedback: feedbackInput,
+          status: numericGrade !== null ? 'graded' : (prev[selectedStudentId]?.status || 'submitted'),
+          graded_at: now
+        }
+      }));
+
+      setFeedbackMsg('✅ Calificación guardada con éxito.');
+      if (onGraded) onGraded();
+
+      // Desvanecer mensaje tras 2.5s
+      setTimeout(() => setFeedbackMsg(''), 2500);
+    } catch (err) {
+      console.error('Error al guardar calificación:', err);
+      setFeedbackMsg('❌ Error al guardar: ' + err.message);
+    } finally {
+      setSavingGrade(false);
+    }
+  };
+
+  // Filtrado de alumnos
+  const filteredStudents = students.filter(st => {
+    const matchesSearch = st.name.toLowerCase().includes(searchStudent.toLowerCase()) || st.email.toLowerCase().includes(searchStudent.toLowerCase());
+    if (!matchesSearch) return false;
+
+    const sub = submissions[st.id];
+    if (filterStatus === 'all') return true;
+    if (filterStatus === 'submitted') return sub && sub.status === 'submitted';
+    if (filterStatus === 'graded') return sub && (sub.status === 'graded' || sub.grade !== null && sub.grade !== undefined);
+    if (filterStatus === 'pending') return !sub;
+    return true;
+  });
+
+  const selectedStudent = students.find(st => st.id === selectedStudentId);
+  const currentSubmission = selectedStudentId ? submissions[selectedStudentId] : null;
+
+  // Navegación entre estudiantes
+  const currentIndex = filteredStudents.findIndex(st => st.id === selectedStudentId);
+  const handlePrevStudent = () => {
+    if (currentIndex > 0) {
+      handleSelectStudent(filteredStudents[currentIndex - 1].id);
+    }
+  };
+  const handleNextStudent = () => {
+    if (currentIndex < filteredStudents.length - 1) {
+      handleSelectStudent(filteredStudents[currentIndex + 1].id);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+    }}>
+      <div style={{
+        background: '#FFFFFF', width: '100%', maxWidth: '1050px', maxHeight: '90vh',
+        borderRadius: '12px', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)', overflow: 'hidden'
+      }}>
+        {/* Cabecera del Modal */}
+        <div style={{
+          padding: '1.25rem 1.5rem', background: '#14213D', color: '#FFFFFF',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ background: 'rgba(252, 163, 17, 0.2)', padding: '0.5rem', borderRadius: '8px' }}>
+              <FileCheck size={20} color="#FCA311" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, background: '#FCA311', color: '#14213D', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                  {isAssignment ? 'Tarea / Entregable' : 'Cuestionario'}
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#FFFFFF' }}>
+                  {evaluation.title}
+                </h3>
+              </div>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#E5E5E5' }}>
+                Puntaje Máximo: {maxScore} pts · Fecha Límite: {new Date(evaluation.due_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: '#FFFFFF', cursor: 'pointer', padding: '0.4rem', borderRadius: '6px' }}
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        {/* Cuerpo del Modal con Doble Columna */}
+        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          
+          {/* COLUMNA IZQUIERDA: Lista de Estudiantes */}
+          <div style={{ borderRight: '1px solid #E5E5E5', display: 'flex', flexDirection: 'column', background: '#F8FAFC' }}>
+            {/* Buscador y Filtros */}
+            <div style={{ padding: '0.85rem', borderBottom: '1px solid #E5E5E5' }}>
+              <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
+                <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar estudiante..."
+                  value={searchStudent}
+                  onChange={e => setSearchStudent(e.target.value)}
+                  style={{
+                    width: '100%', padding: '0.4rem 0.5rem 0.4rem 2rem', borderRadius: '6px',
+                    border: '1px solid #E5E5E5', fontSize: '0.8rem', outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Filtros de estado en pastillas */}
+              <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                {[
+                  { id: 'all', label: `Todos (${students.length})` },
+                  { id: 'submitted', label: 'Por calificar' },
+                  { id: 'graded', label: 'Calificados' },
+                  { id: 'pending', label: 'Sin entrega' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setFilterStatus(tab.id)}
+                    style={{
+                      border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem',
+                      fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+                      background: filterStatus === tab.id ? '#14213D' : '#E2E8F0',
+                      color: filterStatus === tab.id ? '#FFFFFF' : '#475569'
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Listado con scroll */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+              {loading ? (
+                <div style={{ padding: '2rem', textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Cargando alumnos...
+                </div>
+              ) : filteredStudents.length === 0 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  No se encontraron estudiantes
+                </div>
+              ) : (
+                filteredStudents.map(st => {
+                  const sub = submissions[st.id];
+                  const isSelected = st.id === selectedStudentId;
+                  const isGraded = sub && (sub.status === 'graded' || (sub.grade !== null && sub.grade !== undefined));
+                  const isSubmitted = sub && sub.status === 'submitted';
+
+                  return (
+                    <div
+                      key={st.id}
+                      onClick={() => handleSelectStudent(st.id)}
+                      style={{
+                        padding: '0.65rem 0.75rem', borderRadius: '8px', marginBottom: '0.35rem',
+                        cursor: 'pointer', transition: 'all 0.15s ease',
+                        background: isSelected ? '#FFFFFF' : 'transparent',
+                        border: isSelected ? '1px solid #14213D' : '1px solid transparent',
+                        boxShadow: isSelected ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontWeight: isSelected ? 700 : 600, fontSize: '0.84rem', color: '#14213D' }}>
+                          {st.name}
+                        </div>
+                        {isGraded ? (
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, background: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px' }}>
+                            {sub.grade}/{maxScore}
+                          </span>
+                        ) : isSubmitted ? (
+                          <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: '4px' }}>
+                            Entregado
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 500 }}>
+                            Sin entrega
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {st.email}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* COLUMNA DERECHA: Detalle de Entrega y Calificación */}
+          <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '1.5rem', background: '#FFFFFF' }}>
+            {selectedStudent ? (
+              <>
+                {/* Header del Alumno Seleccionado */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem', borderBottom: '1px solid #E5E5E5', marginBottom: '1.25rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#14213D' }}>
+                        {selectedStudent.name}
+                      </h4>
+                      {currentSubmission?.status === 'graded' && (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, background: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <Check size={12} /> Calificado
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {selectedStudent.email}
+                    </p>
+                  </div>
+
+                  {/* Botones Anterior / Siguiente */}
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <button
+                      onClick={handlePrevStudent}
+                      disabled={currentIndex <= 0}
+                      style={{
+                        padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid #E5E5E5',
+                        background: '#FFFFFF', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer',
+                        fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px',
+                        color: currentIndex <= 0 ? '#94A3B8' : '#14213D'
+                      }}
+                    >
+                      <ChevronLeft size={14} /> Anterior
+                    </button>
+                    <button
+                      onClick={handleNextStudent}
+                      disabled={currentIndex >= filteredStudents.length - 1}
+                      style={{
+                        padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid #E5E5E5',
+                        background: '#FFFFFF', cursor: currentIndex >= filteredStudents.length - 1 ? 'not-allowed' : 'pointer',
+                        fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px',
+                        color: currentIndex >= filteredStudents.length - 1 ? '#94A3B8' : '#14213D'
+                      }}
+                    >
+                      Siguiente <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Información de la Entrega */}
+                <div style={{ marginBottom: '1.5rem', background: '#F8FAFC', padding: '1rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#14213D', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <FileText size={15} color="#FCA311" />
+                    Contenido de la Entrega
+                  </div>
+
+                  {currentSubmission ? (
+                    <div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                        Entregado el: {new Date(currentSubmission.submitted_at || currentSubmission.created_at).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </div>
+
+                      {/* Archivo o Enlace entregado */}
+                      {currentSubmission.file_url ? (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          background: '#FFFFFF', border: '1px solid #CBD5E1', padding: '0.75rem 1rem',
+                          borderRadius: '8px', marginBottom: '0.75rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+                            <Folder size={18} color="#14213D" />
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#14213D', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {currentSubmission.file_url}
+                            </div>
+                          </div>
+                          <a
+                            href={currentSubmission.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                              background: '#14213D', color: '#FFFFFF', padding: '0.4rem 0.8rem',
+                              borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textDecoration: 'none',
+                              flexShrink: 0
+                            }}
+                          >
+                            <ExternalLink size={13} /> Abrir Entrega
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+                          Sin archivo adjunto subido
+                        </div>
+                      )}
+
+                      {/* Comentarios del alumno */}
+                      {currentSubmission.comments && (
+                        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '0.75rem', borderRadius: '6px', fontSize: '0.82rem', color: '#334155' }}>
+                          <span style={{ fontWeight: 700, color: '#14213D' }}>Comentarios del alumno: </span>
+                          "{currentSubmission.comments}"
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '1rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '6px', border: '1px dashed #CBD5E1' }}>
+                      <AlertCircle size={22} color="#94A3B8" style={{ margin: '0 auto 0.35rem auto' }} />
+                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
+                        El estudiante aún no ha realizado la entrega para esta evaluación.
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#94A3B8', marginTop: '2px' }}>
+                        Puedes calificar directamente si se trata de una evaluación presencial o calificación extemporánea.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Formulario de Calificación */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', padding: '1.25rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
+                  <h5 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', fontWeight: 700, color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Award size={16} color="#FCA311" />
+                    Asignar Calificación y Retroalimentación
+                  </h5>
+
+                  {/* Input de Nota */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.3rem' }}>
+                        Nota (0 - {maxScore} pts)
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <input
+                          type="number"
+                          min="0"
+                          max={maxScore}
+                          step="0.1"
+                          placeholder="Ej. 95"
+                          value={gradeInput}
+                          onChange={e => setGradeInput(e.target.value)}
+                          style={{
+                            width: '110px', padding: '0.5rem', borderRadius: '6px',
+                            border: '2px solid #14213D', fontSize: '1.1rem', fontWeight: 800,
+                            textAlign: 'center', color: '#14213D', outline: 'none'
+                          }}
+                        />
+                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                          / {maxScore}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Botones rápidos de porcentaje */}
+                    <div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontWeight: 600 }}>
+                        Atajos rápidos:
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.3rem' }}>
+                        {[
+                          { label: '100%', val: maxScore },
+                          { label: '90%', val: maxScore * 0.9 },
+                          { label: '80%', val: maxScore * 0.8 },
+                          { label: '70%', val: maxScore * 0.7 },
+                          { label: '0%', val: 0 }
+                        ].map(preset => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setGradeInput(preset.val.toString())}
+                            style={{
+                              background: '#F1F5F9', border: '1px solid #CBD5E1', padding: '0.35rem 0.55rem',
+                              borderRadius: '4px', fontSize: '0.74rem', fontWeight: 700, color: '#334155', cursor: 'pointer'
+                            }}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Retroalimentación Pedagógica */}
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.3rem' }}>
+                      Retroalimentación pedagógica para el alumno (Feedback)
+                    </label>
+                    <textarea
+                      rows="4"
+                      placeholder="Escribe comentarios formativos, fortalezas de la entrega, aspectos a mejorar y recomendaciones para el estudiante..."
+                      value={feedbackInput}
+                      onChange={e => setFeedbackInput(e.target.value)}
+                      style={{
+                        width: '100%', padding: '0.65rem', borderRadius: '6px',
+                        border: '1px solid #CBD5E1', fontSize: '0.84rem', outline: 'none', resize: 'vertical'
+                      }}
+                    />
+                  </div>
+
+                  {/* Mensaje de feedback visual */}
+                  {feedbackMsg && (
+                    <div style={{
+                      padding: '0.6rem 0.85rem', borderRadius: '6px', marginBottom: '1rem',
+                      fontSize: '0.82rem', fontWeight: 600,
+                      background: feedbackMsg.includes('✅') ? '#DCFCE7' : '#FEE2E2',
+                      color: feedbackMsg.includes('✅') ? '#15803D' : '#991B1B'
+                    }}>
+                      {feedbackMsg}
+                    </div>
+                  )}
+
+                  {/* Botón de Guardar */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveGrade}
+                      disabled={savingGrade}
+                      style={{
+                        background: '#14213D', color: '#FFFFFF', border: 'none',
+                        padding: '0.6rem 1.5rem', borderRadius: '8px', fontSize: '0.88rem', fontWeight: 700,
+                        cursor: savingGrade ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                        boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)', transition: 'all 0.15s ease'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
+                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}
+                    >
+                      <Save size={16} />
+                      {savingGrade ? 'Guardando...' : 'Guardar Calificación'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Selecciona un estudiante de la lista izquierda para revisar su entrega y calificar.
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MODAL DE CREACIÓN / EDICIÓN DE EVALUACIÓN (EvaluationModal)
+───────────────────────────────────────────────────────────── */
+function EvaluationModal({ initialData, programId, modules, classes, onClose, onSaved, teacherId }) {
+  const isEditing = !!initialData?.id;
+  const [evalType, setEvalType] = useState(initialData?.evalType || 'assignment'); // 'assignment' | 'quiz'
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [description, setDescription] = useState(initialData?.description || '');
+  const [moduleId, setModuleId] = useState(initialData?.module_id || (modules[0]?.id || ''));
+  const [classId, setClassId] = useState(initialData?.class_id || '');
+  const [dueDate, setDueDate] = useState(() => {
+    if (initialData?.due_date) {
+      // Formato YYYY-MM-DDTHH:mm para input datetime-local
+      const d = new Date(initialData.due_date);
+      return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+    const defaultDate = new Date();
+    defaultDate.setDate(defaultDate.getDate() + 7);
+    defaultDate.setHours(23, 59, 0, 0);
+    return new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
+  const [maxScore, setMaxScore] = useState(initialData?.max_score || 100);
+  const [weightPercentage, setWeightPercentage] = useState(initialData?.weight_percentage || 0);
+  const [allowedFileTypes, setAllowedFileTypes] = useState(initialData?.allowed_file_types || 'pdf,doc,docx,zip,link');
+  const [isPublished, setIsPublished] = useState(initialData?.is_published !== false);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Clases filtradas por el módulo seleccionado
+  const filteredClasses = classes.filter(c => !moduleId || c.module_id === moduleId || c.session?.module_id === moduleId);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      setErrorMsg('Por favor ingresa un título para la evaluación.');
+      return;
+    }
+    if (!dueDate) {
+      setErrorMsg('Por favor define la fecha límite de entrega.');
+      return;
+    }
+
+    setSaving(true);
+    setErrorMsg('');
+
+    try {
+      const payload = {
+        program_id: programId,
+        teacher_id: teacherId || null,
+        module_id: moduleId || null,
+        class_id: classId || null,
+        title: title.trim(),
+        description: description.trim(),
+        due_date: new Date(dueDate).toISOString(),
+        max_score: Number(maxScore) || 100,
+        is_published: isPublished
+      };
+
+      if (evalType === 'assignment') {
+        payload.weight_percentage = Number(weightPercentage) || 0;
+        payload.allowed_file_types = allowedFileTypes.trim();
+
+        if (isEditing) {
+          const { error } = await supabase
+            .from('assignments')
+            .update(payload)
+            .eq('id', initialData.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('assignments')
+            .insert([payload]);
+          if (error) throw error;
+        }
+      } else {
+        // Quiz
+        if (isEditing) {
+          const { error } = await supabase
+            .from('quizzes')
+            .update(payload)
+            .eq('id', initialData.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('quizzes')
+            .insert([payload]);
+          if (error) throw error;
+        }
+      }
+
+      if (onSaved) onSaved();
+      onClose();
+    } catch (err) {
+      console.error('Error al guardar evaluación:', err);
+      setErrorMsg('Error al guardar: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+    }}>
+      <div style={{
+        background: '#FFFFFF', width: '100%', maxWidth: '640px', maxHeight: '90vh',
+        borderRadius: '12px', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)', overflow: 'hidden'
+      }}>
+        {/* Cabecera */}
+        <div style={{
+          padding: '1.25rem 1.5rem', background: '#14213D', color: '#FFFFFF',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{ background: 'rgba(252, 163, 17, 0.2)', padding: '0.45rem', borderRadius: '8px' }}>
+              <PlusCircle size={18} color="#FCA311" />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF' }}>
+                {isEditing ? 'Editar Evaluación' : 'Crear Nueva Evaluación'}
+              </h3>
+              <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.76rem', color: '#E5E5E5' }}>
+                Configura los parámetros, módulo y plazo para los estudiantes
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#FFFFFF', cursor: 'pointer' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Formulario con scroll */}
+        <form onSubmit={handleSubmit} style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+          {errorMsg && (
+            <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', padding: '0.65rem 1rem', borderRadius: '6px', marginBottom: '1.25rem', fontSize: '0.82rem', fontWeight: 600 }}>
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Selector de Tipo (solo si es nueva) */}
+          {!isEditing && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#14213D', marginBottom: '0.4rem' }}>
+                Tipo de Evaluación
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setEvalType('assignment')}
+                  style={{
+                    padding: '0.75rem', borderRadius: '8px', border: evalType === 'assignment' ? '2px solid #FCA311' : '1px solid #CBD5E1',
+                    background: evalType === 'assignment' ? 'rgba(252, 163, 17, 0.08)' : '#FFFFFF',
+                    textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem'
+                  }}
+                >
+                  <FileText size={20} color={evalType === 'assignment' ? '#14213D' : '#64748B'} />
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#14213D' }}>Tarea / Entregable</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Entrega de archivos (PDF, DOCX, ZIP o Link)</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEvalType('quiz')}
+                  style={{
+                    padding: '0.75rem', borderRadius: '8px', border: evalType === 'quiz' ? '2px solid #FCA311' : '1px solid #CBD5E1',
+                    background: evalType === 'quiz' ? 'rgba(252, 163, 17, 0.08)' : '#FFFFFF',
+                    textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem'
+                  }}
+                >
+                  <FileCheck size={20} color={evalType === 'quiz' ? '#14213D' : '#64748B'} />
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#14213D' }}>Cuestionario / Quiz</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Evaluación de conocimientos teóricos</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Título */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+              Título de la Evaluación *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="Ej. Tarea Práctica: Caso de Estudio Módulo 2"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.86rem', outline: 'none' }}
+            />
+          </div>
+
+          {/* Instrucciones / Descripción */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+              Instrucciones y Criterios de Evaluación
+            </label>
+            <textarea
+              rows="3"
+              placeholder="Detalla las instrucciones para los estudiantes, formato de entrega y rúbrica..."
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.84rem', outline: 'none', resize: 'vertical' }}
+            />
+          </div>
+
+          {/* Jerarquía: Módulo y Clase */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+                Módulo Asociado
+              </label>
+              <select
+                value={moduleId}
+                onChange={e => setModuleId(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', background: '#FFFFFF', outline: 'none' }}
+              >
+                <option value="">Evaluación General del Programa</option>
+                {modules.map((m, idx) => (
+                  <option key={m.id} value={m.id}>
+                    Módulo {m.order_index || idx + 1}: {m.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+                Clase Específica (Opcional)
+              </label>
+              <select
+                value={classId}
+                onChange={e => setClassId(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', background: '#FFFFFF', outline: 'none' }}
+              >
+                <option value="">Todo el módulo</option>
+                {filteredClasses.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Plazo y Calificación */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+                Fecha y Hora Límite *
+              </label>
+              <input
+                type="datetime-local"
+                required
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', outline: 'none' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+                Puntaje Máximo
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="1000"
+                value={maxScore}
+                onChange={e => setMaxScore(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.84rem', textAlign: 'center', outline: 'none' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+                Ponderación (%)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={weightPercentage}
+                onChange={e => setWeightPercentage(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.84rem', textAlign: 'center', outline: 'none' }}
+              />
+            </div>
+          </div>
+
+          {/* Tipos de Archivos Permitidos (si es tarea) */}
+          {evalType === 'assignment' && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
+                Formatos permitidos (separados por coma)
+              </label>
+              <input
+                type="text"
+                value={allowedFileTypes}
+                onChange={e => setAllowedFileTypes(e.target.value)}
+                placeholder="pdf, doc, docx, zip, link"
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', outline: 'none' }}
+              />
+            </div>
+          )}
+
+          {/* Switch Publicado */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.75rem', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', marginBottom: '1.5rem' }}>
+            <input
+              type="checkbox"
+              id="is_published_checkbox"
+              checked={isPublished}
+              onChange={e => setIsPublished(e.target.checked)}
+              style={{ width: '16px', height: '16px', accentColor: '#14213D', cursor: 'pointer' }}
+            />
+            <label htmlFor="is_published_checkbox" style={{ fontSize: '0.84rem', fontWeight: 600, color: '#14213D', cursor: 'pointer' }}>
+              Publicar inmediatamente (visible para los estudiantes en su portal)
+            </label>
+          </div>
+
+          {/* Botones de acción */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '0.6rem 1.25rem', borderRadius: '8px', border: '1px solid #CBD5E1',
+                background: '#FFFFFF', color: '#475569', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer'
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: '0.6rem 1.5rem', borderRadius: '8px', border: 'none',
+                background: '#14213D', color: '#FFFFFF', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
+              onMouseOut={e => e.currentTarget.style.background = '#14213D'}
+            >
+              <Save size={15} />
+              {saving ? 'Guardando...' : (isEditing ? 'Actualizar Evaluación' : 'Crear Evaluación')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PESTAÑA DE EVALUACIONES (EvaluacionesTab)
+   Fase 2: Gestión Integral de Tareas, Cuestionarios y Calificaciones
+───────────────────────────────────────────────────────────── */
+function EvaluacionesTab({ onChangeTab }) {
+  const { profile, teacherId, programId, currentProgram } = useTeacherContext();
+  const [evaluations, setEvaluations] = useState([]);
+  const [modules, setModules] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [enrolledCount, setEnrolledCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Filtros
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'assignment' | 'quiz'
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'pending_grade' | 'active' | 'closed' | 'draft'
+  const [filterModule, setFilterModule] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Modales
+  const [selectedEvaluationForGrading, setSelectedEvaluationForGrading] = useState(null);
+  const [evaluationModalData, setEvaluationModalData] = useState(null);
+  const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [deleteType, setDeleteType] = useState('assignment');
+
+  const fetchEvaluationsData = async () => {
+    if (!programId) return;
+    setLoading(true);
+    try {
+      const teacherProfileId = teacherId || profile?.id;
+
+      // 1. Cargar Módulos y Clases para nombres jerárquicos
+      const { data: mods } = await supabase
+        .from('modules')
+        .select('*')
+        .eq('program_id', programId)
+        .order('order_index', { ascending: true });
+      setModules(mods || []);
+
+      const { data: cls } = await supabase
+        .from('class_sessions')
+        .select('id, title, module_id')
+        .eq('program_id', programId);
+      setClasses(cls || []);
+
+      // 2. Conteo de estudiantes inscritos
+      const { count: studentCount } = await supabase
+        .from('enrollments')
+        .select('student_id, users_profile!inner(role)', { count: 'exact', head: true })
+        .eq('program_id', programId)
+        .eq('users_profile.role', 'student');
+      setEnrolledCount(studentCount || 0);
+
+      // 3. Consultar Tareas (assignments)
+      const { data: assignmentsData } = await supabase
+        .from('assignments')
+        .select(`
+          *,
+          assignment_submissions (
+            id, student_id, grade, status, submitted_at
+          )
+        `)
+        .eq('program_id', programId)
+        .order('created_at', { ascending: false });
+
+      // 4. Consultar Cuestionarios (quizzes)
+      const { data: quizzesData } = await supabase
+        .from('quizzes')
+        .select(`
+          *,
+          quiz_submissions (
+            id, student_id, score, status, completed_at
+          )
+        `)
+        .eq('program_id', programId)
+        .order('created_at', { ascending: false });
+
+      // Normalizar lista de evaluaciones combinada
+      const normalizedAssignments = (assignmentsData || []).map(a => {
+        const subs = a.assignment_submissions || [];
+        const totalSubs = subs.length;
+        const pendingGrade = subs.filter(s => s.status === 'submitted' || (s.grade === null && s.status !== 'graded')).length;
+        const gradedSubs = subs.filter(s => s.status === 'graded' || (s.grade !== null && s.grade !== undefined));
+        const avgScore = gradedSubs.length > 0 ? (gradedSubs.reduce((acc, s) => acc + Number(s.grade || 0), 0) / gradedSubs.length).toFixed(1) : null;
+
+        return {
+          ...a,
+          evalType: 'assignment',
+          totalSubs,
+          pendingGrade,
+          gradedCount: gradedSubs.length,
+          avgScore
+        };
+      });
+
+      const normalizedQuizzes = (quizzesData || []).map(q => {
+        const subs = q.quiz_submissions || [];
+        const totalSubs = subs.length;
+        const gradedSubs = subs.filter(s => s.score !== null && s.score !== undefined);
+        const avgScore = gradedSubs.length > 0 ? (gradedSubs.reduce((acc, s) => acc + Number(s.score || 0), 0) / gradedSubs.length).toFixed(1) : null;
+
+        return {
+          ...q,
+          evalType: 'quiz',
+          totalSubs,
+          pendingGrade: 0, // En quizzes la corrección suele ser automática
+          gradedCount: gradedSubs.length,
+          avgScore
+        };
+      });
+
+      setEvaluations([...normalizedAssignments, ...normalizedQuizzes]);
+    } catch (err) {
+      console.error('Error al consultar evaluaciones:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvaluationsData();
+  }, [programId, teacherId, profile?.id]);
+
+  // Toggle de publicación
+  const handleTogglePublish = async (evalItem) => {
+    try {
+      const table = evalItem.evalType === 'assignment' ? 'assignments' : 'quizzes';
+      const newStatus = !evalItem.is_published;
+
+      const { error } = await supabase
+        .from(table)
+        .update({ is_published: newStatus })
+        .eq('id', evalItem.id);
+
+      if (error) throw error;
+
+      setEvaluations(prev => prev.map(ev => ev.id === evalItem.id ? { ...ev, is_published: newStatus } : ev));
+    } catch (err) {
+      console.error('Error al cambiar visibilidad:', err);
+    }
+  };
+
+  // Eliminar evaluación
+  const handleDeleteEvaluation = async () => {
+    if (!confirmDeleteId) return;
+    try {
+      const table = deleteType === 'assignment' ? 'assignments' : 'quizzes';
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .eq('id', confirmDeleteId);
+
+      if (error) throw error;
+
+      setEvaluations(prev => prev.filter(ev => ev.id !== confirmDeleteId));
+      setConfirmDeleteId(null);
+    } catch (err) {
+      console.error('Error al eliminar evaluación:', err);
+    }
+  };
+
+  // Cálculos de KPIs Superiores
+  const totalEvals = evaluations.length;
+  const totalSubmissionsReceived = evaluations.reduce((acc, ev) => acc + (ev.totalSubs || 0), 0);
+  const totalPendingGrading = evaluations.reduce((acc, ev) => acc + (ev.pendingGrade || 0), 0);
+  const evaluationsWithAvg = evaluations.filter(ev => ev.avgScore !== null);
+  const overallAvg = evaluationsWithAvg.length > 0
+    ? (evaluationsWithAvg.reduce((acc, ev) => acc + Number(ev.avgScore), 0) / evaluationsWithAvg.length).toFixed(1)
+    : null;
+
+  // Filtrado de lista
+  const now = new Date();
+  const filteredEvaluations = evaluations.filter(ev => {
+    // Tipo
+    if (filterType !== 'all' && ev.evalType !== filterType) return false;
+
+    // Módulo
+    if (filterModule !== 'all' && ev.module_id !== filterModule) return false;
+
+    // Búsqueda
+    if (searchTerm && !ev.title.toLowerCase().includes(searchTerm.toLowerCase()) && !(ev.description || '').toLowerCase().includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+
+    // Estado
+    const dueDate = new Date(ev.due_date);
+    if (filterStatus === 'pending_grade') return ev.pendingGrade > 0;
+    if (filterStatus === 'active') return ev.is_published && dueDate >= now;
+    if (filterStatus === 'closed') return ev.is_published && dueDate < now;
+    if (filterStatus === 'draft') return !ev.is_published;
+
+    return true;
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
+      
+      {/* ── 1. KPI CARDS (Black and Gold Elegance) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+        
+        {/* Total Evaluaciones */}
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #14213D' }}>
+          <div style={{ background: 'rgba(20, 33, 61, 0.08)', padding: '0.75rem', borderRadius: '10px' }}>
+            <FileText size={24} color="#14213D" />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#14213D', lineHeight: 1 }}>
+              {totalEvals}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
+              Evaluaciones del Programa
+            </div>
+          </div>
+        </div>
+
+        {/* Total Entregas */}
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #14213D' }}>
+          <div style={{ background: 'rgba(20, 33, 61, 0.08)', padding: '0.75rem', borderRadius: '10px' }}>
+            <Folder size={24} color="#14213D" />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#14213D', lineHeight: 1 }}>
+              {totalSubmissionsReceived}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
+              Entregas Recibidas
+            </div>
+          </div>
+        </div>
+
+        {/* Pendientes por Calificar */}
+        <div className="card" style={{
+          padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
+          borderLeft: '4px solid #FCA311',
+          background: totalPendingGrading > 0 ? 'rgba(252, 163, 17, 0.04)' : '#FFFFFF'
+        }}>
+          <div style={{ background: 'rgba(252, 163, 17, 0.15)', padding: '0.75rem', borderRadius: '10px' }}>
+            <Clock size={24} color="#FCA311" />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: totalPendingGrading > 0 ? '#B45309' : '#14213D', lineHeight: 1 }}>
+              {totalPendingGrading}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: totalPendingGrading > 0 ? '#B45309' : 'var(--text-muted)', fontWeight: 700, marginTop: '4px' }}>
+              Por Calificar
+            </div>
+          </div>
+        </div>
+
+        {/* Promedio General */}
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #16A34A' }}>
+          <div style={{ background: 'rgba(22, 163, 74, 0.1)', padding: '0.75rem', borderRadius: '10px' }}>
+            <Award size={24} color="#16A34A" />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#16A34A', lineHeight: 1 }}>
+              {overallAvg ? `${overallAvg} pts` : '—'}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
+              Calificación Promedio
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── 2. BARRA DE ACCIONES Y FILTROS ── */}
+      <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+          
+          {/* Buscador */}
+          <div style={{ position: 'relative', width: '280px', minWidth: '220px' }}>
+            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Buscar evaluación..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%', padding: '0.5rem 0.75rem 0.5rem 2.25rem', borderRadius: '8px',
+                border: '1px solid var(--border-color)', fontSize: '0.84rem', outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Selector de Módulo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Módulo:</span>
+            <select
+              value={filterModule}
+              onChange={e => setFilterModule(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)',
+                fontSize: '0.84rem', fontWeight: 600, color: '#14213D', background: '#FFFFFF', outline: 'none'
+              }}
+            >
+              <option value="all">Todos los módulos</option>
+              {modules.map((m, i) => (
+                <option key={m.id} value={m.id}>
+                  Módulo {m.order_index || i + 1}: {m.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Botón "+ Nueva Evaluación" */}
+          <button
+            onClick={() => {
+              setEvaluationModalData(null);
+              setIsEvaluationModalOpen(true);
+            }}
+            style={{
+              background: '#14213D', color: '#FFFFFF', border: 'none',
+              padding: '0.55rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
+              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)', transition: 'all 0.2s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
+            onMouseOut={e => e.currentTarget.style.background = '#14213D'}
+          >
+            <Plus size={16} /> Nueva Evaluación
+          </button>
+
+        </div>
+
+        {/* Filtros Tipo y Estado (Pastillas) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
+          
+          {/* Tipo de Evaluación */}
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            {[
+              { id: 'all', label: 'Todas las evaluaciones' },
+              { id: 'assignment', label: 'Tareas / Entregables' },
+              { id: 'quiz', label: 'Cuestionarios' }
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setFilterType(t.id)}
+                style={{
+                  border: 'none', borderRadius: '9999px', padding: '0.35rem 0.85rem',
+                  fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease',
+                  background: filterType === t.id ? '#14213D' : '#F1F5F9',
+                  color: filterType === t.id ? '#FFFFFF' : '#475569'
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Estado de Evaluación */}
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'pending_grade', label: `⚠️ Por calificar (${totalPendingGrading})` },
+              { id: 'active', label: 'Activas' },
+              { id: 'closed', label: 'Cerradas' },
+              { id: 'draft', label: 'Borradores' }
+            ].map(st => (
+              <button
+                key={st.id}
+                onClick={() => setFilterStatus(st.id)}
+                style={{
+                  border: 'none', borderRadius: '6px', padding: '0.35rem 0.75rem',
+                  fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s ease',
+                  background: filterStatus === st.id ? '#FCA311' : 'transparent',
+                  color: filterStatus === st.id ? '#14213D' : 'var(--text-muted)'
+                }}
+              >
+                {st.label}
+              </button>
+            ))}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── 3. LISTADO DE TARJETAS DE EVALUACIONES ── */}
+      {loading ? (
+        <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+          Cargando evaluaciones del programa...
+        </div>
+      ) : filteredEvaluations.length === 0 ? (
+        <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center' }}>
+          <FileText size={48} color="#CBD5E1" style={{ margin: '0 auto 1rem auto' }} />
+          <h4 style={{ margin: '0 0 0.5rem 0', color: '#14213D', fontSize: '1.1rem', fontWeight: 700 }}>
+            No hay evaluaciones para mostrar
+          </h4>
+          <p style={{ margin: '0 0 1.25rem 0', color: 'var(--text-muted)', fontSize: '0.86rem' }}>
+            {evaluations.length === 0
+              ? 'Aún no se han creado evaluaciones o tareas en este programa académico.'
+              : 'No hay evaluaciones que coincidan con los filtros seleccionados.'}
+          </p>
+          <button
+            onClick={() => {
+              setEvaluationModalData(null);
+              setIsEvaluationModalOpen(true);
+            }}
+            style={{
+              background: '#14213D', color: '#FFFFFF', border: 'none',
+              padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
+              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem'
+            }}
+          >
+            <Plus size={16} /> Crear primera evaluación
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {filteredEvaluations.map(ev => {
+            const dueDate = new Date(ev.due_date);
+            const isOverdue = dueDate < now;
+            const isAssignment = ev.evalType === 'assignment';
+            const moduleLinked = modules.find(m => m.id === ev.module_id);
+            const submissionPercentage = enrolledCount > 0 ? Math.min(100, Math.round((ev.totalSubs / enrolledCount) * 100)) : 0;
+
+            return (
+              <div
+                key={`${ev.evalType}-${ev.id}`}
+                className="card"
+                style={{
+                  padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem',
+                  borderLeft: ev.pendingGrade > 0 ? '4px solid #FCA311' : '4px solid #14213D',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                }}
+              >
+                {/* Fila Superior: Badges y Visibilidad */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    
+                    {/* Badge Tipo */}
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', textTransform: 'uppercase',
+                      background: isAssignment ? 'rgba(20, 33, 61, 0.08)' : 'rgba(124, 58, 237, 0.1)',
+                      color: isAssignment ? '#14213D' : '#6D28D9'
+                    }}>
+                      {isAssignment ? '📁 Tarea / Entregable' : '📝 Cuestionario'}
+                    </span>
+
+                    {/* Badge Módulo */}
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 600, padding: '3px 8px', borderRadius: '4px',
+                      background: '#F1F5F9', color: '#475569'
+                    }}>
+                      {moduleLinked ? `Módulo: ${moduleLinked.title}` : 'Evaluación General'}
+                    </span>
+
+                    {/* Badge Ponderación */}
+                    {ev.weight_percentage > 0 && (
+                      <span style={{
+                        fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px', borderRadius: '4px',
+                        background: 'rgba(252, 163, 17, 0.15)', color: '#B45309'
+                      }}>
+                        Ponderación: {ev.weight_percentage}%
+                      </span>
+                    )}
+
+                    {/* Badge Estado de Publicación */}
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px', borderRadius: '4px',
+                      background: ev.is_published ? '#DCFCE7' : '#F1F5F9',
+                      color: ev.is_published ? '#15803D' : '#64748B'
+                    }}>
+                      {ev.is_published ? '● Publicada' : '○ Borrador (Oculta)'}
+                    </span>
+                  </div>
+
+                  {/* Fecha Límite */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 600,
+                    color: isOverdue ? '#DC2626' : '#14213D'
+                  }}>
+                    <Calendar size={14} color={isOverdue ? '#DC2626' : '#FCA311'} />
+                    <span>Límite: {dueDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    {isOverdue ? (
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#FEE2E2', color: '#DC2626', padding: '1px 5px', borderRadius: '3px' }}>
+                        CERRADA
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#EFF6FF', color: '#1D4ED8', padding: '1px 5px', borderRadius: '3px' }}>
+                        EN CURSO
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fila Central: Título, Descripción y Puntaje */}
+                <div>
+                  <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1.1rem', fontWeight: 700, color: '#14213D' }}>
+                    {ev.title}
+                  </h4>
+                  {ev.description && (
+                    <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {ev.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Fila Inferior: Avance de entregas y Botones de Acción */}
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem',
+                  borderTop: '1px solid #F1F5F9', paddingTop: '0.85rem'
+                }}>
+                  {/* Barra de progreso de entregas */}
+                  <div style={{ flex: 1, minWidth: '220px', maxWidth: '380px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      <span>Entregas de alumnos: <strong>{ev.totalSubs} de {enrolledCount}</strong> ({submissionPercentage}%)</span>
+                      {ev.avgScore !== null && (
+                        <span style={{ color: '#16A34A', fontWeight: 700 }}>Promedio: {ev.avgScore} pts</span>
+                      )}
+                    </div>
+                    <div style={{ height: '6px', width: '100%', background: '#E2E8F0', borderRadius: '9999px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${submissionPercentage}%`, background: '#14213D', borderRadius: '9999px', transition: 'width 0.3s ease' }} />
+                    </div>
+                  </div>
+
+                  {/* Alerta de pendientes + Botones */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    
+                    {ev.pendingGrade > 0 && (
+                      <span style={{
+                        fontSize: '0.75rem', fontWeight: 800, background: '#FEF3C7', color: '#B45309',
+                        padding: '4px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '3px'
+                      }}>
+                        <AlertCircle size={13} /> {ev.pendingGrade} por calificar
+                      </span>
+                    )}
+
+                    {/* Botón Principal: Calificar Entregas */}
+                    <button
+                      onClick={() => setSelectedEvaluationForGrading(ev)}
+                      style={{
+                        background: '#14213D', color: '#FFFFFF', border: 'none',
+                        padding: '0.45rem 1rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700,
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
+                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}
+                    >
+                      <FileCheck size={14} /> Ver Entregas / Calificar
+                    </button>
+
+                    {/* Botón Editar */}
+                    <button
+                      onClick={() => {
+                        setEvaluationModalData(ev);
+                        setIsEvaluationModalOpen(true);
+                      }}
+                      title="Editar parámetros"
+                      style={{
+                        background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#475569',
+                        padding: '0.45rem 0.65rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600,
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center'
+                      }}
+                    >
+                      <Pencil size={14} />
+                    </button>
+
+                    {/* Botón Publicar / Ocultar */}
+                    <button
+                      onClick={() => handleTogglePublish(ev)}
+                      title={ev.is_published ? 'Ocultar a estudiantes' : 'Publicar para estudiantes'}
+                      style={{
+                        background: '#FFFFFF', border: '1px solid #CBD5E1', color: ev.is_published ? '#15803D' : '#64748B',
+                        padding: '0.45rem 0.65rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600,
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center'
+                      }}
+                    >
+                      {ev.is_published ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+
+                    {/* Botón Eliminar */}
+                    <button
+                      onClick={() => {
+                        setConfirmDeleteId(ev.id);
+                        setDeleteType(ev.evalType);
+                      }}
+                      title="Eliminar evaluación"
+                      style={{
+                        background: '#FFFFFF', border: '1px solid #FCA5A5', color: '#DC2626',
+                        padding: '0.45rem 0.65rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600,
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center'
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── MODAL DE CALIFICACIÓN ── */}
+      {selectedEvaluationForGrading && (
+        <GradingModal
+          evaluation={selectedEvaluationForGrading}
+          teacherId={teacherId || profile?.id}
+          onClose={() => setSelectedEvaluationForGrading(null)}
+          onGraded={fetchEvaluationsData}
+        />
+      )}
+
+      {/* ── MODAL DE CREACIÓN / EDICIÓN ── */}
+      {isEvaluationModalOpen && (
+        <EvaluationModal
+          initialData={evaluationModalData}
+          programId={programId}
+          modules={modules}
+          classes={classes}
+          teacherId={teacherId || profile?.id}
+          onClose={() => {
+            setIsEvaluationModalOpen(false);
+            setEvaluationModalData(null);
+          }}
+          onSaved={fetchEvaluationsData}
+        />
+      )}
+
+      {/* ── MODAL DE CONFIRMACIÓN DE ELIMINACIÓN ── */}
+      {confirmDeleteId && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1100,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }}>
+          <div style={{ background: '#FFFFFF', padding: '1.5rem', borderRadius: '12px', maxWidth: '420px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div style={{ background: '#FEE2E2', padding: '0.6rem', borderRadius: '50%' }}>
+                <Trash2 size={22} color="#DC2626" />
+              </div>
+              <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#14213D' }}>
+                ¿Eliminar evaluación?
+              </h4>
+            </div>
+            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.86rem', color: '#475569', lineHeight: 1.4 }}>
+              Esta acción eliminará permanentemente la evaluación y todas las entregas o calificaciones asociadas de los estudiantes.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                style={{
+                  padding: '0.55rem 1rem', borderRadius: '6px', border: '1px solid #CBD5E1',
+                  background: '#FFFFFF', color: '#475569', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteEvaluation}
+                style={{
+                  padding: '0.55rem 1.2rem', borderRadius: '6px', border: 'none',
+                  background: '#DC2626', color: '#FFFFFF', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer'
+                }}
+              >
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 const TABS = [
-  { id: 'resumen',     label: 'Inicio',                icon: <BookOpen size={16} />,     component: ResumenTab },
-  { id: 'clases',      label: 'Mis Clases',            icon: <Video size={16} />,        component: ClasesTab },
-  { id: 'dudas',       label: 'Dudas',                 icon: <MessageSquare size={16} />,component: DudasTab },
-  { id: 'anuncios',    label: 'Anuncios',              icon: <Megaphone size={16} />,    component: AnunciosTab },
-  { id: 'estudiantes', label: 'Estudiantes',           icon: <Users size={16} />,        component: EstudiantesTab },
+  { id: 'resumen',      label: 'Inicio',                icon: <BookOpen size={16} />,     component: ResumenTab },
+  { id: 'clases',       label: 'Mis Clases',            icon: <Video size={16} />,        component: ClasesTab },
+  { id: 'evaluaciones', label: 'Evaluaciones',          icon: <FileCheck size={16} />,    component: EvaluacionesTab },
+  { id: 'dudas',        label: 'Dudas',                 icon: <MessageSquare size={16} />,component: DudasTab },
+  { id: 'anuncios',     label: 'Anuncios',              icon: <Megaphone size={16} />,    component: AnunciosTab },
+  { id: 'estudiantes',  label: 'Estudiantes',           icon: <Users size={16} />,        component: EstudiantesTab },
 ];
 
 
