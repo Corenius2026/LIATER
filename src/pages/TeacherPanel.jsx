@@ -252,18 +252,37 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
     }
     for (let qi = 0; qi < (draftData.questions || []).length; qi++) {
       const q = draftData.questions[qi];
-      const { data: qData, error: qErr } = await supabase
+      const qPayload = {
+        activity_id: actId,
+        text: q.text,
+        question_type: q.question_type || 'single_choice',
+        order_num: qi + 1,
+      };
+      if (q.explanation) qPayload.explanation = q.explanation;
+      if (q.source_basis) qPayload.source_basis = q.source_basis;
+
+      let { data: qData, error: qErr } = await supabase
         .from('activity_questions')
-        .insert({
+        .insert(qPayload)
+        .select('id')
+        .single();
+
+      if (qErr && (qErr.message?.includes('explanation') || qErr.message?.includes('source_basis') || qErr.code === 'PGRST204')) {
+        const fallbackPayload = {
           activity_id: actId,
           text: q.text,
           question_type: q.question_type || 'single_choice',
           order_num: qi + 1,
-          explanation: q.explanation || null,
-          source_basis: q.source_basis || null
-        })
-        .select('id')
-        .single();
+        };
+        const resFallback = await supabase
+          .from('activity_questions')
+          .insert(fallbackPayload)
+          .select('id')
+          .single();
+        qData = resFallback.data;
+        qErr = resFallback.error;
+      }
+
       if (qErr) throw qErr;
       let correctOptId = null;
       for (let oi = 0; oi < (q.options || []).length; oi++) {
