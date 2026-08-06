@@ -252,7 +252,18 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
     }
     for (let qi = 0; qi < (draftData.questions || []).length; qi++) {
       const q = draftData.questions[qi];
-      const { data: qData, error: qErr } = await supabase.from('activity_questions').insert({ activity_id: actId, text: q.text, question_type: q.question_type || 'single_choice', order_num: qi + 1 }).select('id').single();
+      const { data: qData, error: qErr } = await supabase
+        .from('activity_questions')
+        .insert({
+          activity_id: actId,
+          text: q.text,
+          question_type: q.question_type || 'single_choice',
+          order_num: qi + 1,
+          explanation: q.explanation || null,
+          source_basis: q.source_basis || null
+        })
+        .select('id')
+        .single();
       if (qErr) throw qErr;
       let correctOptId = null;
       for (let oi = 0; oi < (q.options || []).length; oi++) {
@@ -4046,30 +4057,37 @@ function ReforzamientoIATab({ onChangeTab }) {
       setLoading(true);
       const teacherProfileId = teacherId || profile?.id;
 
-      // 1. Obtener módulos del programa
+      // 1. Obtener módulos del programa (tabla modules)
       const { data: modData } = await supabase
-        .from('course_modules')
+        .from('modules')
         .select('id, title, order_index')
         .eq('program_id', programId)
         .order('order_index', { ascending: true });
 
       setModules(modData || []);
 
-      // 2. Obtener clases asignadas al docente
-      const { data: clsData, error: clsErr } = await supabase
+      // 2. Obtener clases asignadas al docente con jerarquía sessions / modules
+      let classes = [];
+      const { data: sData, error: sErr } = await supabase
         .from('class_sessions')
-        .select(`
-          id, title, class_date, program_id, teacher_id, session_id,
-          course_modules:module_id (id, title),
-          sessions:session_id (id, title, session_number, module_id, course_modules(id, title))
-        `)
+        .select('*, sessions(id, title, order_index, module_id, modules(id, title, program_id)), meet_url')
         .eq('program_id', programId)
         .eq('teacher_id', teacherProfileId)
         .order('class_date', { ascending: true });
 
-      if (clsErr) console.error('Error cargando clases del profesor:', clsErr);
+      if (sErr) {
+        // Fallback a esquema subtopics si aún existiera
+        const { data: oldData } = await supabase
+          .from('class_sessions')
+          .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
+          .eq('program_id', programId)
+          .eq('teacher_id', teacherProfileId)
+          .order('class_date', { ascending: true });
+        classes = oldData || [];
+      } else {
+        classes = sData || [];
+      }
 
-      const classes = clsData || [];
       const classIds = classes.map(c => c.id);
 
       if (classIds.length === 0) {
@@ -4138,14 +4156,14 @@ function ReforzamientoIATab({ onChangeTab }) {
         const scores = completedAttempts.map(a => a.score).filter(s => typeof s === 'number');
         const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 
-        // Determinar estado de la actividad
+        // Determinar estado de la actividad con sincronización exacta
         let actStatus = 'no_activity';
         if (act && act.is_published) {
           actStatus = 'published';
         } else if (draft && draft.status === 'pending') {
           actStatus = 'draft_pending';
-        } else if (draft && draft.status === 'approved' && !act?.is_published) {
-          actStatus = 'draft_approved_unpublished';
+        } else if (draft && draft.status === 'approved' && (!act || !act.is_published)) {
+          actStatus = 'draft_pending';
         }
 
         return {
@@ -4171,23 +4189,29 @@ function ReforzamientoIATab({ onChangeTab }) {
 
   useEffect(() => {
     loadData();
-  }, [profile?.id, programId]);
+  }, [teacherId, profile?.id, programId]);
 
   // Cálculos de KPIs superiores
-  const publishedCount = classesWithActivities.filter(c => c.actStatus === 'published').length;
+  const publishedClasses = classesWithActivities.filter(c => c.actStatus === 'published');
+  const publishedCount = publishedClasses.length;
   const draftPendingCount = classesWithActivities.filter(c => c.actStatus === 'draft_pending').length;
-  const totalCompletedSum = classesWithActivities.reduce((acc, c) => acc + c.completedCount, 0);
-  const maxPossibleCompletions = classesWithActivities.length * (classesWithActivities[0]?.totalStudents || 1);
-  const globalParticipation = maxPossibleCompletions > 0 ? Math.round((totalCompletedSum / maxPossibleCompletions) * 100) : 0;
   
-  const allScores = classesWithActivities.map(c => c.avgScore).filter(s => typeof s === 'number');
+  // Participación promedio sobre actividades publicadas
+  const totalStudents = classesWithActivities[0]?.totalStudents || 0;
+  let globalParticipation = 0;
+  if (publishedCount > 0 && totalStudents > 0) {
+    const sumParticipation = publishedClasses.reduce((acc, c) => acc + c.participationPct, 0);
+    globalParticipation = Math.round(sumParticipation / publishedCount);
+  }
+  
+  const allScores = publishedClasses.map(c => c.avgScore).filter(s => typeof s === 'number');
   const globalAverage = allScores.length > 0 ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
 
   // Filtrado
   const filteredList = classesWithActivities.filter(c => {
     // Filtro Módulo
     if (selectedModuleId !== 'all') {
-      const classModId = c.course_modules?.id || c.sessions?.module_id;
+      const classModId = c.sessions?.module_id || c.subtopics?.module_id || c.sessions?.modules?.id;
       if (classModId !== selectedModuleId) return false;
     }
 
@@ -4522,7 +4546,7 @@ function ReforzamientoIATab({ onChangeTab }) {
           {filteredList.map(cls => {
             const isPublished = cls.actStatus === 'published';
             const isDraftPending = cls.actStatus === 'draft_pending';
-            const moduleName = cls.course_modules?.title || cls.sessions?.course_modules?.title || 'Módulo General';
+            const moduleName = cls.sessions?.modules?.title || cls.subtopics?.modules?.title || 'Módulo General';
 
             return (
               <div
