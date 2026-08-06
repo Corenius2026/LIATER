@@ -2485,6 +2485,7 @@ function DudasTab() {
 
 /* ─────────────────────────────────────────
    TAB: Estudiantes
+───────────────────────────────────────── */
 function EstudiantesTab() {
   const { programId } = useTeacherContext();
   const [students, setStudents] = useState([]);
