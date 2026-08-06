@@ -3311,15 +3311,13 @@ function BorradoresTab() {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   MODAL DE ANALÍTICA Y RESULTADOS DE REFORZAMIENTO IA (ActivityResultsModal)
+/* ─────────────────────────────────────────────────────────────
+   MODAL DE RESULTADOS POR ESTUDIANTE (ActivityResultsModal)
 ───────────────────────────────────────────────────────────── */
 function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
   const { programId } = useTeacherContext();
-  const [activeTab, setActiveTab] = useState('questions'); // 'questions' | 'students'
   const [loading, setLoading] = useState(true);
-  const [questions, setQuestions] = useState([]);
   const [students, setStudents] = useState([]);
-  const [attempts, setAttempts] = useState([]);
   const [stats, setStats] = useState({
     totalStudents: 0,
     completedCount: 0,
@@ -3331,97 +3329,55 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
 
   useEffect(() => {
     async function loadActivityResults() {
-      if (!activity?.id || !programId) return;
+      const effectiveProgId = programId || classData?.program_id;
+      let effectiveActId = activity?.id || classData?.activity?.id;
+
       try {
         setLoading(true);
 
-        // 1. Cargar preguntas de la actividad
-        const { data: qData, error: qErr } = await supabase
-          .from('activity_questions')
-          .select(`
-            id, text, question_type, order_num, explanation, source_basis,
-            question_options (id, text, order_num)
-          `)
-          .eq('activity_id', activity.id)
-          .order('order_num', { ascending: true });
-
-        if (qErr) console.error('Error cargando preguntas:', qErr);
-
-        let loadedQuestions = qData || [];
-
-        // Cargar respuestas correctas
-        if (loadedQuestions.length > 0) {
-          const qIds = loadedQuestions.map(q => q.id);
-          const { data: correctAnswers } = await supabase
-            .from('question_correct_answers')
-            .select('question_id, correct_option_id')
-            .in('question_id', qIds);
-
-          const correctMap = {};
-          (correctAnswers || []).forEach(ca => {
-            correctMap[ca.question_id] = ca.correct_option_id;
-          });
-
-          // Cargar posibles justificaciones pedagógicas del borrador si la pregunta no las tiene
-          let draftQuestionsMap = {};
-          try {
-            const { data: draftData } = await supabase
-              .from('activity_drafts')
-              .select('draft_data')
-              .eq('class_id', classData.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            if (draftData?.draft_data?.questions) {
-              draftData.draft_data.questions.forEach(dq => {
-                if (dq.text) draftQuestionsMap[dq.text.trim().toLowerCase()] = dq;
-              });
-            }
-          } catch (_) {}
-
-          loadedQuestions = loadedQuestions.map(q => {
-            const dq = draftQuestionsMap[q.text?.trim().toLowerCase()];
-            return {
-              ...q,
-              explanation: q.explanation || dq?.explanation || null,
-              sourceBasis: q.source_basis || dq?.source_basis || null,
-              correctOptionId: correctMap[q.id] || null,
-              options: (q.question_options || []).sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
-            };
-          });
+        // Si no vino el ID de actividad directamente, buscarlo por class_id
+        if (!effectiveActId && classData?.id) {
+          const { data: actRow } = await supabase
+            .from('class_activities')
+            .select('id, title, description')
+            .eq('class_id', classData.id)
+            .maybeSingle();
+          if (actRow?.id) {
+            effectiveActId = actRow.id;
+          }
         }
-        setQuestions(loadedQuestions);
 
-        // 2. Cargar estudiantes matriculados en el programa
-        const { data: enrollmentsData, error: enrollErr } = await supabase
-          .from('enrollments')
-          .select(`
-            student_id,
-            users_profile:student_id (id, full_name, email, avatar_url, role)
-          `)
-          .eq('program_id', programId)
-          .eq('users_profile.role', 'student');
+        // 1. Cargar estudiantes matriculados en el programa
+        let studentList = [];
+        if (effectiveProgId) {
+          const { data: enrollmentsData, error: enrollErr } = await supabase
+            .from('enrollments')
+            .select('student_id, enrolled_at, users_profile(id, full_name, email, role, avatar_url)')
+            .eq('program_id', effectiveProgId);
 
-        if (enrollErr) console.error('Error cargando estudiantes:', enrollErr);
+          if (enrollErr) {
+            console.error('Error cargando estudiantes de enrollments:', enrollErr);
+          } else {
+            studentList = (enrollmentsData || [])
+              .map(e => e.users_profile)
+              .filter(p => p && (p.role === 'student' || !p.role));
+          }
+        }
 
-        const studentList = (enrollmentsData || [])
-          .map(e => e.users_profile)
-          .filter(Boolean);
+        // 2. Cargar intentos de estudiantes en esta actividad
+        let attemptsList = [];
+        if (effectiveActId) {
+          const { data: attemptsData, error: attErr } = await supabase
+            .from('activity_attempts')
+            .select('*')
+            .eq('activity_id', effectiveActId)
+            .order('completed_at', { ascending: false });
 
-        // 3. Cargar intentos de estudiantes en esta actividad
-        const { data: attemptsData, error: attErr } = await supabase
-          .from('activity_attempts')
-          .select('*')
-          .eq('activity_id', activity.id)
-          .order('completed_at', { ascending: false });
+          if (attErr) console.error('Error cargando intentos:', attErr);
+          attemptsList = attemptsData || [];
+        }
 
-        if (attErr) console.error('Error cargando intentos:', attErr);
-
-        const attemptsList = attemptsData || [];
-        setAttempts(attemptsList);
-
-        // Mapear el último intento completado por cada estudiante
+        // Mapear el último intento por cada estudiante
         const attemptByStudent = {};
         attemptsList.forEach(att => {
           if (!attemptByStudent[att.student_id] || new Date(att.completed_at) > new Date(attemptByStudent[att.student_id].completed_at)) {
@@ -3429,21 +3385,21 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
           }
         });
 
-        // Combinar estudiantes con sus intentos
+        // 3. Combinar estudiantes matriculados con sus intentos
         const combinedStudents = studentList.map(st => {
           const att = attemptByStudent[st.id];
           return {
             ...st,
             attempt: att || null,
-            status: att ? (att.status === 'completed' ? 'completed' : 'in_progress') : 'not_started',
-            score: att ? (typeof att.score === 'number' ? att.score : null) : null,
+            status: att && att.status === 'completed' ? 'completed' : 'not_started',
+            score: att && typeof att.score === 'number' ? att.score : null,
             completedAt: att?.completed_at || null,
           };
         });
 
         setStudents(combinedStudents);
 
-        // 4. Calcular métricas estadísticas
+        // 4. Calcular métricas estadísticas del grupo
         const completedAttempts = combinedStudents.filter(s => s.status === 'completed');
         const scores = completedAttempts.map(s => s.score).filter(sc => typeof sc === 'number');
         const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
@@ -3464,7 +3420,10 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
     }
 
     loadActivityResults();
-  }, [activity?.id, programId]);
+  }, [activity?.id, classData?.id, classData?.program_id, programId]);
+
+  const completedCount = students.filter(s => s.status === 'completed').length;
+  const notStartedCount = students.filter(s => s.status === 'not_started').length;
 
   const filteredStudents = students.filter(st => {
     if (filterStudentStatus === 'completed' && st.status !== 'completed') return false;
@@ -3542,13 +3501,11 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
               </span>
             </div>
             <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#FFFFFF' }}>
-              {activity?.title || 'Resultados de Reforzamiento'}
+              {activity?.title || classData?.activity?.title || 'Resultados de Reforzamiento'}
             </h2>
-            {activity?.description && (
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'rgba(255,255,255,0.75)' }}>
-                {activity.description}
-              </p>
-            )}
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'rgba(255,255,255,0.75)' }}>
+              {activity?.description || classData?.activity?.description || 'Desempeño y calificaciones individuales de los estudiantes en la actividad de repaso.'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -3643,183 +3600,22 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
           </div>
         </div>
 
-        {/* TABS SELECTOR */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '1px solid #E5E5E5',
-          padding: '0 2rem',
-          background: '#FFFFFF'
-        }}>
-          <button
-            onClick={() => setActiveTab('questions')}
-            style={{
-              padding: '1rem 1.25rem',
-              border: 'none',
-              background: 'transparent',
-              borderBottom: activeTab === 'questions' ? '3px solid #14213D' : '3px solid transparent',
-              color: activeTab === 'questions' ? '#14213D' : '#6C757D',
-              fontWeight: activeTab === 'questions' ? 700 : 500,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.9rem'
-            }}
-          >
-            <Lightbulb size={16} color={activeTab === 'questions' ? '#FCA311' : '#6C757D'} />
-            Preguntas y Justificación Pedagógica ({questions.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('students')}
-            style={{
-              padding: '1rem 1.25rem',
-              border: 'none',
-              background: 'transparent',
-              borderBottom: activeTab === 'students' ? '3px solid #14213D' : '3px solid transparent',
-              color: activeTab === 'students' ? '#14213D' : '#6C757D',
-              fontWeight: activeTab === 'students' ? 700 : 500,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.9rem'
-            }}
-          >
-            <Users size={16} color={activeTab === 'students' ? '#14213D' : '#6C757D'} />
-            Resultados por Estudiante ({students.length})
-          </button>
-        </div>
-
-        {/* MODAL BODY */}
+        {/* MODAL BODY (RESULTADOS POR ESTUDIANTE) */}
         <div style={{ padding: '1.5rem 2rem', overflowY: 'auto', flex: 1 }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: '#6C757D' }}>
               <RefreshCw size={28} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
-              <div>Cargando preguntas y resultados del grupo...</div>
-            </div>
-          ) : activeTab === 'questions' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {questions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2.5rem', color: '#6C757D' }}>
-                  No se encontraron preguntas registradas para esta actividad.
-                </div>
-              ) : (
-                questions.map((q, idx) => (
-                  <div key={q.id || idx} style={{
-                    border: '1px solid #E5E5E5',
-                    borderRadius: '12px',
-                    padding: '1.25rem',
-                    background: '#FAFAFA'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{
-                        background: '#14213D',
-                        color: '#FFFFFF',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700
-                      }}>
-                        Pregunta {idx + 1}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: '#6C757D', fontWeight: 600 }}>
-                        Opción Múltiple
-                      </span>
-                    </div>
-
-                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', fontWeight: 700, color: '#14213D', lineHeight: 1.4 }}>
-                      {q.text}
-                    </h4>
-
-                    {/* Opciones */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
-                      {(q.options || []).map((opt, oIdx) => {
-                        const isCorrect = opt.id === q.correctOptionId;
-                        return (
-                          <div key={opt.id || oIdx} style={{
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            background: isCorrect ? '#DCFCE7' : '#FFFFFF',
-                            border: isCorrect ? '1.5px solid #22C55E' : '1px solid #E5E5E5',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: '0.85rem',
-                            color: isCorrect ? '#166534' : '#14213D',
-                            fontWeight: isCorrect ? 600 : 400
-                          }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{
-                                width: '20px',
-                                height: '20px',
-                                borderRadius: '50%',
-                                background: isCorrect ? '#166534' : '#E5E5E5',
-                                color: isCorrect ? '#FFFFFF' : '#6C757D',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.72rem',
-                                fontWeight: 700
-                              }}>
-                                {String.fromCharCode(65 + oIdx)}
-                              </span>
-                              {opt.text}
-                            </span>
-                            {isCorrect && (
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '0.72rem',
-                                color: '#166534',
-                                fontWeight: 700
-                              }}>
-                                <CheckCircle2 size={14} /> Respuesta Correcta
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Justificación pedagógica de la IA */}
-                    {(q.explanation || q.sourceBasis) && (
-                      <div style={{
-                        background: '#EFF6FF',
-                        borderLeft: '3px solid #3B82F6',
-                        borderRadius: '0 8px 8px 0',
-                        padding: '10px 14px',
-                        marginTop: '10px'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          color: '#1E40AF',
-                          marginBottom: '4px'
-                        }}>
-                          <Brain size={14} /> Justificación Pedagógica IA:
-                        </div>
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#1E3A8A', lineHeight: 1.45 }}>
-                          {q.explanation || q.sourceBasis}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+              <div>Cargando resultados de los estudiantes...</div>
             </div>
           ) : (
             <div>
               {/* Toolbar Estudiantes */}
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
                   <Search size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: '#6C757D' }} />
                   <input
                     type="text"
-                    placeholder="Buscar estudiante..."
+                    placeholder="Buscar por nombre o correo de estudiante..."
                     value={searchStudent}
                     onChange={(e) => setSearchStudent(e.target.value)}
                     style={{
@@ -3833,9 +3629,9 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {[
-                    { id: 'all', label: 'Todos' },
-                    { id: 'completed', label: 'Completados' },
-                    { id: 'not_started', label: 'Sin realizar' }
+                    { id: 'all', label: `Todos (${students.length})` },
+                    { id: 'completed', label: `Completados (${completedCount})` },
+                    { id: 'not_started', label: `Sin realizar (${notStartedCount})` }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -3848,7 +3644,8 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
                         color: filterStudentStatus === tab.id ? '#FFFFFF' : '#14213D',
                         fontSize: '0.8rem',
                         fontWeight: 600,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
                       }}
                     >
                       {tab.label}
@@ -3862,35 +3659,36 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: '#F8F9FA', borderBottom: '1px solid #E5E5E5', color: '#6C757D', fontWeight: 700 }}>
-                      <th style={{ padding: '10px 14px' }}>Estudiante</th>
-                      <th style={{ padding: '10px 14px' }}>Estado</th>
-                      <th style={{ padding: '10px 14px' }}>Calificación</th>
-                      <th style={{ padding: '10px 14px' }}>Fecha de finalización</th>
+                      <th style={{ padding: '12px 16px' }}>Estudiante</th>
+                      <th style={{ padding: '12px 16px' }}>Estado</th>
+                      <th style={{ padding: '12px 16px' }}>Calificación</th>
+                      <th style={{ padding: '12px 16px' }}>Fecha de finalización</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#6C757D' }}>
-                          No se encontraron estudiantes con ese criterio.
+                        <td colSpan={4} style={{ padding: '2.5rem', textAlign: 'center', color: '#6C757D' }}>
+                          No se encontraron estudiantes con ese criterio de búsqueda.
                         </td>
                       </tr>
                     ) : (
                       filteredStudents.map((st) => (
                         <tr key={st.id} style={{ borderBottom: '1px solid #F0F0F0' }}>
-                          <td style={{ padding: '10px 14px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <div style={{
-                                width: '28px',
-                                height: '28px',
+                                width: '32px',
+                                height: '32px',
                                 borderRadius: '50%',
                                 background: '#14213D',
                                 color: '#FFFFFF',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '0.75rem',
-                                fontWeight: 700
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                flexShrink: 0
                               }}>
                                 {(st.full_name || 'E')[0].toUpperCase()}
                               </div>
@@ -3900,78 +3698,68 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
                               </div>
                             </div>
                           </td>
-                          <td style={{ padding: '10px 14px' }}>
+                          <td style={{ padding: '12px 16px' }}>
                             {st.status === 'completed' ? (
                               <span style={{
                                 background: '#DCFCE7',
                                 color: '#166534',
-                                padding: '3px 8px',
+                                padding: '4px 10px',
                                 borderRadius: '12px',
-                                fontSize: '0.72rem',
+                                fontSize: '0.74rem',
                                 fontWeight: 700,
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px'
                               }}>
-                                <CheckCircle2 size={12} /> Completada
-                              </span>
-                            ) : st.status === 'in_progress' ? (
-                              <span style={{
-                                background: '#DBEAFE',
-                                color: '#1E40AF',
-                                padding: '3px 8px',
-                                borderRadius: '12px',
-                                fontSize: '0.72rem',
-                                fontWeight: 700
-                              }}>
-                                En progreso
+                                <CheckCircle2 size={13} /> Completada
                               </span>
                             ) : (
                               <span style={{
                                 background: '#F1F5F9',
                                 color: '#64748B',
-                                padding: '3px 8px',
+                                padding: '4px 10px',
                                 borderRadius: '12px',
-                                fontSize: '0.72rem',
+                                fontSize: '0.74rem',
                                 fontWeight: 600
                               }}>
                                 Sin realizar
                               </span>
                             )}
                           </td>
-                          <td style={{ padding: '10px 14px' }}>
+                          <td style={{ padding: '12px 16px' }}>
                             {typeof st.score === 'number' ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span style={{
                                   fontWeight: 800,
                                   color: st.score >= 70 ? '#166534' : '#B45309',
-                                  fontSize: '0.9rem'
+                                  fontSize: '0.92rem',
+                                  minWidth: '38px'
                                 }}>
                                   {st.score}%
                                 </span>
                                 <div style={{
-                                  width: '60px',
-                                  height: '6px',
+                                  width: '80px',
+                                  height: '7px',
                                   background: '#E5E5E5',
-                                  borderRadius: '3px',
+                                  borderRadius: '4px',
                                   overflow: 'hidden'
                                 }}>
                                   <div style={{
-                                    width: `${st.score}%`,
+                                    width: `${Math.min(100, Math.max(0, st.score))}%`,
                                     height: '100%',
                                     background: st.score >= 70 ? '#22C55E' : '#FCA311',
-                                    borderRadius: '3px'
+                                    borderRadius: '4px'
                                   }} />
                                 </div>
                               </div>
                             ) : (
-                              <span style={{ color: '#9CA3AF', fontSize: '0.8rem' }}>—</span>
+                              <span style={{ color: '#9CA3AF', fontSize: '0.85rem' }}>—</span>
                             )}
                           </td>
-                          <td style={{ padding: '10px 14px', color: '#6C757D', fontSize: '0.8rem' }}>
+                          <td style={{ padding: '12px 16px', color: '#6C757D', fontSize: '0.82rem' }}>
                             {st.completedAt ? (
                               new Date(st.completedAt).toLocaleString('es-ES', {
-                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                               })
                             ) : '—'}
                           </td>
