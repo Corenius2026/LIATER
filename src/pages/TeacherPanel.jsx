@@ -1803,7 +1803,7 @@ function ResumenTab({ onChangeTab }) {
               <BookOpen size={16} color="#FCA311" /> Resumen del Programa
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {[
+            {[
                 { label: 'Total de clases', value: stats.totalClasses, color: '#14213D' },
                 { label: 'Clases completadas', value: stats.completed, color: '#16a34a' },
                 { label: 'Clases pendientes', value: stats.upcoming, color: '#14213D' },
@@ -1855,6 +1855,7 @@ function ResumenTab({ onChangeTab }) {
 ───────────────────────────────────────── */
 function DudasTab() {
   const { programId, currentProgram } = useTeacherContext();
+  const [searchParams] = useSearchParams();
   const [doubts, setDoubts] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1873,22 +1874,57 @@ function DudasTab() {
     try {
       setLoading(true);
 
-      // 1. Cargar clases del programa
+      // 1. Cargar clases del programa con jerarquía
       const { data: clsData } = await supabase
         .from('class_sessions')
-        .select('id, title')
+        .select(`
+          id,
+          title,
+          sessions (
+            id,
+            title,
+            modules (
+              id,
+              title
+            )
+          ),
+          subtopics (
+            id,
+            title,
+            modules (
+              id,
+              title
+            )
+          )
+        `)
         .eq('program_id', programId)
         .order('order_index', { ascending: true });
       setClasses(clsData || []);
 
-      // 2. Cargar dudas del programa con relaciones
+      // 2. Cargar dudas del programa con jerarquía completa y estudiante
       const { data: doubtData, error } = await supabase
         .from('class_doubts')
         .select(`
           *,
           class_sessions (
             id,
-            title
+            title,
+            sessions (
+              id,
+              title,
+              modules (
+                id,
+                title
+              )
+            ),
+            subtopics (
+              id,
+              title,
+              modules (
+                id,
+                title
+              )
+            )
           ),
           users_profile:student_id (
             id,
@@ -1911,6 +1947,25 @@ function DudasTab() {
   useEffect(() => {
     fetchDoubtsAndClasses();
   }, [programId]);
+
+  // Deep linking: Si viene un doubtId en la URL, abrir automáticamente el modal correspondiente
+  useEffect(() => {
+    const doubtIdFromUrl = searchParams.get('doubtId');
+    if (doubtIdFromUrl && doubts.length > 0) {
+      const target = doubts.find(d => d.id === doubtIdFromUrl);
+      if (target) {
+        setSelectedDoubt(target);
+      }
+    }
+  }, [searchParams, doubts]);
+
+  // Helper de jerarquía
+  const getHierarchy = (d) => {
+    const moduleName = d?.class_sessions?.sessions?.modules?.title || d?.class_sessions?.subtopics?.modules?.title || 'Módulo General';
+    const sessionName = d?.class_sessions?.sessions?.title || d?.class_sessions?.subtopics?.title || 'Sesión';
+    const className = d?.class_sessions?.title || 'Clase';
+    return { moduleName, sessionName, className };
+  };
 
   // Actualización de estado en caliente (optimista y persistida)
   const handleStatusUpdate = async (doubtId, newStatus) => {
@@ -1972,7 +2027,8 @@ function DudasTab() {
               padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
               background: statusFilter === 'todos' ? '#f1f5f9' : 'transparent',
               border: statusFilter === 'todos' ? '1px solid var(--navy)' : '1px solid var(--border-color)',
-              textAlign: 'center'
+              textAlign: 'center',
+              transition: 'all 0.15s ease'
             }}
           >
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>{doubts.length}</div>
@@ -1985,7 +2041,8 @@ function DudasTab() {
               padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
               background: statusFilter === 'enviada' ? '#dbeafe' : 'transparent',
               border: statusFilter === 'enviada' ? '1px solid #1e40af' : '1px solid var(--border-color)',
-              textAlign: 'center'
+              textAlign: 'center',
+              transition: 'all 0.15s ease'
             }}
           >
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e40af' }}>{countByStatus('enviada')}</div>
@@ -1998,7 +2055,8 @@ function DudasTab() {
               padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
               background: statusFilter === 'revisada' ? '#fef3c7' : 'transparent',
               border: statusFilter === 'revisada' ? '1px solid #92400e' : '1px solid var(--border-color)',
-              textAlign: 'center'
+              textAlign: 'center',
+              transition: 'all 0.15s ease'
             }}
           >
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#92400e' }}>{countByStatus('revisada')}</div>
@@ -2011,7 +2069,8 @@ function DudasTab() {
               padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
               background: statusFilter === 'atendida' ? '#dcfce7' : 'transparent',
               border: statusFilter === 'atendida' ? '1px solid #166534' : '1px solid var(--border-color)',
-              textAlign: 'center'
+              textAlign: 'center',
+              transition: 'all 0.15s ease'
             }}
           >
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#166534' }}>{countByStatus('atendida')}</div>
@@ -2024,7 +2083,8 @@ function DudasTab() {
               padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
               background: statusFilter === 'archivada' ? '#f1f5f9' : 'transparent',
               border: statusFilter === 'archivada' ? '1px solid #475569' : '1px solid var(--border-color)',
-              textAlign: 'center'
+              textAlign: 'center',
+              transition: 'all 0.15s ease'
             }}
           >
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#475569' }}>{countByStatus('archivada')}</div>
@@ -2094,92 +2154,105 @@ function DudasTab() {
             No hay dudas por revisar
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '480px', margin: '0 auto', lineHeight: 1.5 }}>
-            Las dudas enviadas por los estudiantes aparecerán aquí, organizadas por programa y clase.
+            Las dudas enviadas por los estudiantes aparecerán aquí, organizadas por módulo, sesión y clase.
           </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          {filteredDoubts.map(d => (
-            <div
-              key={d.id}
-              className="card"
-              style={{
-                padding: '1.25rem',
-                background: 'var(--white)',
-                borderRadius: '12px',
-                border: '1px solid var(--border-color)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-                transition: 'border-color 0.2s ease'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: '240px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '4px', flexWrap: 'wrap' }}>
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--navy)' }}>
-                      {d.subject}
-                    </h4>
-                    <StatusChip status={d.status} />
+          {filteredDoubts.map(d => {
+            const { moduleName, sessionName, className } = getHierarchy(d);
+            return (
+              <div
+                key={d.id}
+                className="card"
+                style={{
+                  padding: '1.25rem',
+                  background: 'var(--white)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  transition: 'border-color 0.2s ease, transform 0.15s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '240px' }}>
+                    
+                    {/* BREADCRUMB DE JERARQUÍA */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                      <span style={{ background: '#f1f5f9', color: 'var(--navy)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 600 }}>
+                        {moduleName}
+                      </span>
+                      <span>›</span>
+                      <span>{sessionName}</span>
+                      <span>›</span>
+                      <span style={{ fontWeight: 600, color: 'var(--navy)' }}>{className}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '4px', flexWrap: 'wrap' }}>
+                      <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--navy)' }}>
+                        {d.subject}
+                      </h4>
+                      <StatusChip status={d.status} />
+                    </div>
+
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #475569)', margin: '0 0 0.6rem 0', lineHeight: 1.45 }}>
+                      {d.description?.length > 180 ? `${d.description.substring(0, 180)}...` : d.description}
+                    </p>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                      <span>Estudiante: <strong style={{ color: 'var(--navy)' }}>{d.users_profile?.full_name || 'Estudiante'}</strong> ({d.users_profile?.email || 'Sin correo'})</span>
+                      <span>•</span>
+                      <span>Fecha: {new Date(d.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
                   </div>
 
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #475569)', margin: '0 0 0.6rem 0', lineHeight: 1.45 }}>
-                    {d.description?.length > 180 ? `${d.description.substring(0, 180)}...` : d.description}
-                  </p>
+                  {/* ACCIONES DEL DOCENTE (SIN OPCIONES DE ESCRIBIR RESPUESTAS) */}
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                      onClick={() => setSelectedDoubt(d)}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <Eye size={13} /> Ver detalle
+                    </button>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                    <span>Estudiante: <strong style={{ color: 'var(--navy)' }}>{d.users_profile?.full_name || 'Estudiante'}</strong> ({d.users_profile?.email || 'Sin correo'})</span>
-                    <span>•</span>
-                    <span>Clase: <strong style={{ color: 'var(--navy)' }}>{d.class_sessions?.title || 'Clase'}</strong></span>
-                    <span>•</span>
-                    <span>Fecha: {new Date(d.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                    {d.status !== 'revisada' && (
+                      <button
+                        onClick={() => handleStatusUpdate(d.id, 'revisada')}
+                        className="btn btn-outline"
+                        style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        <Eye size={13} /> Marcar revisada
+                      </button>
+                    )}
+
+                    {d.status !== 'atendida' && (
+                      <button
+                        onClick={() => handleStatusUpdate(d.id, 'atendida')}
+                        className="btn btn-outline"
+                        style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#166534', borderColor: '#bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        <CheckCircle2 size={13} /> Atendida en clase
+                      </button>
+                    )}
+
+                    {d.status !== 'archivada' && (
+                      <button
+                        onClick={() => handleStatusUpdate(d.id, 'archivada')}
+                        className="btn btn-outline"
+                        style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#475569', borderColor: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        <Layers size={13} /> Archivar
+                      </button>
+                    )}
                   </div>
+
                 </div>
-
-                {/* ACCIONES DEL DOCENTE (SIN OPCIONES DE ESCRIBIR RESPUESTAS) */}
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
-                    onClick={() => setSelectedDoubt(d)}
-                    className="btn btn-outline"
-                    style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                  >
-                    <Eye size={13} /> Ver detalle
-                  </button>
-
-                  {d.status !== 'revisada' && (
-                    <button
-                      onClick={() => handleStatusUpdate(d.id, 'revisada')}
-                      className="btn btn-outline"
-                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                    >
-                      <Eye size={13} /> Marcar revisada
-                    </button>
-                  )}
-
-                  {d.status !== 'atendida' && (
-                    <button
-                      onClick={() => handleStatusUpdate(d.id, 'atendida')}
-                      className="btn btn-outline"
-                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#166534', borderColor: '#bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                    >
-                      <CheckCircle2 size={13} /> Atendida en clase
-                    </button>
-                  )}
-
-                  {d.status !== 'archivada' && (
-                    <button
-                      onClick={() => handleStatusUpdate(d.id, 'archivada')}
-                      className="btn btn-outline"
-                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#475569', borderColor: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                    >
-                      <Layers size={13} /> Archivar
-                    </button>
-                  )}
-                </div>
-
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -2226,8 +2299,8 @@ function DudasTab() {
               </div>
             </div>
 
-            {/* METADATOS COMPLETOS */}
-            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', fontSize: '0.82rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', border: '1px solid var(--border-color)' }}>
+            {/* METADATOS Y JERARQUÍA */}
+            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', fontSize: '0.82rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', border: '1px solid var(--border-color)' }}>
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block' }}>Estudiante:</span>
                 <strong style={{ color: 'var(--navy)' }}>{selectedDoubt.users_profile?.full_name || 'Estudiante'}</strong>
@@ -2235,10 +2308,26 @@ function DudasTab() {
               </div>
 
               <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Clase vinculada:</span>
-                <strong style={{ color: 'var(--navy)' }}>{selectedDoubt.class_sessions?.title || 'Clase'}</strong>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                  Enviada el: {new Date(selectedDoubt.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Fecha de envío:</span>
+                <strong style={{ color: 'var(--navy)' }}>
+                  {new Date(selectedDoubt.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </strong>
+              </div>
+
+              <div style={{ gridColumn: 'span 2', paddingTop: '0.4rem', borderTop: '1px dashed var(--border-color)' }}>
+                <span style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Jerarquía académica:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontWeight: 600 }}>
+                  <span style={{ background: '#e2e8f0', color: 'var(--navy)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.74rem' }}>
+                    {selectedDoubt.class_sessions?.sessions?.modules?.title || selectedDoubt.class_sessions?.subtopics?.modules?.title || 'Módulo'}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)' }}>›</span>
+                  <span style={{ color: '#475569' }}>
+                    {selectedDoubt.class_sessions?.sessions?.title || selectedDoubt.class_sessions?.subtopics?.title || 'Sesión'}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)' }}>›</span>
+                  <span style={{ color: 'var(--navy)' }}>
+                    {selectedDoubt.class_sessions?.title || 'Clase general'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -2261,33 +2350,43 @@ function DudasTab() {
 
             {/* ACCIONES RÁPIDAS DE ESTADO */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', flexWrap: 'wrap', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-              {selectedDoubt.status !== 'revisada' && (
+              {selectedDoubt.status === 'enviada' && (
                 <button
                   onClick={() => handleStatusUpdate(selectedDoubt.id, 'revisada')}
                   className="btn btn-outline"
-                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#92400e', borderColor: '#fde68a' }}
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
-                  <Eye size={14} /> Marcar como revisada
+                  <Eye size={14} /> Marcar para clase
                 </button>
               )}
 
-              {selectedDoubt.status !== 'atendida' && (
+              {selectedDoubt.status === 'revisada' && (
                 <button
                   onClick={() => handleStatusUpdate(selectedDoubt.id, 'atendida')}
                   className="btn"
-                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', background: '#166534', color: '#fff', border: 'none' }}
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', background: '#166534', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
                   <CheckCircle2 size={14} /> Atendida en clase
                 </button>
               )}
 
-              {selectedDoubt.status !== 'archivada' && (
+              {selectedDoubt.status === 'atendida' && (
                 <button
                   onClick={() => handleStatusUpdate(selectedDoubt.id, 'archivada')}
                   className="btn btn-outline"
-                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#475569' }}
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#475569', borderColor: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
                   <Layers size={14} /> Archivar
+                </button>
+              )}
+
+              {selectedDoubt.status === 'archivada' && (
+                <button
+                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'enviada')}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#1e40af', borderColor: '#bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <RefreshCw size={14} /> Reactivar
                 </button>
               )}
 
@@ -2311,7 +2410,6 @@ function DudasTab() {
 
 /* ─────────────────────────────────────────
    TAB: Estudiantes
-───────────────────────────────────────── */
 function EstudiantesTab() {
   const { programId } = useTeacherContext();
   const [students, setStudents] = useState([]);
