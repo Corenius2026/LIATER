@@ -1316,10 +1316,10 @@ function PerfilTab() {
 ───────────────────────────────────────── */
 function StatusChip({ status }) {
   const configs = {
-    enviada: { bg: '#dbeafe', color: '#1e40af', icon: <Clock size={13} />, label: 'Enviada (Sin revisar)' },
-    revisada: { bg: '#fef3c7', color: '#92400e', icon: <Eye size={13} />, label: 'Revisada' },
-    atendida: { bg: '#dcfce7', color: '#166534', icon: <CheckCircle2 size={13} />, label: 'Atendida en clase' },
-    archivada: { bg: '#f1f5f9', color: '#475569', icon: <Layers size={13} />, label: 'Archivada' }
+    enviada:   { bg: '#dbeafe', color: '#1e40af', icon: <Clock size={13} />,       label: 'Nueva (Sin revisar)' },
+    revisada:  { bg: '#fef3c7', color: '#92400e', icon: <Eye size={13} />,         label: 'Para clase (Revisada)' },
+    atendida:  { bg: '#dcfce7', color: '#166534', icon: <CheckCircle2 size={13} />, label: 'Atendida en clase' },
+    archivada: { bg: '#f1f5f9', color: '#475569', icon: <Layers size={13} />,       label: 'Archivada' }
   };
   const cfg = configs[status] || configs.enviada;
   return (
