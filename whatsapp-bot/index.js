@@ -28,6 +28,16 @@ client.on('ready', () => {
     startCronJobs(client);
 });
 
+// Opcional: Responder a comandos básicos o imprimir IDs de grupos
+client.on('message_create', (message) => {
+    // Esto te ayudará a obtener el ID del grupo:
+    console.log(`[Mensaje detectado] De: ${message.from} | Texto: ${message.body}`);
+    
+    if (message.body === '!ping') {
+        client.sendMessage(message.from, 'pong');
+    }
+});
+
 // Manejo de desconexiones
 client.on('disconnected', (reason) => {
     console.log('El bot se ha desconectado. Motivo:', reason);
