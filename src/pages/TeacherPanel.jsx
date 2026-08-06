@@ -1803,7 +1803,7 @@ function ResumenTab({ onChangeTab }) {
               <BookOpen size={16} color="#FCA311" /> Resumen del Programa
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {[
+              {[
                 { label: 'Total de clases', value: stats.totalClasses, color: '#14213D' },
                 { label: 'Clases completadas', value: stats.completed, color: '#16a34a' },
                 { label: 'Clases pendientes', value: stats.upcoming, color: '#14213D' },
@@ -1858,6 +1858,7 @@ function DudasTab() {
   const [searchParams] = useSearchParams();
   const [doubts, setDoubts] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [hierarchyMap, setHierarchyMap] = useState({});
   const [loading, setLoading] = useState(true);
 
   // Filtros
@@ -1874,71 +1875,153 @@ function DudasTab() {
     try {
       setLoading(true);
 
-      // 1. Cargar clases del programa con jerarquía
-      const { data: clsData } = await supabase
-        .from('class_sessions')
-        .select(`
-          id,
-          title,
-          sessions (
-            id,
-            title,
-            modules (
-              id,
-              title
-            )
-          ),
-          subtopics (
-            id,
-            title,
-            modules (
-              id,
-              title
-            )
-          )
-        `)
-        .eq('program_id', programId)
-        .order('order_index', { ascending: true });
-      setClasses(clsData || []);
+      // 1. Cargar módulos, sesiones y clases para construir jerarquía completa de manera resiliente
+      const [modulesRes, sessionsRes, clsRes] = await Promise.all([
+        supabase
+          .from('modules')
+          .select('id, title, order_index')
+          .eq('program_id', programId)
+          .order('order_index', { ascending: true }),
+        supabase
+          .from('sessions')
+          .select('id, title, module_id, order_index'),
+        supabase
+          .from('class_sessions')
+          .select('id, title, session_id, program_id, order_index')
+          .eq('program_id', programId)
+          .order('order_index', { ascending: true })
+      ]);
 
-      // 2. Cargar dudas del programa con jerarquía completa y estudiante
-      const { data: doubtData, error } = await supabase
-        .from('class_doubts')
-        .select(`
-          *,
-          class_sessions (
-            id,
-            title,
-            sessions (
+      const moduleMap = (modulesRes.data || []).reduce((acc, m) => {
+        acc[m.id] = m.title;
+        return acc;
+      }, {});
+
+      const sessionMap = (sessionsRes.data || []).reduce((acc, s) => {
+        acc[s.id] = {
+          title: s.title,
+          moduleId: s.module_id,
+          moduleTitle: moduleMap[s.module_id] || 'Módulo General'
+        };
+        return acc;
+      }, {});
+
+      const loadedClasses = clsRes.data || [];
+      setClasses(loadedClasses);
+
+      const classHierarchy = {};
+      loadedClasses.forEach(c => {
+        const sess = sessionMap[c.session_id];
+        classHierarchy[c.id] = {
+          className: c.title || 'Clase',
+          sessionName: sess?.title || 'Sesión General',
+          moduleName: sess?.moduleTitle || 'Módulo General'
+        };
+      });
+      setHierarchyMap(classHierarchy);
+
+      // 2. Cargar dudas del programa de manera robusta y tolerante a esquemas
+      const classIds = loadedClasses.map(c => c.id);
+      let doubtsData = [];
+
+      try {
+        const { data: qData, error: qErr } = await supabase
+          .from('class_doubts')
+          .select(`
+            *,
+            class_sessions (
               id,
               title,
-              modules (
-                id,
-                title
-              )
+              session_id
             ),
-            subtopics (
+            users_profile:student_id (
               id,
-              title,
-              modules (
-                id,
-                title
-              )
+              full_name,
+              email
             )
-          ),
-          users_profile:student_id (
-            id,
-            full_name,
-            email
-          )
-        `)
-        .eq('program_id', programId)
-        .order('created_at', { ascending: false });
+          `)
+          .eq('program_id', programId)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setDoubts(doubtData || []);
+        if (qErr) {
+          console.warn('Error en join con users_profile/class_sessions, fallback a select simple:', qErr);
+          const { data: rawData } = await supabase
+            .from('class_doubts')
+            .select('*')
+            .eq('program_id', programId)
+            .order('created_at', { ascending: false });
+          doubtsData = rawData || [];
+        } else {
+          doubtsData = qData || [];
+        }
+      } catch (errQ) {
+        console.error('Fallo consulta principal de dudas:', errQ);
+      }
+
+      // 3. Recuperar también dudas vinculadas por class_id en caso de que program_id fuera nulo o inconsistente
+      if (classIds.length > 0) {
+        try {
+          const { data: byClassData } = await supabase
+            .from('class_doubts')
+            .select(`
+              *,
+              class_sessions (
+                id,
+                title,
+                session_id
+              ),
+              users_profile:student_id (
+                id,
+                full_name,
+                email
+              )
+            `)
+            .in('class_id', classIds)
+            .order('created_at', { ascending: false });
+
+          if (byClassData && byClassData.length > 0) {
+            const existingIds = new Set(doubtsData.map(d => d.id));
+            byClassData.forEach(d => {
+              if (!existingIds.has(d.id)) {
+                doubtsData.push(d);
+                existingIds.add(d.id);
+              }
+            });
+          }
+        } catch (errClassDoubts) {
+          console.warn('Consulta complementaria por class_id:', errClassDoubts);
+        }
+      }
+
+      // 4. Enriquecer perfiles de estudiantes faltantes si es necesario
+      const missingStudentIds = doubtsData
+        .filter(d => (!d.users_profile || !d.users_profile.full_name) && d.student_id)
+        .map(d => d.student_id);
+
+      if (missingStudentIds.length > 0) {
+        try {
+          const { data: profiles } = await supabase
+            .from('users_profile')
+            .select('id, full_name, email')
+            .in('id', missingStudentIds);
+
+          if (profiles && profiles.length > 0) {
+            const profMap = profiles.reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+            doubtsData = doubtsData.map(d => {
+              if ((!d.users_profile || !d.users_profile.full_name) && profMap[d.student_id]) {
+                return { ...d, users_profile: profMap[d.student_id] };
+              }
+              return d;
+            });
+          }
+        } catch (errProfiles) {
+          console.warn('Error al enriquecer perfiles de estudiantes:', errProfiles);
+        }
+      }
+
+      setDoubts(doubtsData);
     } catch (err) {
-      console.error('Error al cargar dudas del estudiante:', err);
+      console.error('Error general al cargar dudas:', err);
     } finally {
       setLoading(false);
     }
@@ -1961,8 +2044,12 @@ function DudasTab() {
 
   // Helper de jerarquía
   const getHierarchy = (d) => {
-    const moduleName = d?.class_sessions?.sessions?.modules?.title || d?.class_sessions?.subtopics?.modules?.title || 'Módulo General';
-    const sessionName = d?.class_sessions?.sessions?.title || d?.class_sessions?.subtopics?.title || 'Sesión';
+    const clsId = d?.class_id || d?.class_sessions?.id;
+    if (clsId && hierarchyMap[clsId]) {
+      return hierarchyMap[clsId];
+    }
+    const moduleName = d?.class_sessions?.sessions?.modules?.title || 'Módulo General';
+    const sessionName = d?.class_sessions?.sessions?.title || 'Sesión';
     const className = d?.class_sessions?.title || 'Clase';
     return { moduleName, sessionName, className };
   };
@@ -2074,7 +2161,7 @@ function DudasTab() {
             }}
           >
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#166534' }}>{countByStatus('atendida')}</div>
-            <div style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 600 }}>Atendidas en clase</div>
+            <div style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 600 }}>Atendidas</div>
           </div>
 
           <div
@@ -2093,49 +2180,43 @@ function DudasTab() {
         </div>
       </div>
 
-      {/* BARRA DE FILTROS Y BÚSQUEDA */}
-      <div className="card" style={{ padding: '1rem 1.25rem', background: 'var(--white)', borderRadius: '12px', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* BARRA DE BÚSQUEDA Y FILTROS */}
+      <div className="card" style={{ padding: '1rem 1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', background: 'var(--white)', borderRadius: '10px' }}>
         
-        {/* BUSCADOR POR TEXTO */}
-        <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+        {/* BUSCADOR */}
+        <div style={{ flex: '1 1 250px', position: 'relative' }}>
           <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"
+            placeholder="Buscar por asunto, contenido o estudiante..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por asunto, estudiante o contenido..."
-            style={{
-              width: '100%',
-              padding: '0.45rem 0.85rem 0.45rem 2.2rem',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              fontSize: '0.84rem'
-            }}
+            style={{ width: '100%', padding: '0.5rem 0.75rem 0.5rem 2.2rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.84rem' }}
           />
         </div>
 
         {/* FILTRO POR CLASE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
-          <Filter size={14} color="var(--text-muted)" />
+        <div style={{ flex: '0 1 220px' }}>
           <select
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
-            style={{ padding: '0.45rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem', background: '#fff' }}
+            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.84rem', background: '#fff' }}
           >
             <option value="todos">Todas las clases</option>
-            {classes.map(c => (
-              <option key={c.id} value={c.id}>{c.title}</option>
-            ))}
+            {classes.map(c => {
+              const info = hierarchyMap[c.id];
+              const displayLabel = info ? `${info.sessionName} › ${c.title}` : c.title;
+              return <option key={c.id} value={c.id}>{displayLabel}</option>;
+            })}
           </select>
         </div>
 
         {/* ORDEN POR FECHA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
-          <Clock size={14} color="var(--text-muted)" />
+        <div style={{ flex: '0 1 150px' }}>
           <select
             value={dateOrder}
             onChange={(e) => setDateOrder(e.target.value)}
-            style={{ padding: '0.45rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem', background: '#fff' }}
+            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.84rem', background: '#fff' }}
           >
             <option value="desc">Más recientes primero</option>
             <option value="asc">Más antiguas primero</option>
@@ -2144,109 +2225,98 @@ function DudasTab() {
 
       </div>
 
-      {/* LISTADO DE DUDAS / ESTADO VACÍO */}
+      {/* LISTADO DE DUDAS */}
       {filteredDoubts.length === 0 ? (
-        <div className="card" style={{ padding: '3rem 1.5rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
-          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(202, 138, 4, 0.08)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
-            <MessageSquare size={32} />
-          </div>
-          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '0.4rem' }}>
-            No hay dudas por revisar
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '480px', margin: '0 auto', lineHeight: 1.5 }}>
-            Las dudas enviadas por los estudiantes aparecerán aquí, organizadas por módulo, sesión y clase.
+        <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
+          <MessageSquare size={44} color="var(--gold)" style={{ opacity: 0.7, marginBottom: '0.75rem' }} />
+          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.4rem 0' }}>
+            No se encontraron inquietudes
+          </h4>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+            {searchTerm || statusFilter !== 'todos' || classFilter !== 'todos'
+              ? 'No hay dudas que coincidan con los filtros seleccionados.'
+              : 'Los estudiantes aún no han registrado consultas para este programa.'}
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          {filteredDoubts.map(d => {
-            const { moduleName, sessionName, className } = getHierarchy(d);
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
+          {filteredDoubts.map(doubt => {
+            const { moduleName, sessionName, className } = getHierarchy(doubt);
             return (
               <div
-                key={d.id}
+                key={doubt.id}
                 className="card"
                 style={{
                   padding: '1.25rem',
-                  background: 'var(--white)',
                   borderRadius: '12px',
+                  background: 'var(--white)',
                   border: '1px solid var(--border-color)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.75rem',
-                  transition: 'border-color 0.2s ease, transform 0.15s ease'
+                  justifyContent: 'space-between',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setSelectedDoubt(doubt)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: '240px' }}>
-                    
-                    {/* BREADCRUMB DE JERARQUÍA */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                      <span style={{ background: '#f1f5f9', color: 'var(--navy)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 600 }}>
-                        {moduleName}
-                      </span>
-                      <span>›</span>
-                      <span>{sessionName}</span>
-                      <span>›</span>
-                      <span style={{ fontWeight: 600, color: 'var(--navy)' }}>{className}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '4px', flexWrap: 'wrap' }}>
-                      <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--navy)' }}>
-                        {d.subject}
-                      </h4>
-                      <StatusChip status={d.status} />
-                    </div>
-
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #475569)', margin: '0 0 0.6rem 0', lineHeight: 1.45 }}>
-                      {d.description?.length > 180 ? `${d.description.substring(0, 180)}...` : d.description}
-                    </p>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                      <span>Estudiante: <strong style={{ color: 'var(--navy)' }}>{d.users_profile?.full_name || 'Estudiante'}</strong> ({d.users_profile?.email || 'Sin correo'})</span>
-                      <span>•</span>
-                      <span>Fecha: {new Date(d.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
+                {/* TOP: ESTADO Y FECHA */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                    <StatusChip status={doubt.status} />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Calendar size={12} />
+                      {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                    </span>
                   </div>
 
-                  {/* ACCIONES DEL DOCENTE (SIN OPCIONES DE ESCRIBIR RESPUESTAS) */}
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <button
-                      onClick={() => setSelectedDoubt(d)}
-                      className="btn btn-outline"
-                      style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                    >
-                      <Eye size={13} /> Ver detalle
-                    </button>
+                  {/* ASUNTO */}
+                  <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.4rem 0', lineHeight: 1.3 }}>
+                    {doubt.subject}
+                  </h4>
 
-                    {d.status !== 'revisada' && (
-                      <button
-                        onClick={() => handleStatusUpdate(d.id, 'revisada')}
-                        className="btn btn-outline"
-                        style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                      >
-                        <Eye size={13} /> Marcar revisada
-                      </button>
-                    )}
+                  {/* EXTRACTO DESCRIPCIÓN */}
+                  <p style={{
+                    fontSize: '0.82rem', color: '#475569', margin: '0 0 0.85rem 0', lineHeight: 1.4,
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                  }}>
+                    {doubt.description}
+                  </p>
+                </div>
 
-                    {d.status !== 'atendida' && (
-                      <button
-                        onClick={() => handleStatusUpdate(d.id, 'atendida')}
-                        className="btn btn-outline"
-                        style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#166534', borderColor: '#bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                      >
-                        <CheckCircle2 size={13} /> Atendida en clase
-                      </button>
-                    )}
+                {/* BOTTOM: JERARQUÍA Y ESTUDIANTE */}
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                  
+                  {/* JERARQUÍA */}
+                  <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--gold-dark)' }}>{moduleName}</span>
+                    <span>›</span>
+                    <span>{sessionName}</span>
+                    <span>›</span>
+                    <strong style={{ color: 'var(--navy)' }}>{className}</strong>
+                  </div>
 
-                    {d.status !== 'archivada' && (
-                      <button
-                        onClick={() => handleStatusUpdate(d.id, 'archivada')}
-                        className="btn btn-outline"
-                        style={{ fontSize: '0.76rem', padding: '0.35rem 0.75rem', color: '#475569', borderColor: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                      >
-                        <Layers size={13} /> Archivar
-                      </button>
-                    )}
+                  {/* ESTUDIANTE Y ACCIÓN */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, color: 'var(--navy)' }}>
+                        {doubt.users_profile?.full_name?.charAt(0) || 'E'}
+                      </div>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy)' }}>
+                        {doubt.users_profile?.full_name || 'Estudiante'}
+                      </span>
+                    </div>
+
+                    <span style={{ fontSize: '0.76rem', color: 'var(--gold-dark)', fontWeight: 600 }}>
+                      Ver detalle →
+                    </span>
                   </div>
 
                 </div>
@@ -2316,19 +2386,24 @@ function DudasTab() {
 
               <div style={{ gridColumn: 'span 2', paddingTop: '0.4rem', borderTop: '1px dashed var(--border-color)' }}>
                 <span style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Jerarquía académica:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontWeight: 600 }}>
-                  <span style={{ background: '#e2e8f0', color: 'var(--navy)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.74rem' }}>
-                    {selectedDoubt.class_sessions?.sessions?.modules?.title || selectedDoubt.class_sessions?.subtopics?.modules?.title || 'Módulo'}
-                  </span>
-                  <span style={{ color: 'var(--text-muted)' }}>›</span>
-                  <span style={{ color: '#475569' }}>
-                    {selectedDoubt.class_sessions?.sessions?.title || selectedDoubt.class_sessions?.subtopics?.title || 'Sesión'}
-                  </span>
-                  <span style={{ color: 'var(--text-muted)' }}>›</span>
-                  <span style={{ color: 'var(--navy)' }}>
-                    {selectedDoubt.class_sessions?.title || 'Clase general'}
-                  </span>
-                </div>
+                {(() => {
+                  const h = getHierarchy(selectedDoubt);
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontWeight: 600 }}>
+                      <span style={{ background: '#e2e8f0', color: 'var(--navy)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.74rem' }}>
+                        {h.moduleName}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)' }}>›</span>
+                      <span style={{ color: '#475569' }}>
+                        {h.sessionName}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)' }}>›</span>
+                      <span style={{ color: 'var(--navy)' }}>
+                        {h.className}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
