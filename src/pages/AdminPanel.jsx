@@ -1310,13 +1310,20 @@ function SesionesTab({ sessions = [], loading, onRefresh, modulesProp = [], isCo
     
     setSubmitting(true);
     try {
+      const effectiveModuleId = isCourse 
+        ? (moduleId || (modulesProp && modulesProp.length > 0 ? modulesProp[0].id : null)) 
+        : moduleId;
+
       const payload = {
         title,
         description,
         order_index: parsedOrder,
-        module_id: isCourse ? null : moduleId,
         program_id: programId
       };
+
+      if (effectiveModuleId) {
+        payload.module_id = effectiveModuleId;
+      }
 
       let opError;
       if (editSessionId) {
