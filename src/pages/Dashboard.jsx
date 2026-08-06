@@ -254,39 +254,77 @@ export default function Dashboard() {
             <Megaphone size={18} color="var(--navy)" />
           </div>
           <h2 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700, color: 'var(--navy)' }}>Tablón de Anuncios</h2>
+          {announcements.length > 0 && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+              {announcements.length} {announcements.length === 1 ? 'anuncio' : 'anuncios'}
+            </span>
+          )}
         </div>
-        
-        {announcements.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {announcements.map(a => (
-              <div key={a.id} style={{
-                padding: '1rem 1.25rem',
-                borderLeft: `4px solid ${a.tag === 'urgent' ? 'var(--error)' : a.tag === 'info' ? 'var(--green-600)' : 'var(--navy)'}`,
-                backgroundColor: 'var(--surface-light)',
-                borderRadius: '0 var(--radius-md) var(--radius-md) 0',
-                border: '1px solid var(--border-color)',
-                borderLeftWidth: '4px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
-                  <h4 style={{ fontWeight: 700, color: 'var(--navy)', margin: 0, fontSize: '0.92rem' }}>{a.title}</h4>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                    {a.created_at ? new Date(a.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : ''}
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                  {a.body}
-                </p>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  Publicado por: <strong>{a.teacher_profiles?.name || 'Administración'}</strong>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '1.5rem 0' }}>
-            No hay anuncios recientes.
-          </p>
-        )}
+
+        {(() => {
+          const TAG_CONFIG = {
+            general:    { label: 'General',     emoji: '📢', color: '#14213D', bg: '#EEF2F8', border: '#14213D' },
+            info:       { label: 'Informativo', emoji: '📌', color: '#1d4ed8', bg: '#dbeafe', border: '#3b82f6' },
+            urgent:     { label: 'Urgente',     emoji: '🔴', color: '#991b1b', bg: '#fee2e2', border: '#ef4444' },
+            clase:      { label: 'Clase',       emoji: '🎓', color: '#065f46', bg: '#d1fae5', border: '#10b981' },
+            evaluacion: { label: 'Evaluación',  emoji: '📝', color: '#92400e', bg: '#fef3c7', border: '#f59e0b' },
+          };
+
+          return announcements.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {announcements.map(a => {
+                const cfg = TAG_CONFIG[a.tag] || TAG_CONFIG.general;
+                return (
+                  <div key={a.id} style={{
+                    padding: '1rem 1.25rem',
+                    borderRadius: '0 10px 10px 0',
+                    border: '1px solid var(--border-color)',
+                    borderLeft: `4px solid ${cfg.border}`,
+                    backgroundColor: 'var(--surface-light)',
+                    transition: 'box-shadow 0.15s'
+                  }}
+                    onMouseOver={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.07)'}
+                    onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    {/* FILA SUPERIOR: tag pill + fecha */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                        padding: '0.2rem 0.6rem', borderRadius: '999px',
+                        background: cfg.bg, color: cfg.color,
+                        fontSize: '0.7rem', fontWeight: 700
+                      }}>
+                        {cfg.emoji} {cfg.label}
+                      </span>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        {a.created_at ? new Date(a.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) : ''}
+                      </span>
+                    </div>
+
+                    {/* TÍTULO */}
+                    <h4 style={{ fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.35rem 0', fontSize: '0.92rem' }}>
+                      {a.title}
+                    </h4>
+
+                    {/* CUERPO */}
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem 0', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
+                      {a.body}
+                    </p>
+
+                    {/* FOOTER */}
+                    <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', fontWeight: 500, borderTop: '1px solid var(--border-color)', paddingTop: '0.4rem' }}>
+                      Publicado por: <strong>{a.teacher_profiles?.name || 'Administración'}</strong>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '1.5rem 0' }}>
+              No hay anuncios recientes.
+            </p>
+          );
+        })()}
       </div>
 
       {/* --- ACCESOS RÁPIDOS --- */}
