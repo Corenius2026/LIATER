@@ -1,7 +1,14 @@
 require('dotenv').config({ path: '../.env' }); // Leemos las variables desde el .env del proyecto principal
+const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const { startCronJobs } = require('./services/cronService');
+
+// HACK PARA RENDER: Crear un servidor web básico para que Render no mate el proceso
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Bot de WhatsApp de LIATER está corriendo 🚀'));
+app.listen(PORT, () => console.log(`Servidor web escuchando en el puerto ${PORT}`));
 
 console.log('Iniciando bot de WhatsApp...');
 
