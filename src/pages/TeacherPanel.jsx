@@ -1874,107 +1874,98 @@ function DudasTab() {
     if (!programId) return;
     try {
       setLoading(true);
-
-      // 1. Cargar módulos, sesiones y clases para construir jerarquía completa de manera resiliente
-      const [modulesRes, sessionsRes, clsRes] = await Promise.all([
-        supabase
-          .from('modules')
-          .select('id, title, order_index')
-          .eq('program_id', programId)
-          .order('order_index', { ascending: true }),
-        supabase
-          .from('sessions')
-          .select('id, title, module_id, order_index'),
-        supabase
-          .from('class_sessions')
-          .select('id, title, session_id, program_id, order_index')
-          .eq('program_id', programId)
-          .order('order_index', { ascending: true })
-      ]);
-
-      const moduleMap = (modulesRes.data || []).reduce((acc, m) => {
-        acc[m.id] = m.title;
-        return acc;
-      }, {});
-
-      const sessionMap = (sessionsRes.data || []).reduce((acc, s) => {
-        acc[s.id] = {
-          title: s.title,
-          moduleId: s.module_id,
-          moduleTitle: moduleMap[s.module_id] || 'Módulo General'
-        };
-        return acc;
-      }, {});
-
-      const loadedClasses = clsRes.data || [];
-      setClasses(loadedClasses);
-
-      const classHierarchy = {};
-      loadedClasses.forEach(c => {
-        const sess = sessionMap[c.session_id];
-        classHierarchy[c.id] = {
-          className: c.title || 'Clase',
-          sessionName: sess?.title || 'Sesión General',
-          moduleName: sess?.moduleTitle || 'Módulo General'
-        };
-      });
-      setHierarchyMap(classHierarchy);
-
-      // 2. Cargar dudas del programa de manera robusta y tolerante a esquemas
-      const classIds = loadedClasses.map(c => c.id);
       let doubtsData = [];
 
-      try {
-        const { data: qData, error: qErr } = await supabase
+      // 1. Fetch dudas
+      const { data: qData, error: qErr } = await supabase
+        .from('class_doubts')
+        .select(`
+          *,
+          class_sessions (
+            id,
+            title,
+            session_id
+          ),
+          users_profile:student_id (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq('program_id', programId)
+        .order('created_at', { ascending: false });
+
+      if (qErr) {
+        console.warn('Error en join de dudas:', qErr);
+        const { data: rawData } = await supabase
           .from('class_doubts')
-          .select(`
-            *,
-            class_sessions (
-              id,
-              title,
-              session_id
-            ),
-            users_profile:student_id (
-              id,
-              full_name,
-              email
-            )
-          `)
+          .select('*')
           .eq('program_id', programId)
           .order('created_at', { ascending: false });
-
-        if (qErr) {
-          console.warn('Error en join con users_profile/class_sessions, fallback a select simple:', qErr);
-          const { data: rawData } = await supabase
-            .from('class_doubts')
-            .select('*')
-            .eq('program_id', programId)
-            .order('created_at', { ascending: false });
-          doubtsData = rawData || [];
-        } else {
-          doubtsData = qData || [];
-        }
-      } catch (errQ) {
-        console.error('Fallo consulta principal de dudas:', errQ);
+        doubtsData = rawData ? [...rawData] : [];
+      } else {
+        doubtsData = qData ? [...qData] : [];
       }
 
-      // 3. Recuperar también dudas vinculadas por class_id en caso de que program_id fuera nulo o inconsistente
+      // 2. Fetch clases de forma segura para no romper la app
+      let classIds = [];
+      try {
+        const { data: clsData } = await supabase
+          .from('class_sessions')
+          .select('id, title, session_id, program_id')
+          .eq('program_id', programId);
+          
+        const loadedClasses = clsData || [];
+        setClasses(loadedClasses);
+        classIds = loadedClasses.map(c => c.id);
+
+        let moduleMap = {};
+        let sessionMap = {};
+
+        const { data: modulesRes } = await supabase.from('modules').select('id, title').eq('program_id', programId);
+        if (modulesRes) {
+          moduleMap = modulesRes.reduce((acc, m) => ({ ...acc, [m.id]: m.title }), {});
+        }
+
+        const { data: sessionsRes, error: sErr } = await supabase.from('sessions').select('id, title, module_id');
+        let sData = sessionsRes || [];
+        if (sErr) {
+          const { data: subRes } = await supabase.from('subtopics').select('id, title, module_id');
+          sData = subRes || [];
+        }
+        
+        sessionMap = sData.reduce((acc, s) => ({
+          ...acc,
+          [s.id]: {
+            title: s.title,
+            moduleTitle: moduleMap[s.module_id] || 'Módulo General'
+          }
+        }), {});
+
+        const classHierarchy = {};
+        loadedClasses.forEach(c => {
+          const sess = sessionMap[c.session_id];
+          classHierarchy[c.id] = {
+            className: c.title || 'Clase',
+            sessionName: sess?.title || 'Sesión General',
+            moduleName: sess?.moduleTitle || 'Módulo General'
+          };
+        });
+        setHierarchyMap(classHierarchy);
+        
+      } catch (errHier) {
+        console.warn('Error construyendo jerarquía de clases:', errHier);
+      }
+
+      // 3. Fallback de dudas por class_id si es necesario
       if (classIds.length > 0) {
         try {
           const { data: byClassData } = await supabase
             .from('class_doubts')
             .select(`
               *,
-              class_sessions (
-                id,
-                title,
-                session_id
-              ),
-              users_profile:student_id (
-                id,
-                full_name,
-                email
-              )
+              class_sessions (id, title, session_id),
+              users_profile:student_id (id, full_name, email)
             `)
             .in('class_id', classIds)
             .order('created_at', { ascending: false });
@@ -1989,11 +1980,11 @@ function DudasTab() {
             });
           }
         } catch (errClassDoubts) {
-          console.warn('Consulta complementaria por class_id:', errClassDoubts);
+          console.warn('Consulta complementaria por class_id falló:', errClassDoubts);
         }
       }
 
-      // 4. Enriquecer perfiles de estudiantes faltantes si es necesario
+      // 4. Enriquecer perfiles
       const missingStudentIds = doubtsData
         .filter(d => (!d.users_profile || !d.users_profile.full_name) && d.student_id)
         .map(d => d.student_id);
@@ -2015,7 +2006,7 @@ function DudasTab() {
             });
           }
         } catch (errProfiles) {
-          console.warn('Error al enriquecer perfiles de estudiantes:', errProfiles);
+          console.warn('Error al enriquecer perfiles:', errProfiles);
         }
       }
 
@@ -2490,70 +2481,269 @@ function EstudiantesTab() {
   const { programId } = useTeacherContext();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   useEffect(() => {
-    async function fetchStudents() {
+    async function fetchStudentAnalytics() {
       if (!programId) return;
       try {
-        const { data, error } = await supabase
+        setLoading(true);
+
+        // 1. Obtener enrollments (estudiantes)
+        const { data: enrollData, error: enrollErr } = await supabase
           .from('enrollments')
           .select('student_id, created_at, users_profile:student_id(*)')
           .eq('program_id', programId);
-        if (error) throw error;
-        
-        // Filtrar exclusivamente los estudiantes vinculados a este programa
-        const programStudents = (data || []).filter(item => 
+        if (enrollErr) throw enrollErr;
+
+        const programStudents = (enrollData || []).filter(item => 
           item.users_profile && item.users_profile.role === 'student'
         );
-        
-        setStudents(programStudents);
+
+        if (programStudents.length === 0) {
+          setStudents([]);
+          return;
+        }
+
+        // 2. Obtener class_sessions del programa
+        const { data: classesData } = await supabase
+          .from('class_sessions')
+          .select('id')
+          .eq('program_id', programId);
+        const classIds = (classesData || []).map(c => c.id);
+
+        // 3. Obtener actividades publicadas de esas clases
+        let activityIds = [];
+        if (classIds.length > 0) {
+          const { data: actsData } = await supabase
+            .from('class_activities')
+            .select('id, class_id')
+            .in('class_id', classIds)
+            .eq('is_published', true);
+          activityIds = (actsData || []).map(a => a.id);
+        }
+
+        // 4. Obtener intentos de esas actividades
+        let attemptsData = [];
+        if (activityIds.length > 0) {
+          const { data: attsData } = await supabase
+            .from('activity_attempts')
+            .select('id, activity_id, student_id, score, status')
+            .in('activity_id', activityIds);
+          attemptsData = attsData || [];
+        }
+
+        // 5. Obtener dudas enviadas en el programa
+        const { data: doubtsData } = await supabase
+          .from('class_doubts')
+          .select('id, student_id')
+          .eq('program_id', programId);
+        const doubtsList = doubtsData || [];
+
+        // ENSAMBLAJE
+        const totalActivities = activityIds.length;
+
+        const enrichedStudents = programStudents.map(enroll => {
+          const stuId = enroll.student_id;
+          
+          // Filtrar intentos del estudiante (completados o aprobados/fallados)
+          const stuAttempts = attemptsData.filter(a => a.student_id === stuId && a.status !== 'pending');
+          
+          // Para calcular completitud, contar IDs únicos de actividades que intentó
+          const attemptedActivityIds = new Set(stuAttempts.map(a => a.activity_id));
+          const completedCount = attemptedActivityIds.size;
+          
+          const completionRate = totalActivities > 0 
+            ? Math.round((completedCount / totalActivities) * 100) 
+            : 0;
+
+          // Promedio de notas
+          let avgScore = 0;
+          if (stuAttempts.length > 0) {
+            const sumScore = stuAttempts.reduce((acc, curr) => acc + (curr.score || 0), 0);
+            avgScore = Math.round(sumScore / stuAttempts.length);
+          }
+
+          // Conteo de dudas
+          const doubtsCount = doubtsList.filter(d => d.student_id === stuId).length;
+
+          // Determinar estado de riesgo
+          let riskStatus = 'normal';
+          if (totalActivities > 0 && completionRate < 50) riskStatus = 'risk';
+          if (avgScore > 0 && avgScore < 60) riskStatus = 'risk';
+          if (completionRate >= 80 && avgScore >= 80) riskStatus = 'excellent';
+
+          return {
+            id: stuId,
+            profile: enroll.users_profile,
+            enrolled_at: enroll.created_at,
+            completionRate,
+            avgScore,
+            doubtsCount,
+            riskStatus
+          };
+        });
+
+        // Ordenar alfabéticamente por defecto
+        enrichedStudents.sort((a, b) => {
+          const nameA = (a.profile?.full_name || '').toLowerCase();
+          const nameB = (b.profile?.full_name || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+
+        setStudents(enrichedStudents);
+
       } catch (err) {
-        console.error('Error al obtener estudiantes:', err);
+        console.error('Error ensamblando analítica de estudiantes:', err);
       } finally {
         setLoading(false);
       }
     }
-    fetchStudents();
+    fetchStudentAnalytics();
   }, [programId]);
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando estudiantes...</div>;
+  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando analítica de estudiantes...</div>;
+
+  // Filtrado y Búsqueda
+  const filteredStudents = students.filter(s => {
+    // Búsqueda
+    const term = searchTerm.toLowerCase();
+    const nameMatch = (s.profile?.full_name || '').toLowerCase().includes(term);
+    const emailMatch = (s.profile?.email || '').toLowerCase().includes(term);
+    if (!nameMatch && !emailMatch) return false;
+
+    // Filtro estado
+    if (filterStatus === 'risk' && s.riskStatus !== 'risk') return false;
+    if (filterStatus === 'excellent' && s.riskStatus !== 'excellent') return false;
+
+    return true;
+  });
 
   return (
-    <div className="card" style={{ padding: '1.5rem', background: 'var(--white)', borderRadius: '12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      
+      {/* HEADER Y CONTROLES */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
             Estudiantes Inscritos ({students.length})
           </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-            Listado oficial de estudiantes matriculados en este programa.
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+            Monitorea el progreso, rendimiento y participación de cada estudiante.
           </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input 
+              type="text" 
+              placeholder="Buscar estudiante..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ padding: '0.5rem 1rem 0.5rem 2.2rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem', width: '220px' }}
+            />
+          </div>
+          
+          <select 
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem', background: 'var(--white)', color: 'var(--text-dark)', cursor: 'pointer' }}
+          >
+            <option value="all">Todos los estados</option>
+            <option value="risk">⚠️ En Riesgo (Score &lt; 60% o Participación Baja)</option>
+            <option value="excellent">⭐ Sobresalientes (Score &gt;= 80%)</option>
+          </select>
         </div>
       </div>
 
-      {students.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          No hay estudiantes inscritos en este programa por el momento.
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
-          {students.map(item => (
-            <div key={item.student_id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem', borderRadius: '10px', background: 'var(--bg-light)', border: '1px solid var(--border-color)' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'var(--navy)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', flexShrink: 0 }}>
-                {item.users_profile?.full_name ? item.users_profile.full_name.charAt(0).toUpperCase() : 'E'}
-              </div>
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {item.users_profile?.full_name || 'Estudiante'}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {item.users_profile?.email || 'Sin correo registrado'}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* TABLA DE ESTUDIANTES */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+        {filteredStudents.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+            <Users size={40} color="#E5E5E5" style={{ margin: '0 auto 1rem' }} />
+            No se encontraron estudiantes que coincidan con la búsqueda o filtro.
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-light)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '1rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, width: '30%' }}>Estudiante</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Avance de Actividades</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Score Promedio</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Dudas Realizadas</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.map(item => (
+                  <tr key={item.id} style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#F8FAFC'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                    
+                    {/* INFO ESTUDIANTE */}
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--navy)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem', flexShrink: 0 }}>
+                          {item.profile?.full_name ? item.profile.full_name.charAt(0).toUpperCase() : 'E'}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--navy)', marginBottom: '2px' }}>
+                            {item.profile?.full_name || 'Estudiante'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {item.profile?.email || 'Sin correo'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* AVANCE */}
+                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '80px', height: '6px', background: '#E5E5E5', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${item.completionRate}%`, height: '100%', background: item.completionRate === 100 ? '#16a34a' : 'var(--gold)', borderRadius: '3px' }}></div>
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-dark)', minWidth: '35px' }}>{item.completionRate}%</span>
+                      </div>
+                    </td>
+
+                    {/* SCORE */}
+                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                      <span style={{ 
+                        fontWeight: 700, 
+                        color: item.avgScore >= 80 ? '#16a34a' : item.avgScore >= 60 ? 'var(--navy)' : '#dc2626',
+                        background: item.avgScore >= 80 ? '#dcfce7' : item.avgScore >= 60 ? '#f1f5f9' : '#fee2e2',
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '999px',
+                        fontSize: '0.82rem'
+                      }}>
+                        {item.avgScore}%
+                      </span>
+                    </td>
+
+                    {/* DUDAS */}
+                    <td style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-dark)', fontWeight: 500 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                        <MessageSquare size={14} color="var(--text-muted)" />
+                        {item.doubtsCount}
+                      </div>
+                    </td>
+
+                    {/* ESTADO */}
+                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                      {item.riskStatus === 'risk' && <span style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}><AlertTriangle size={14}/> En riesgo</span>}
+                      {item.riskStatus === 'excellent' && <span style={{ color: '#16a34a', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}><Star size={14}/> Excelente</span>}
+                      {item.riskStatus === 'normal' && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 500 }}>Al día</span>}
+                    </td>
+
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
