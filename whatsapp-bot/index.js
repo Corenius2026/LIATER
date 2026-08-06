@@ -1,3 +1,10 @@
+process.on('uncaughtException', (err) => {
+    console.error('Error fatal no capturado:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Promesa rechazada no manejada:', reason);
+});
+
 require('dotenv').config({ path: '../.env' }); // Leemos las variables desde el .env del proyecto principal
 const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
@@ -23,7 +30,6 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process',
             '--disable-gpu'
         ]
     }
