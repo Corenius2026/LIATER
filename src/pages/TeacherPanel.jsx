@@ -674,7 +674,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
    Módulo → Sesión → Clase
 ───────────────────────────────────────── */
 function ClasesTab() {
-  const { programId } = useTeacherContext();
+  const { programId, teacherId } = useTeacherContext();
   const [classes, setClasses]           = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
@@ -684,13 +684,15 @@ function ClasesTab() {
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'upcoming' | 'completed'
 
   const fetchMyClasses = async () => {
+    if (!teacherId) return; // Esperar hasta tener el ID del profesor
     try {
       setLoading(true);
       let data = [];
       const { data: sData, error: sErr } = await supabase
         .from('class_sessions')
-        .select('*, sessions(id, title, module_id, modules(id, title, program_id)), meet_url')
+        .select('*, sessions(id, title, order_index, module_id, modules(id, title, program_id)), meet_url')
         .eq('program_id', programId)
+        .eq('teacher_id', teacherId)         // ← Solo clases del profesor
         .order('class_date', { ascending: true });
 
       if (sErr) {
@@ -698,6 +700,7 @@ function ClasesTab() {
           .from('class_sessions')
           .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
           .eq('program_id', programId)
+          .eq('teacher_id', teacherId)       // ← Fallback también filtrado
           .order('class_date', { ascending: true });
         if (oldErr) throw oldErr;
         data = oldData || [];
@@ -725,7 +728,7 @@ function ClasesTab() {
     }
   };
 
-  useEffect(() => { if (programId) fetchMyClasses(); }, [programId]);
+  useEffect(() => { if (programId && teacherId) fetchMyClasses(); }, [programId, teacherId]);
 
   const toggleModule   = id => setExpandedModules(p => ({ ...p, [id]: !p[id] }));
   const toggleSession  = id => setExpandedSessions(p => ({ ...p, [id]: !p[id] }));
@@ -746,14 +749,22 @@ function ClasesTab() {
   const grouped = {};
   filteredClasses.forEach(cls => {
     const sesObj = cls.sessions || cls.subtopics;
-    const modId    = sesObj?.modules?.id    || 'sin-modulo';
-    const modTitle = sesObj?.modules?.title || 'Sin Módulo';
-    const sesId    = cls.session_id || cls.subtopic_id || 'sin-sesion';
-    const sesTitle = sesObj?.title          || 'Sin Sesión';
+    const modId     = sesObj?.modules?.id    || 'sin-modulo';
+    const modTitle  = sesObj?.modules?.title || 'Sin Módulo';
+    const sesId     = cls.session_id || cls.subtopic_id || 'sin-sesion';
+    const sesTitle  = sesObj?.title          || 'Sin Sesión';
+    const sesOrder  = sesObj?.order_index    ?? 999;
 
     if (!grouped[modId]) grouped[modId] = { title: modTitle, sessions: {} };
-    if (!grouped[modId].sessions[sesId]) grouped[modId].sessions[sesId] = { title: sesTitle, classes: [] };
+    if (!grouped[modId].sessions[sesId]) {
+      grouped[modId].sessions[sesId] = { title: sesTitle, order: sesOrder, classes: [], minDate: null, maxDate: null };
+    }
     grouped[modId].sessions[sesId].classes.push(cls);
+    // Rastrear rango de fechas de la sesión
+    const d = new Date(cls.class_date);
+    const sess = grouped[modId].sessions[sesId];
+    if (!sess.minDate || d < new Date(sess.minDate)) sess.minDate = cls.class_date;
+    if (!sess.maxDate || d > new Date(sess.maxDate)) sess.maxDate = cls.class_date;
   });
 
   const totalCompleted = classes.filter(c => new Date(c.class_date) < now).length;
@@ -814,7 +825,17 @@ function ClasesTab() {
               <button onClick={() => toggleSession(sesId)} style={{ width: '100%', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid #E5E5E5' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <BookOpen size={14} color="#FCA311" />
-                  <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{ses.title}</span>
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{ses.title}</span>
+                    {ses.minDate && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                        {ses.minDate === ses.maxDate
+                          ? new Date(ses.minDate).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })
+                          : `${new Date(ses.minDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} – ${new Date(ses.maxDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`
+                        }
+                      </span>
+                    )}
+                  </div>
                   <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{ses.classes.length} clase{ses.classes.length !== 1 ? 's' : ''}</span>
                 </div>
                 {expandedSessions[sesId] ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
@@ -1308,7 +1329,7 @@ function StatusChip({ status }) {
    TAB 1 — Resumen (Hero + stats rápidas)
 ───────────────────────────────────────── */
 function ResumenTab({ onChangeTab }) {
-  const { profile, programId, currentProgram } = useTeacherContext();
+  const { profile, teacherId, programId, currentProgram } = useTeacherContext();
   const [stats, setStats] = useState({
     totalClasses: 0,
     completed: 0,
@@ -1329,9 +1350,11 @@ function ResumenTab({ onChangeTab }) {
     try {
       setLoading(true);
 
+      const teacherProfileId = teacherId || profile?.id;
       const pClasses = supabase.from('class_sessions')
         .select('id, title, class_date, program_id, duration, description, meet_url')
         .eq('program_id', programId)
+        .eq('teacher_id', teacherProfileId)
         .order('class_date', { ascending: true });
         
       const pAnnouncements = supabase.from('announcements')
@@ -1361,18 +1384,20 @@ function ResumenTab({ onChangeTab }) {
         .order('created_at', { ascending: false })
         .limit(3);
 
-      // Query A: Borradores IA pendientes del programa
+      // Query A: Borradores IA pendientes de las clases del profesor
       const pPendingDrafts = supabase
         .from('activity_drafts')
-        .select('id, class_id, status, draft_data, created_at, class_sessions!inner(id, title, program_id)', { count: 'exact' })
+        .select('id, class_id, status, draft_data, created_at, class_sessions!inner(id, title, program_id, teacher_id)', { count: 'exact' })
         .eq('class_sessions.program_id', programId)
+        .eq('class_sessions.teacher_id', teacherProfileId)
         .eq('status', 'pending');
 
-      // Query B: Clases pasadas sin grabación (class_date < ahora Y video_url IS NULL)
+      // Query B: Clases PROPIAS del profesor pasadas sin grabación (class_date < ahora Y video_url IS NULL)
       const pMissingRecordings = supabase
         .from('class_sessions')
         .select('id, title, class_date', { count: 'exact', head: false })
         .eq('program_id', programId)
+        .eq('teacher_id', teacherProfileId)
         .lt('class_date', new Date().toISOString())
         .is('video_url', null);
 
@@ -3312,14 +3337,34 @@ export default function TeacherPanel() {
     }
 
     async function fetchAllPrograms() {
+      // Solo cargar programas donde el profesor tiene clases asignadas
       try {
+        // Primero obtenemos el teacher_profile.id (puede diferir del currentUser.id)
+        const { data: profileData } = await supabase
+          .from('teacher_profiles')
+          .select('id')
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+        const tId = profileData?.id;
+        if (!tId) return;
+
+        // Obtenemos los program_id distintos donde tiene clases
+        const { data: classRows } = await supabase
+          .from('class_sessions')
+          .select('program_id')
+          .eq('teacher_id', tId);
+
+        const uniqueProgramIds = [...new Set((classRows || []).map(r => r.program_id).filter(Boolean))];
+        if (uniqueProgramIds.length === 0) return;
+
         const { data } = await supabase
           .from('diploma_programs')
           .select('*')
+          .in('id', uniqueProgramIds)
           .order('title', { ascending: true });
         if (data) setMyPrograms(data);
       } catch (err) {
-        console.error('Error al obtener lista de programas:', err);
+        console.error('Error al obtener lista de programas del profesor:', err);
       }
     }
 
@@ -3355,7 +3400,7 @@ export default function TeacherPanel() {
   const ActiveComponent = TABS.find(t => t.id === activeTab)?.component ?? ResumenTab;
 
   return (
-    <TeacherContext.Provider value={{ id: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId, currentProgram }}>
+    <TeacherContext.Provider value={{ id: teacherProfile.id, teacherId: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId, currentProgram }}>
       <div>
 
         {/* ALERTA DE PROGRAMA INHABILITADO */}
