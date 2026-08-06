@@ -23,6 +23,7 @@ console.log('Iniciando bot de WhatsApp...');
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
+        dumpio: true, // Esto imprimirá los errores internos de Chrome en Render
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -30,7 +31,8 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--disable-gpu'
+            '--disable-gpu',
+            '--disable-features=site-per-process' // Ahorro extremo de memoria
         ]
     }
 });
