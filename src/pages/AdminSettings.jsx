@@ -16,6 +16,7 @@ export default function AdminSettings() {
   const [programType, setProgramType] = useState('diplomado');
   const [imageUrl, setImageUrl] = useState(null);
   const [isPublished, setIsPublished] = useState(true);
+  const [meetUrl, setMeetUrl] = useState('');
   
   // Estados para subida de imagen de portada
   const [coverFile, setCoverFile] = useState(null);
@@ -33,7 +34,7 @@ export default function AdminSettings() {
       try {
         const { data, error } = await supabase
           .from('diploma_programs')
-          .select('title, description, program_type, image_url, is_published, status')
+          .select('title, description, program_type, image_url, is_published, status, meet_url')
           .eq('id', programId)
           .single();
         
@@ -43,6 +44,7 @@ export default function AdminSettings() {
         setProgramType(data.program_type || 'diplomado');
         setImageUrl(data.image_url || null);
         setIsPublished(data.is_published !== false && data.status !== 'draft');
+        setMeetUrl(data.meet_url || '');
         if (data.image_url) {
           setCoverPreview(data.image_url);
         }
@@ -175,7 +177,8 @@ export default function AdminSettings() {
         .update({ 
           title, 
           description,
-          image_url: finalImageUrl 
+          image_url: finalImageUrl,
+          meet_url: meetUrl
         })
         .eq('id', programId);
       
@@ -255,6 +258,21 @@ export default function AdminSettings() {
               rows="4"
               style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)', resize: 'vertical' }}
             />
+          </div>
+
+          <div>
+            <label htmlFor="settings-meet-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Enlace Global de Clase en Vivo (Meet/Zoom)</label>
+            <input 
+              id="settings-meet-input"
+              type="url"
+              placeholder="https://meet.google.com/..."
+              value={meetUrl}
+              onChange={(e) => setMeetUrl(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+            />
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Este enlace estará disponible de forma destacada para administradores, profesores y estudiantes de este programa.
+            </p>
           </div>
 
           {/* SECCIÓN DE GESTIÓN DE PORTADA */}

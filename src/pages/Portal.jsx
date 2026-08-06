@@ -54,10 +54,24 @@ function StudentPortal({ getDiplomadoLink }) {
 
         // Obtener progreso para cada diplomado usando la nueva lógica basada en actividades de reforzamiento
         if (enrolledDiplomas.length > 0) {
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+          // Buscar clases programadas para hoy
+          const { data: todayClasses } = await supabase
+            .from('class_sessions')
+            .select('program_id, meet_url')
+            .in('program_id', enrolledDiplomas.map(d => d.id))
+            .gte('class_date', todayStart)
+            .lt('class_date', todayEnd);
+
           const diplomasWithProgress = await Promise.all(
             enrolledDiplomas.map(async (dip) => {
               const progress = await calculateProgramProgress(dip.id, currentUser.id);
-              return { ...dip, progress };
+              const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+              const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
+              return { ...dip, progress, liveUrl };
             })
           );
           setDiplomas(diplomasWithProgress);
@@ -250,6 +264,35 @@ function StudentPortal({ getDiplomadoLink }) {
                         transition: 'width 0.4s ease'
                       }} />
                     </div>
+                    
+                    {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
+                    {dip.liveUrl && isPublished && (
+                      <a 
+                        href={dip.liveUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{ 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          justifyContent: 'center', 
+                          padding: '0.55rem', 
+                          fontWeight: 700, 
+                          fontSize: '0.85rem',
+                          borderRadius: 'var(--radius-md)',
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          border: '1px solid #fecaca',
+                          marginBottom: '0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', animation: 'pulse 1.5s infinite' }} />
+                        Clase en Vivo (Hoy)
+                      </a>
+                    )}
 
                     {/* 7. BOTÓN PRINCIPAL CON TEXTO SEGÚN EL AVANCE */}
                     {isPublished ? (
@@ -458,7 +501,28 @@ function TeacherPortal({ getDiplomadoLink }) {
           .order('created_at', { ascending: false });
           
         if (enrollData) {
-          teacherDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
+          const fetchedDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
+          
+          if (fetchedDiplomas.length > 0) {
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+            const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+            const { data: todayClasses } = await supabase
+              .from('class_sessions')
+              .select('program_id, meet_url')
+              .in('program_id', fetchedDiplomas.map(d => d.id))
+              .gte('class_date', todayStart)
+              .lt('class_date', todayEnd);
+
+            teacherDiplomas = fetchedDiplomas.map(dip => {
+              const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+              const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
+              return { ...dip, liveUrl };
+            });
+          } else {
+            teacherDiplomas = [];
+          }
           setDiplomas(teacherDiplomas);
         }
 
@@ -784,6 +848,35 @@ function TeacherPortal({ getDiplomadoLink }) {
                         </div>
                       </div>
                     </div>
+
+                    {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
+                    {program.liveUrl && (
+                      <a 
+                        href={program.liveUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{ 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          justifyContent: 'center', 
+                          padding: '0.55rem', 
+                          fontWeight: 700, 
+                          fontSize: '0.85rem',
+                          borderRadius: 'var(--radius-md)',
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          border: '1px solid #fecaca',
+                          marginBottom: '0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', animation: 'pulse 1.5s infinite' }} />
+                        Clase en Vivo (Hoy)
+                      </a>
+                    )}
 
                     {/* Botón de Acción Principal */}
                     <Link 
@@ -1620,7 +1713,27 @@ function AdminPortal({ getDiplomadoLink }) {
 
       // Diplomas list
       const { data: dData } = await supabase.from('diploma_programs').select('*').order('created_at', { ascending: false });
-      setDiplomas(dData || []);
+      
+      let diplomasData = dData || [];
+      if (diplomasData.length > 0) {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+        const { data: todayClasses } = await supabase
+          .from('class_sessions')
+          .select('program_id, meet_url')
+          .in('program_id', diplomasData.map(d => d.id))
+          .gte('class_date', todayStart)
+          .lt('class_date', todayEnd);
+
+        diplomasData = diplomasData.map(dip => {
+          const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+          const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
+          return { ...dip, liveUrl };
+        });
+      }
+      setDiplomas(diplomasData);
 
       // Recent users
       const { data: rData } = await supabase.from('users_profile').select('*').order('created_at', { ascending: false }).limit(4);
@@ -1872,6 +1985,35 @@ function AdminPortal({ getDiplomadoLink }) {
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto' }}>
+                    
+                    {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
+                    {dip.liveUrl && (
+                      <a 
+                        href={dip.liveUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{ 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          justifyContent: 'center', 
+                          padding: '0.55rem', 
+                          fontWeight: 700, 
+                          fontSize: '0.85rem',
+                          borderRadius: 'var(--radius-md)',
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          border: '1px solid #fecaca',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', animation: 'pulse 1.5s infinite' }} />
+                        Clase en Vivo (Hoy)
+                      </a>
+                    )}
+
                     <Link
                       onClick={() => {
                         localStorage.setItem('activeProgramId', dip.id);

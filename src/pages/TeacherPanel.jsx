@@ -29,6 +29,7 @@ const useTeacherContext = () => React.useContext(TeacherContext);
    Fases: PRE-CLASE | GRABACIÓN | ACTIVIDAD IA
 ───────────────────────────────────────── */
 function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
+  const { currentProgram } = useTeacherContext();
   const [activeSection, setActiveSection] = useState('preclass'); // 'preclass' | 'recording' | 'activity'
   
   // — PRE-CLASE: Materiales —
@@ -46,14 +47,8 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
   // — PRE-CLASE: Info de clase —
   const [classTitle, setClassTitle]       = useState(selectedClass?.title || '');
   const [classDesc, setClassDesc]         = useState(selectedClass?.description || '');
-  const [classMeetUrl, setClassMeetUrl]   = useState(selectedClass?.meet_url || '');
   const [savingInfo, setSavingInfo]       = useState(false);
   const [infoMsg, setInfoMsg]             = useState('');
-
-  // — GRABACIÓN —
-  const [videoUrl, setVideoUrl]           = useState(selectedClass?.video_url || '');
-  const [savingVideo, setSavingVideo]     = useState(false);
-  const [videoMsg, setVideoMsg]           = useState('');
 
   // — ACTIVIDAD IA —
   const [draft, setDraft]                 = useState(null);
@@ -150,8 +145,6 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
     if (selectedClass) {
       setClassTitle(selectedClass.title || '');
       setClassDesc(selectedClass.description || '');
-      setClassMeetUrl(selectedClass.meet_url || '');
-      setVideoUrl(selectedClass.video_url || '');
       fetchMaterials();
       fetchDraftAndStats();
     }
@@ -165,7 +158,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
     try {
       const { error } = await supabase
         .from('class_sessions')
-        .update({ title: classTitle.trim(), description: classDesc.trim(), meet_url: classMeetUrl.trim() || null })
+        .update({ title: classTitle.trim(), description: classDesc.trim() })
         .eq('id', selectedClass.id);
       if (error) throw error;
       setInfoMsg('✓ Información actualizada correctamente.');
@@ -174,26 +167,6 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
       setInfoMsg('Error: ' + err.message);
     } finally {
       setSavingInfo(false);
-    }
-  };
-
-  // ── GUARDAR GRABACIÓN ──
-  const handleSaveVideo = async (e) => {
-    e.preventDefault();
-    setSavingVideo(true);
-    setVideoMsg('');
-    try {
-      const { error } = await supabase
-        .from('class_sessions')
-        .update({ video_url: videoUrl.trim() || null })
-        .eq('id', selectedClass.id);
-      if (error) throw error;
-      setVideoMsg('✓ Enlace de grabación guardado correctamente.');
-      if (onClassUpdated) onClassUpdated();
-    } catch (err) {
-      setVideoMsg('Error: ' + err.message);
-    } finally {
-      setSavingVideo(false);
     }
   };
 
@@ -363,9 +336,16 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
                 </span>
               </div>
             </div>
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', flexShrink: 0 }}>
-              <X size={22} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {(selectedClass?.meet_url || currentProgram?.meet_url) && (
+                <a href={selectedClass?.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer" style={{ background: '#FCA311', color: '#14213D', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 2px 4px rgba(252,163,17,0.2)', flexShrink: 0 }}>
+                  <Video size={16} /> Entrar a la reunión
+                </a>
+              )}
+              <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', flexShrink: 0 }}>
+                <X size={22} />
+              </button>
+            </div>
           </div>
 
           {/* NAVEGACIÓN DE FASES — Todas habilitadas para clic fluido */}
@@ -410,12 +390,6 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
                   <div>
                     <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D' }}>Descripción / Temas a cubrir</label>
                     <textarea rows={2} value={classDesc} onChange={e => setClassDesc(e.target.value)} placeholder="Ej: Introducción a conceptos clave, ejercicios prácticos..." style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem', resize: 'vertical' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Video size={13} color="#FCA311" /> Enlace de sesión en vivo (Google Meet / Zoom)
-                    </label>
-                    <input type="url" value={classMeetUrl} onChange={e => setClassMeetUrl(e.target.value)} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button type="submit" disabled={savingInfo} style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.55rem 1.25rem', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
@@ -537,49 +511,30 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
           {/* ════ SECCIÓN: GRABACIÓN ════ */}
           {activeSection === 'recording' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {!isPastClass && !videoUrl && (
+              {!isPastClass && !selectedClass?.video_url && (
                 <div style={{ padding: '0.85rem 1.1rem', borderRadius: '8px', background: 'rgba(20,33,61,0.04)', border: '1px solid rgba(20,33,61,0.12)', fontSize: '0.82rem', color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <Info size={16} color="#FCA311" style={{ flexShrink: 0 }} />
-                  <span>Esta clase está programada para una fecha futura. Puedes vincular el enlace de la grabación con anticipación si ya dispones de él.</span>
+                  <span>Esta clase está programada para una fecha futura. Aún no hay grabación disponible.</span>
                 </div>
               )}
               {/* Semáforo de estado */}
-              <div style={{ padding: '1.5rem', borderRadius: '10px', border: `2px solid ${videoUrl ? 'rgba(22,163,74,0.3)' : 'rgba(252,163,17,0.3)'}`, background: videoUrl ? 'rgba(22,163,74,0.05)' : 'rgba(252,163,17,0.05)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: videoUrl ? '#16a34a' : '#FCA311', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {videoUrl ? <CheckCircle2 size={24} color="#FFFFFF" /> : <AlertCircle size={24} color="#FFFFFF" />}
+              <div style={{ padding: '1.5rem', borderRadius: '10px', border: `2px solid ${selectedClass?.video_url ? 'rgba(22,163,74,0.3)' : 'rgba(252,163,17,0.3)'}`, background: selectedClass?.video_url ? 'rgba(22,163,74,0.05)' : 'rgba(252,163,17,0.05)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: selectedClass?.video_url ? '#16a34a' : '#FCA311', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {selectedClass?.video_url ? <CheckCircle2 size={24} color="#FFFFFF" /> : <AlertCircle size={24} color="#FFFFFF" />}
                 </div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: '1rem', color: '#14213D' }}>
-                    {videoUrl ? '✓ Grabación vinculada' : 'Grabación pendiente'}
+                    {selectedClass?.video_url ? '✓ Grabación vinculada' : 'Grabación pendiente'}
                   </div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {videoUrl ? 'La grabación está disponible para los estudiantes inscritos.' : 'La grabación de esta clase aún no ha sido vinculada.'}
+                    {selectedClass?.video_url ? 'La grabación está disponible para los estudiantes inscritos.' : 'La grabación de esta clase aún no ha sido vinculada.'}
                   </div>
                 </div>
-                {videoUrl && (
-                  <a href={videoUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', background: '#14213D', color: '#FFFFFF', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                {selectedClass?.video_url && (
+                  <a href={selectedClass.video_url} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', background: '#14213D', color: '#FFFFFF', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
                     <Play size={13} /> Ver grabación
                   </a>
                 )}
-              </div>
-
-              {/* Formulario para vincular grabación */}
-              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
-                <h3 style={{ margin: '0 0 1rem 0', color: '#14213D', fontSize: '1rem', fontWeight: 700 }}>
-                  {videoUrl ? 'Actualizar enlace de grabación' : 'Vincular grabación'}
-                </h3>
-                {videoMsg && <div style={{ fontSize: '0.82rem', marginBottom: '0.75rem', fontWeight: 600, color: videoMsg.startsWith('✓') ? '#16a34a' : '#dc2626', background: videoMsg.startsWith('✓') ? '#f0fdf4' : '#fef2f2', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>{videoMsg}</div>}
-                <form onSubmit={handleSaveVideo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D' }}>URL de la grabación (Drive / YouTube / Loom)</label>
-                    <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="https://drive.google.com/... ó https://youtube.com/..." style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="submit" disabled={savingVideo} style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.55rem 1.25rem', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
-                      {savingVideo ? 'Guardando...' : 'Guardar Grabación'}
-                    </button>
-                  </div>
-                </form>
               </div>
             </div>
           )}
@@ -708,7 +663,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
    Módulo → Sesión → Clase
 ───────────────────────────────────────── */
 function ClasesTab() {
-  const { programId, teacherId } = useTeacherContext();
+  const { programId, teacherId, currentProgram } = useTeacherContext();
   const [classes, setClasses]           = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
@@ -903,12 +858,22 @@ function ClasesTab() {
                       </div>
                     </div>
 
-                    <button onClick={() => setSelectedClass(cls)}
-                      style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.45rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease' }}
-                      onMouseOver={e => e.currentTarget.style.background = '#000000'}
-                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}>
-                      <Eye size={13} /> Gestionar clase
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {(cls.meet_url || currentProgram?.meet_url) && (
+                        <a href={cls.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer"
+                          style={{ background: '#FCA311', color: '#14213D', padding: '0.45rem 0.9rem', borderRadius: '7px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease', boxShadow: '0 2px 4px rgba(252,163,17,0.2)' }}
+                          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
+                          <Video size={13} /> Entrar
+                        </a>
+                      )}
+                      <button onClick={() => setSelectedClass(cls)}
+                        style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.45rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease' }}
+                        onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                        onMouseOut={e => e.currentTarget.style.background = '#14213D'}>
+                        <Eye size={13} /> Gestionar clase
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -2021,13 +1986,18 @@ function ResumenTab({ onChangeTab }) {
               })
             )}
           </div>
-          {/* Dudas que requieren atención */}
+          {/* Dudas que requieren atención — SOLO LECTURA, navega a la pestaña Dudas */}
           <div className="card" style={{ padding: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ margin: 0, color: '#14213D', fontSize: '1.05rem', fontWeight: 700 }}>Dudas que requieren atención</h3>
+              <div>
+                <h3 style={{ margin: 0, color: '#14213D', fontSize: '1.05rem', fontWeight: 700 }}>Dudas que requieren atención</h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Haz clic en cualquier duda para gestionarla
+                </p>
+              </div>
               <button onClick={() => onChangeTab('dudas')} className="btn btn-outline" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}>Ver todas</button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
               {pendingDoubts.length === 0 ? (
                 <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px' }}>
                   <CheckCircle2 size={28} color="#E5E5E5" style={{ margin: '0 auto 0.5rem' }} />
@@ -2036,34 +2006,32 @@ function ResumenTab({ onChangeTab }) {
                 </div>
               ) : (
                 pendingDoubts.map(d => (
-                  <div key={d.id} style={{
-                    padding: '1.1rem 1.25rem', border: '1px solid #E5E5E5',
-                    borderRadius: '8px', background: '#FFFFFF', transition: 'all 0.2s ease',
-                  }}
-                    onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(252,163,17,0.4)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                    onMouseOut={e => { e.currentTarget.style.borderColor = '#E5E5E5'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  <div
+                    key={d.id}
+                    onClick={() => onChangeTab('dudas', d.id)}
+                    title="Clic para gestionar esta duda en la Bandeja de Consultas"
+                    style={{
+                      padding: '1rem 1.25rem', border: '1px solid #E5E5E5',
+                      borderRadius: '8px', background: '#FFFFFF',
+                      cursor: 'pointer', transition: 'all 0.18s ease',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem'
+                    }}
+                    onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(252,163,17,0.5)'; e.currentTarget.style.background = '#fffdf5'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(252,163,17,0.1)'; }}
+                    onMouseOut={e => { e.currentTarget.style.borderColor = '#E5E5E5'; e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                      <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.92rem' }}>{d.subject}</div>
-                      <StatusChip status={d.status} />
-                    </div>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 0.75rem 0', lineHeight: 1.5 }}>
-                      {d.description?.length > 100 ? `${d.description.substring(0, 100)}...` : d.description}
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <span><strong style={{ color: '#14213D' }}>{d.users_profile?.full_name || 'Estudiante'}</strong> · {d.class_sessions?.title || 'Clase'}</span>
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        {d.status === 'enviada' && (
-                          <button onClick={() => handleQuickStatusChange(d.id, 'revisada')} className="btn btn-outline" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}>
-                            <Eye size={12} /> Para clase
-                          </button>
-                        )}
-                        {d.status !== 'atendida' && (
-                          <button onClick={() => handleQuickStatusChange(d.id, 'atendida')} className="btn btn-outline" style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', color: '#166534', borderColor: '#bbf7d0' }}>
-                            <CheckCircle2 size={12} /> Atendida
-                          </button>
-                        )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {d.subject}
                       </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600, color: '#14213D' }}>{d.users_profile?.full_name || 'Estudiante'}</span>
+                        <span>·</span>
+                        <span>{d.class_sessions?.title || 'Clase'}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                      <StatusChip status={d.status} />
+                      <ChevronRight size={14} color="#94a3b8" />
                     </div>
                   </div>
                 ))
@@ -2331,7 +2299,9 @@ function DudasTab() {
 
   // Filtrado dinámico
   const filteredDoubts = doubts.filter(d => {
-    const matchesStatus = statusFilter === 'todos' || d.status === statusFilter;
+    const matchesStatus = statusFilter === 'todos'
+      ? d.status !== 'archivada'           // "Todas" excluye archivadas
+      : d.status === statusFilter;          // filtros específicos funcionan normal
     const matchesClass = classFilter === 'todos' || d.class_id === classFilter;
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm.trim() ||
@@ -5353,7 +5323,7 @@ export default function TeacherPanel() {
   const { currentUser } = useAuth();
   const { programId } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('resumen');
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -5367,6 +5337,16 @@ export default function TeacherPanel() {
       setActiveTab(tabFromUrl);
     }
   }, [searchParams]);
+
+  // Función centralizada de cambio de pestaña con soporte de deep-link a duda específica
+  const handleChangeTab = (tabId, doubtId = null) => {
+    setActiveTab(tabId);
+    if (doubtId) {
+      setSearchParams({ tab: tabId, doubtId });
+    } else {
+      setSearchParams({ tab: tabId });
+    }
+  };
 
   // Resolver el teacher_profile.id real y obtener datos del programa
   useEffect(() => {
@@ -5493,6 +5473,31 @@ export default function TeacherPanel() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {currentProgram?.meet_url && (
+              <a
+                href={currentProgram.meet_url}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  background: '#FCA311',
+                  color: '#14213D',
+                  padding: '0.45rem 1rem',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <Video size={16} /> Entrar a la Clase en Vivo
+              </a>
+            )}
             <Link
               to="/portal"
               style={{
@@ -5529,7 +5534,7 @@ export default function TeacherPanel() {
           ))}
         </div>
 
-        <ActiveComponent onChangeTab={setActiveTab} />
+        <ActiveComponent onChangeTab={handleChangeTab} />
       </div>
     </TeacherContext.Provider>
   );

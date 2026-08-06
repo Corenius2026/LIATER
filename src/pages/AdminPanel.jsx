@@ -2635,9 +2635,16 @@ export default function AdminPanel() {
         </Link>
       </div>
 
-      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
-        <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
+      <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
+          <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
+        </div>
+        {data.program?.meet_url && (
+          <a href={data.program.meet_url} target="_blank" rel="noreferrer" style={{ background: '#FCA311', color: '#14213D', padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 2px 4px rgba(252,163,17,0.2)' }}>
+            <Video size={18} /> Entrar a la Clase
+          </a>
+        )}
       </div>
 
       <div className="admin-tabs">

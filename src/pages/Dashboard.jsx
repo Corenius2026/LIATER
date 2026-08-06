@@ -13,7 +13,8 @@ export default function Dashboard() {
     upcomingClasses: [],
     latestRecordings: [],
     firstModuleId: null,
-    announcements: []
+    announcements: [],
+    meetUrl: null
   });
 
   const cleanProgramId = programId ? decodeURIComponent(programId).replace(/\s+/g, '-').trim() : '';
@@ -30,7 +31,7 @@ export default function Dashboard() {
         // 1. Obtener Diplomado / Curso activo
         const { data: diplomaData } = await supabase
           .from('diploma_programs')
-          .select('title, program_type, is_published, status')
+          .select('title, program_type, is_published, status, meet_url')
           .eq('id', cleanProgramId)
           .maybeSingle();
 
@@ -73,6 +74,7 @@ export default function Dashboard() {
         setDashboardData({
           diplomaTitle: diplomaData?.title || 'Programa Académico',
           programType: diplomaData?.program_type || 'diplomado',
+          meetUrl: diplomaData?.meet_url || null,
           isPublished,
           modulesCount: modulesData?.length || 0,
           upcomingClasses: isPublished ? (upcomingData || []) : [],
@@ -106,16 +108,42 @@ export default function Dashboard() {
     );
   }
 
-  const { diplomaTitle, programType, isPublished, modulesCount, upcomingClasses, latestRecordings, firstModuleId, announcements } = dashboardData;
+  const { diplomaTitle, programType, isPublished, modulesCount, upcomingClasses, latestRecordings, firstModuleId, announcements, meetUrl } = dashboardData;
   const isCourse = programType === 'curso';
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
       {/* BOTÓN DE RETORNO AL PORTAL */}
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Link to="/portal" className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
           <ArrowLeft size={14} /> Volver a Mis Programas
         </Link>
+        
+        {meetUrl && (
+          <a
+            href={meetUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              background: '#FCA311',
+              color: '#14213D',
+              padding: '0.45rem 1rem',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <Video size={16} /> Entrar a la Clase en Vivo
+          </a>
+        )}
       </div>
 
       {!isPublished && (
