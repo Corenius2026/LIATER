@@ -1393,27 +1393,90 @@ function AnunciosTab() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {announcements.map(a => (
-            <div className={`announcement-card ${a.tag !== 'general' ? a.tag : ''}`} key={a.id}>
-              <TagPill tag={a.tag} />
-              <div className="announcement-header">
-                <div className="announcement-title">{a.title}</div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <span className="announcement-date">{formatClassDate(a.created_at, false)}</span>
-                  <button onClick={() => handleEdit(a)} style={{ background:'none', border:'1px solid var(--border-color)', borderRadius:'var(--radius-md)', padding:'0.35rem', cursor:'pointer', color:'#64748b', display:'flex' }}><Pencil size={13} /></button>
-                  <button onClick={() => handleDelete(a.id)} style={{ background:'none', border:'1px solid #fca5a5', borderRadius:'var(--radius-md)', padding:'0.35rem', cursor:'pointer', color:'#dc2626', display:'flex' }}><Trash2 size={13} /></button>
+          {filtered.map(a => {
+            const cfg = TAG_CONFIG[a.tag] || TAG_CONFIG.general;
+            return (
+              <div
+                key={a.id}
+                style={{
+                  background: 'var(--white)', borderRadius: '14px',
+                  border: '1px solid var(--border-color)',
+                  borderLeft: `4px solid ${cfg.border}`,
+                  padding: '1.25rem 1.5rem',
+                  display: 'flex', flexDirection: 'column', gap: '0.65rem',
+                  transition: 'box-shadow 0.2s, transform 0.15s',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+                }}
+                onMouseOver={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(14,21,50,0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseOut={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                {/* TOP ROW */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                      padding: '0.25rem 0.7rem', borderRadius: '999px',
+                      background: cfg.bg, color: cfg.color,
+                      fontSize: '0.72rem', fontWeight: 700
+                    }}>
+                      {cfg.emoji} {cfg.label}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Calendar size={12} /> {formatDate(a.created_at)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => handleEdit(a)} style={{
+                      display: 'flex', alignItems: 'center', gap: '0.3rem',
+                      padding: '0.35rem 0.7rem', borderRadius: '7px',
+                      border: '1.5px solid #E2E8F0', background: 'var(--white)',
+                      color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600,
+                      cursor: 'pointer', transition: 'all 0.15s'
+                    }}
+                      onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.color = 'var(--navy)'; }}
+                      onMouseOut={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                    >
+                      <Pencil size={13} /> Editar
+                    </button>
+                    <button onClick={() => handleDelete(a.id)} disabled={deletingId === a.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '0.3rem',
+                      padding: '0.35rem 0.7rem', borderRadius: '7px',
+                      border: '1.5px solid #fca5a5', background: 'var(--white)',
+                      color: '#dc2626', fontSize: '0.75rem', fontWeight: 600,
+                      cursor: deletingId === a.id ? 'not-allowed' : 'pointer',
+                      opacity: deletingId === a.id ? 0.6 : 1, transition: 'all 0.15s'
+                    }}
+                      onMouseOver={e => { if (deletingId !== a.id) e.currentTarget.style.background = '#fee2e2'; }}
+                      onMouseOut={e => { e.currentTarget.style.background = 'var(--white)'; }}
+                    >
+                      <Trash2 size={13} /> {deletingId === a.id ? 'Eliminando...' : 'Eliminar'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* TÍTULO */}
+                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--navy)', lineHeight: 1.4 }}>
+                  {a.title}
+                </div>
+
+                {/* CUERPO */}
+                <div style={{
+                  fontSize: '0.88rem', color: '#475569', lineHeight: 1.7,
+                  paddingTop: '0.25rem', borderTop: '1px solid #F1F5F9',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {a.body}
                 </div>
               </div>
-              <p className="announcement-body">{a.body}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {showModal && (
-        <AnnouncementModal 
-          announcement={selectedAnnouncement} 
-          onClose={() => setShowModal(false)} 
+        <AnnouncementModal
+          announcement={selectedAnnouncement}
+          onClose={() => setShowModal(false)}
           onRefresh={fetchAnnouncements}
         />
       )}
