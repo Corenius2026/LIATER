@@ -10,6 +10,8 @@ export default function ModuleDetail() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [programType, setProgramType] = useState(null);
+
   useEffect(() => {
     async function fetchModuleData() {
       if (!id) {
@@ -37,10 +39,11 @@ export default function ModuleDetail() {
               .eq('id', modData.program_id)
               .maybeSingle();
 
-            localStorage.setItem('activeProgramId', modData.program_id);
             if (progData?.program_type) {
+              setProgramType(progData.program_type);
               localStorage.setItem('activeProgramType', progData.program_type);
             }
+            localStorage.setItem('activeProgramId', modData.program_id);
             window.dispatchEvent(new Event('programContextChanged'));
           }
 
@@ -104,6 +107,8 @@ export default function ModuleDetail() {
     fetchModuleData();
   }, [id]);
 
+  const isCourse = programType === 'course' || moduleData?.order_index === 0;
+
   if (loading) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -128,16 +133,18 @@ export default function ModuleDetail() {
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
       {/* BOTÓN DE RETORNO */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <Link to={moduleData?.program_id ? `/modules/${moduleData.program_id}` : '/portal'} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
-          <ArrowLeft size={14} /> {moduleData?.program_id ? 'Volver a Módulos' : 'Volver al Portal'}
+        <Link to={isCourse ? (moduleData?.program_id ? `/dashboard/${moduleData.program_id}` : '/portal') : (moduleData?.program_id ? `/modules/${moduleData.program_id}` : '/portal')} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
+          <ArrowLeft size={14} /> {isCourse ? 'Volver al inicio del curso' : (moduleData?.program_id ? 'Volver a Módulos' : 'Volver al Portal')}
         </Link>
       </div>
 
       {/* HEADER */}
       <div className="page-header" style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-          <span className="badge badge-gold">Módulo {moduleData.order_index ?? ''}</span>
-        </div>
+        {!isCourse && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <span className="badge badge-gold">Módulo {moduleData.order_index ?? ''}</span>
+          </div>
+        )}
         <h1 className="page-title">{moduleData.title}</h1>
         <p className="page-description">{moduleData.description || 'Sin descripción detallada'}</p>
       </div>

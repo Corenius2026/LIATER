@@ -187,13 +187,18 @@ function PrivateVideoPlayer({ videoUrl, title, studentName }) {
 }
 
 export default function ClassDetail() {
-  const { id } = useParams();
+  const params = useParams();
+  const rawId = params['*'] || params.id || '';
+  // Limpiar cualquier barra o traducción automática (/c/ -> 7c) en la URL
+  const id = rawId.replace(/^\//, '').replace(/\/c\//g, '7c').replace(/\//g, '').trim();
   const { currentUser } = useAuth();
   
   const [clsData, setClsData] = useState(null);
+  const [topic, setTopic] = useState('');
+  const [moduleTitle, setModuleTitle] = useState('');
   const [moduleId, setModuleId] = useState(null);
-  const [moduleTitle, setModuleTitle] = useState(null);
   const [resources, setResources] = useState([]);
+  const [programType, setProgramType] = useState(null);
   const [loading, setLoading] = useState(true);
   const [programProgressDetails, setProgramProgressDetails] = useState(null);
 
@@ -301,16 +306,18 @@ export default function ClassDetail() {
       }
     }
 
-    // Actualización visual del progreso si es obligatoria
-    if (activityConfig.isMandatory && programProgressDetails) {
+    // Actualización visual del progreso
+    if (programProgressDetails) {
       setProgramProgressDetails(prev => {
         if (!prev) return prev;
-        const newCompleted = Math.min(prev.totalMandatory || 1, (prev.completedCount || 0) + 1);
-        const newPct = (prev.totalMandatory || 1) > 0 ? Math.round((newCompleted / prev.totalMandatory) * 100) : 0;
+        const classWeight = prev.totalClasses > 0 ? (100 / prev.totalClasses) : 0;
+        const additionalPercentage = classWeight * 0.2;
+        const newCompletedValue = (prev.completedClassesValue || 0) + 0.2;
+        const newPct = Math.round((prev.percentage || 0) + additionalPercentage);
         return {
           ...prev,
-          completedCount: newCompleted,
-          percentage: newPct
+          completedClassesValue: newCompletedValue,
+          percentage: Math.min(100, newPct)
         };
       });
     }
@@ -320,7 +327,6 @@ export default function ClassDetail() {
   const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
-  const [topic, setTopic] = useState('');
   const [touched, setTouched] = useState({ subject: false, description: false });
   const [submitError, setSubmitError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -389,6 +395,7 @@ export default function ClassDetail() {
 
             localStorage.setItem('activeProgramId', classData.program_id);
             if (progData?.program_type) {
+              setProgramType(progData.program_type);
               localStorage.setItem('activeProgramType', progData.program_type);
             }
             window.dispatchEvent(new Event('programContextChanged'));
@@ -763,8 +770,8 @@ export default function ClassDetail() {
 
       {/* 1. ENCABEZADO DE LA CLASE */}
       <div style={{ marginBottom: '1.25rem' }}>
-        <Link to={moduleId ? `/module/${moduleId}` : '/portal'} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <ArrowLeft size={14} /> {moduleId ? 'Volver al Módulo' : 'Volver al Portal'}
+        <Link to={programType === 'course' ? (clsData?.program_id ? `/dashboard/${clsData.program_id}` : '/portal') : (moduleId ? `/module/${moduleId}` : '/portal')} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+          <ArrowLeft size={14} /> {programType === 'course' ? 'Volver al inicio del curso' : (moduleId ? 'Volver al Módulo' : 'Volver al Portal')}
         </Link>
       </div>
 
@@ -787,7 +794,7 @@ export default function ClassDetail() {
               Docente: <strong style={{ color: 'var(--navy)' }}>{clsData.teacher_profiles.name}</strong>
             </span>
           )}
-          {moduleTitle && (
+          {programType !== 'course' && moduleTitle && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
               <BookOpen size={15} color="var(--gold-dark)" />
               Módulo: <strong style={{ color: 'var(--navy)' }}>{moduleTitle}</strong>

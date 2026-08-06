@@ -69,7 +69,7 @@ function App() {
             <Route path="/modules/:programId" element={<ModulesList />} />
             <Route path="/syllabus/:programId" element={<SyllabusRedirector />} />
             <Route path="/module/:id" element={<ModuleDetail />} />
-            <Route path="/class/:id" element={<ClassDetail />} />
+            <Route path="/class/*" element={<ClassDetail />} />
             <Route path="/teachers/:programId" element={<Teachers />} />
             <Route path="/resources/:programId" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherResources /></ProtectedRoute>} />
             <Route path="/classes/:programId" element={<ProtectedRoute allowedRoles={['teacher', 'admin']}><ClassesManagement /></ProtectedRoute>} />
