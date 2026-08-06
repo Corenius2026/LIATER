@@ -26,6 +26,15 @@ client.on('qr', (qr) => {
     qrcode.generate(qr, { small: true });
 });
 
+// Eventos de depuración de conexión
+client.on('authenticated', () => {
+    console.log('Autenticación exitosa. Sincronizando chats (esto puede tardar unos segundos)...');
+});
+
+client.on('auth_failure', msg => {
+    console.error('Hubo un fallo en la autenticación:', msg);
+});
+
 // Listo y conectado
 client.on('ready', () => {
     console.log('¡Bot de WhatsApp conectado y listo!');
