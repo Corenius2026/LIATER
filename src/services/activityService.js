@@ -66,6 +66,75 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
     // -------------------------------------------------------------
+    // 1.5 RECOPILAR ACTIVIDADES Y CLASES YA COMPLETADAS/REALIZADAS
+    // -------------------------------------------------------------
+    const completedActivityIds = new Set();
+    let totalStudentAttempts = 0;
+
+    try {
+      // A. Intentos completados en activity_attempts
+      const { data: attempts } = await supabase
+        .from('activity_attempts')
+        .select('activity_id')
+        .eq('student_id', studentId);
+      if (attempts) {
+        totalStudentAttempts += attempts.length;
+        attempts.forEach(att => {
+          if (att.activity_id) completedActivityIds.add(String(att.activity_id).toLowerCase());
+        });
+      }
+
+      // B. Entregas en assignment_submissions
+      const { data: subAss } = await supabase
+        .from('assignment_submissions')
+        .select('assignment_id')
+        .eq('student_id', studentId);
+      if (subAss) {
+        totalStudentAttempts += subAss.length;
+        subAss.forEach(s => {
+          if (s.assignment_id) completedActivityIds.add(String(s.assignment_id).toLowerCase());
+        });
+      }
+
+      // C. Cuestionarios en quiz_submissions
+      const { data: qSubs } = await supabase
+        .from('quiz_submissions')
+        .select('quiz_id')
+        .eq('student_id', studentId);
+      if (qSubs) {
+        totalStudentAttempts += qSubs.length;
+        qSubs.forEach(q => {
+          if (q.quiz_id) completedActivityIds.add(String(q.quiz_id).toLowerCase());
+        });
+      }
+
+      // D. Escanear todo localStorage (completed_activities, liater_answers, etc.)
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.startsWith('completed_activities') || k.startsWith('completed_classes')) {
+          const val = localStorage.getItem(k);
+          if (val) {
+            try {
+              const parsed = JSON.parse(val);
+              if (Array.isArray(parsed)) {
+                parsed.forEach(idVal => completedActivityIds.add(String(idVal).toLowerCase()));
+              }
+            } catch (_) {}
+          }
+        } else if (k.startsWith('liater_answers_')) {
+          const parts = k.split('_');
+          if (parts.length >= 3 && parts[2]) {
+            completedActivityIds.add(parts[2].toLowerCase());
+            totalStudentAttempts++;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Advertencia al verificar actividades completadas:', err);
+    }
+
+    // -------------------------------------------------------------
     // 2. CONSULTAR TAREAS / ENTREGABLES (assignments)
     // -------------------------------------------------------------
     if (programIds.length > 0) {
@@ -77,25 +146,10 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
           .eq('is_published', true);
 
         if (!assErr && assignments && assignments.length > 0) {
-          const assignmentIds = assignments.map(a => a.id);
-          let submittedIds = new Set();
-
-          try {
-            const { data: submissions } = await supabase
-              .from('assignment_submissions')
-              .select('assignment_id')
-              .eq('student_id', studentId)
-              .in('assignment_id', assignmentIds);
-
-            if (submissions) {
-              submittedIds = new Set(submissions.map(s => s.assignment_id));
-            }
-          } catch {
-            // Ignorar si la tabla de entregas aún no tiene datos
-          }
-
           assignments.forEach(ass => {
-            if (submittedIds.has(ass.id)) return; // Omitir entregadas
+            const strId = String(ass.id).toLowerCase();
+            const strTitle = String(ass.title).toLowerCase();
+            if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir entregadas/realizadas
 
             const dueDate = new Date(ass.due_date);
             const dueDateStr = dueDate.toISOString().split('T')[0];
@@ -123,7 +177,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               date: ass.due_date,
               urgency,
               statusLabel,
-              link: `/dashboard/${ass.program_id}`
+              link: `/modules/${ass.program_id}`
             });
           });
         }
@@ -160,7 +214,9 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
           }
 
           quizzes.forEach(qz => {
-            if (completedQuizIds.has(qz.id)) return; // Omitir completados
+            const strId = String(qz.id).toLowerCase();
+            const strTitle = String(qz.title).toLowerCase();
+            if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle) || completedQuizIds.has(qz.id)) return; // Omitir completados
 
             const dueDate = new Date(qz.due_date);
             const dueDateStr = dueDate.toISOString().split('T')[0];
@@ -182,24 +238,84 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             pendingActivities.push({
               id: qz.id,
               title: qz.title,
-              type: 'Cuestionario',
+              type: 'Actividad de Reforzamiento',
               programId: qz.program_id,
               programTitle: programMap[qz.program_id] || 'Programa Inscrito',
               date: qz.due_date,
               urgency,
-              statusLabel,
-              link: `/dashboard/${qz.program_id}`
+              statusLabel: 'Pendiente',
+              link: `/modules/${qz.program_id}`
+            });
+          });
+        }
+
+        // 3.5. CONSULTAR ACTIVIDADES PUBLICADAS EN CLASES (class_activities)
+        try {
+          const { data: classActs } = await supabase
+            .from('class_activities')
+            .select('id, class_id, title, is_published, class_sessions(id, title, class_date, program_id, video_url)')
+            .eq('is_published', true);
+
+          if (classActs) {
+            classActs.forEach(ca => {
+              const clsSession = ca.class_sessions;
+              const pId = clsSession?.program_id;
+              
+              // Solo incluir si la clase tiene grabación (video_url), lo que implica que ya pasó y está disponible
+              if (pId && programIds.includes(pId) && clsSession?.video_url) {
+                const strId = String(ca.id).toLowerCase();
+                const strTitle = String(ca.title).toLowerCase();
+                if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir si ya fue realizada
+
+                pendingActivities.push({
+                  id: ca.id,
+                  title: ca.title || 'Actividad de Reforzamiento',
+                  type: 'Actividad de Reforzamiento',
+                  programId: pId,
+                  programTitle: programMap[pId] || 'Programa Inscrito',
+                  date: clsSession?.class_date || todayStr,
+                  urgency: 'today',
+                  statusLabel: 'Sin realizar',
+                  link: `/class/${ca.class_id}`
+                });
+              }
+            });
+          }
+        } catch (err) {
+          console.info('Información sobre class_activities:', err);
+        }
+
+        // Si no hay cuestionarios ni actividades registradas en DB para los programas inscritos, generar la actividad de reforzamiento por defecto si no está realizada
+        if (pendingActivities.length === 0 && programIds.length > 0) {
+          programIds.forEach(pId => {
+            const refId = `reforzamiento-${pId}`;
+            const isDone = completedActivityIds.has(refId) || 
+                           completedActivityIds.has(refId.toLowerCase()) || 
+                           completedActivityIds.has(pId.toLowerCase());
+            if (isDone) return;
+
+            pendingActivities.push({
+              id: refId,
+              title: `Cuestionario de Reforzamiento - Repaso Módulo`,
+              type: 'Actividad de Reforzamiento',
+              programId: pId,
+              programTitle: programMap[pId] || 'Programa Inscrito',
+              date: todayStr,
+              urgency: 'today',
+              statusLabel: 'Sin realizar',
+              link: `/modules/${pId}`
             });
           });
         }
       } catch (err) {
-        console.info('Información: Tabla quizzes en preparación o sin registros.', err);
+        console.info('Información: Generando actividades de reforzamiento por defecto para programas activos.', err);
       }
     }
 
     // -------------------------------------------------------------
     // 4. CONSULTAR SESIONES EN VIVO PRÓXIMAS (class_sessions)
     // -------------------------------------------------------------
+    const classMap = {};
     if (programIds.length > 0) {
       try {
         const { data: classes, error: classErr } = await supabase
@@ -212,7 +328,17 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         if (!classErr && classes) {
           classes.forEach(cls => {
             if (!cls.class_date) return;
+            const strId = String(cls.id).toLowerCase();
+            const strTitle = String(cls.title).toLowerCase();
+            if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir clases ya realizadas
+            
             const clsDate = new Date(cls.class_date);
+            
+            // Guardar primera clase asociada al programa para redirección
+            if (!classMap[cls.program_id]) {
+              classMap[cls.program_id] = cls.id;
+            }
+
             if (clsDate < now) return; // Solo clases futuras
 
             const programTitle = programMap[cls.program_id] || 'Programa Inscrito';
@@ -246,6 +372,17 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         console.info('Información sobre clases:', err);
       }
     }
+
+    // Actualizar enlaces de entregas y reforzamientos por defecto a la clase correspondiente si está disponible
+    pendingActivities.forEach(act => {
+      if (act.type !== 'Sesión en vivo' && act.programId && classMap[act.programId]) {
+        // Solo sobreescribir el link si es un reforzamiento por defecto (que empieza por reforzamiento-) 
+        // o si el link actual apunta a /modules/ (y no a una clase específica)
+        if (String(act.id).startsWith('reforzamiento-') || String(act.link).startsWith('/modules/')) {
+          act.link = `/class/${classMap[act.programId]}`;
+        }
+      }
+    });
 
     // -------------------------------------------------------------
     // 5. CONSULTAR ANUNCIOS URGENTES E IMPORTANTES (announcements)
@@ -284,16 +421,13 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     }
 
     // -------------------------------------------------------------
-    // 6. ORDEN DE PRIORIDAD
-    // 1: Vencida, 2: Hoy, 3: Mañana, 4: Próxima / Anuncios
+    // 6. ORDEN DE PRIORIDAD ESTRICTO POR FECHA (MÁS ANTIGUAS PRIMERO)
+    // Se filtran únicamente actividades NO realizadas y se ordenan prioritariamente por fecha más cercana/antigua.
     // -------------------------------------------------------------
-    const urgencyWeight = { overdue: 1, today: 2, tomorrow: 3, upcoming: 4 };
-
     pendingActivities.sort((a, b) => {
-      const weightA = urgencyWeight[a.urgency] || 4;
-      const weightB = urgencyWeight[b.urgency] || 4;
-      if (weightA !== weightB) return weightA - weightB;
-      return new Date(a.date) - new Date(b.date);
+      const timeA = a.date ? new Date(a.date).getTime() : Infinity;
+      const timeB = b.date ? new Date(b.date).getTime() : Infinity;
+      return timeA - timeB; // Las fechas más antiguas/cercanas primero (ej: 6 de agosto antes que 8 de agosto)
     });
 
     return {

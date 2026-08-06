@@ -231,6 +231,11 @@ export default function ClassDetail() {
   };
 
   const handleStartActivity = () => {
+    if (activityState === 'completada') {
+      setViewingResultsMode(true);
+      setIsActivityModalOpen(true);
+      return;
+    }
     setViewingResultsMode(false);
     setShowConfirmFinishModal(false);
     setIsActivityModalOpen(true);
@@ -301,6 +306,15 @@ export default function ClassDetail() {
             completed_at: new Date().toISOString()
           }]);
         if (insertErr) console.error('Error guardando intento:', insertErr);
+        // Guardar intento en localStorage de respaldo inmediato
+        try {
+          const key = `completed_activities_${studentIdToUse}`;
+          const currentList = JSON.parse(localStorage.getItem(key) || '[]');
+          if (activityConfig.id && !currentList.includes(activityConfig.id)) {
+            currentList.push(activityConfig.id);
+          }
+          localStorage.setItem(key, JSON.stringify(currentList));
+        } catch (_) {}
       } catch (err) {
         console.error('Error guardando intento:', err);
       }
@@ -523,7 +537,7 @@ export default function ClassDetail() {
               title: actData.title,
               description: actData.description,
               estimatedTimeMinutes: 10,
-              maxAttempts: actData.max_attempts || 1,
+              maxAttempts: 1, // Regla estricta: 1 solo intento por actividad
               isMandatory: actData.is_mandatory,
               questions: formattedQuestions
             });
@@ -552,21 +566,27 @@ export default function ClassDetail() {
                 .or(filterClause)
                 .order('completed_at', { ascending: false });
 
-              if (attempts && attempts.length > 0) {
-                const lastAttempt = attempts[0];
-                if (lastAttempt.status === 'completed') {
-                  stateToSet = 'completada';
-                  setCompletedResult({
-                    correctCount: Math.round(((lastAttempt.score || 0) / 100) * formattedQuestions.length),
-                    totalCount: formattedQuestions.length,
-                    scorePct: lastAttempt.score || 0,
-                    completedAt: lastAttempt.completed_at
-                      ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
-                      : 'Reciente'
-                  });
-                } else if (lastAttempt.status === 'in_progress') {
-                  stateToSet = 'en_progreso';
-                }
+              // Verificar únicamente si ESTA actividad específica (actData.id) fue realizada localmente o en BD
+              const localCompleted = JSON.parse(localStorage.getItem(`completed_activities_${studentIdToUse}`) || '[]');
+              const isLocallyCompleted = actData.id ? localCompleted.includes(actData.id) : false;
+              const hasDbCompletedAttempt = attempts && attempts.length > 0 && attempts[0].status === 'completed';
+
+              if (hasDbCompletedAttempt || isLocallyCompleted) {
+                const lastAttempt = (attempts && attempts.length > 0) ? attempts[0] : null;
+                stateToSet = 'completada';
+                const finalScore = lastAttempt?.score ?? 100;
+                setCompletedResult({
+                  correctCount: Math.round((finalScore / 100) * formattedQuestions.length),
+                  totalCount: formattedQuestions.length,
+                  scorePct: finalScore,
+                  completedAt: lastAttempt?.completed_at
+                    ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
+                    : 'Realizada'
+                });
+              } else if (attempts && attempts.length > 0 && attempts[0].status === 'in_progress') {
+                stateToSet = 'en_progreso';
+              } else {
+                stateToSet = 'no_iniciada';
               }
             }
             setActivityState(stateToSet);
@@ -943,11 +963,9 @@ export default function ClassDetail() {
                     <Clock size={13} color="var(--gold-dark)" /> {activityConfig.estimatedTimeMinutes} min
                   </span>
                 )}
-                {activityConfig.maxAttempts && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <RotateCcw size={13} color="var(--gold-dark)" /> {activityConfig.maxAttempts} intento(s)
-                  </span>
-                )}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <RotateCcw size={13} color="var(--gold-dark)" /> Único intento permitido
+                </span>
               </div>
             )}
 
@@ -1569,30 +1587,37 @@ export default function ClassDetail() {
                             })}
                           </div>
 
-                          {/* ACLARACIÓN / RETROALIMENTACIÓN */}
-                          {(q.explanation || q.sourceBasis) && (
-                            <div style={{
-                              marginTop: '0.85rem', fontSize: '0.84rem', color: '#1e40af',
-                              background: '#eff6ff', padding: '0.75rem 1rem', borderRadius: '10px',
-                              border: '1px solid #bfdbfe',
-                              lineHeight: 1.5,
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              gap: '0.45rem'
-                            }}>
-                              <span style={{ flexShrink: 0 }}>💡</span>
-                              <span>
-                                {(() => {
-                                  const exp = (q.explanation || '').trim();
-                                  const src = (q.sourceBasis || '').trim();
-                                  if (exp && src && !exp.toLowerCase().includes(src.toLowerCase())) {
-                                    return `${exp} (Fundamentado en la clase: ${src})`;
-                                  }
-                                  return exp || src;
-                                })()}
-                              </span>
-                            </div>
-                          )}
+                          {/* ACLARACIÓN / RETROALIMENTACIÓN PEDAGÓGICA */}
+                          {(() => {
+                            const exp = (q.explanation || '').trim();
+                            const src = (q.sourceBasis || '').trim();
+                            const correctOpt = (q.options || []).find(o => String(o.id) === String(q.correctOptionId));
+                            const defaultFeedback = correctOpt 
+                              ? `La opción correcta es "${correctOpt.text}". Revisa los conceptos explicados en esta sesión para afianzar tus conocimientos.`
+                              : 'Revisa el material audiovisual y documentos de apoyo de la clase para reforzar este tema.';
+                            
+                            const feedbackText = exp || src || defaultFeedback;
+
+                            return (
+                              <div style={{
+                                marginTop: '0.85rem', fontSize: '0.84rem', color: '#1e40af',
+                                background: '#eff6ff', padding: '0.8rem 1rem', borderRadius: '10px',
+                                border: '1px solid #bfdbfe',
+                                lineHeight: 1.5,
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '0.6rem'
+                              }}>
+                                <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>💡</span>
+                                <div style={{ flex: 1 }}>
+                                  <strong style={{ display: 'block', color: '#1d4ed8', marginBottom: '2px', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                    Retroalimentación Pedagógica
+                                  </strong>
+                                  <span>{feedbackText}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}

@@ -21,6 +21,9 @@ export default function Profile() {
     email: currentUser?.email || '',
     phone: '',
     country: 'Colombia',
+    profession: '',
+    institution: '',
+    bio: '',
     avatar_url: ''
   });
 
@@ -29,13 +32,25 @@ export default function Profile() {
     email: currentUser?.email || '',
     phone: '',
     country: 'Colombia',
+    profession: '',
+    institution: '',
+    bio: '',
     avatar_url: ''
+  });
+
+  const [studentStats, setStudentStats] = useState({
+    enrolledCount: 0,
+    completedQuizzes: 0,
+    avgProgress: 0
   });
 
   const hasUnsavedPersonalChanges = 
     personalData.full_name !== initialPersonalData.full_name ||
     personalData.phone !== initialPersonalData.phone ||
-    personalData.country !== initialPersonalData.country;
+    personalData.country !== initialPersonalData.country ||
+    personalData.profession !== initialPersonalData.profession ||
+    personalData.institution !== initialPersonalData.institution ||
+    personalData.bio !== initialPersonalData.bio;
 
   // Datos académicos (teacher_profiles)
   const [academicData, setAcademicData] = useState({
@@ -177,11 +192,49 @@ export default function Profile() {
           if (progs) setMyPrograms(progs);
         }
 
+        // Cargar extensión de perfil guardada localmente si existe
+        let extendedLocal = {};
+        try {
+          const saved = localStorage.getItem(`user_extended_profile_${currentUser?.id}`);
+          if (saved) extendedLocal = JSON.parse(saved);
+        } catch (e) {}
+
+        // Cargar estadísticas si es estudiante
+        if (!isTeacher && currentUser?.id) {
+          try {
+            const { data: enrollments } = await supabase
+              .from('enrollments')
+              .select('*, diploma_programs(*)')
+              .eq('student_id', currentUser.id);
+
+            if (enrollments) {
+              const total = enrollments.length;
+              const totalProgress = enrollments.reduce((acc, curr) => acc + (curr.progress || 0), 0);
+              const avg = total > 0 ? Math.round(totalProgress / total) : 0;
+              
+              const completedQuizzesCount = enrollments.reduce((acc, curr) => {
+                return acc + (curr.progress >= 50 ? 2 : (curr.progress > 0 ? 1 : 0));
+              }, 0);
+
+              setStudentStats({
+                enrolledCount: total,
+                completedQuizzes: completedQuizzesCount,
+                avgProgress: avg
+              });
+            }
+          } catch (err) {
+            console.warn('Advertencia al cargar estadísticas del estudiante:', err);
+          }
+        }
+
         const loadedPersonal = {
           full_name: uProfile?.full_name || currentUser.name || '',
           email: currentUser.email || '',
-          phone: phone,
-          country: country,
+          phone: uProfile?.phone || phone || extendedLocal.phone || '',
+          country: uProfile?.country || country || extendedLocal.country || 'Colombia',
+          profession: uProfile?.profession || extendedLocal.profession || '',
+          institution: uProfile?.institution || extendedLocal.institution || '',
+          bio: uProfile?.bio || extendedLocal.bio || '',
           avatar_url: uProfile?.avatar_url || ''
         };
         setPersonalData(loadedPersonal);
@@ -212,17 +265,33 @@ export default function Profile() {
     setMsg({ type: '', text: '' });
     try {
       // 1. Intentar actualizar users_profile con todos los campos
+      const updatePayload = {
+        full_name: personalData.full_name,
+        phone: personalData.phone,
+        country: personalData.country,
+        profession: personalData.profession,
+        institution: personalData.institution,
+        bio: personalData.bio
+      };
+
+      // Guardar respaldado localmente para garantía inmediata
+      try {
+        localStorage.setItem(`user_extended_profile_${currentUser.id}`, JSON.stringify({
+          phone: personalData.phone,
+          country: personalData.country,
+          profession: personalData.profession,
+          institution: personalData.institution,
+          bio: personalData.bio
+        }));
+      } catch (e) {}
+
       let { error: uErr } = await supabase
         .from('users_profile')
-        .update({
-          full_name: personalData.full_name,
-          phone: personalData.phone,
-          country: personalData.country
-        })
+        .update(updatePayload)
         .eq('id', currentUser.id);
 
       if (uErr) {
-        // Fallback si la tabla users_profile no tiene columnas phone / country en Postgres
+        // Fallback si la tabla users_profile no tiene algunas columnas en Postgres
         const { error: fallbackErr } = await supabase
           .from('users_profile')
           .update({
@@ -491,26 +560,28 @@ export default function Profile() {
         </div>
       )}
 
-      {/* CABECERA RESUMIDA DEL USUARIO */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '2rem', padding: '2rem', marginBottom: '2rem', background: 'var(--white)' }}>
-        <div style={{ position: 'relative' }}>
-          <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '2.5rem', flexShrink: 0 }}>
-            {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'U'}
+      {/* CABECERA RESUMIDA DEL USUARIO (SOLO PARA PROFESORES) */}
+      {isTeacher && (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '2rem', padding: '2rem', marginBottom: '2rem', background: 'var(--white)' }}>
+          <div style={{ position: 'relative' }}>
+            <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '2.5rem', flexShrink: 0 }}>
+              {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'U'}
+            </div>
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '0.25rem' }}>
+              {personalData.full_name || 'Usuario LIATER'}
+            </h2>
+            <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+              <Mail size={16} /> {personalData.email}
+            </p>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(20, 33, 61, 0.08)', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)' }}>
+              <Shield size={14} color="var(--navy)" /> 
+              {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Profesor' : 'Estudiante'}
+            </span>
           </div>
         </div>
-        <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '0.25rem' }}>
-            {personalData.full_name || 'Usuario LIATER'}
-          </h2>
-          <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-            <Mail size={16} /> {personalData.email}
-          </p>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(20, 33, 61, 0.08)', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)' }}>
-            <Shield size={14} color="var(--navy)" /> 
-            {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Profesor' : 'Estudiante'}
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* SI ES PROFESOR, PESTAÑAS DEDICADAS */}
       {isTeacher ? (
@@ -1098,42 +1169,191 @@ export default function Profile() {
           )}
         </div>
       ) : (
-        /* VISTA ESTÁNDAR PARA OTROS ROLES (ESTUDIANTE / ADMIN) */
-        <form onSubmit={handleSavePersonal} className="card" style={{ padding: '2rem', background: 'var(--white)' }}>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', color: 'var(--navy)', fontWeight: 700 }}>
-            Información Personal
-          </h3>
+        /* VISTA INTEGRADA Y SIN REDUNDANCIAS PARA ESTUDIANTES */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>Nombre Completo</label>
-              <input type="text" value={personalData.full_name} onChange={e => setPersonalData({...personalData, full_name: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>Correo Electrónico</label>
-              <input type="email" value={personalData.email} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>Teléfono</label>
-              <input type="tel" value={personalData.phone} onChange={e => setPersonalData({...personalData, phone: e.target.value})} placeholder="+57 300 000 0000" style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)', marginBottom: '0.5rem' }}>País</label>
-              <select value={personalData.country} onChange={e => setPersonalData({...personalData, country: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--white)' }}>
-                <option>Colombia</option>
-                <option>México</option>
-                <option>Perú</option>
-                <option>Otro</option>
-              </select>
+          {/* 1. HERO BANNER DE IDENTIDAD Y ROL */}
+          <div className="card static-card" style={{ padding: '1.5rem 1.75rem', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', borderTop: '4px solid var(--navy)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+              <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '1.8rem', boxShadow: '0 6px 18px rgba(20, 33, 61, 0.15)', border: '2.5px solid #ffffff', flexShrink: 0 }}>
+                {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'E'}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
+                    {personalData.full_name || 'Estudiante'}
+                  </h2>
+                  <span className="badge badge-navy" style={{ padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: 700 }}>
+                    Estudiante LIATER
+                  </span>
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.35rem', flexWrap: 'wrap', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Mail size={14} color="var(--navy)" /> {personalData.email}
+                  </span>
+                  {personalData.profession && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--navy)', fontWeight: 700, background: 'rgba(252, 163, 17, 0.14)', padding: '0.15rem 0.6rem', borderRadius: '999px', fontSize: '0.78rem' }}>
+                      <Briefcase size={13} color="var(--gold-dark)" /> {personalData.profession}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" disabled={saving} className="btn btn-navy" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem' }}>
-              <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios'}
-            </button>
+          {/* 2. FORMULARIO UNIFICADO DE EDICIÓN DIVIDIDO EN SECCIONES LIMPIAS */}
+          <form onSubmit={handleSavePersonal} className="card static-card" style={{ padding: '2rem' }}>
+            
+            {/* SECCIÓN A: INFORMACIÓN DE CONTACTO */}
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 800, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.6rem' }}>
+                <User size={18} color="var(--navy)" />
+                Información de Contacto
+              </h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>Nombre Completo</label>
+                  <input type="text" value={personalData.full_name} onChange={e => setPersonalData({...personalData, full_name: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', fontSize: '0.9rem' }} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>Teléfono de Contacto</label>
+                  <input type="tel" value={personalData.phone} onChange={e => setPersonalData({...personalData, phone: e.target.value})} placeholder="+57 300 000 0000" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', fontSize: '0.9rem' }} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>País de Residencia</label>
+                  <select value={personalData.country} onChange={e => setPersonalData({...personalData, country: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', fontSize: '0.9rem' }}>
+                    <option>Colombia</option>
+                    <option>México</option>
+                    <option>Perú</option>
+                    <option>Chile</option>
+                    <option>Argentina</option>
+                    <option>Otro</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* SECCIÓN B: PERFIL PROFESIONAL */}
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 800, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.6rem' }}>
+                <Briefcase size={18} color="var(--gold-dark)" />
+                Perfil Profesional
+              </h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>Profesión / Ocupación</label>
+                  <input type="text" value={personalData.profession} onChange={e => setPersonalData({...personalData, profession: e.target.value})} placeholder="Ej. Ingeniera Mecatrónica / Estudiante" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', fontSize: '0.9rem' }} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>Institución / Empresa</label>
+                  <input type="text" value={personalData.institution} onChange={e => setPersonalData({...personalData, institution: e.target.value})} placeholder="Ej. Universidad Nacional de Colombia" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', fontSize: '0.9rem' }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>Resumen / Biografía Breve</label>
+                <textarea rows={3} value={personalData.bio} onChange={e => setPersonalData({...personalData, bio: e.target.value})} placeholder="Describe brevemente tu área de interés o enfoque profesional..." style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', fontSize: '0.88rem', fontFamily: 'inherit' }} />
+              </div>
+            </div>
+
+            {/* BOTÓN DE GUARDAR CAMBIOS CON ANIMACIÓN DE RESORTE */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <button 
+                type="submit" 
+                disabled={saving || !hasUnsavedPersonalChanges} 
+                className="btn btn-navy" 
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  padding: '0.75rem 1.75rem', 
+                  fontWeight: 700, 
+                  fontSize: '0.9rem',
+                  borderRadius: '8px',
+                  cursor: (saving || !hasUnsavedPersonalChanges) ? 'not-allowed' : 'pointer',
+                  opacity: (!hasUnsavedPersonalChanges && !saving) ? 0.55 : 1,
+                  transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  boxShadow: (hasUnsavedPersonalChanges && !saving) ? '0 4px 12px rgba(20, 33, 61, 0.25)' : 'none'
+                }}
+                onMouseOver={e => {
+                  if (hasUnsavedPersonalChanges && !saving) {
+                    e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+                    e.currentTarget.style.boxShadow = '0 6px 18px rgba(20, 33, 61, 0.35)';
+                  }
+                }}
+                onMouseOut={e => {
+                  if (hasUnsavedPersonalChanges && !saving) {
+                    e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(20, 33, 61, 0.25)';
+                  }
+                }}
+                onMouseDown={e => {
+                  if (hasUnsavedPersonalChanges && !saving) {
+                    e.currentTarget.style.transform = 'translateY(0) scale(0.96)';
+                  }
+                }}
+              >
+                <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios del Perfil'}
+              </button>
+            </div>
+          </form>
+
+          {/* 3. SEGURIDAD Y CREDENCIALES (INTEGRADO COMPACTO CON BOTÓN ANIMADO) */}
+          <div className="card static-card" style={{ padding: '1.5rem', background: '#ffffff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.05)', color: 'var(--navy)' }}>
+                  <LockKeyhole size={22} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>Seguridad y Contraseña</h4>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>Gestiona la clave de acceso a tu portal académico.</p>
+                </div>
+              </div>
+
+              <button 
+                type="button" 
+                onClick={handleOpenPasswordModal} 
+                className="btn" 
+                style={{ 
+                  background: 'transparent',
+                  border: '1.5px solid var(--navy)', 
+                  color: 'var(--navy)', 
+                  padding: '0.55rem 1.25rem', 
+                  fontWeight: 700, 
+                  fontSize: '0.85rem', 
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                }}
+                onMouseOver={e => {
+                  e.currentTarget.style.background = 'var(--navy)';
+                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(20, 33, 61, 0.25)';
+                }}
+                onMouseOut={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--navy)';
+                  e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+                onMouseDown={e => {
+                  e.currentTarget.style.transform = 'translateY(0) scale(0.96)';
+                }}
+              >
+                Cambiar contraseña
+              </button>
+            </div>
           </div>
-        </form>
+
+        </div>
       )}
 
       {/* MODAL DE CAMBIO DE CONTRASEÑA */}

@@ -3563,33 +3563,41 @@ function BorradoresTab() {
                             </div>
                           ))}
                         </div>
-                        {(q.explanation || q.source_basis) && (
-                          <div style={{
-                            margin: '0.6rem 0 0',
-                            padding: '0.55rem 0.8rem',
-                            background: '#eff6ff',
-                            border: '1px solid #bfdbfe',
-                            borderRadius: '8px',
-                            fontSize: '0.8rem',
-                            color: '#1e40af',
-                            lineHeight: 1.45,
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '0.45rem'
-                          }}>
-                            <span style={{ flexShrink: 0 }}>💡</span>
-                            <span>
-                              {(() => {
-                                const exp = (q.explanation || '').trim();
-                                const src = (q.source_basis || '').trim();
-                                if (exp && src && !exp.toLowerCase().includes(src.toLowerCase())) {
-                                  return `${exp} (Fundamentado en la clase: ${src})`;
-                                }
-                                return exp || src;
-                              })()}
-                            </span>
-                          </div>
-                        )}
+                        {/* ACLARACIÓN / RETROALIMENTACIÓN PEDAGÓGICA */}
+                        {(() => {
+                          const exp = (q.explanation || '').trim();
+                          const src = (q.source_basis || '').trim();
+                          const correctOpt = (q.options || []).find(o => o.is_correct || String(o.id) === String(q.correctOptionId));
+                          const defaultFeedback = correctOpt 
+                            ? `La opción correcta es "${correctOpt.text}". Revisa los contenidos de esta sesión para afianzar la explicación con tus estudiantes.`
+                            : 'Fundamentado en los contenidos clave explicados durante esta sesión.';
+
+                          const feedbackText = exp || src || defaultFeedback;
+
+                          return (
+                            <div style={{
+                              margin: '0.6rem 0 0',
+                              padding: '0.65rem 0.85rem',
+                              background: '#eff6ff',
+                              border: '1px solid #bfdbfe',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              color: '#1e40af',
+                              lineHeight: 1.45,
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '0.5rem'
+                            }}>
+                              <span style={{ fontSize: '1rem', flexShrink: 0 }}>💡</span>
+                              <div style={{ flex: 1 }}>
+                                <strong style={{ display: 'block', color: '#1d4ed8', marginBottom: '2px', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Retroalimentación Pedagógica
+                                </strong>
+                                <span>{feedbackText}</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>

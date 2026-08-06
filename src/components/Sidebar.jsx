@@ -11,7 +11,7 @@ import {
   GraduationCap, UserCircle, HelpCircle, ListTree, ArrowLeft,
   Video, FileText, Megaphone, CalendarDays, MessageSquare
 } from 'lucide-react';
-import liaterLogoWhite from '../assets/liater-logo-white.png';
+import unalPillLogo from '../assets/unal-pill-logo.png';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
@@ -50,9 +50,14 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
 
-      {/* --- SECCIÓN 1: Logo LIATER --- */}
-      <div className="sidebar-logo" onClick={() => navigate('/portal')}>
-        <img src={liaterLogoWhite} alt="LIATER" className="sidebar-logo-img" />
+      {/* --- SECCIÓN 1: Logo UNAL --- */}
+      <div className="sidebar-logo" onClick={() => navigate('/portal')} style={{ padding: '0.75rem 0.25rem', overflow: 'hidden' }}>
+        <img 
+          src={unalPillLogo} 
+          alt="Universidad Nacional de Colombia" 
+          className="sidebar-logo-img" 
+          style={{ width: '100%', height: '130px', objectFit: 'contain', transform: 'scale(1.2)' }} 
+        />
       </div>
 
       {/* --- SECCIÓN 2: Menú de Navegación Principal --- */}

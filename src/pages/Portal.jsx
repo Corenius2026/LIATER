@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
@@ -113,49 +113,67 @@ function StudentPortal({ getDiplomadoLink }) {
       {/* 2. COLUMNA PRINCIPAL CON FILTROS Y REJILLA DE PROGRAMAS (En móvil orden 2, en escritorio columna principal flexible) */}
       <div className="portal-main mobile-order-main">
         {/* FILTROS TIPO PASTILLA CON SCROLL HORIZONTAL CONTROLADO EN MÓVIL */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.25rem', width: '100%' }} className="hide-scrollbar">
-          {filters.map(filter => (
-            <button 
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              style={{ 
-                background: activeFilter === filter ? 'var(--navy)' : '#f1f5f9', 
-                color: activeFilter === filter ? '#ffffff' : 'var(--text-muted)', 
-                padding: '0.5rem 1.25rem', 
-                borderRadius: '9999px', 
-                fontSize: '0.86rem', 
-                fontWeight: 600, 
-                cursor: 'pointer', 
-                border: 'none', 
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'all 0.2s'
-              }}
-            >
-              {filter}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '0.3rem', width: '100%', background: 'rgba(255,255,255,0.4)', padding: '0.35rem', borderRadius: '9999px', backdropFilter: 'blur(10px)', width: 'fit-content' }} className="hide-scrollbar">
+          {filters.map(filter => {
+            const isActive = activeFilter === filter;
+            return (
+              <button 
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                style={{ 
+                  background: isActive ? 'var(--navy)' : 'transparent', 
+                  color: isActive ? '#ffffff' : 'var(--navy)', 
+                  padding: '0.5rem 1.25rem', 
+                  borderRadius: '9999px', 
+                  fontSize: '0.86rem', 
+                  fontWeight: 700, 
+                  cursor: 'pointer', 
+                  border: 'none', 
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  boxShadow: isActive ? '0 4px 12px rgba(20,33,61,0.2)' : 'none',
+                  transform: isActive ? 'scale(1.02)' : 'scale(1)'
+                }}
+                onMouseOver={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'rgba(20, 33, 61, 0.08)';
+                    e.currentTarget.style.transform = 'scale(1.04)';
+                  }
+                }}
+                onMouseOut={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.95)'; }}
+              >
+                {filter}
+              </button>
+            );
+          })}
         </div>
 
         {/* REJILLA DE TARJETAS DE PROGRAMA */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
           
           {/* ESTADO DE CARGA SKELETON */}
           {loading ? (
             Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', minHeight: '300px', background: '#ffffff', border: '1px solid var(--border-color)' }}>
-                <div style={{ width: '100%', aspectRatio: '16 / 9', background: '#e2e8f0', animation: 'pulse 1.5s infinite' }} />
-                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ width: '80px', height: '18px', borderRadius: '999px', background: '#cbd5e1' }} />
-                  <div style={{ width: '90%', height: '22px', borderRadius: '4px', background: '#cbd5e1' }} />
-                  <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: '#e2e8f0', marginTop: '0.5rem' }} />
-                  <div style={{ width: '100%', height: '38px', borderRadius: 'var(--radius-md)', background: '#e2e8f0', marginTop: 'auto' }} />
+              <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', minHeight: '300px' }}>
+                <div style={{ width: '100%', aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.05)', animation: 'pulse 1.5s infinite' }} />
+                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ width: '80px', height: '18px', borderRadius: '999px', background: 'rgba(0,0,0,0.06)' }} />
+                  <div style={{ width: '90%', height: '22px', borderRadius: '4px', background: 'rgba(0,0,0,0.06)' }} />
+                  <div style={{ width: '100%', height: '8px', borderRadius: '999px', background: 'rgba(0,0,0,0.04)', marginTop: '0.5rem' }} />
+                  <div style={{ width: '100%', height: '42px', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.05)', marginTop: 'auto' }} />
                 </div>
               </div>
             ))
           ) : diplomas.length === 0 ? (
             /* ESTADO VACÍO CUANDO NO HAY PROGRAMAS */
-            <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', background: '#ffffff', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
+            <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', borderRadius: 'var(--radius-lg)' }}>
               <BookOpen size={48} color="var(--navy)" style={{ marginBottom: '1rem', opacity: 0.4 }} />
               <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>No estás inscrito en ningún programa</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
@@ -183,20 +201,70 @@ function StudentPortal({ getDiplomadoLink }) {
                   style={{ 
                     display: 'flex', 
                     flexDirection: 'column', 
-                    background: '#ffffff', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: 'var(--radius-lg)', 
                     padding: 0, 
                     overflow: 'hidden', 
-                    boxShadow: 'var(--shadow-sm)',
                     opacity: isPublished ? 1 : 0.88,
-                    transition: 'all 0.25s ease' 
                   }}
-                  onMouseOver={e => { if (isPublished) { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; } }}
-                  onMouseOut={e => { if (isPublished) { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; } }}
                 >
-                  {/* 1. IMAGEN DE PORTADA (RELACIÓN DE ASPECTO 16:9) */}
-                  <div style={{ width: '100%', aspectRatio: '16 / 9', overflow: 'hidden', position: 'relative', background: 'var(--navy)' }}>
+                  {/* 1. IMAGEN DE PORTADA DESTACADA Y AMPLIA (ALTURA 200PX CON BADGE SOBREPUESTO) */}
+                  <div style={{ width: '100%', height: '200px', overflow: 'hidden', position: 'relative', background: 'var(--navy)' }}>
+                    {/* BADGES SOBREPUESTOS EN LA IMAGEN */}
+                    <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', zIndex: 2, display: 'flex', gap: '0.35rem' }}>
+                      <span className={isCourse ? 'badge badge-green' : 'badge badge-navy'} style={{ fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', backdropFilter: 'blur(8px)', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
+                        {badgeText}
+                      </span>
+                      {!isPublished && (
+                        <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)', color: '#ffffff', fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', backdropFilter: 'blur(8px)' }}>
+                          INHABILITADO
+                        </span>
+                      )}
+                    </div>
+
+                    {/* INDICADOR DE CLASE PROGRAMADA PARA HOY (ESQUINA DERECHA DE LA PORTADA) */}
+                    {dip.liveUrl && isPublished && (
+                      <a 
+                        href={dip.liveUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        title="Ver enlace de la clase programada para hoy"
+                        style={{
+                          position: 'absolute',
+                          top: '0.6rem',
+                          right: '0.6rem',
+                          zIndex: 3,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          background: 'rgba(20, 33, 61, 0.92)',
+                          color: 'var(--gold)',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '999px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                          letterSpacing: '0.03em',
+                          backdropFilter: 'blur(8px)',
+                          transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          border: '1px solid rgba(252, 163, 17, 0.5)'
+                        }}
+                        onMouseOver={e => {
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                          e.currentTarget.style.borderColor = 'var(--gold)';
+                          e.currentTarget.style.boxShadow = '0 0 14px rgba(252, 163, 17, 0.4)';
+                        }}
+                        onMouseOut={e => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.borderColor = 'rgba(252, 163, 17, 0.5)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+                        }}
+                        onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.96)'; }}
+                      >
+                        <CalendarDays size={13} color="var(--gold)" />
+                        <span>Clase Hoy · Unirse ➔</span>
+                      </a>
+                    )}
+
                     {dip.image_url ? (
                       <img 
                         src={dip.image_url} 
@@ -218,81 +286,42 @@ function StudentPortal({ getDiplomadoLink }) {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      padding: '1rem',
+                      padding: '0.75rem',
                       boxSizing: 'border-box'
                     }}>
-                      <BookOpen size={30} color={isCourse ? 'var(--gold)' : '#ffffff'} style={{ marginBottom: '0.3rem', opacity: 0.9 }} />
-                      <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', color: isCourse ? 'var(--gold)' : '#a7f3d0', textTransform: 'uppercase' }}>
+                      <BookOpen size={24} color={isCourse ? 'var(--gold)' : '#ffffff'} style={{ marginBottom: '0.2rem', opacity: 0.9 }} />
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.08em', color: isCourse ? 'var(--gold)' : '#a7f3d0', textTransform: 'uppercase' }}>
                         LIATER UNAL
                       </span>
                     </div>
                   </div>
 
-                  {/* CUERPO DE LA TARJETA */}
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                  {/* CUERPO COMPACTO DE LA TARJETA */}
+                  <div style={{ padding: '0.9rem 1rem 1rem 1rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                     
-                    {/* 2. ETIQUETA DEL TIPO DE PROGRAMA Y ESTADO INHABILITADO */}
-                    <div style={{ marginBottom: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className={isCourse ? 'badge badge-green' : 'badge badge-navy'} style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {badgeText}
-                      </span>
-                      {!isPublished && (
-                        <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          INHABILITADO
-                        </span>
-                      )}
-                    </div>
-
                     {/* 3. TÍTULO DEL PROGRAMA */}
-                    <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '1.25rem', lineHeight: '1.35', flexGrow: 1 }}>
+                    <h3 style={{ fontSize: '0.98rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.75rem', lineHeight: '1.3', minHeight: '2.6rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {dip.title}
                     </h3>
 
                     {/* 5. FILA DE TEXTO PROGRESO Y PORCENTAJE */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', marginBottom: '0.4rem', fontWeight: 700, color: 'var(--navy)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', marginBottom: '0.3rem', fontWeight: 700, color: 'var(--navy)' }}>
                       <span>Progreso</span>
                       <span>{progress}%</span>
                     </div>
 
                     {/* 6. BARRA DE PROGRESO */}
-                    <div style={{ width: '100%', height: '8px', background: 'rgba(0,0,0,0.06)', borderRadius: '4px', overflow: 'hidden', marginBottom: '1.25rem' }}>
+                    <div style={{ width: '100%', height: '5px', background: 'rgba(0,0,0,0.06)', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.85rem', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
                       <div style={{ 
                         width: `${progress}%`, 
                         height: '100%', 
                         background: progress === 100 ? 'var(--green-600)' : 'var(--navy)', 
-                        borderRadius: '4px',
-                        transition: 'width 0.4s ease'
+                        borderRadius: '999px',
+                        transition: 'width 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+                        boxShadow: progress > 0 ? '0 0 10px rgba(20,33,61,0.5)' : 'none'
                       }} />
                     </div>
                     
-                    {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
-                    {dip.liveUrl && isPublished && (
-                      <a 
-                        href={dip.liveUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="btn"
-                        style={{ 
-                          textAlign: 'center', 
-                          width: '100%', 
-                          justifyContent: 'center', 
-                          padding: '0.55rem', 
-                          fontWeight: 700, 
-                          fontSize: '0.85rem',
-                          borderRadius: 'var(--radius-md)',
-                          background: '#fee2e2',
-                          color: '#dc2626',
-                          border: '1px solid #fecaca',
-                          marginBottom: '0.75rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem'
-                        }}
-                      >
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', animation: 'pulse 1.5s infinite' }} />
-                        Clase en Vivo (Hoy)
-                      </a>
-                    )}
 
                     {/* 7. BOTÓN PRINCIPAL CON TEXTO SEGÚN EL AVANCE */}
                     {isPublished ? (
@@ -307,9 +336,9 @@ function StudentPortal({ getDiplomadoLink }) {
                           textAlign: 'center', 
                           width: '100%', 
                           justifyContent: 'center', 
-                          padding: '0.65rem', 
+                          padding: '0.5rem 0.85rem', 
                           fontWeight: 700, 
-                          fontSize: '0.88rem',
+                          fontSize: '0.82rem',
                           borderRadius: 'var(--radius-md)',
                           boxShadow: 'var(--shadow-sm)'
                         }}
@@ -346,7 +375,7 @@ function StudentPortal({ getDiplomadoLink }) {
 
       {/* 3. BLOQUE DE PRÓXIMOS PROGRAMAS (En móvil orden 3, en escritorio columna lateral inferior) */}
       <div className="mobile-order-upcoming desktop-sidebar-upcoming">
-        <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
+        <div className="card static-card" style={{ padding: '1.35rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
             <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Próximos programas</h3>
             <Link to="/proximos-programas" style={{ fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
@@ -675,7 +704,7 @@ function TeacherPortal({ getDiplomadoLink }) {
   if (activeTab === 'programas') {
     return (
       <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: '1rem' }}>
           <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
             Mis Programas
           </h1>

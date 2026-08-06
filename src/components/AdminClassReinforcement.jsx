@@ -275,6 +275,7 @@ export default function AdminClassReinforcement({ classId }) {
             activity_id: activityId,
             text: q.text || 'Sin enunciado',
             question_type: validQType,
+            explanation: q.explanation || null,
             order_num: qIndex
           }])
           .select()
@@ -288,6 +289,7 @@ export default function AdminClassReinforcement({ classId }) {
           .update({
             text: q.text,
             question_type: validQType,
+            explanation: q.explanation || null,
             order_num: qIndex
           })
           .eq('id', q.id);
@@ -498,6 +500,15 @@ export default function AdminClassReinforcement({ classId }) {
     if (!String(id).startsWith('temp-')) {
       try {
         await supabase.from('activity_questions').update({ text }).eq('id', id);
+      } catch (err) { console.error(err); }
+    }
+  };
+
+  const updateQuestionExplanation = async (id, explanation) => {
+    setQuestions(questions.map(q => q.id === id ? { ...q, explanation } : q));
+    if (!String(id).startsWith('temp-')) {
+      try {
+        await supabase.from('activity_questions').update({ explanation }).eq('id', id);
       } catch (err) { console.error(err); }
     }
   };
@@ -953,6 +964,20 @@ export default function AdminClassReinforcement({ classId }) {
                       <AlertTriangle size={12} /> Debes marcar una opción como correcta.
                     </div>
                   )}
+
+                  {/* CAMPO DE RETROALIMENTACIÓN PEDAGÓGICA */}
+                  <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px dashed #e2e8f0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.3rem' }}>
+                      💡 Retroalimentación Pedagógica (Explicación para el estudiante)
+                    </label>
+                    <input 
+                      type="text" 
+                      value={q.explanation || ''} 
+                      onChange={(e) => updateQuestionExplanation(q.id, e.target.value)}
+                      placeholder="Escribe la explicación o justificación de la respuesta correcta..."
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.83rem' }}
+                    />
+                  </div>
                 </div>
               </div>
             ))}

@@ -103,12 +103,13 @@
 
 /* ── Tarjetas de Resumen Docente ── */
 .teacher-summary-card {
-  transition: all 200ms ease-in-out !important;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .teacher-summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(20, 33, 61, 0.08) !important;
-  border-color: rgba(20, 33, 61, 0.2) !important;
+  transform: translateY(-4px) scale(1.01) !important;
+  box-shadow: var(--shadow-md) !important;
+  border-color: rgba(252, 163, 17, 0.35) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
 }
 .teacher-summary-card:focus-visible {
   outline: 2px solid var(--gold, #fca311) !important;
@@ -144,12 +145,14 @@
 /* ── Header ── */
 .app-header {
   height: 92px;
-  background: var(--white);
-  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
   display: flex; justify-content: space-between; align-items: center;
   padding: 0 2rem;
   position: sticky; top: 0; z-index: 50;
-  box-shadow: var(--shadow-xs);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.02);
 }
 
 .header-title {
@@ -183,6 +186,6 @@
 
 /* ── Page Content ── */
 .page-content {
-  padding: 2rem; flex: 1;
+  padding: 1.15rem 2rem; flex: 1;
   animation: fadeSlideUp 0.35s cubic-bezier(0.4,0,0.2,1) both;
 }

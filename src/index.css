@@ -29,7 +29,7 @@
   --primary-400:    #6b8ec9;
   --primary-light:  var(--gold);
   --secondary-color: var(--gray);
-  --bg-color:       #f4f4f4;
+  --bg-color:       #e2e8f0; /* Fondo más oscuro para que el cristal resalte */
   --surface-light:  #fafafa;
   --border-color:   #e0e0e0;
   --text-dark:      var(--black);
@@ -67,13 +67,13 @@
   --sidebar-accent:       var(--gold);
 
   /* ── Sombras ── */
-  --shadow-xs:    0 1px 2px rgba(20,33,61,0.06);
-  --shadow-sm:    0 1px 4px rgba(20,33,61,0.10), 0 1px 2px rgba(20,33,61,0.05);
-  --shadow-md:    0 4px 14px rgba(20,33,61,0.14), 0 2px 4px rgba(20,33,61,0.06);
-  --shadow-lg:    0 10px 32px rgba(20,33,61,0.18), 0 4px 8px rgba(20,33,61,0.08);
-  --shadow-xl:    0 20px 48px rgba(20,33,61,0.22);
-  --shadow-gold:  0 4px 18px rgba(252,163,17,0.35);
-  --shadow-green: 0 4px 14px rgba(0,122,46,0.22);
+  --shadow-xs:    0 2px 4px rgba(20,33,61,0.04);
+  --shadow-sm:    0 4px 12px rgba(20,33,61,0.06), 0 2px 4px rgba(20,33,61,0.04);
+  --shadow-md:    0 12px 24px rgba(20,33,61,0.08), 0 4px 8px rgba(20,33,61,0.04);
+  --shadow-lg:    0 24px 48px rgba(20,33,61,0.12), 0 12px 24px rgba(20,33,61,0.06);
+  --shadow-xl:    0 32px 64px rgba(20,33,61,0.16);
+  --shadow-gold:  0 8px 24px rgba(252,163,17,0.25);
+  --shadow-green: 0 8px 24px rgba(0,122,46,0.18);
 
   /* ── Radios ── */
   --radius-sm:  0.375rem;
@@ -96,6 +96,11 @@ html { scroll-behavior: smooth; }
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-color);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(20, 33, 61, 0.1) 0px, transparent 60%),
+    radial-gradient(at 100% 0%, rgba(252, 163, 17, 0.1) 0px, transparent 60%),
+    radial-gradient(at 50% 100%, rgba(255, 255, 255, 0.5) 0px, transparent 50%);
+  background-attachment: fixed;
   color: var(--text-dark);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -123,6 +128,10 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 @keyframes goldPulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(252,163,17,0.4); }
   50%       { box-shadow: 0 0 0 8px rgba(252,163,17,0); }
+}
+@keyframes livePulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  50%       { box-shadow: 0 0 12px 6px rgba(239, 68, 68, 0.4); }
 }
 @keyframes spin {
   from { transform: rotate(0deg); }
@@ -207,20 +216,23 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 }
 .btn-danger:hover { opacity: 0.88; }
 
-/* ── Cards ── */
+/* ── Cards (Glassmorphism) ── */
 .card {
-  background: var(--white);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px 0 rgba(20, 33, 61, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   padding: 1.5rem;
-  transition: var(--transition);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   animation: fadeSlideUp 0.35s cubic-bezier(0.4,0,0.2,1) both;
 }
-.card:hover {
+.card:not(.static-card):hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-  border-color: rgba(252,163,17,0.30);
+  transform: translateY(-4px) scale(1.005);
+  border-color: rgba(252, 163, 17, 0.35);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 /* ── Badges ── */

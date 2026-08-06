@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, AlertCircle, FileText, CheckCircle2, Video, Bell, ChevronRight, RefreshCw } from 'lucide-react';
+import { Clock, AlertCircle, FileText, CheckCircle2, Video, Bell, ChevronRight, RefreshCw, Award } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
 import { fetchStudentPendingActivities } from '../services/activityService';
 
@@ -13,6 +13,8 @@ export default function PendingActivitiesCard({ studentId }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('pendings'); // 'pendings' | 'announcements'
+  const [hasReadAnnouncements, setHasReadAnnouncements] = useState(false);
 
   const loadPending = useCallback(async () => {
     if (!studentId) {
@@ -71,22 +73,124 @@ export default function PendingActivitiesCard({ studentId }) {
       case 'Entrega':
         return <FileText size={16} color="var(--navy)" />;
       case 'Cuestionario':
-        return <Clock size={16} color="var(--navy)" />;
+      case 'Actividad de Reforzamiento':
+      case 'Reforzamiento':
+        return <Award size={16} color="#d97706" />;
       default:
         return <Bell size={16} color="var(--navy)" />;
     }
   };
 
+  const pendingsList = activities.filter(a => a.type !== 'Anuncio importante');
+  const announcementsList = activities.filter(a => a.type === 'Anuncio importante');
+  const reinforcementCount = pendingsList.filter(a => a.type.includes('Reforzamiento') || a.type === 'Cuestionario').length;
+  const currentList = (activeTab === 'pendings' ? pendingsList : announcementsList).slice(0, 2);
+
   return (
-    <div className="card" style={{ background: '#ffffff', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', padding: '1.35rem' }}>
+    <div className="card static-card" style={{ padding: '1.5rem' }}>
       {/* ENCABEZADO DE LA TARJETA */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>
-          Pendientes y próximas fechas
+          Pendientes y Avisos
         </h3>
         <Link to="/pendientes" style={{ fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
           Ver todos
         </Link>
+      </div>
+
+      {/* PESTAÑAS (TABS) CON ANIMACIÓN */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', background: 'rgba(0,0,0,0.04)', padding: '0.3rem', borderRadius: '10px' }}>
+        <button
+          onClick={() => setActiveTab('pendings')}
+          style={{
+            flex: 1,
+            padding: '0.45rem 0.5rem',
+            border: 'none',
+            borderRadius: '8px',
+            background: activeTab === 'pendings' ? '#ffffff' : 'transparent',
+            color: activeTab === 'pendings' ? 'var(--navy)' : 'var(--text-muted)',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer',
+            boxShadow: activeTab === 'pendings' ? '0 3px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            transform: activeTab === 'pendings' ? 'scale(1.02)' : 'scale(1)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justify: 'center',
+            gap: '0.35rem'
+          }}
+          onMouseOver={e => {
+            if (activeTab !== 'pendings') {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.5)';
+              e.currentTarget.style.transform = 'scale(1.02)';
+            }
+          }}
+          onMouseOut={e => {
+            if (activeTab !== 'pendings') {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.transform = 'scale(1)';
+            }
+          }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.96)'; }}
+        >
+          <span>Pendientes</span>
+          {reinforcementCount > 0 && (
+            <span 
+              title="Tienes actividades de reforzamiento sin realizar"
+              style={{
+                background: '#fffbe6',
+                color: '#b45309',
+                border: '1px solid #fca311',
+                padding: '0.1rem 0.45rem',
+                borderRadius: '999px',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.2rem'
+              }}
+            >
+              <Award size={11} color="#b45309" />
+              {reinforcementCount}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('announcements');
+            setHasReadAnnouncements(true);
+          }}
+          style={{
+            flex: 1,
+            padding: '0.45rem 0',
+            border: 'none',
+            borderRadius: '8px',
+            background: activeTab === 'announcements' ? '#ffffff' : 'transparent',
+            color: activeTab === 'announcements' ? 'var(--navy)' : 'var(--text-muted)',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer',
+            boxShadow: activeTab === 'announcements' ? '0 3px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            transform: activeTab === 'announcements' ? 'scale(1.02)' : 'scale(1)'
+          }}
+          onMouseOver={e => {
+            if (activeTab !== 'announcements') {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.5)';
+              e.currentTarget.style.transform = 'scale(1.02)';
+            }
+          }}
+          onMouseOut={e => {
+            if (activeTab !== 'announcements') {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.transform = 'scale(1)';
+            }
+          }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.96)'; }}
+        >
+          Anuncios {!hasReadAnnouncements && announcementsList.length > 0 && <span style={{ background: '#ef4444', color: '#fff', borderRadius: '50%', padding: '0.1rem 0.35rem', fontSize: '0.65rem', marginLeft: '0.2rem' }}>{announcementsList.length}</span>}
+        </button>
       </div>
 
       {/* ESTADO DE CARGA SKELETON */}
@@ -116,22 +220,68 @@ export default function PendingActivitiesCard({ studentId }) {
             <RefreshCw size={12} /> Reintentar
           </button>
         </div>
-      ) : activities.length === 0 ? (
+      ) : currentList.length === 0 ? (
         /* ESTADO VACÍO CUANDO EL ESTUDIANTE ESTÁ AL DÍA */
         <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem' }}>
           <CheckCircle2 size={38} color="var(--green-600)" style={{ marginBottom: '0.6rem', opacity: 0.85 }} />
           <h4 style={{ fontSize: '0.95rem', color: 'var(--navy)', fontWeight: 700, margin: '0 0 0.25rem 0' }}>
-            No tienes actividades próximas.
+            {activeTab === 'pendings' ? 'No tienes actividades próximas.' : 'No tienes anuncios nuevos.'}
           </h4>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-            Estás al día con tus programas.
+            Estás al día.
           </p>
         </div>
       ) : (
-        /* LISTADO DE HASTA 4 PENDIENTES */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          {activities.map((item) => {
+        /* LISTADO DE ACTIVIDADES FILTRADAS CON ANIMACIÓN DE ENTRADA */
+        <div key={activeTab} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', animation: 'fadeSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) both' }}>
+          {currentList.map((item) => {
             const urgencyStyle = getUrgencyStyles(item.urgency);
+            const isAnnouncement = item.type === 'Anuncio importante';
+
+            if (isAnnouncement) {
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    gap: '0.85rem',
+                    alignItems: 'flex-start',
+                    padding: '0.9rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%)',
+                    border: '1px solid #bae6fd',
+                    borderLeft: '4px solid #0284c7',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.05)',
+                    cursor: 'default'
+                  }}
+                >
+                  {/* ICONO DE ANUNCIO */}
+                  <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '0.1rem' }}>
+                    <Bell size={18} color="#0284c7" />
+                  </div>
+
+                  {/* DETALLES DEL ANUNCIO */}
+                  <div style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        Aviso Institucional
+                      </span>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '999px', background: '#e0f2fe', color: '#0369a1' }}>
+                        Importante
+                      </span>
+                    </div>
+
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--navy)', margin: 0, lineHeight: 1.35 }}>
+                      {item.title}
+                    </h4>
+
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                      Publicado el {formatShortDate(item.date)}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <Link
@@ -145,23 +295,22 @@ export default function PendingActivitiesCard({ studentId }) {
                 }}
                 style={{
                   display: 'flex',
-                  gap: '0.75rem',
+                  gap: '0.85rem',
                   alignItems: 'center',
-                  padding: '0.75rem',
+                  padding: '0.85rem 0.95rem',
                   borderRadius: 'var(--radius-md)',
-                  background: '#f8fafc',
+                  background: '#ffffff',
+                  border: '1px solid rgba(20, 33, 61, 0.08)',
                   borderLeft: `4px solid ${urgencyStyle.borderColor}`,
-                  borderTop: '1px solid var(--border-color)',
-                  borderRight: '1px solid var(--border-color)',
-                  borderBottom: '1px solid var(--border-color)',
+                  boxShadow: '0 4px 12px rgba(20, 33, 61, 0.04)',
                   textDecoration: 'none',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}
-                onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
-                onMouseOut={e => { e.currentTarget.style.background = '#f8fafc'; }}
+                onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(20, 33, 61, 0.08)'; }}
+                onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(20, 33, 61, 0.04)'; }}
               >
-                {/* ICONO COMPACTO */}
-                <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-color)' }}>
+                {/* ICONO COMPACTO CON COLOR DE URGENCIA */}
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: urgencyStyle.badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                   {renderIcon(item.type)}
                 </div>
 
@@ -180,11 +329,11 @@ export default function PendingActivitiesCard({ studentId }) {
                     {item.title}
                   </h4>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.programTitle}
                     </span>
-                    <span>{formatShortDate(item.date)}</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{formatShortDate(item.date)}</span>
                   </div>
                 </div>
 
