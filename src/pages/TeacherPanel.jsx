@@ -1014,11 +1014,9 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
   const [error, setError] = useState('');
 
   const TAG_OPTIONS = [
-    { value: 'general',   label: 'General',     icon: '📢', color: '#14213D', bg: '#EEF2F8' },
-    { value: 'info',      label: 'Informativo', icon: '📌', color: '#1d4ed8', bg: '#dbeafe' },
-    { value: 'urgent',    label: 'Urgente',     icon: '🔴', color: '#991b1b', bg: '#fee2e2' },
-    { value: 'clase',     label: 'Clase',       icon: '🎓', color: '#065f46', bg: '#d1fae5' },
-    { value: 'evaluacion',label: 'Evaluación',  icon: '📝', color: '#92400e', bg: '#fef3c7' },
+    { value: 'general', label: 'General',     icon: '📢', color: '#14213D', bg: '#EEF2F8' },
+    { value: 'info',    label: 'Informativo', icon: '📌', color: '#1d4ed8', bg: '#dbeafe' },
+    { value: 'urgent',  label: 'Urgente',     icon: '🔴', color: '#991b1b', bg: '#fee2e2' },
   ];
 
   const handleSubmit = async (e) => {
@@ -1238,11 +1236,9 @@ function AnunciosTab() {
   const [filterTag, setFilterTag] = useState('todos');
 
   const TAG_CONFIG = {
-    general:    { label: 'General',     emoji: '📢', color: '#14213D', bg: '#EEF2F8', border: '#C7D2E7' },
-    info:       { label: 'Informativo', emoji: '📌', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
-    urgent:     { label: 'Urgente',     emoji: '🔴', color: '#991b1b', bg: '#fee2e2', border: '#fca5a5' },
-    clase:      { label: 'Clase',       emoji: '🎓', color: '#065f46', bg: '#d1fae5', border: '#6ee7b7' },
-    evaluacion: { label: 'Evaluación',  emoji: '📝', color: '#92400e', bg: '#fef3c7', border: '#fcd34d' },
+    general: { label: 'General',     emoji: '📢', color: '#14213D', bg: '#EEF2F8', border: '#C7D2E7' },
+    info:    { label: 'Informativo', emoji: '📌', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+    urgent:  { label: 'Urgente',     emoji: '🔴', color: '#991b1b', bg: '#fee2e2', border: '#fca5a5' },
   };
 
   const fetchAnnouncements = async () => {

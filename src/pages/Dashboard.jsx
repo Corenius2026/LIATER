@@ -263,11 +263,9 @@ export default function Dashboard() {
 
         {(() => {
           const TAG_CONFIG = {
-            general:    { label: 'General',     emoji: '📢', color: '#14213D', bg: '#EEF2F8', border: '#14213D' },
-            info:       { label: 'Informativo', emoji: '📌', color: '#1d4ed8', bg: '#dbeafe', border: '#3b82f6' },
-            urgent:     { label: 'Urgente',     emoji: '🔴', color: '#991b1b', bg: '#fee2e2', border: '#ef4444' },
-            clase:      { label: 'Clase',       emoji: '🎓', color: '#065f46', bg: '#d1fae5', border: '#10b981' },
-            evaluacion: { label: 'Evaluación',  emoji: '📝', color: '#92400e', bg: '#fef3c7', border: '#f59e0b' },
+            general: { label: 'General',     emoji: '📢', color: '#14213D', bg: '#EEF2F8', border: '#14213D' },
+            info:    { label: 'Informativo', emoji: '📌', color: '#1d4ed8', bg: '#dbeafe', border: '#3b82f6' },
+            urgent:  { label: 'Urgente',     emoji: '🔴', color: '#991b1b', bg: '#fee2e2', border: '#ef4444' },
           };
 
           return announcements.length > 0 ? (
