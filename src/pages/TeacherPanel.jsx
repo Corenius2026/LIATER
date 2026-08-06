@@ -13,7 +13,8 @@ import {
   Sparkles, Bot, CheckCheck, XCircle, ChevronDown, ChevronUp,
   Edit3, EyeOff, Save, PlusCircle, ExternalLink, Download,
   ChevronLeft, ChevronRight, Award, GraduationCap, Percent,
-  Calendar, FileSpreadsheet, Folder
+  Calendar, FileSpreadsheet, Folder, Brain, BarChart3,
+  TrendingUp, Target, Lightbulb, Activity, HelpCircle
 } from 'lucide-react';
 
 import './TeacherPanel.css';
@@ -1404,15 +1405,16 @@ function ResumenTab({ onChangeTab }) {
         .lt('class_date', new Date().toISOString())
         .is('video_url', null);
 
-      // Query C: Entregas de tareas pendientes por calificar en este programa
-      const pPendingSubmissions = supabase
-        .from('assignment_submissions')
-        .select('id, assignment_id, assignments!inner(id, title, program_id)', { count: 'exact' })
-        .eq('assignments.program_id', programId)
-        .eq('status', 'submitted');
+      // Query C: Actividades de reforzamiento publicadas en las clases del profesor
+      const pActivities = supabase
+        .from('class_activities')
+        .select('id, class_id, is_published, class_sessions!inner(id, program_id, teacher_id)')
+        .eq('class_sessions.program_id', programId)
+        .eq('class_sessions.teacher_id', teacherProfileId)
+        .eq('is_published', true);
 
-      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts, resDrafts, resMissingRec, resSubmissions] = await Promise.all([
-        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts, pPendingDrafts, pMissingRecordings, pPendingSubmissions
+      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts, resDrafts, resMissingRec, resActivities] = await Promise.all([
+        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts, pPendingDrafts, pMissingRecordings, pActivities
       ]);
       
       const classes = resClasses.data || [];
@@ -1426,22 +1428,8 @@ function ResumenTab({ onChangeTab }) {
       setPendingDoubts(resTopDoubts.data || []);
 
       const alerts = [];
-      // Alerta: entregas de evaluación pendientes por calificar
-      const pendingSubCount = (resSubmissions.data || []).length;
-      if (pendingSubCount > 0) {
-        alerts.push({
-          id: 'pending-submissions-alert',
-          type: 'evaluation',
-          title: `Evaluaciones por calificar (${pendingSubCount})`,
-          subtitle: `${pendingSubCount} entrega(s) de estudiantes esperando tu calificación y feedback`,
-          action: 'Calificar ahora',
-          tab: 'evaluaciones',
-          icon: 'fileCheck',
-          color: '#FCA311',
-        });
-      }
 
-      // Alerta: borradores IA pendientes
+      // Alerta: borradores IA pendientes de validación
       if ((resDrafts.data || []).length > 0) {
         (resDrafts.data || []).forEach(d => {
           alerts.push({
@@ -1449,14 +1437,15 @@ function ResumenTab({ onChangeTab }) {
             type: 'draft',
             title: `Borrador IA pendiente: "${d.draft_data?.activity_title || 'Sin título'}"`,
             subtitle: `Clase: ${d.class_sessions?.title || 'Clase vinculada'} · Generado ${new Date(d.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`,
-            action: 'Revisar ahora',
+            action: 'Validar en Mis Clases',
             tab: 'clases',
             icon: 'sparkles',
             color: '#FCA311',
           });
         });
       }
-      // Alerta: clases sin grabación
+
+      // Alerta: clases sin grabación vinculada
       if ((resMissingRec.data || []).length > 0) {
         (resMissingRec.data || []).forEach(c => {
           alerts.push({
@@ -1482,7 +1471,7 @@ function ResumenTab({ onChangeTab }) {
         pendingDoubts: resUnreviewed.count || 0,
         pendingDrafts: (resDrafts.data || []).length,
         missingRecordings: (resMissingRec.data || []).length,
-        pendingEvaluations: pendingSubCount,
+        activeActivities: (resActivities.data || []).length,
       });
     } catch (err) {
       console.error('Error fetching teacher stats:', err);
@@ -1788,6 +1777,7 @@ function ResumenTab({ onChangeTab }) {
                 { label: 'Total de clases', value: stats.totalClasses, color: '#14213D' },
                 { label: 'Clases completadas', value: stats.completed, color: '#16a34a' },
                 { label: 'Clases pendientes', value: stats.upcoming, color: '#14213D' },
+                { label: 'Actividades IA activas', value: stats.activeActivities || 0, color: '#FCA311' },
                 { label: 'Estudiantes inscritos', value: stats.students, color: '#14213D' },
                 { label: 'Anuncios publicados', value: stats.announcements, color: '#14213D' },
               ].map(({ label, value, color }) => (
@@ -1804,6 +1794,7 @@ function ResumenTab({ onChangeTab }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {[
                 { label: 'Mis Clases', tab: 'clases', icon: <Video size={14} /> },
+                { label: 'Reforzamiento IA', tab: 'reforzamiento', icon: <Brain size={14} /> },
                 { label: 'Dudas de estudiantes', tab: 'dudas', icon: <MessageSquare size={14} /> },
                 { label: 'Anuncios', tab: 'anuncios', icon: <Megaphone size={14} /> },
                 { label: 'Estudiantes', tab: 'estudiantes', icon: <Users size={14} /> },
@@ -3309,1653 +3300,1500 @@ function BorradoresTab() {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   MODAL DE CALIFICACIÓN Y RETROALIMENTACIÓN (GradingModal)
+   MODAL DE ANALÍTICA Y RESULTADOS DE REFORZAMIENTO IA (ActivityResultsModal)
 ───────────────────────────────────────────────────────────── */
-function GradingModal({ evaluation, onClose, onGraded, teacherId }) {
-  const [students, setStudents] = useState([]);
-  const [submissions, setSubmissions] = useState({});
+function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
+  const { programId } = useTeacherContext();
+  const [activeTab, setActiveTab] = useState('questions'); // 'questions' | 'students'
   const [loading, setLoading] = useState(true);
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'submitted' | 'graded' | 'pending'
+  const [questions, setQuestions] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [attempts, setAttempts] = useState([]);
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    completedCount: 0,
+    averageScore: 0,
+    passingCount: 0,
+  });
   const [searchStudent, setSearchStudent] = useState('');
-  const [gradeInput, setGradeInput] = useState('');
-  const [feedbackInput, setFeedbackInput] = useState('');
-  const [savingGrade, setSavingGrade] = useState(false);
-  const [feedbackMsg, setFeedbackMsg] = useState('');
-
-  const isAssignment = evaluation.evalType === 'assignment';
-  const maxScore = Number(evaluation.max_score) || 100;
-
-  // Cargar estudiantes inscritos y sus entregas
-  const loadSubmissionsData = async () => {
-    setLoading(true);
-    try {
-      // 1. Obtener alumnos inscritos
-      const { data: enrollData } = await supabase
-        .from('enrollments')
-        .select('student_id, users_profile!inner(id, full_name, email)')
-        .eq('program_id', evaluation.program_id)
-        .eq('users_profile.role', 'student');
-
-      const studentList = (enrollData || []).map(e => ({
-        id: e.users_profile?.id || e.student_id,
-        name: e.users_profile?.full_name || 'Estudiante',
-        email: e.users_profile?.email || ''
-      }));
-
-      // 2. Obtener entregas según tipo
-      let subMap = {};
-      if (isAssignment) {
-        const { data: subs } = await supabase
-          .from('assignment_submissions')
-          .select('*')
-          .eq('assignment_id', evaluation.id);
-
-        (subs || []).forEach(s => {
-          subMap[s.student_id] = s;
-        });
-      } else {
-        const { data: qSubs } = await supabase
-          .from('quiz_submissions')
-          .select('*')
-          .eq('quiz_id', evaluation.id);
-
-        (qSubs || []).forEach(qs => {
-          subMap[qs.student_id] = {
-            id: qs.id,
-            student_id: qs.student_id,
-            grade: qs.score,
-            feedback: qs.feedback || '',
-            submitted_at: qs.completed_at,
-            status: qs.status || 'graded',
-            comments: 'Cuestionario completado por el estudiante'
-          };
-        });
-      }
-
-      setStudents(studentList);
-      setSubmissions(subMap);
-
-      if (studentList.length > 0 && !selectedStudentId) {
-        // Seleccionar primer alumno por calificar o primero de la lista
-        const firstSubmitted = studentList.find(st => subMap[st.id]?.status === 'submitted');
-        const initial = firstSubmitted || studentList[0];
-        setSelectedStudentId(initial.id);
-        const currentSub = subMap[initial.id];
-        setGradeInput(currentSub?.grade !== null && currentSub?.grade !== undefined ? currentSub.grade : '');
-        setFeedbackInput(currentSub?.feedback || '');
-      }
-    } catch (err) {
-      console.error('Error al cargar entregas:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [filterStudentStatus, setFilterStudentStatus] = useState('all'); // 'all' | 'completed' | 'not_started'
 
   useEffect(() => {
-    loadSubmissionsData();
-  }, [evaluation?.id]);
+    async function loadActivityResults() {
+      if (!activity?.id || !programId) return;
+      try {
+        setLoading(true);
 
-  const handleSelectStudent = (stId) => {
-    setSelectedStudentId(stId);
-    setFeedbackMsg('');
-    const sub = submissions[stId];
-    setGradeInput(sub?.grade !== null && sub?.grade !== undefined ? sub.grade : '');
-    setFeedbackInput(sub?.feedback || '');
-  };
+        // 1. Cargar preguntas de la actividad
+        const { data: qData, error: qErr } = await supabase
+          .from('activity_questions')
+          .select(`
+            id, text, question_type, order_num, explanation, source_basis,
+            question_options (id, text, order_num)
+          `)
+          .eq('activity_id', activity.id)
+          .order('order_num', { ascending: true });
 
-  // Guardar calificación
-  const handleSaveGrade = async () => {
-    if (!selectedStudentId) return;
-    setSavingGrade(true);
-    setFeedbackMsg('');
+        if (qErr) console.error('Error cargando preguntas:', qErr);
 
-    const numericGrade = gradeInput === '' ? null : Number(gradeInput);
-    if (numericGrade !== null && (isNaN(numericGrade) || numericGrade < 0 || numericGrade > maxScore)) {
-      setFeedbackMsg(`La calificación debe estar entre 0 y ${maxScore}`);
-      setSavingGrade(false);
-      return;
-    }
+        let loadedQuestions = qData || [];
 
-    try {
-      const now = new Date().toISOString();
-      let existingSub = submissions[selectedStudentId];
+        // Cargar respuestas correctas
+        if (loadedQuestions.length > 0) {
+          const qIds = loadedQuestions.map(q => q.id);
+          const { data: correctAnswers } = await supabase
+            .from('question_correct_answers')
+            .select('question_id, correct_option_id')
+            .in('question_id', qIds);
 
-      if (isAssignment) {
-        if (existingSub?.id) {
-          // Actualizar entrega existente
-          const { error } = await supabase
-            .from('assignment_submissions')
-            .update({
-              grade: numericGrade,
-              feedback: feedbackInput,
-              status: numericGrade !== null ? 'graded' : existingSub.status,
-              graded_at: now,
-              graded_by: teacherId || null
-            })
-            .eq('id', existingSub.id);
-          if (error) throw error;
-        } else {
-          // Crear registro de entrega con la nota asignada directamente por el docente
-          const { data: newSub, error } = await supabase
-            .from('assignment_submissions')
-            .insert([{
-              assignment_id: evaluation.id,
-              student_id: selectedStudentId,
-              grade: numericGrade,
-              feedback: feedbackInput,
-              status: numericGrade !== null ? 'graded' : 'submitted',
-              graded_at: now,
-              graded_by: teacherId || null
-            }])
-            .select()
-            .single();
-          if (error) throw error;
-          if (newSub) existingSub = newSub;
+          const correctMap = {};
+          (correctAnswers || []).forEach(ca => {
+            correctMap[ca.question_id] = ca.correct_option_id;
+          });
+
+          // Cargar posibles justificaciones pedagógicas del borrador si la pregunta no las tiene
+          let draftQuestionsMap = {};
+          try {
+            const { data: draftData } = await supabase
+              .from('activity_drafts')
+              .select('draft_data')
+              .eq('class_id', classData.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (draftData?.draft_data?.questions) {
+              draftData.draft_data.questions.forEach(dq => {
+                if (dq.text) draftQuestionsMap[dq.text.trim().toLowerCase()] = dq;
+              });
+            }
+          } catch (_) {}
+
+          loadedQuestions = loadedQuestions.map(q => {
+            const dq = draftQuestionsMap[q.text?.trim().toLowerCase()];
+            return {
+              ...q,
+              explanation: q.explanation || dq?.explanation || null,
+              sourceBasis: q.source_basis || dq?.source_basis || null,
+              correctOptionId: correctMap[q.id] || null,
+              options: (q.question_options || []).sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+            };
+          });
         }
-      } else {
-        // Cuestionario
-        if (existingSub?.id) {
-          await supabase
-            .from('quiz_submissions')
-            .update({
-              score: numericGrade,
-              feedback: feedbackInput,
-              status: 'graded'
-            })
-            .eq('id', existingSub.id);
-        } else {
-          await supabase
-            .from('quiz_submissions')
-            .insert([{
-              quiz_id: evaluation.id,
-              student_id: selectedStudentId,
-              score: numericGrade,
-              feedback: feedbackInput,
-              status: 'graded'
-            }]);
-        }
+        setQuestions(loadedQuestions);
+
+        // 2. Cargar estudiantes matriculados en el programa
+        const { data: enrollmentsData, error: enrollErr } = await supabase
+          .from('enrollments')
+          .select(`
+            student_id,
+            users_profile:student_id (id, full_name, email, avatar_url, role)
+          `)
+          .eq('program_id', programId)
+          .eq('users_profile.role', 'student');
+
+        if (enrollErr) console.error('Error cargando estudiantes:', enrollErr);
+
+        const studentList = (enrollmentsData || [])
+          .map(e => e.users_profile)
+          .filter(Boolean);
+
+        // 3. Cargar intentos de estudiantes en esta actividad
+        const { data: attemptsData, error: attErr } = await supabase
+          .from('activity_attempts')
+          .select('*')
+          .eq('activity_id', activity.id)
+          .order('completed_at', { ascending: false });
+
+        if (attErr) console.error('Error cargando intentos:', attErr);
+
+        const attemptsList = attemptsData || [];
+        setAttempts(attemptsList);
+
+        // Mapear el último intento completado por cada estudiante
+        const attemptByStudent = {};
+        attemptsList.forEach(att => {
+          if (!attemptByStudent[att.student_id] || new Date(att.completed_at) > new Date(attemptByStudent[att.student_id].completed_at)) {
+            attemptByStudent[att.student_id] = att;
+          }
+        });
+
+        // Combinar estudiantes con sus intentos
+        const combinedStudents = studentList.map(st => {
+          const att = attemptByStudent[st.id];
+          return {
+            ...st,
+            attempt: att || null,
+            status: att ? (att.status === 'completed' ? 'completed' : 'in_progress') : 'not_started',
+            score: att ? (typeof att.score === 'number' ? att.score : null) : null,
+            completedAt: att?.completed_at || null,
+          };
+        });
+
+        setStudents(combinedStudents);
+
+        // 4. Calcular métricas estadísticas
+        const completedAttempts = combinedStudents.filter(s => s.status === 'completed');
+        const scores = completedAttempts.map(s => s.score).filter(sc => typeof sc === 'number');
+        const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+        const passing = scores.filter(sc => sc >= 70).length;
+
+        setStats({
+          totalStudents: studentList.length,
+          completedCount: completedAttempts.length,
+          averageScore: avg,
+          passingCount: passing,
+        });
+
+      } catch (err) {
+        console.error('Error cargando analítica de reforzamiento:', err);
+      } finally {
+        setLoading(false);
       }
-
-      // Actualizar estado local
-      setSubmissions(prev => ({
-        ...prev,
-        [selectedStudentId]: {
-          ...(prev[selectedStudentId] || {}),
-          grade: numericGrade,
-          feedback: feedbackInput,
-          status: numericGrade !== null ? 'graded' : (prev[selectedStudentId]?.status || 'submitted'),
-          graded_at: now
-        }
-      }));
-
-      setFeedbackMsg('✅ Calificación guardada con éxito.');
-      if (onGraded) onGraded();
-
-      // Desvanecer mensaje tras 2.5s
-      setTimeout(() => setFeedbackMsg(''), 2500);
-    } catch (err) {
-      console.error('Error al guardar calificación:', err);
-      setFeedbackMsg('❌ Error al guardar: ' + err.message);
-    } finally {
-      setSavingGrade(false);
     }
-  };
 
-  // Filtrado de alumnos
+    loadActivityResults();
+  }, [activity?.id, programId]);
+
   const filteredStudents = students.filter(st => {
-    const matchesSearch = st.name.toLowerCase().includes(searchStudent.toLowerCase()) || st.email.toLowerCase().includes(searchStudent.toLowerCase());
-    if (!matchesSearch) return false;
-
-    const sub = submissions[st.id];
-    if (filterStatus === 'all') return true;
-    if (filterStatus === 'submitted') return sub && sub.status === 'submitted';
-    if (filterStatus === 'graded') return sub && (sub.status === 'graded' || sub.grade !== null && sub.grade !== undefined);
-    if (filterStatus === 'pending') return !sub;
+    if (filterStudentStatus === 'completed' && st.status !== 'completed') return false;
+    if (filterStudentStatus === 'not_started' && st.status !== 'not_started') return false;
+    if (searchStudent.trim()) {
+      const q = searchStudent.toLowerCase();
+      const name = (st.full_name || '').toLowerCase();
+      const email = (st.email || '').toLowerCase();
+      return name.includes(q) || email.includes(q);
+    }
     return true;
   });
 
-  const selectedStudent = students.find(st => st.id === selectedStudentId);
-  const currentSubmission = selectedStudentId ? submissions[selectedStudentId] : null;
-
-  // Navegación entre estudiantes
-  const currentIndex = filteredStudents.findIndex(st => st.id === selectedStudentId);
-  const handlePrevStudent = () => {
-    if (currentIndex > 0) {
-      handleSelectStudent(filteredStudents[currentIndex - 1].id);
-    }
-  };
-  const handleNextStudent = () => {
-    if (currentIndex < filteredStudents.length - 1) {
-      handleSelectStudent(filteredStudents[currentIndex + 1].id);
-    }
-  };
+  const participationPct = stats.totalStudents > 0 ? Math.round((stats.completedCount / stats.totalStudents) * 100) : 0;
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(10, 17, 40, 0.75)',
+      backdropFilter: 'blur(6px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1100,
+      padding: '1.5rem',
+      animation: 'fadeIn 0.2s ease-out'
     }}>
       <div style={{
-        background: '#FFFFFF', width: '100%', maxWidth: '1050px', maxHeight: '90vh',
-        borderRadius: '12px', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)', overflow: 'hidden'
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        maxWidth: '900px',
+        width: '100%',
+        maxHeight: '90vh',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 25px 50px -12px rgba(20, 33, 61, 0.35)',
+        border: '1px solid #E5E5E5',
+        overflow: 'hidden'
       }}>
-        {/* Cabecera del Modal */}
+        {/* MODAL HEADER */}
         <div style={{
-          padding: '1.25rem 1.5rem', background: '#14213D', color: '#FFFFFF',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)'
+          padding: '1.5rem 2rem',
+          background: '#14213D',
+          color: '#FFFFFF',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          borderBottom: '2px solid #FCA311'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ background: 'rgba(252, 163, 17, 0.2)', padding: '0.5rem', borderRadius: '8px' }}>
-              <FileCheck size={20} color="#FCA311" />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span style={{
+                background: 'rgba(252, 163, 17, 0.2)',
+                color: '#FCA311',
+                padding: '3px 10px',
+                borderRadius: '8px',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <Sparkles size={12} /> Actividad de Reforzamiento IA
+              </span>
+              <span style={{
+                background: 'rgba(255, 255, 255, 0.12)',
+                color: '#E5E5E5',
+                padding: '3px 10px',
+                borderRadius: '8px',
+                fontSize: '0.74rem',
+                fontWeight: 600
+              }}>
+                {classData?.title || 'Clase'}
+              </span>
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 800, background: '#FCA311', color: '#14213D', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                  {isAssignment ? 'Tarea / Entregable' : 'Cuestionario'}
-                </span>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#FFFFFF' }}>
-                  {evaluation.title}
-                </h3>
-              </div>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#E5E5E5' }}>
-                Puntaje Máximo: {maxScore} pts · Fecha Límite: {new Date(evaluation.due_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#FFFFFF' }}>
+              {activity?.title || 'Resultados de Reforzamiento'}
+            </h2>
+            {activity?.description && (
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'rgba(255,255,255,0.75)' }}>
+                {activity.description}
               </p>
-            </div>
+            )}
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#FFFFFF', cursor: 'pointer', padding: '0.4rem', borderRadius: '6px' }}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '8px',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
           >
-            <X size={22} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Cuerpo del Modal con Doble Columna */}
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          
-          {/* COLUMNA IZQUIERDA: Lista de Estudiantes */}
-          <div style={{ borderRight: '1px solid #E5E5E5', display: 'flex', flexDirection: 'column', background: '#F8FAFC' }}>
-            {/* Buscador y Filtros */}
-            <div style={{ padding: '0.85rem', borderBottom: '1px solid #E5E5E5' }}>
-              <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
-                <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  placeholder="Buscar estudiante..."
-                  value={searchStudent}
-                  onChange={e => setSearchStudent(e.target.value)}
-                  style={{
-                    width: '100%', padding: '0.4rem 0.5rem 0.4rem 2rem', borderRadius: '6px',
-                    border: '1px solid #E5E5E5', fontSize: '0.8rem', outline: 'none'
-                  }}
-                />
-              </div>
-
-              {/* Filtros de estado en pastillas */}
-              <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                {[
-                  { id: 'all', label: `Todos (${students.length})` },
-                  { id: 'submitted', label: 'Por calificar' },
-                  { id: 'graded', label: 'Calificados' },
-                  { id: 'pending', label: 'Sin entrega' }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setFilterStatus(tab.id)}
-                    style={{
-                      border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem',
-                      fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
-                      background: filterStatus === tab.id ? '#14213D' : '#E2E8F0',
-                      color: filterStatus === tab.id ? '#FFFFFF' : '#475569'
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+        {/* STATS BANNER */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '1rem',
+          padding: '1.25rem 2rem',
+          background: '#F8F9FA',
+          borderBottom: '1px solid #E5E5E5'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              background: 'rgba(20, 33, 61, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#14213D'
+            }}>
+              <Users size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: '#6C757D', fontWeight: 600 }}>Participación</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#14213D' }}>
+                {stats.completedCount} / {stats.totalStudents} <span style={{ fontSize: '0.8rem', color: '#FCA311', fontWeight: 700 }}>({participationPct}%)</span>
               </div>
             </div>
+          </div>
 
-            {/* Listado con scroll */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-              {loading ? (
-                <div style={{ padding: '2rem', textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  Cargando alumnos...
-                </div>
-              ) : filteredStudents.length === 0 ? (
-                <div style={{ padding: '2rem', textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  No se encontraron estudiantes
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              background: 'rgba(252, 163, 17, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#B45309'
+            }}>
+              <TrendingUp size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: '#6C757D', fontWeight: 600 }}>Promedio de Dominio</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: stats.averageScore >= 70 ? '#166534' : '#B45309' }}>
+                {stats.averageScore}% <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>promedio</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              background: 'rgba(22, 101, 52, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#166534'
+            }}>
+              <Target size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: '#6C757D', fontWeight: 600 }}>Tasa de Aprobación</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#166534' }}>
+                {stats.passingCount} estudiantes <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>(&ge;70%)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* TABS SELECTOR */}
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid #E5E5E5',
+          padding: '0 2rem',
+          background: '#FFFFFF'
+        }}>
+          <button
+            onClick={() => setActiveTab('questions')}
+            style={{
+              padding: '1rem 1.25rem',
+              border: 'none',
+              background: 'transparent',
+              borderBottom: activeTab === 'questions' ? '3px solid #14213D' : '3px solid transparent',
+              color: activeTab === 'questions' ? '#14213D' : '#6C757D',
+              fontWeight: activeTab === 'questions' ? 700 : 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.9rem'
+            }}
+          >
+            <Lightbulb size={16} color={activeTab === 'questions' ? '#FCA311' : '#6C757D'} />
+            Preguntas y Justificación Pedagógica ({questions.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('students')}
+            style={{
+              padding: '1rem 1.25rem',
+              border: 'none',
+              background: 'transparent',
+              borderBottom: activeTab === 'students' ? '3px solid #14213D' : '3px solid transparent',
+              color: activeTab === 'students' ? '#14213D' : '#6C757D',
+              fontWeight: activeTab === 'students' ? 700 : 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.9rem'
+            }}
+          >
+            <Users size={16} color={activeTab === 'students' ? '#14213D' : '#6C757D'} />
+            Resultados por Estudiante ({students.length})
+          </button>
+        </div>
+
+        {/* MODAL BODY */}
+        <div style={{ padding: '1.5rem 2rem', overflowY: 'auto', flex: 1 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: '#6C757D' }}>
+              <RefreshCw size={28} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
+              <div>Cargando preguntas y resultados del grupo...</div>
+            </div>
+          ) : activeTab === 'questions' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {questions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem', color: '#6C757D' }}>
+                  No se encontraron preguntas registradas para esta actividad.
                 </div>
               ) : (
-                filteredStudents.map(st => {
-                  const sub = submissions[st.id];
-                  const isSelected = st.id === selectedStudentId;
-                  const isGraded = sub && (sub.status === 'graded' || (sub.grade !== null && sub.grade !== undefined));
-                  const isSubmitted = sub && sub.status === 'submitted';
-
-                  return (
-                    <div
-                      key={st.id}
-                      onClick={() => handleSelectStudent(st.id)}
-                      style={{
-                        padding: '0.65rem 0.75rem', borderRadius: '8px', marginBottom: '0.35rem',
-                        cursor: 'pointer', transition: 'all 0.15s ease',
-                        background: isSelected ? '#FFFFFF' : 'transparent',
-                        border: isSelected ? '1px solid #14213D' : '1px solid transparent',
-                        boxShadow: isSelected ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ fontWeight: isSelected ? 700 : 600, fontSize: '0.84rem', color: '#14213D' }}>
-                          {st.name}
-                        </div>
-                        {isGraded ? (
-                          <span style={{ fontSize: '0.72rem', fontWeight: 800, background: '#DCFCE7', color: '#15803D', padding: '1px 6px', borderRadius: '4px' }}>
-                            {sub.grade}/{maxScore}
-                          </span>
-                        ) : isSubmitted ? (
-                          <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: '4px' }}>
-                            Entregado
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 500 }}>
-                            Sin entrega
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {st.email}
-                      </div>
+                questions.map((q, idx) => (
+                  <div key={q.id || idx} style={{
+                    border: '1px solid #E5E5E5',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    background: '#FAFAFA'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{
+                        background: '#14213D',
+                        color: '#FFFFFF',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700
+                      }}>
+                        Pregunta {idx + 1}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: '#6C757D', fontWeight: 600 }}>
+                        Opción Múltiple
+                      </span>
                     </div>
-                  );
-                })
+
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', fontWeight: 700, color: '#14213D', lineHeight: 1.4 }}>
+                      {q.text}
+                    </h4>
+
+                    {/* Opciones */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                      {(q.options || []).map((opt, oIdx) => {
+                        const isCorrect = opt.id === q.correctOptionId;
+                        return (
+                          <div key={opt.id || oIdx} style={{
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: isCorrect ? '#DCFCE7' : '#FFFFFF',
+                            border: isCorrect ? '1.5px solid #22C55E' : '1px solid #E5E5E5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '0.85rem',
+                            color: isCorrect ? '#166534' : '#14213D',
+                            fontWeight: isCorrect ? 600 : 400
+                          }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                background: isCorrect ? '#166534' : '#E5E5E5',
+                                color: isCorrect ? '#FFFFFF' : '#6C757D',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.72rem',
+                                fontWeight: 700
+                              }}>
+                                {String.fromCharCode(65 + oIdx)}
+                              </span>
+                              {opt.text}
+                            </span>
+                            {isCorrect && (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '0.72rem',
+                                color: '#166534',
+                                fontWeight: 700
+                              }}>
+                                <CheckCircle2 size={14} /> Respuesta Correcta
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Justificación pedagógica de la IA */}
+                    {(q.explanation || q.sourceBasis) && (
+                      <div style={{
+                        background: '#EFF6FF',
+                        borderLeft: '3px solid #3B82F6',
+                        borderRadius: '0 8px 8px 0',
+                        padding: '10px 14px',
+                        marginTop: '10px'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          color: '#1E40AF',
+                          marginBottom: '4px'
+                        }}>
+                          <Brain size={14} /> Justificación Pedagógica IA:
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#1E3A8A', lineHeight: 1.45 }}>
+                          {q.explanation || q.sourceBasis}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
             </div>
-          </div>
-
-          {/* COLUMNA DERECHA: Detalle de Entrega y Calificación */}
-          <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '1.5rem', background: '#FFFFFF' }}>
-            {selectedStudent ? (
-              <>
-                {/* Header del Alumno Seleccionado */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem', borderBottom: '1px solid #E5E5E5', marginBottom: '1.25rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#14213D' }}>
-                        {selectedStudent.name}
-                      </h4>
-                      {currentSubmission?.status === 'graded' && (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, background: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <Check size={12} /> Calificado
-                        </span>
-                      )}
-                    </div>
-                    <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {selectedStudent.email}
-                    </p>
-                  </div>
-
-                  {/* Botones Anterior / Siguiente */}
-                  <div style={{ display: 'flex', gap: '0.35rem' }}>
-                    <button
-                      onClick={handlePrevStudent}
-                      disabled={currentIndex <= 0}
-                      style={{
-                        padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid #E5E5E5',
-                        background: '#FFFFFF', cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer',
-                        fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px',
-                        color: currentIndex <= 0 ? '#94A3B8' : '#14213D'
-                      }}
-                    >
-                      <ChevronLeft size={14} /> Anterior
-                    </button>
-                    <button
-                      onClick={handleNextStudent}
-                      disabled={currentIndex >= filteredStudents.length - 1}
-                      style={{
-                        padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid #E5E5E5',
-                        background: '#FFFFFF', cursor: currentIndex >= filteredStudents.length - 1 ? 'not-allowed' : 'pointer',
-                        fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px',
-                        color: currentIndex >= filteredStudents.length - 1 ? '#94A3B8' : '#14213D'
-                      }}
-                    >
-                      Siguiente <ChevronRight size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Información de la Entrega */}
-                <div style={{ marginBottom: '1.5rem', background: '#F8FAFC', padding: '1rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#14213D', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <FileText size={15} color="#FCA311" />
-                    Contenido de la Entrega
-                  </div>
-
-                  {currentSubmission ? (
-                    <div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                        Entregado el: {new Date(currentSubmission.submitted_at || currentSubmission.created_at).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
-                      </div>
-
-                      {/* Archivo o Enlace entregado */}
-                      {currentSubmission.file_url ? (
-                        <div style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          background: '#FFFFFF', border: '1px solid #CBD5E1', padding: '0.75rem 1rem',
-                          borderRadius: '8px', marginBottom: '0.75rem'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
-                            <Folder size={18} color="#14213D" />
-                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#14213D', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              {currentSubmission.file_url}
-                            </div>
-                          </div>
-                          <a
-                            href={currentSubmission.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                              background: '#14213D', color: '#FFFFFF', padding: '0.4rem 0.8rem',
-                              borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textDecoration: 'none',
-                              flexShrink: 0
-                            }}
-                          >
-                            <ExternalLink size={13} /> Abrir Entrega
-                          </a>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
-                          Sin archivo adjunto subido
-                        </div>
-                      )}
-
-                      {/* Comentarios del alumno */}
-                      {currentSubmission.comments && (
-                        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '0.75rem', borderRadius: '6px', fontSize: '0.82rem', color: '#334155' }}>
-                          <span style={{ fontWeight: 700, color: '#14213D' }}>Comentarios del alumno: </span>
-                          "{currentSubmission.comments}"
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ padding: '1rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '6px', border: '1px dashed #CBD5E1' }}>
-                      <AlertCircle size={22} color="#94A3B8" style={{ margin: '0 auto 0.35rem auto' }} />
-                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>
-                        El estudiante aún no ha realizado la entrega para esta evaluación.
-                      </div>
-                      <div style={{ fontSize: '0.74rem', color: '#94A3B8', marginTop: '2px' }}>
-                        Puedes calificar directamente si se trata de una evaluación presencial o calificación extemporánea.
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Formulario de Calificación */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', padding: '1.25rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
-                  <h5 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', fontWeight: 700, color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Award size={16} color="#FCA311" />
-                    Asignar Calificación y Retroalimentación
-                  </h5>
-
-                  {/* Input de Nota */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.3rem' }}>
-                        Nota (0 - {maxScore} pts)
-                      </label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          max={maxScore}
-                          step="0.1"
-                          placeholder="Ej. 95"
-                          value={gradeInput}
-                          onChange={e => setGradeInput(e.target.value)}
-                          style={{
-                            width: '110px', padding: '0.5rem', borderRadius: '6px',
-                            border: '2px solid #14213D', fontSize: '1.1rem', fontWeight: 800,
-                            textAlign: 'center', color: '#14213D', outline: 'none'
-                          }}
-                        />
-                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                          / {maxScore}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Botones rápidos de porcentaje */}
-                    <div>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontWeight: 600 }}>
-                        Atajos rápidos:
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.3rem' }}>
-                        {[
-                          { label: '100%', val: maxScore },
-                          { label: '90%', val: maxScore * 0.9 },
-                          { label: '80%', val: maxScore * 0.8 },
-                          { label: '70%', val: maxScore * 0.7 },
-                          { label: '0%', val: 0 }
-                        ].map(preset => (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => setGradeInput(preset.val.toString())}
-                            style={{
-                              background: '#F1F5F9', border: '1px solid #CBD5E1', padding: '0.35rem 0.55rem',
-                              borderRadius: '4px', fontSize: '0.74rem', fontWeight: 700, color: '#334155', cursor: 'pointer'
-                            }}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Retroalimentación Pedagógica */}
-                  <div style={{ marginBottom: '1.25rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.3rem' }}>
-                      Retroalimentación pedagógica para el alumno (Feedback)
-                    </label>
-                    <textarea
-                      rows="4"
-                      placeholder="Escribe comentarios formativos, fortalezas de la entrega, aspectos a mejorar y recomendaciones para el estudiante..."
-                      value={feedbackInput}
-                      onChange={e => setFeedbackInput(e.target.value)}
-                      style={{
-                        width: '100%', padding: '0.65rem', borderRadius: '6px',
-                        border: '1px solid #CBD5E1', fontSize: '0.84rem', outline: 'none', resize: 'vertical'
-                      }}
-                    />
-                  </div>
-
-                  {/* Mensaje de feedback visual */}
-                  {feedbackMsg && (
-                    <div style={{
-                      padding: '0.6rem 0.85rem', borderRadius: '6px', marginBottom: '1rem',
-                      fontSize: '0.82rem', fontWeight: 600,
-                      background: feedbackMsg.includes('✅') ? '#DCFCE7' : '#FEE2E2',
-                      color: feedbackMsg.includes('✅') ? '#15803D' : '#991B1B'
-                    }}>
-                      {feedbackMsg}
-                    </div>
-                  )}
-
-                  {/* Botón de Guardar */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      onClick={handleSaveGrade}
-                      disabled={savingGrade}
-                      style={{
-                        background: '#14213D', color: '#FFFFFF', border: 'none',
-                        padding: '0.6rem 1.5rem', borderRadius: '8px', fontSize: '0.88rem', fontWeight: 700,
-                        cursor: savingGrade ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)', transition: 'all 0.15s ease'
-                      }}
-                      onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
-                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}
-                    >
-                      <Save size={16} />
-                      {savingGrade ? 'Guardando...' : 'Guardar Calificación'}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                Selecciona un estudiante de la lista izquierda para revisar su entrega y calificar.
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────
-   MODAL DE CREACIÓN / EDICIÓN DE EVALUACIÓN (EvaluationModal)
-───────────────────────────────────────────────────────────── */
-function EvaluationModal({ initialData, programId, modules, classes, onClose, onSaved, teacherId }) {
-  const isEditing = !!initialData?.id;
-  const [evalType, setEvalType] = useState(initialData?.evalType || 'assignment'); // 'assignment' | 'quiz'
-  const [title, setTitle] = useState(initialData?.title || '');
-  const [description, setDescription] = useState(initialData?.description || '');
-  const [moduleId, setModuleId] = useState(initialData?.module_id || (modules[0]?.id || ''));
-  const [classId, setClassId] = useState(initialData?.class_id || '');
-  const [dueDate, setDueDate] = useState(() => {
-    if (initialData?.due_date) {
-      // Formato YYYY-MM-DDTHH:mm para input datetime-local
-      const d = new Date(initialData.due_date);
-      return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    }
-    const defaultDate = new Date();
-    defaultDate.setDate(defaultDate.getDate() + 7);
-    defaultDate.setHours(23, 59, 0, 0);
-    return new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  });
-  const [maxScore, setMaxScore] = useState(initialData?.max_score || 100);
-  const [weightPercentage, setWeightPercentage] = useState(initialData?.weight_percentage || 0);
-  const [allowedFileTypes, setAllowedFileTypes] = useState(initialData?.allowed_file_types || 'pdf,doc,docx,zip,link');
-  const [isPublished, setIsPublished] = useState(initialData?.is_published !== false);
-  const [saving, setSaving] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  // Clases filtradas por el módulo seleccionado
-  const filteredClasses = classes.filter(c => !moduleId || c.module_id === moduleId || c.session?.module_id === moduleId);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!title.trim()) {
-      setErrorMsg('Por favor ingresa un título para la evaluación.');
-      return;
-    }
-    if (!dueDate) {
-      setErrorMsg('Por favor define la fecha límite de entrega.');
-      return;
-    }
-
-    setSaving(true);
-    setErrorMsg('');
-
-    try {
-      const payload = {
-        program_id: programId,
-        teacher_id: teacherId || null,
-        module_id: moduleId || null,
-        class_id: classId || null,
-        title: title.trim(),
-        description: description.trim(),
-        due_date: new Date(dueDate).toISOString(),
-        max_score: Number(maxScore) || 100,
-        is_published: isPublished
-      };
-
-      if (evalType === 'assignment') {
-        payload.weight_percentage = Number(weightPercentage) || 0;
-        payload.allowed_file_types = allowedFileTypes.trim();
-
-        if (isEditing) {
-          const { error } = await supabase
-            .from('assignments')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from('assignments')
-            .insert([payload]);
-          if (error) throw error;
-        }
-      } else {
-        // Quiz
-        if (isEditing) {
-          const { error } = await supabase
-            .from('quizzes')
-            .update(payload)
-            .eq('id', initialData.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from('quizzes')
-            .insert([payload]);
-          if (error) throw error;
-        }
-      }
-
-      if (onSaved) onSaved();
-      onClose();
-    } catch (err) {
-      console.error('Error al guardar evaluación:', err);
-      setErrorMsg('Error al guardar: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-    }}>
-      <div style={{
-        background: '#FFFFFF', width: '100%', maxWidth: '640px', maxHeight: '90vh',
-        borderRadius: '12px', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)', overflow: 'hidden'
-      }}>
-        {/* Cabecera */}
-        <div style={{
-          padding: '1.25rem 1.5rem', background: '#14213D', color: '#FFFFFF',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div style={{ background: 'rgba(252, 163, 17, 0.2)', padding: '0.45rem', borderRadius: '8px' }}>
-              <PlusCircle size={18} color="#FCA311" />
-            </div>
+          ) : (
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF' }}>
-                {isEditing ? 'Editar Evaluación' : 'Crear Nueva Evaluación'}
-              </h3>
-              <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.76rem', color: '#E5E5E5' }}>
-                Configura los parámetros, módulo y plazo para los estudiantes
-              </p>
+              {/* Toolbar Estudiantes */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: '#6C757D' }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar estudiante..."
+                    value={searchStudent}
+                    onChange={(e) => setSearchStudent(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px 8px 34px',
+                      borderRadius: '8px',
+                      border: '1px solid #E5E5E5',
+                      fontSize: '0.85rem'
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {[
+                    { id: 'all', label: 'Todos' },
+                    { id: 'completed', label: 'Completados' },
+                    { id: 'not_started', label: 'Sin realizar' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setFilterStudentStatus(tab.id)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: filterStudentStatus === tab.id ? '1px solid #14213D' : '1px solid #E5E5E5',
+                        background: filterStudentStatus === tab.id ? '#14213D' : '#FFFFFF',
+                        color: filterStudentStatus === tab.id ? '#FFFFFF' : '#14213D',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* TABLA DE ESTUDIANTES */}
+              <div style={{ border: '1px solid #E5E5E5', borderRadius: '10px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#F8F9FA', borderBottom: '1px solid #E5E5E5', color: '#6C757D', fontWeight: 700 }}>
+                      <th style={{ padding: '10px 14px' }}>Estudiante</th>
+                      <th style={{ padding: '10px 14px' }}>Estado</th>
+                      <th style={{ padding: '10px 14px' }}>Calificación</th>
+                      <th style={{ padding: '10px 14px' }}>Fecha de finalización</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#6C757D' }}>
+                          No se encontraron estudiantes con ese criterio.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStudents.map((st) => (
+                        <tr key={st.id} style={{ borderBottom: '1px solid #F0F0F0' }}>
+                          <td style={{ padding: '10px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                background: '#14213D',
+                                color: '#FFFFFF',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.75rem',
+                                fontWeight: 700
+                              }}>
+                                {(st.full_name || 'E')[0].toUpperCase()}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 600, color: '#14213D' }}>{st.full_name || 'Estudiante'}</div>
+                                <div style={{ fontSize: '0.72rem', color: '#6C757D' }}>{st.email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px' }}>
+                            {st.status === 'completed' ? (
+                              <span style={{
+                                background: '#DCFCE7',
+                                color: '#166534',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <CheckCircle2 size={12} /> Completada
+                              </span>
+                            ) : st.status === 'in_progress' ? (
+                              <span style={{
+                                background: '#DBEAFE',
+                                color: '#1E40AF',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700
+                              }}>
+                                En progreso
+                              </span>
+                            ) : (
+                              <span style={{
+                                background: '#F1F5F9',
+                                color: '#64748B',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: 600
+                              }}>
+                                Sin realizar
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 14px' }}>
+                            {typeof st.score === 'number' ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{
+                                  fontWeight: 800,
+                                  color: st.score >= 70 ? '#166534' : '#B45309',
+                                  fontSize: '0.9rem'
+                                }}>
+                                  {st.score}%
+                                </span>
+                                <div style={{
+                                  width: '60px',
+                                  height: '6px',
+                                  background: '#E5E5E5',
+                                  borderRadius: '3px',
+                                  overflow: 'hidden'
+                                }}>
+                                  <div style={{
+                                    width: `${st.score}%`,
+                                    height: '100%',
+                                    background: st.score >= 70 ? '#22C55E' : '#FCA311',
+                                    borderRadius: '3px'
+                                  }} />
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: '#9CA3AF', fontSize: '0.8rem' }}>—</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 14px', color: '#6C757D', fontSize: '0.8rem' }}>
+                            {st.completedAt ? (
+                              new Date(st.completedAt).toLocaleString('es-ES', {
+                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                              })
+                            ) : '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#FFFFFF', cursor: 'pointer' }}>
-            <X size={20} />
+          )}
+        </div>
+
+        {/* MODAL FOOTER */}
+        <div style={{
+          padding: '1rem 2rem',
+          background: '#F8F9FA',
+          borderTop: '1px solid #E5E5E5',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <button
+            onClick={() => {
+              onClose();
+              if (onGoToClass && classData?.id) onGoToClass(classData.id);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'transparent',
+              border: '1px solid #14213D',
+              color: '#14213D',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <Video size={14} /> Ver clase en Mis Clases
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              background: '#14213D',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '8px 20px',
+              borderRadius: '8px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Cerrar
           </button>
         </div>
-
-        {/* Formulario con scroll */}
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
-          {errorMsg && (
-            <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', padding: '0.65rem 1rem', borderRadius: '6px', marginBottom: '1.25rem', fontSize: '0.82rem', fontWeight: 600 }}>
-              {errorMsg}
-            </div>
-          )}
-
-          {/* Selector de Tipo (solo si es nueva) */}
-          {!isEditing && (
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#14213D', marginBottom: '0.4rem' }}>
-                Tipo de Evaluación
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setEvalType('assignment')}
-                  style={{
-                    padding: '0.75rem', borderRadius: '8px', border: evalType === 'assignment' ? '2px solid #FCA311' : '1px solid #CBD5E1',
-                    background: evalType === 'assignment' ? 'rgba(252, 163, 17, 0.08)' : '#FFFFFF',
-                    textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem'
-                  }}
-                >
-                  <FileText size={20} color={evalType === 'assignment' ? '#14213D' : '#64748B'} />
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#14213D' }}>Tarea / Entregable</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Entrega de archivos (PDF, DOCX, ZIP o Link)</div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setEvalType('quiz')}
-                  style={{
-                    padding: '0.75rem', borderRadius: '8px', border: evalType === 'quiz' ? '2px solid #FCA311' : '1px solid #CBD5E1',
-                    background: evalType === 'quiz' ? 'rgba(252, 163, 17, 0.08)' : '#FFFFFF',
-                    textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem'
-                  }}
-                >
-                  <FileCheck size={20} color={evalType === 'quiz' ? '#14213D' : '#64748B'} />
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#14213D' }}>Cuestionario / Quiz</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Evaluación de conocimientos teóricos</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Título */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-              Título de la Evaluación *
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="Ej. Tarea Práctica: Caso de Estudio Módulo 2"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.86rem', outline: 'none' }}
-            />
-          </div>
-
-          {/* Instrucciones / Descripción */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-              Instrucciones y Criterios de Evaluación
-            </label>
-            <textarea
-              rows="3"
-              placeholder="Detalla las instrucciones para los estudiantes, formato de entrega y rúbrica..."
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.84rem', outline: 'none', resize: 'vertical' }}
-            />
-          </div>
-
-          {/* Jerarquía: Módulo y Clase */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-                Módulo Asociado
-              </label>
-              <select
-                value={moduleId}
-                onChange={e => setModuleId(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', background: '#FFFFFF', outline: 'none' }}
-              >
-                <option value="">Evaluación General del Programa</option>
-                {modules.map((m, idx) => (
-                  <option key={m.id} value={m.id}>
-                    Módulo {m.order_index || idx + 1}: {m.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-                Clase Específica (Opcional)
-              </label>
-              <select
-                value={classId}
-                onChange={e => setClassId(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', background: '#FFFFFF', outline: 'none' }}
-              >
-                <option value="">Todo el módulo</option>
-                {filteredClasses.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Plazo y Calificación */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px', gap: '0.75rem', marginBottom: '1.25rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-                Fecha y Hora Límite *
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', outline: 'none' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-                Puntaje Máximo
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="1000"
-                value={maxScore}
-                onChange={e => setMaxScore(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.84rem', textAlign: 'center', outline: 'none' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-                Ponderación (%)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={weightPercentage}
-                onChange={e => setWeightPercentage(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.84rem', textAlign: 'center', outline: 'none' }}
-              />
-            </div>
-          </div>
-
-          {/* Tipos de Archivos Permitidos (si es tarea) */}
-          {evalType === 'assignment' && (
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#14213D', marginBottom: '0.35rem' }}>
-                Formatos permitidos (separados por coma)
-              </label>
-              <input
-                type="text"
-                value={allowedFileTypes}
-                onChange={e => setAllowedFileTypes(e.target.value)}
-                placeholder="pdf, doc, docx, zip, link"
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', outline: 'none' }}
-              />
-            </div>
-          )}
-
-          {/* Switch Publicado */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.75rem', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', marginBottom: '1.5rem' }}>
-            <input
-              type="checkbox"
-              id="is_published_checkbox"
-              checked={isPublished}
-              onChange={e => setIsPublished(e.target.checked)}
-              style={{ width: '16px', height: '16px', accentColor: '#14213D', cursor: 'pointer' }}
-            />
-            <label htmlFor="is_published_checkbox" style={{ fontSize: '0.84rem', fontWeight: 600, color: '#14213D', cursor: 'pointer' }}>
-              Publicar inmediatamente (visible para los estudiantes en su portal)
-            </label>
-          </div>
-
-          {/* Botones de acción */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '0.6rem 1.25rem', borderRadius: '8px', border: '1px solid #CBD5E1',
-                background: '#FFFFFF', color: '#475569', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              style={{
-                padding: '0.6rem 1.5rem', borderRadius: '8px', border: 'none',
-                background: '#14213D', color: '#FFFFFF', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)'
-              }}
-              onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
-              onMouseOut={e => e.currentTarget.style.background = '#14213D'}
-            >
-              <Save size={15} />
-              {saving ? 'Guardando...' : (isEditing ? 'Actualizar Evaluación' : 'Crear Evaluación')}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PESTAÑA DE EVALUACIONES (EvaluacionesTab)
-   Fase 2: Gestión Integral de Tareas, Cuestionarios y Calificaciones
+   PESTAÑA DE REFORZAMIENTO IA (ReforzamientoIATab)
+   Monitoreo, analítica y resultados de actividades de reforzamiento
 ───────────────────────────────────────────────────────────── */
-function EvaluacionesTab({ onChangeTab }) {
+function ReforzamientoIATab({ onChangeTab }) {
   const { profile, teacherId, programId, currentProgram } = useTeacherContext();
-  const [evaluations, setEvaluations] = useState([]);
-  const [modules, setModules] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [enrolledCount, setEnrolledCount] = useState(0);
   const [loading, setLoading] = useState(true);
-
-  // Filtros
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'assignment' | 'quiz'
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'pending_grade' | 'active' | 'closed' | 'draft'
-  const [filterModule, setFilterModule] = useState('all');
+  const [classesWithActivities, setClassesWithActivities] = useState([]);
+  const [modules, setModules] = useState([]);
+  const [selectedModuleId, setSelectedModuleId] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'published' | 'with_responses' | 'draft_pending' | 'no_activity'
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedActivityForModal, setSelectedActivityForModal] = useState(null);
 
-  // Modales
-  const [selectedEvaluationForGrading, setSelectedEvaluationForGrading] = useState(null);
-  const [evaluationModalData, setEvaluationModalData] = useState(null);
-  const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [deleteType, setDeleteType] = useState('assignment');
-
-  const fetchEvaluationsData = async () => {
+  // Cargar datos
+  const loadData = async () => {
     if (!programId) return;
-    setLoading(true);
     try {
+      setLoading(true);
       const teacherProfileId = teacherId || profile?.id;
 
-      // 1. Cargar Módulos y Clases para nombres jerárquicos
-      const { data: mods } = await supabase
-        .from('modules')
-        .select('*')
+      // 1. Obtener módulos del programa
+      const { data: modData } = await supabase
+        .from('course_modules')
+        .select('id, title, order_index')
         .eq('program_id', programId)
         .order('order_index', { ascending: true });
-      setModules(mods || []);
 
-      const { data: cls } = await supabase
+      setModules(modData || []);
+
+      // 2. Obtener clases asignadas al docente
+      const { data: clsData, error: clsErr } = await supabase
         .from('class_sessions')
-        .select('id, title, module_id')
-        .eq('program_id', programId);
-      setClasses(cls || []);
+        .select(`
+          id, title, class_date, program_id, teacher_id, session_id,
+          course_modules:module_id (id, title),
+          sessions:session_id (id, title, session_number, module_id, course_modules(id, title))
+        `)
+        .eq('program_id', programId)
+        .eq('teacher_id', teacherProfileId)
+        .order('class_date', { ascending: true });
 
-      // 2. Conteo de estudiantes inscritos
+      if (clsErr) console.error('Error cargando clases del profesor:', clsErr);
+
+      const classes = clsData || [];
+      const classIds = classes.map(c => c.id);
+
+      if (classIds.length === 0) {
+        setClassesWithActivities([]);
+        setLoading(false);
+        return;
+      }
+
+      // 3. Obtener actividades de reforzamiento (class_activities)
+      const { data: actData } = await supabase
+        .from('class_activities')
+        .select('id, class_id, title, description, is_published, max_attempts, is_mandatory, created_at')
+        .in('class_id', classIds);
+
+      const activityByClass = {};
+      const activityIds = [];
+      (actData || []).forEach(a => {
+        activityByClass[a.class_id] = a;
+        activityIds.push(a.id);
+      });
+
+      // 4. Obtener borradores IA (activity_drafts)
+      const { data: draftData } = await supabase
+        .from('activity_drafts')
+        .select('id, class_id, status, draft_data, reviewed_at, created_at')
+        .in('class_id', classIds)
+        .order('created_at', { ascending: false });
+
+      const draftByClass = {};
+      (draftData || []).forEach(d => {
+        if (!draftByClass[d.class_id]) draftByClass[d.class_id] = d;
+      });
+
+      // 5. Obtener intentos completados (activity_attempts)
+      let attemptsByActivity = {};
+      if (activityIds.length > 0) {
+        const { data: attData } = await supabase
+          .from('activity_attempts')
+          .select('id, activity_id, student_id, status, score, completed_at')
+          .in('activity_id', activityIds);
+
+        (attData || []).forEach(att => {
+          if (!attemptsByActivity[att.activity_id]) attemptsByActivity[att.activity_id] = [];
+          attemptsByActivity[att.activity_id].push(att);
+        });
+      }
+
+      // 6. Obtener conteo de estudiantes matriculados
       const { count: studentCount } = await supabase
         .from('enrollments')
         .select('student_id, users_profile!inner(role)', { count: 'exact', head: true })
         .eq('program_id', programId)
         .eq('users_profile.role', 'student');
-      setEnrolledCount(studentCount || 0);
 
-      // 3. Consultar Tareas (assignments)
-      const { data: assignmentsData } = await supabase
-        .from('assignments')
-        .select(`
-          *,
-          assignment_submissions (
-            id, student_id, grade, status, submitted_at
-          )
-        `)
-        .eq('program_id', programId)
-        .order('created_at', { ascending: false });
+      const totalStudents = studentCount || 0;
 
-      // 4. Consultar Cuestionarios (quizzes)
-      const { data: quizzesData } = await supabase
-        .from('quizzes')
-        .select(`
-          *,
-          quiz_submissions (
-            id, student_id, score, status, completed_at
-          )
-        `)
-        .eq('program_id', programId)
-        .order('created_at', { ascending: false });
+      // 7. Enlazar datos por cada clase
+      const enriched = classes.map(c => {
+        const act = activityByClass[c.id] || null;
+        const draft = draftByClass[c.id] || null;
+        const attempts = act ? (attemptsByActivity[act.id] || []) : [];
+        const completedAttempts = attempts.filter(a => a.status === 'completed');
+        
+        // Estudiantes únicos que completaron
+        const uniqueStudentsCompleted = new Set(completedAttempts.map(a => a.student_id)).size;
+        const scores = completedAttempts.map(a => a.score).filter(s => typeof s === 'number');
+        const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 
-      // Normalizar lista de evaluaciones combinada
-      const normalizedAssignments = (assignmentsData || []).map(a => {
-        const subs = a.assignment_submissions || [];
-        const totalSubs = subs.length;
-        const pendingGrade = subs.filter(s => s.status === 'submitted' || (s.grade === null && s.status !== 'graded')).length;
-        const gradedSubs = subs.filter(s => s.status === 'graded' || (s.grade !== null && s.grade !== undefined));
-        const avgScore = gradedSubs.length > 0 ? (gradedSubs.reduce((acc, s) => acc + Number(s.grade || 0), 0) / gradedSubs.length).toFixed(1) : null;
+        // Determinar estado de la actividad
+        let actStatus = 'no_activity';
+        if (act && act.is_published) {
+          actStatus = 'published';
+        } else if (draft && draft.status === 'pending') {
+          actStatus = 'draft_pending';
+        } else if (draft && draft.status === 'approved' && !act?.is_published) {
+          actStatus = 'draft_approved_unpublished';
+        }
 
         return {
-          ...a,
-          evalType: 'assignment',
-          totalSubs,
-          pendingGrade,
-          gradedCount: gradedSubs.length,
-          avgScore
+          ...c,
+          activity: act,
+          draft: draft,
+          actStatus,
+          totalStudents,
+          completedCount: uniqueStudentsCompleted,
+          attemptsCount: attempts.length,
+          avgScore,
+          participationPct: totalStudents > 0 ? Math.round((uniqueStudentsCompleted / totalStudents) * 100) : 0,
         };
       });
 
-      const normalizedQuizzes = (quizzesData || []).map(q => {
-        const subs = q.quiz_submissions || [];
-        const totalSubs = subs.length;
-        const gradedSubs = subs.filter(s => s.score !== null && s.score !== undefined);
-        const avgScore = gradedSubs.length > 0 ? (gradedSubs.reduce((acc, s) => acc + Number(s.score || 0), 0) / gradedSubs.length).toFixed(1) : null;
-
-        return {
-          ...q,
-          evalType: 'quiz',
-          totalSubs,
-          pendingGrade: 0, // En quizzes la corrección suele ser automática
-          gradedCount: gradedSubs.length,
-          avgScore
-        };
-      });
-
-      setEvaluations([...normalizedAssignments, ...normalizedQuizzes]);
+      setClassesWithActivities(enriched);
     } catch (err) {
-      console.error('Error al consultar evaluaciones:', err);
+      console.error('Error cargando actividades de reforzamiento:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEvaluationsData();
-  }, [programId, teacherId, profile?.id]);
+    loadData();
+  }, [profile?.id, programId]);
 
-  // Toggle de publicación
-  const handleTogglePublish = async (evalItem) => {
-    try {
-      const table = evalItem.evalType === 'assignment' ? 'assignments' : 'quizzes';
-      const newStatus = !evalItem.is_published;
+  // Cálculos de KPIs superiores
+  const publishedCount = classesWithActivities.filter(c => c.actStatus === 'published').length;
+  const draftPendingCount = classesWithActivities.filter(c => c.actStatus === 'draft_pending').length;
+  const totalCompletedSum = classesWithActivities.reduce((acc, c) => acc + c.completedCount, 0);
+  const maxPossibleCompletions = classesWithActivities.length * (classesWithActivities[0]?.totalStudents || 1);
+  const globalParticipation = maxPossibleCompletions > 0 ? Math.round((totalCompletedSum / maxPossibleCompletions) * 100) : 0;
+  
+  const allScores = classesWithActivities.map(c => c.avgScore).filter(s => typeof s === 'number');
+  const globalAverage = allScores.length > 0 ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
 
-      const { error } = await supabase
-        .from(table)
-        .update({ is_published: newStatus })
-        .eq('id', evalItem.id);
-
-      if (error) throw error;
-
-      setEvaluations(prev => prev.map(ev => ev.id === evalItem.id ? { ...ev, is_published: newStatus } : ev));
-    } catch (err) {
-      console.error('Error al cambiar visibilidad:', err);
-    }
-  };
-
-  // Eliminar evaluación
-  const handleDeleteEvaluation = async () => {
-    if (!confirmDeleteId) return;
-    try {
-      const table = deleteType === 'assignment' ? 'assignments' : 'quizzes';
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq('id', confirmDeleteId);
-
-      if (error) throw error;
-
-      setEvaluations(prev => prev.filter(ev => ev.id !== confirmDeleteId));
-      setConfirmDeleteId(null);
-    } catch (err) {
-      console.error('Error al eliminar evaluación:', err);
-    }
-  };
-
-  // Cálculos de KPIs Superiores
-  const totalEvals = evaluations.length;
-  const totalSubmissionsReceived = evaluations.reduce((acc, ev) => acc + (ev.totalSubs || 0), 0);
-  const totalPendingGrading = evaluations.reduce((acc, ev) => acc + (ev.pendingGrade || 0), 0);
-  const evaluationsWithAvg = evaluations.filter(ev => ev.avgScore !== null);
-  const overallAvg = evaluationsWithAvg.length > 0
-    ? (evaluationsWithAvg.reduce((acc, ev) => acc + Number(ev.avgScore), 0) / evaluationsWithAvg.length).toFixed(1)
-    : null;
-
-  // Filtrado de lista
-  const now = new Date();
-  const filteredEvaluations = evaluations.filter(ev => {
-    // Tipo
-    if (filterType !== 'all' && ev.evalType !== filterType) return false;
-
-    // Módulo
-    if (filterModule !== 'all' && ev.module_id !== filterModule) return false;
-
-    // Búsqueda
-    if (searchTerm && !ev.title.toLowerCase().includes(searchTerm.toLowerCase()) && !(ev.description || '').toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
+  // Filtrado
+  const filteredList = classesWithActivities.filter(c => {
+    // Filtro Módulo
+    if (selectedModuleId !== 'all') {
+      const classModId = c.course_modules?.id || c.sessions?.module_id;
+      if (classModId !== selectedModuleId) return false;
     }
 
-    // Estado
-    const dueDate = new Date(ev.due_date);
-    if (filterStatus === 'pending_grade') return ev.pendingGrade > 0;
-    if (filterStatus === 'active') return ev.is_published && dueDate >= now;
-    if (filterStatus === 'closed') return ev.is_published && dueDate < now;
-    if (filterStatus === 'draft') return !ev.is_published;
+    // Filtro Estado
+    if (statusFilter === 'published' && c.actStatus !== 'published') return false;
+    if (statusFilter === 'with_responses' && c.completedCount === 0) return false;
+    if (statusFilter === 'draft_pending' && c.actStatus !== 'draft_pending') return false;
+    if (statusFilter === 'no_activity' && c.actStatus !== 'no_activity') return false;
+
+    // Filtro Búsqueda
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      const title = (c.title || '').toLowerCase();
+      const actTitle = (c.activity?.title || c.draft?.draft_data?.activity_title || '').toLowerCase();
+      return title.includes(q) || actTitle.includes(q);
+    }
 
     return true;
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
-      
-      {/* ── 1. KPI CARDS (Black and Gold Elegance) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-        
-        {/* Total Evaluaciones */}
-        <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #14213D' }}>
-          <div style={{ background: 'rgba(20, 33, 61, 0.08)', padding: '0.75rem', borderRadius: '10px' }}>
-            <FileText size={24} color="#14213D" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* ── HEADER DEL MÓDULO ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.75rem 2rem',
+        border: '1px solid #E5E5E5',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{
+              background: 'rgba(252, 163, 17, 0.15)',
+              color: '#B45309',
+              padding: '3px 10px',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <Brain size={13} /> Inteligencia Pedagógica
+            </span>
+            <span style={{ fontSize: '0.8rem', color: '#6C757D', fontWeight: 600 }}>
+              {currentProgram?.title || 'Programa'}
+            </span>
           </div>
-          <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#14213D', lineHeight: 1 }}>
-              {totalEvals}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
-              Evaluaciones del Programa
-            </div>
-          </div>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#14213D' }}>
+            Seguimiento de Reforzamiento IA
+          </h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#6C757D' }}>
+            Monitorea el impacto de las actividades de reforzamiento generadas por IA y el nivel de comprensión de tus estudiantes.
+          </p>
         </div>
 
-        {/* Total Entregas */}
-        <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #14213D' }}>
-          <div style={{ background: 'rgba(20, 33, 61, 0.08)', padding: '0.75rem', borderRadius: '10px' }}>
-            <Folder size={24} color="#14213D" />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#14213D', lineHeight: 1 }}>
-              {totalSubmissionsReceived}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
-              Entregas Recibidas
-            </div>
-          </div>
-        </div>
-
-        {/* Pendientes por Calificar */}
-        <div className="card" style={{
-          padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
-          borderLeft: '4px solid #FCA311',
-          background: totalPendingGrading > 0 ? 'rgba(252, 163, 17, 0.04)' : '#FFFFFF'
-        }}>
-          <div style={{ background: 'rgba(252, 163, 17, 0.15)', padding: '0.75rem', borderRadius: '10px' }}>
-            <Clock size={24} color="#FCA311" />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: totalPendingGrading > 0 ? '#B45309' : '#14213D', lineHeight: 1 }}>
-              {totalPendingGrading}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: totalPendingGrading > 0 ? '#B45309' : 'var(--text-muted)', fontWeight: 700, marginTop: '4px' }}>
-              Por Calificar
-            </div>
-          </div>
-        </div>
-
-        {/* Promedio General */}
-        <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #16A34A' }}>
-          <div style={{ background: 'rgba(22, 163, 74, 0.1)', padding: '0.75rem', borderRadius: '10px' }}>
-            <Award size={24} color="#16A34A" />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#16A34A', lineHeight: 1 }}>
-              {overallAvg ? `${overallAvg} pts` : '—'}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
-              Calificación Promedio
-            </div>
-          </div>
-        </div>
-
+        <button
+          onClick={() => onChangeTab && onChangeTab('clases')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: '#14213D',
+            color: '#FFFFFF',
+            border: 'none',
+            padding: '10px 18px',
+            borderRadius: '10px',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(20, 33, 61, 0.2)'
+          }}
+        >
+          <Video size={16} /> Ir a Mis Clases
+        </button>
       </div>
 
-      {/* ── 2. BARRA DE ACCIONES Y FILTROS ── */}
-      <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-          
-          {/* Buscador */}
-          <div style={{ position: 'relative', width: '280px', minWidth: '220px' }}>
-            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-            <input
-              type="text"
-              placeholder="Buscar evaluación..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              style={{
-                width: '100%', padding: '0.5rem 0.75rem 0.5rem 2.25rem', borderRadius: '8px',
-                border: '1px solid var(--border-color)', fontSize: '0.84rem', outline: 'none'
-              }}
-            />
+      {/* ── 4 KPIS BLACK & GOLD ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '1.25rem'
+      }}>
+        {/* KPI 1: Actividades Publicadas */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem',
+          border: '1px solid #E5E5E5',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            background: 'rgba(20, 33, 61, 0.06)',
+            color: '#14213D',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Sparkles size={22} />
           </div>
+          <div>
+            <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Actividades Publicadas</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#14213D' }}>
+              {publishedCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>de {classesWithActivities.length} clases</span>
+            </div>
+          </div>
+        </div>
 
-          {/* Selector de Módulo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Módulo:</span>
+        {/* KPI 2: Participación Global */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem',
+          border: '1px solid #E5E5E5',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            background: 'rgba(252, 163, 17, 0.15)',
+            color: '#B45309',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Users size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Participación Estudiantil</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#14213D' }}>
+              {globalParticipation}% <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>promedio</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 3: Promedio de Dominio */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem',
+          border: '1px solid #E5E5E5',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            background: 'rgba(22, 101, 52, 0.1)',
+            color: '#166534',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <TrendingUp size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Nivel de Dominio</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: globalAverage >= 70 ? '#166534' : '#B45309' }}>
+              {globalAverage}% <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>aciertos</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 4: Borradores por Validar */}
+        <div style={{
+          background: draftPendingCount > 0 ? '#FFFBEB' : '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem',
+          border: draftPendingCount > 0 ? '1.5px solid #FCA311' : '1px solid #E5E5E5',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            background: draftPendingCount > 0 ? 'rgba(252, 163, 17, 0.25)' : 'rgba(108, 117, 125, 0.1)',
+            color: draftPendingCount > 0 ? '#B45309' : '#6C757D',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Bot size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Borradores por Validar</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: draftPendingCount > 0 ? '#B45309' : '#14213D' }}>
+              {draftPendingCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>en Mis Clases</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── BARRA DE HERRAMIENTAS Y FILTROS ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        padding: '1rem 1.5rem',
+        border: '1px solid #E5E5E5',
+        display: 'flex',
+        gap: '1rem',
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }}>
+        {/* Buscador */}
+        <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+          <Search size={16} style={{ position: 'absolute', left: '12px', top: '11px', color: '#6C757D' }} />
+          <input
+            type="text"
+            placeholder="Buscar por clase o actividad..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '9px 12px 9px 38px',
+              borderRadius: '8px',
+              border: '1px solid #E5E5E5',
+              fontSize: '0.85rem',
+              outline: 'none'
+            }}
+          />
+        </div>
+
+        {/* Filtro Módulo */}
+        {modules.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.8rem', color: '#6C757D', fontWeight: 600 }}>Módulo:</span>
             <select
-              value={filterModule}
-              onChange={e => setFilterModule(e.target.value)}
+              value={selectedModuleId}
+              onChange={(e) => setSelectedModuleId(e.target.value)}
               style={{
-                padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)',
-                fontSize: '0.84rem', fontWeight: 600, color: '#14213D', background: '#FFFFFF', outline: 'none'
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid #E5E5E5',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                color: '#14213D',
+                background: '#FFFFFF',
+                outline: 'none',
+                cursor: 'pointer'
               }}
             >
-              <option value="all">Todos los módulos</option>
-              {modules.map((m, i) => (
+              <option value="all">Todos los Módulos</option>
+              {modules.map((m, idx) => (
                 <option key={m.id} value={m.id}>
-                  Módulo {m.order_index || i + 1}: {m.title}
+                  M{m.order_index || idx + 1}: {m.title}
                 </option>
               ))}
             </select>
           </div>
+        )}
 
-          {/* Botón "+ Nueva Evaluación" */}
-          <button
-            onClick={() => {
-              setEvaluationModalData(null);
-              setIsEvaluationModalOpen(true);
-            }}
-            style={{
-              background: '#14213D', color: '#FFFFFF', border: 'none',
-              padding: '0.55rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
-              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-              boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)', transition: 'all 0.2s ease'
-            }}
-            onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
-            onMouseOut={e => e.currentTarget.style.background = '#14213D'}
-          >
-            <Plus size={16} /> Nueva Evaluación
-          </button>
-
-        </div>
-
-        {/* Filtros Tipo y Estado (Pastillas) */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
-          
-          {/* Tipo de Evaluación */}
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
-            {[
-              { id: 'all', label: 'Todas las evaluaciones' },
-              { id: 'assignment', label: 'Tareas / Entregables' },
-              { id: 'quiz', label: 'Cuestionarios' }
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setFilterType(t.id)}
-                style={{
-                  border: 'none', borderRadius: '9999px', padding: '0.35rem 0.85rem',
-                  fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease',
-                  background: filterType === t.id ? '#14213D' : '#F1F5F9',
-                  color: filterType === t.id ? '#FFFFFF' : '#475569'
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Estado de Evaluación */}
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
-            {[
-              { id: 'all', label: 'Todos' },
-              { id: 'pending_grade', label: `⚠️ Por calificar (${totalPendingGrading})` },
-              { id: 'active', label: 'Activas' },
-              { id: 'closed', label: 'Cerradas' },
-              { id: 'draft', label: 'Borradores' }
-            ].map(st => (
-              <button
-                key={st.id}
-                onClick={() => setFilterStatus(st.id)}
-                style={{
-                  border: 'none', borderRadius: '6px', padding: '0.35rem 0.75rem',
-                  fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s ease',
-                  background: filterStatus === st.id ? '#FCA311' : 'transparent',
-                  color: filterStatus === st.id ? '#14213D' : 'var(--text-muted)'
-                }}
-              >
-                {st.label}
-              </button>
-            ))}
-          </div>
-
+        {/* Pastillas de Estado */}
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: 'Todas' },
+            { id: 'published', label: 'Publicadas' },
+            { id: 'with_responses', label: 'Con respuestas' },
+            { id: 'draft_pending', label: 'Borradores pendientes' },
+            { id: 'no_activity', label: 'Sin actividad' },
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setStatusFilter(f.id)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: statusFilter === f.id ? '1px solid #14213D' : '1px solid #E5E5E5',
+                background: statusFilter === f.id ? '#14213D' : '#FFFFFF',
+                color: statusFilter === f.id ? '#FFFFFF' : '#6C757D',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s'
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ── 3. LISTADO DE TARJETAS DE EVALUACIONES ── */}
+      {/* ── CUADRÍCULA DE ACTIVIDADES POR CLASE ── */}
       {loading ? (
-        <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-          Cargando evaluaciones del programa...
+        <div style={{ textAlign: 'center', padding: '3rem', color: '#6C757D' }}>
+          <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
+          <div>Cargando actividades de reforzamiento...</div>
         </div>
-      ) : filteredEvaluations.length === 0 ? (
-        <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center' }}>
-          <FileText size={48} color="#CBD5E1" style={{ margin: '0 auto 1rem auto' }} />
-          <h4 style={{ margin: '0 0 0.5rem 0', color: '#14213D', fontSize: '1.1rem', fontWeight: 700 }}>
-            No hay evaluaciones para mostrar
-          </h4>
-          <p style={{ margin: '0 0 1.25rem 0', color: 'var(--text-muted)', fontSize: '0.86rem' }}>
-            {evaluations.length === 0
-              ? 'Aún no se han creado evaluaciones o tareas en este programa académico.'
-              : 'No hay evaluaciones que coincidan con los filtros seleccionados.'}
+      ) : filteredList.length === 0 ? (
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '3rem',
+          textAlign: 'center',
+          border: '1px dashed #D1D5DB'
+        }}>
+          <Brain size={40} color="#9CA3AF" style={{ marginBottom: '12px' }} />
+          <h3 style={{ margin: '0 0 6px 0', fontSize: '1.1rem', color: '#14213D' }}>
+            No se encontraron clases con ese criterio
+          </h3>
+          <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#6C757D' }}>
+            Prueba ajustando los filtros de módulo o estado de actividad.
           </p>
-          <button
-            onClick={() => {
-              setEvaluationModalData(null);
-              setIsEvaluationModalOpen(true);
-            }}
-            style={{
-              background: '#14213D', color: '#FFFFFF', border: 'none',
-              padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
-              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem'
-            }}
-          >
-            <Plus size={16} /> Crear primera evaluación
-          </button>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {filteredEvaluations.map(ev => {
-            const dueDate = new Date(ev.due_date);
-            const isOverdue = dueDate < now;
-            const isAssignment = ev.evalType === 'assignment';
-            const moduleLinked = modules.find(m => m.id === ev.module_id);
-            const submissionPercentage = enrolledCount > 0 ? Math.min(100, Math.round((ev.totalSubs / enrolledCount) * 100)) : 0;
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+          gap: '1.25rem'
+        }}>
+          {filteredList.map(cls => {
+            const isPublished = cls.actStatus === 'published';
+            const isDraftPending = cls.actStatus === 'draft_pending';
+            const moduleName = cls.course_modules?.title || cls.sessions?.course_modules?.title || 'Módulo General';
 
             return (
               <div
-                key={`${ev.evalType}-${ev.id}`}
-                className="card"
+                key={cls.id}
                 style={{
-                  padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem',
-                  borderLeft: ev.pendingGrade > 0 ? '4px solid #FCA311' : '4px solid #14213D',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                  background: '#FFFFFF',
+                  borderRadius: '14px',
+                  border: isPublished ? '1.5px solid #E2E8F0' : isDraftPending ? '1.5px solid #FCA311' : '1px solid #E5E5E5',
+                  boxShadow: isPublished ? '0 4px 12px rgba(20, 33, 61, 0.05)' : 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
                 }}
               >
-                {/* Fila Superior: Badges y Visibilidad */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    
-                    {/* Badge Tipo */}
-                    <span style={{
-                      fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', textTransform: 'uppercase',
-                      background: isAssignment ? 'rgba(20, 33, 61, 0.08)' : 'rgba(124, 58, 237, 0.1)',
-                      color: isAssignment ? '#14213D' : '#6D28D9'
-                    }}>
-                      {isAssignment ? '📁 Tarea / Entregable' : '📝 Cuestionario'}
-                    </span>
-
-                    {/* Badge Módulo */}
-                    <span style={{
-                      fontSize: '0.72rem', fontWeight: 600, padding: '3px 8px', borderRadius: '4px',
-                      background: '#F1F5F9', color: '#475569'
-                    }}>
-                      {moduleLinked ? `Módulo: ${moduleLinked.title}` : 'Evaluación General'}
-                    </span>
-
-                    {/* Badge Ponderación */}
-                    {ev.weight_percentage > 0 && (
-                      <span style={{
-                        fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px', borderRadius: '4px',
-                        background: 'rgba(252, 163, 17, 0.15)', color: '#B45309'
-                      }}>
-                        Ponderación: {ev.weight_percentage}%
-                      </span>
-                    )}
-
-                    {/* Badge Estado de Publicación */}
-                    <span style={{
-                      fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px', borderRadius: '4px',
-                      background: ev.is_published ? '#DCFCE7' : '#F1F5F9',
-                      color: ev.is_published ? '#15803D' : '#64748B'
-                    }}>
-                      {ev.is_published ? '● Publicada' : '○ Borrador (Oculta)'}
-                    </span>
-                  </div>
-
-                  {/* Fecha Límite */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 600,
-                    color: isOverdue ? '#DC2626' : '#14213D'
+                {/* Header de la Tarjeta */}
+                <div style={{
+                  padding: '1rem 1.25rem',
+                  background: isPublished ? '#F8FAFC' : isDraftPending ? '#FFFBEB' : '#F9FAFB',
+                  borderBottom: '1px solid #E5E5E5',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    color: '#64748B',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
                   }}>
-                    <Calendar size={14} color={isOverdue ? '#DC2626' : '#FCA311'} />
-                    <span>Límite: {dueDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                    {isOverdue ? (
-                      <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#FEE2E2', color: '#DC2626', padding: '1px 5px', borderRadius: '3px' }}>
-                        CERRADA
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#EFF6FF', color: '#1D4ED8', padding: '1px 5px', borderRadius: '3px' }}>
-                        EN CURSO
-                      </span>
-                    )}
-                  </div>
-                </div>
+                    {moduleName}
+                  </span>
 
-                {/* Fila Central: Título, Descripción y Puntaje */}
-                <div>
-                  <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1.1rem', fontWeight: 700, color: '#14213D' }}>
-                    {ev.title}
-                  </h4>
-                  {ev.description && (
-                    <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                      {ev.description}
-                    </p>
+                  {isPublished ? (
+                    <span style={{
+                      background: '#DCFCE7',
+                      color: '#166534',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <CheckCheck size={12} /> Publicada y activa
+                    </span>
+                  ) : isDraftPending ? (
+                    <span style={{
+                      background: '#FEF3C7',
+                      color: '#B45309',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <Bot size={12} /> Borrador IA pendiente
+                    </span>
+                  ) : (
+                    <span style={{
+                      background: '#F1F5F9',
+                      color: '#64748B',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600
+                    }}>
+                      Sin actividad IA
+                    </span>
                   )}
                 </div>
 
-                {/* Fila Inferior: Avance de entregas y Botones de Acción */}
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem',
-                  borderTop: '1px solid #F1F5F9', paddingTop: '0.85rem'
-                }}>
-                  {/* Barra de progreso de entregas */}
-                  <div style={{ flex: 1, minWidth: '220px', maxWidth: '380px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      <span>Entregas de alumnos: <strong>{ev.totalSubs} de {enrolledCount}</strong> ({submissionPercentage}%)</span>
-                      {ev.avgScore !== null && (
-                        <span style={{ color: '#16A34A', fontWeight: 700 }}>Promedio: {ev.avgScore} pts</span>
-                      )}
+                {/* Cuerpo de la Tarjeta */}
+                <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.78rem', color: '#6C757D', marginBottom: '2px' }}>
+                      {cls.class_date ? new Date(cls.class_date).toLocaleDateString('es-ES', {
+                        weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'
+                      }) : 'Fecha por programar'}
                     </div>
-                    <div style={{ height: '6px', width: '100%', background: '#E2E8F0', borderRadius: '9999px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${submissionPercentage}%`, background: '#14213D', borderRadius: '9999px', transition: 'width 0.3s ease' }} />
-                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#14213D', lineHeight: 1.35 }}>
+                      {cls.title}
+                    </h3>
                   </div>
 
-                  {/* Alerta de pendientes + Botones */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    
-                    {ev.pendingGrade > 0 && (
-                      <span style={{
-                        fontSize: '0.75rem', fontWeight: 800, background: '#FEF3C7', color: '#B45309',
-                        padding: '4px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '3px'
-                      }}>
-                        <AlertCircle size={13} /> {ev.pendingGrade} por calificar
-                      </span>
-                    )}
+                  {/* Actividad info */}
+                  {(cls.activity || cls.draft) && (
+                    <div style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      background: '#F8F9FA',
+                      border: '1px solid #E9ECEF'
+                    }}>
+                      <div style={{ fontSize: '0.72rem', color: '#6C757D', fontWeight: 600, textTransform: 'uppercase' }}>
+                        Actividad generada:
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#14213D' }}>
+                        {cls.activity?.title || cls.draft?.draft_data?.activity_title || 'Actividad de Reforzamiento'}
+                      </div>
+                    </div>
+                  )}
 
-                    {/* Botón Principal: Calificar Entregas */}
-                    <button
-                      onClick={() => setSelectedEvaluationForGrading(ev)}
-                      style={{
-                        background: '#14213D', color: '#FFFFFF', border: 'none',
-                        padding: '0.45rem 1rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseOver={e => e.currentTarget.style.background = '#FCA311'}
-                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}
-                    >
-                      <FileCheck size={14} /> Ver Entregas / Calificar
-                    </button>
+                  {/* Métricas de Participación */}
+                  {isPublished ? (
+                    <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '6px' }}>
+                        <span style={{ color: '#6C757D', fontWeight: 600 }}>Participación de alumnos:</span>
+                        <span style={{ fontWeight: 700, color: '#14213D' }}>
+                          {cls.completedCount} / {cls.totalStudents} <span style={{ color: '#FCA311' }}>({cls.participationPct}%)</span>
+                        </span>
+                      </div>
+                      {/* Barra de progreso */}
+                      <div style={{ width: '100%', height: '7px', background: '#E5E5E5', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${cls.participationPct}%`,
+                          height: '100%',
+                          background: cls.participationPct >= 70 ? '#22C55E' : '#FCA311',
+                          borderRadius: '4px'
+                        }} />
+                      </div>
 
-                    {/* Botón Editar */}
-                    <button
-                      onClick={() => {
-                        setEvaluationModalData(ev);
-                        setIsEvaluationModalOpen(true);
-                      }}
-                      title="Editar parámetros"
-                      style={{
-                        background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#475569',
-                        padding: '0.45rem 0.65rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center'
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-
-                    {/* Botón Publicar / Ocultar */}
-                    <button
-                      onClick={() => handleTogglePublish(ev)}
-                      title={ev.is_published ? 'Ocultar a estudiantes' : 'Publicar para estudiantes'}
-                      style={{
-                        background: '#FFFFFF', border: '1px solid #CBD5E1', color: ev.is_published ? '#15803D' : '#64748B',
-                        padding: '0.45rem 0.65rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center'
-                      }}
-                    >
-                      {ev.is_published ? <Eye size={14} /> : <EyeOff size={14} />}
-                    </button>
-
-                    {/* Botón Eliminar */}
-                    <button
-                      onClick={() => {
-                        setConfirmDeleteId(ev.id);
-                        setDeleteType(ev.evalType);
-                      }}
-                      title="Eliminar evaluación"
-                      style={{
-                        background: '#FFFFFF', border: '1px solid #FCA5A5', color: '#DC2626',
-                        padding: '0.45rem 0.65rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center'
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                      {/* Promedio */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                        <span style={{ fontSize: '0.78rem', color: '#6C757D' }}>Promedio de aciertos:</span>
+                        {typeof cls.avgScore === 'number' ? (
+                          <span style={{
+                            fontSize: '0.85rem',
+                            fontWeight: 800,
+                            color: cls.avgScore >= 70 ? '#166534' : '#B45309'
+                          }}>
+                            {cls.avgScore}%
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Sin entregas aún</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : isDraftPending ? (
+                    <div style={{
+                      marginTop: 'auto',
+                      padding: '10px 12px',
+                      background: '#FFFBEB',
+                      borderRadius: '8px',
+                      border: '1px solid #FDE68A',
+                      fontSize: '0.8rem',
+                      color: '#92400E'
+                    }}>
+                      💡 <strong>Borrador listo:</strong> La IA generó preguntas de repaso basadas en la grabación. Valídalo en la pestaña Mis Clases.
+                    </div>
+                  ) : (
+                    <div style={{
+                      marginTop: 'auto',
+                      padding: '10px 12px',
+                      background: '#F8F9FA',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      color: '#6C757D'
+                    }}>
+                      Añade la grabación de la clase en <strong>Mis Clases</strong> para que la IA genere automáticamente la actividad de reforzamiento.
+                    </div>
+                  )}
                 </div>
 
+                {/* Footer Acciones */}
+                <div style={{
+                  padding: '0.9rem 1.25rem',
+                  background: '#FFFFFF',
+                  borderTop: '1px solid #E5E5E5',
+                  display: 'flex',
+                  gap: '8px'
+                }}>
+                  {isPublished ? (
+                    <button
+                      onClick={() => setSelectedActivityForModal({ activity: cls.activity, classData: cls })}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        background: '#14213D',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'background 0.15s'
+                      }}
+                    >
+                      <BarChart3 size={15} color="#FCA311" /> Ver Resultados y Analítica
+                    </button>
+                  ) : isDraftPending ? (
+                    <button
+                      onClick={() => onChangeTab && onChangeTab('clases')}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        background: '#FCA311',
+                        color: '#14213D',
+                        border: 'none',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Sparkles size={15} /> Revisar y Validar en Mis Clases
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onChangeTab && onChangeTab('clases')}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        background: 'transparent',
+                        color: '#14213D',
+                        border: '1px solid #D1D5DB',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Video size={15} /> Ir a Mis Clases
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ── MODAL DE CALIFICACIÓN ── */}
-      {selectedEvaluationForGrading && (
-        <GradingModal
-          evaluation={selectedEvaluationForGrading}
-          teacherId={teacherId || profile?.id}
-          onClose={() => setSelectedEvaluationForGrading(null)}
-          onGraded={fetchEvaluationsData}
-        />
-      )}
-
-      {/* ── MODAL DE CREACIÓN / EDICIÓN ── */}
-      {isEvaluationModalOpen && (
-        <EvaluationModal
-          initialData={evaluationModalData}
-          programId={programId}
-          modules={modules}
-          classes={classes}
-          teacherId={teacherId || profile?.id}
-          onClose={() => {
-            setIsEvaluationModalOpen(false);
-            setEvaluationModalData(null);
+      {/* MODAL DE ANALÍTICA Y RESULTADOS */}
+      {selectedActivityForModal && (
+        <ActivityResultsModal
+          activity={selectedActivityForModal.activity}
+          classData={selectedActivityForModal.classData}
+          onClose={() => setSelectedActivityForModal(null)}
+          onGoToClass={(classId) => {
+            setSelectedActivityForModal(null);
+            if (onChangeTab) onChangeTab('clases');
           }}
-          onSaved={fetchEvaluationsData}
         />
       )}
-
-      {/* ── MODAL DE CONFIRMACIÓN DE ELIMINACIÓN ── */}
-      {confirmDeleteId && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 1100,
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-          <div style={{ background: '#FFFFFF', padding: '1.5rem', borderRadius: '12px', maxWidth: '420px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <div style={{ background: '#FEE2E2', padding: '0.6rem', borderRadius: '50%' }}>
-                <Trash2 size={22} color="#DC2626" />
-              </div>
-              <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#14213D' }}>
-                ¿Eliminar evaluación?
-              </h4>
-            </div>
-            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.86rem', color: '#475569', lineHeight: 1.4 }}>
-              Esta acción eliminará permanentemente la evaluación y todas las entregas o calificaciones asociadas de los estudiantes.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                style={{
-                  padding: '0.55rem 1rem', borderRadius: '6px', border: '1px solid #CBD5E1',
-                  background: '#FFFFFF', color: '#475569', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteEvaluation}
-                style={{
-                  padding: '0.55rem 1.2rem', borderRadius: '6px', border: 'none',
-                  background: '#DC2626', color: '#FFFFFF', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer'
-                }}
-              >
-                Sí, eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
 
 const TABS = [
-  { id: 'resumen',      label: 'Inicio',                icon: <BookOpen size={16} />,     component: ResumenTab },
-  { id: 'clases',       label: 'Mis Clases',            icon: <Video size={16} />,        component: ClasesTab },
-  { id: 'evaluaciones', label: 'Evaluaciones',          icon: <FileCheck size={16} />,    component: EvaluacionesTab },
-  { id: 'dudas',        label: 'Dudas',                 icon: <MessageSquare size={16} />,component: DudasTab },
-  { id: 'anuncios',     label: 'Anuncios',              icon: <Megaphone size={16} />,    component: AnunciosTab },
-  { id: 'estudiantes',  label: 'Estudiantes',           icon: <Users size={16} />,        component: EstudiantesTab },
+  { id: 'resumen',      label: 'Inicio',                    icon: <BookOpen size={16} />,        component: ResumenTab },
+  { id: 'clases',       label: 'Mis Clases',                icon: <Video size={16} />,           component: ClasesTab },
+  { id: 'reforzamiento',label: 'Reforzamiento IA',          icon: <Brain size={16} />,           component: ReforzamientoIATab },
+  { id: 'dudas',        label: 'Dudas',                     icon: <MessageSquare size={16} />,   component: DudasTab },
+  { id: 'anuncios',     label: 'Anuncios',                  icon: <Megaphone size={16} />,       component: AnunciosTab },
+  { id: 'estudiantes',  label: 'Estudiantes',               icon: <Users size={16} />,           component: EstudiantesTab },
 ];
-
 
 export default function TeacherPanel() {
   const { currentUser } = useAuth();
