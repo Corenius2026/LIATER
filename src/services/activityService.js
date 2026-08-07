@@ -157,14 +157,14 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
 
-            if (dueDate < now) {
-              return; // No mostrar entregas vencidas en los pendientes activos
-            } else if (dueDateStr === todayStr) {
+            if (dueDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
             } else if (dueDateStr === tomorrowStr) {
               urgency = 'tomorrow';
               statusLabel = 'Mañana';
+            } else if (dueDate < now) {
+              return; // No mostrar entregas vencidas en los pendientes activos
             }
 
             pendingActivities.push({
@@ -223,14 +223,14 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
 
-            if (dueDate < now) {
-              return; // No mostrar cuestionarios vencidos en los pendientes activos
-            } else if (dueDateStr === todayStr) {
+            if (dueDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
             } else if (dueDateStr === tomorrowStr) {
               urgency = 'tomorrow';
               statusLabel = 'Mañana';
+            } else if (dueDate < now) {
+              return; // No mostrar cuestionarios vencidos en los pendientes activos
             }
 
             pendingActivities.push({
@@ -246,6 +246,10 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             });
           });
         }
+      } catch (err) {
+        console.info('Información sobre cuestionarios:', err);
+      }
+    }
 
     // -------------------------------------------------------------
     // 3.5. CONSULTAR SESIONES EN VIVO PRÓXIMAS (class_sessions)
@@ -327,19 +331,28 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     // -------------------------------------------------------------
     if (programIds.length > 0) {
       try {
+        // Filtrar por class_id in clases del programa (el filtro en join no funciona en Supabase PostgREST)
+        const allClassIds = Object.values(classMap);
+        
+        // Obtener también los IDs de todas las sesiones del programa (pasadas y futuras)
+        const allSessionIds = [];
+        for (const pId of programIds) {
+          const futureSessions = futureClassesByProgram[pId] || [];
+          futureSessions.forEach(s => allSessionIds.push(s.id));
+        }
+
         const { data: classActs, error: actErr } = await supabase
           .from('class_activities')
           .select('id, class_id, title, description, due_date, class_sessions!inner(id, program_id, title, video_url, class_date, teacher_id)')
-          .eq('is_published', true)
-          .in('class_sessions.program_id', programIds);
+          .eq('is_published', true);
 
         if (classActs) {
           classActs.forEach(ca => {
             const clsSession = ca.class_sessions;
             const pId = clsSession?.program_id;
             
-            // Solo incluir si la clase tiene grabación (video_url), lo que implica que ya pasó y está disponible
-            if (pId && programIds.includes(pId) && clsSession?.video_url) {
+            // Solo incluir si pertenece a un programa inscrito del estudiante
+            if (pId && programIds.includes(pId)) {
               const strId = String(ca.id).toLowerCase();
               const strTitle = String(ca.title).toLowerCase();
               if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir si ya fue realizada
@@ -413,38 +426,15 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
                            completedActivityIds.has(pId.toLowerCase());
             if (isDone) return;
 
-            let defaultDate = new Date();
-            const nextClasses = futureClassesByProgram[pId];
-            if (nextClasses && nextClasses.length > 0) {
-              const nextClassDate = new Date(nextClasses[0].class_date);
-              defaultDate = new Date(nextClassDate.getTime() - 5 * 60000); // 5 min before next class
-            } else {
-              defaultDate.setDate(defaultDate.getDate() + 7); // Default to 7 days from now
-            }
-            
-            if (defaultDate < now) return; // Si aún así está vencido, no mostrarlo
-            
-            const defDateStr = defaultDate.toISOString().split('T')[0];
-            let urgency = 'upcoming';
-            let statusLabel = 'Sin realizar';
-            
-            if (defDateStr === todayStr) {
-              urgency = 'today';
-              statusLabel = 'Hoy';
-            } else if (defDateStr === tomorrowStr) {
-              urgency = 'tomorrow';
-              statusLabel = 'Mañana';
-            }
-
             pendingActivities.push({
               id: refId,
               title: `Cuestionario de Reforzamiento - Repaso Módulo`,
               type: 'Actividad de Reforzamiento',
               programId: pId,
               programTitle: programMap[pId] || 'Programa Inscrito',
-              date: defaultDate.toISOString(),
-              urgency,
-              statusLabel,
+              date: todayStr,
+              urgency: 'today',
+              statusLabel: 'Sin realizar',
               link: `/modules/${pId}`
             });
           });
