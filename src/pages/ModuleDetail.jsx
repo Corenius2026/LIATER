@@ -111,8 +111,18 @@ export default function ModuleDetail() {
 
   if (loading) {
     return (
-      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Cargando contenido del módulo...</h2>
+      <div style={{ width: '100%', padding: '1rem 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem' }}>
+          <div className="skeleton" style={{ width: '80px', height: '24px' }}></div>
+          <div className="skeleton" style={{ width: '150px', height: '24px' }}></div>
+        </div>
+        <div className="skeleton" style={{ width: '300px', height: '40px', marginBottom: '1rem' }}></div>
+        <div className="skeleton" style={{ width: '200px', height: '20px', marginBottom: '2rem' }}></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+          <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: 'var(--radius-md)' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: 'var(--radius-md)' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: 'var(--radius-md)' }}></div>
+        </div>
       </div>
     );
   }

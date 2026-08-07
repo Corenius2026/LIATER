@@ -66,8 +66,14 @@ export default function Teachers() {
 
   if (loading) {
     return (
-      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Cargando profesores...</h2>
+      <div style={{ width: '100%', padding: '1rem 0' }}>
+        <div className="skeleton" style={{ width: '250px', height: '36px', marginBottom: '1rem' }}></div>
+        <div className="skeleton" style={{ width: '180px', height: '20px', marginBottom: '2rem' }}></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '2rem' }}>
+          <div className="skeleton" style={{ width: '100%', height: '300px', borderRadius: 'var(--radius-lg)' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '300px', borderRadius: 'var(--radius-lg)' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '300px', borderRadius: 'var(--radius-lg)' }}></div>
+        </div>
       </div>
     );
   }

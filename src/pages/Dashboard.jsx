@@ -102,8 +102,17 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Cargando tu panel de estudiante...</h2>
+      <div style={{ width: '100%', padding: '1rem 0' }}>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between' }}>
+          <div className="skeleton" style={{ width: '150px', height: '30px' }}></div>
+          <div className="skeleton" style={{ width: '180px', height: '30px' }}></div>
+        </div>
+        <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: 'var(--radius-lg)', marginBottom: '2rem' }}></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+          <div className="skeleton" style={{ width: '100%', height: '200px', borderRadius: 'var(--radius-lg)' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '200px', borderRadius: 'var(--radius-lg)' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '200px', borderRadius: 'var(--radius-lg)' }}></div>
+        </div>
       </div>
     );
   }
