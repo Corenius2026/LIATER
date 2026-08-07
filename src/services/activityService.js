@@ -253,7 +253,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         try {
           const { data: classActs } = await supabase
             .from('class_activities')
-            .select('id, class_id, title, is_published, class_sessions(id, title, class_date, program_id, video_url)')
+            .select('id, class_id, title, is_published, due_date, class_sessions(id, title, class_date, program_id, video_url)')
             .eq('is_published', true);
 
           if (classActs) {
@@ -267,15 +267,32 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
                 const strTitle = String(ca.title).toLowerCase();
                 if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir si ya fue realizada
 
+                const dueDate = ca.due_date ? new Date(ca.due_date) : (clsSession?.class_date ? new Date(clsSession.class_date) : new Date());
+                const dueDateStr = dueDate.toISOString().split('T')[0];
+
+                let urgency = 'upcoming';
+                let statusLabel = 'Sin realizar';
+
+                if (dueDateStr === todayStr) {
+                  urgency = 'today';
+                  statusLabel = 'Hoy';
+                } else if (dueDateStr === tomorrowStr) {
+                  urgency = 'tomorrow';
+                  statusLabel = 'Mañana';
+                } else if (dueDate < now) {
+                  urgency = 'overdue';
+                  statusLabel = 'Vencida';
+                }
+
                 pendingActivities.push({
                   id: ca.id,
                   title: ca.title || 'Actividad de Reforzamiento',
                   type: 'Actividad de Reforzamiento',
                   programId: pId,
                   programTitle: programMap[pId] || 'Programa Inscrito',
-                  date: clsSession?.class_date || todayStr,
-                  urgency: 'today',
-                  statusLabel: 'Sin realizar',
+                  date: ca.due_date || clsSession?.class_date || todayStr,
+                  urgency,
+                  statusLabel,
                   link: `/class/${ca.class_id}`
                 });
               }
