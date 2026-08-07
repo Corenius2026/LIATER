@@ -212,11 +212,17 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
 
   // ── ACTIVIDAD IA: Publicar / Despublicar ──
   const syncAndPublish = async (draftData, classId) => {
-    // Calcular dueDate: 5 min antes de la siguiente clase
+    // Calcular dueDate: 5 min antes de la siguiente clase del MISMO PROFESOR
     let calculatedDueDate = null;
     if (allClasses && allClasses.length > 0) {
+      const currentTeacherId = selectedClass?.teacher_id;
       const nextClass = allClasses
-        .filter(c => new Date(c.class_date) > new Date(selectedClass.class_date))
+        .filter(c => {
+          const isAfter = new Date(c.class_date) > new Date(selectedClass.class_date);
+          // Si la clase tiene teacher_id, filtramos por el mismo profe; si no, aceptamos cualquiera
+          const sameTeacher = !currentTeacherId || !c.teacher_id || c.teacher_id === currentTeacherId;
+          return isAfter && sameTeacher;
+        })
         .sort((a, b) => new Date(a.class_date) - new Date(b.class_date))[0];
       
       if (nextClass) {

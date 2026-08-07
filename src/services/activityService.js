@@ -416,9 +416,12 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         console.info('Información sobre class_activities:', err);
       }
 
-      // Si no hay cuestionarios ni actividades registradas en DB para los programas inscritos, generar la actividad de reforzamiento por defecto si no está realizada
+      // Fallback: generar actividad de reforzamiento por defecto si NO hay ninguna de ese tipo en DB
+      // IMPORTANTE: se activa aunque haya sesiones en vivo pendientes
       try {
-        if (pendingActivities.length === 0 && programIds.length > 0) {
+        const hasReinforcementActivity = pendingActivities.some(a => a.type === 'Actividad de Reforzamiento');
+        
+        if (!hasReinforcementActivity && programIds.length > 0) {
           programIds.forEach(pId => {
             const refId = `reforzamiento-${pId}`;
             const isDone = completedActivityIds.has(refId) || 
@@ -426,21 +429,47 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
                            completedActivityIds.has(pId.toLowerCase());
             if (isDone) return;
 
+            // Calcular fecha límite: 5 min antes de la próxima clase del programa
+            let defaultDate = null;
+            const nextClasses = futureClassesByProgram[pId];
+            if (nextClasses && nextClasses.length > 0) {
+              // Usar la próxima clase que esté en el futuro
+              const nextCls = nextClasses.find(c => new Date(c.class_date) > now);
+              if (nextCls) {
+                defaultDate = new Date(new Date(nextCls.class_date).getTime() - 5 * 60000);
+              }
+            }
+            
+            // Si no hay clase futura o la fecha ya venció, no mostrar
+            if (!defaultDate || defaultDate < now) return;
+
+            const defDateStr = defaultDate.toISOString().split('T')[0];
+            let urgency = 'upcoming';
+            let statusLabel = 'Sin realizar';
+            
+            if (defDateStr === todayStr) {
+              urgency = 'today';
+              statusLabel = 'Hoy';
+            } else if (defDateStr === tomorrowStr) {
+              urgency = 'tomorrow';
+              statusLabel = 'Mañana';
+            }
+
             pendingActivities.push({
               id: refId,
-              title: `Cuestionario de Reforzamiento - Repaso Módulo`,
+              title: `Actividad de Reforzamiento - ${programMap[pId] || 'Repaso Módulo'}`,
               type: 'Actividad de Reforzamiento',
               programId: pId,
               programTitle: programMap[pId] || 'Programa Inscrito',
-              date: todayStr,
-              urgency: 'today',
-              statusLabel: 'Sin realizar',
-              link: `/modules/${pId}`
+              date: defaultDate.toISOString(),
+              urgency,
+              statusLabel,
+              link: classMap[pId] ? `/class/${classMap[pId]}` : `/modules/${pId}`
             });
           });
         }
       } catch (err) {
-        console.info('Información: Generando actividades de reforzamiento por defecto para programas activos.', err);
+        console.info('Información: Generando actividades de reforzamiento por defecto.', err);
       }
     }
 
