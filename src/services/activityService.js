@@ -258,10 +258,10 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
       try {
         const { data: classes, error: classErr } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date, program_id')
+          .select('id, title, class_date, program_id, teacher_id')
           .in('program_id', programIds)
           .order('class_date', { ascending: true })
-          .limit(10);
+          .limit(100);
 
         if (!classErr && classes) {
           classes.forEach(cls => {
@@ -327,10 +327,11 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     // -------------------------------------------------------------
     if (programIds.length > 0) {
       try {
-        const { data: classActs } = await supabase
+        const { data: classActs, error: actErr } = await supabase
           .from('class_activities')
-          .select('id, class_id, title, is_published, due_date, class_sessions(id, title, class_date, program_id, video_url)')
-          .eq('is_published', true);
+          .select('id, class_id, title, description, due_date, class_sessions!inner(id, program_id, title, video_url, class_date, teacher_id)')
+          .eq('is_published', true)
+          .in('class_sessions.program_id', programIds);
 
         if (classActs) {
           classActs.forEach(ca => {
@@ -347,10 +348,17 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               if (ca.due_date) {
                 dueDate = new Date(ca.due_date);
               } else {
+                const teacherId = clsSession?.teacher_id;
                 const nextClasses = futureClassesByProgram[pId];
-                if (nextClasses && nextClasses.length > 0) {
-                  const nextClassDate = new Date(nextClasses[0].class_date);
-                  // 5 min antes de la siguiente clase
+                let nextClassOfSameTeacher = null;
+                
+                if (nextClasses && nextClasses.length > 0 && teacherId) {
+                  nextClassOfSameTeacher = nextClasses.find(c => c.teacher_id === teacherId);
+                }
+                
+                if (nextClassOfSameTeacher) {
+                  const nextClassDate = new Date(nextClassOfSameTeacher.class_date);
+                  // 5 min antes de la siguiente clase del mismo profe
                   dueDate = new Date(nextClassDate.getTime() - 5 * 60000);
                 } else if (clsSession?.class_date) {
                   // 7 dias despues de la clase actual

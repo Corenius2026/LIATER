@@ -482,15 +482,20 @@ export default function ClassDetail() {
                   ? `student_id.eq.${studentIdToUse},student_id.eq.${currentUser.auth_user_id}`
                   : `student_id.eq.${studentIdToUse}`;
 
+                let nextClassQuery = Promise.resolve({ data: null });
+                if (!actData.due_date && classData?.program_id) {
+                  let q = supabase.from('class_sessions').select('class_date').eq('program_id', classData.program_id).gt('class_date', classData?.class_date || new Date().toISOString()).order('class_date', { ascending: true }).limit(1);
+                  if (classData.teacher_id) q = q.eq('teacher_id', classData.teacher_id);
+                  nextClassQuery = q.maybeSingle();
+                }
+
                 const [correctRes, draftRes, attemptsRes, nextClassRes] = await Promise.all([
                   supabase.from('question_correct_answers').select('*').in('question_id', qIds),
                   supabase.from('activity_drafts').select('draft_data').eq('class_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
                   studentIdToUse 
                     ? supabase.from('activity_attempts').select('*').eq('activity_id', actData.id).or(filterClause).order('completed_at', { ascending: false })
                     : Promise.resolve({ data: [] }),
-                  (!actData.due_date && classData?.program_id)
-                    ? supabase.from('class_sessions').select('class_date').eq('program_id', classData.program_id).gt('class_date', classData?.class_date || new Date().toISOString()).order('class_date', { ascending: true }).limit(1).maybeSingle()
-                    : Promise.resolve({ data: null })
+                  nextClassQuery
                 ]);
 
                 const correctMap = {};
