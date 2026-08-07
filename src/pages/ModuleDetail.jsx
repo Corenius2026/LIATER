@@ -63,12 +63,13 @@ export default function ModuleDetail() {
           // 3. Obtener las clases si hay sesiones
           if (sessionsWithClasses.length > 0) {
             const sessionIds = sessionsWithClasses.map(s => s.id);
+            const formattedIds = sessionIds.map(id => `"${id}"`).join(',');
             
             let classesData = [];
             const { data: cData, error: cError } = await supabase
               .from('class_sessions')
               .select('*, teacher_profiles(name)')
-              .or(`session_id.in.(${sessionIds.join(',')}),subtopic_id.in.(${sessionIds.join(',')})`);
+              .or(`session_id.in.(${formattedIds}),subtopic_id.in.(${formattedIds})`);
 
             if (cError) {
               const { data: fallbackData } = await supabase
