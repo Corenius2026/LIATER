@@ -581,8 +581,17 @@ export default function ClassDetail() {
                   setActivityState(stateToSet);
                 }
               } else {
-                setActivityConfig(null);
-                setActivityState('no_configurada');
+                // La actividad existe en DB (is_published) pero aún no tiene preguntas configuradas
+                setActivityConfig({
+                  id: actData.id,
+                  title: actData.title,
+                  description: actData.description,
+                  estimatedTimeMinutes: 10,
+                  maxAttempts: actData.max_attempts || 1,
+                  isMandatory: actData.is_mandatory,
+                  questions: []
+                });
+                setActivityState('bloqueada');
               }
             })()
           );

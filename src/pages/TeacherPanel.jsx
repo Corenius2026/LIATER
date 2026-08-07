@@ -233,7 +233,14 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
       }
     }
 
-    const { data: existing } = await supabase.from('class_activities').select('id').eq('class_id', classId).maybeSingle();
+    // Buscar actividad existente (ordenar por created_at para resolver duplicados)
+    const { data: existing } = await supabase
+      .from('class_activities')
+      .select('id')
+      .eq('class_id', classId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
     let actId;
     if (existing) {
       const updatePayload = { 
