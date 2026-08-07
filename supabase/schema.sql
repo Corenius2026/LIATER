@@ -1,221 +1,353 @@
--- ============================================================
---  SCRIPT SQL — Plataforma del Diplomado FV
---  Base de datos: Supabase (PostgreSQL)
---
---  Instrucciones:
---  1. Ve a tu proyecto en supabase.com
---  2. Abre el menú SQL Editor
---  3. Pega todo este script y haz clic en "Run"
---
---  IMPORTANTE: Supabase ya crea la tabla auth.users de forma
---  automática. Las tablas de aquí extienden ese sistema.
--- ============================================================
+-- ====================================================================
+-- ESQUEMA OFICIAL DE BASE DE DATOS - PLATAFORMA LIATER UNAL (Supabase PostgreSQL)
+-- ====================================================================
 
-
--- ─────────────────────────────────────────────────────────────
--- PASO 1: Extensión para UUIDs automáticos
--- ─────────────────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-
--- ─────────────────────────────────────────────────────────────
--- PASO 2: Tabla de perfiles de usuario (user_profiles)
--- Conectada a auth.users de Supabase via user_id
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS user_profiles (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id    UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    name       TEXT NOT NULL,
-    email      TEXT UNIQUE NOT NULL,
-    role       TEXT NOT NULL DEFAULT 'student'
-                   CHECK (role IN ('student', 'teacher', 'admin')),
-    avatar     TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- 1. Usuarios (users_profile)
+CREATE TABLE IF NOT EXISTS public.users_profile (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  full_name character varying NOT NULL,
+  email character varying NOT NULL UNIQUE,
+  role character varying NOT NULL CHECK (role::text = ANY (ARRAY['student'::character varying, 'teacher'::character varying, 'admin'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  is_active boolean DEFAULT true,
+  auth_user_id uuid UNIQUE,
+  profession text,
+  institution text,
+  bio text,
+  phone text,
+  country text,
+  CONSTRAINT users_profile_pkey PRIMARY KEY (id),
+  CONSTRAINT users_profile_auth_user_id_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id)
 );
 
--- Índice para búsqueda rápida por rol
-CREATE INDEX IF NOT EXISTS idx_user_profiles_role ON user_profiles(role);
-
-
--- ─────────────────────────────────────────────────────────────
--- PASO 3: Tabla de perfiles de profesores (teacher_profiles)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS teacher_profiles (
-    id       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id  UUID UNIQUE NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
-    bio      TEXT,
-    area     TEXT,
-    photo    TEXT,
-    linkedin TEXT
+-- 2. Perfiles de Profesores (teacher_profiles)
+CREATE TABLE IF NOT EXISTS public.teacher_profiles (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  name character varying NOT NULL,
+  bio text,
+  area character varying,
+  photo_url text,
+  linkedin_url text,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT teacher_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT teacher_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users_profile(id)
 );
 
-
--- ─────────────────────────────────────────────────────────────
--- PASO 4: Tabla del programa del diplomado (diploma_programs)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS diploma_programs (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    title       TEXT NOT NULL,
-    description TEXT,
-    start_date  DATE,
-    end_date    DATE,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+-- 3. Programas Académicos (diploma_programs)
+CREATE TABLE IF NOT EXISTS public.diploma_programs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  title character varying NOT NULL,
+  description text,
+  start_date date,
+  end_date date,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  program_type text DEFAULT 'diplomado'::text,
+  image_url text,
+  is_published boolean DEFAULT true,
+  status character varying DEFAULT 'published'::character varying CHECK (status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'upcoming'::character varying, 'completed'::character varying]::text[])),
+  enrollment_start_date timestamp with time zone,
+  enrollment_end_date timestamp with time zone,
+  meet_url text,
+  whatsapp_group_id text,
+  CONSTRAINT diploma_programs_pkey PRIMARY KEY (id)
 );
 
-
--- ─────────────────────────────────────────────────────────────
--- PASO 5: Tabla de módulos (modules)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS modules (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    diploma_id  UUID NOT NULL REFERENCES diploma_programs(id) ON DELETE CASCADE,
-    title       TEXT NOT NULL,
-    description TEXT,
-    "order"     INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+-- 4. Módulos (modules)
+CREATE TABLE IF NOT EXISTS public.modules (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT modules_pkey PRIMARY KEY (id),
+  CONSTRAINT modules_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_modules_diploma ON modules(diploma_id);
-CREATE INDEX IF NOT EXISTS idx_modules_order   ON modules(diploma_id, "order");
-
-
--- ─────────────────────────────────────────────────────────────
--- PASO 6: Tabla de subtemas (subtopics)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS subtopics (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    module_id   UUID NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
-    title       TEXT NOT NULL,
-    description TEXT,
-    "order"     INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+-- 5. Subtemas (subtopics)
+CREATE TABLE IF NOT EXISTS public.subtopics (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  module_id uuid NOT NULL,
+  program_id uuid,
+  title character varying NOT NULL,
+  description text,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT subtopics_pkey PRIMARY KEY (id),
+  CONSTRAINT subtopics_module_id_fkey FOREIGN KEY (module_id) REFERENCES public.modules(id),
+  CONSTRAINT subtopics_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_subtopics_module ON subtopics(module_id);
-
-
--- ─────────────────────────────────────────────────────────────
--- PASO 7: Tabla de clases / sesiones (class_sessions)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS class_sessions (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    subtopic_id UUID NOT NULL REFERENCES subtopics(id) ON DELETE CASCADE,
-    teacher_id  UUID          REFERENCES teacher_profiles(id) ON DELETE SET NULL,
-    title       TEXT NOT NULL,
-    description TEXT,
-    date        TIMESTAMPTZ,
-    video_url   TEXT,
-    meet_link   TEXT,
-    duration    INTEGER,        -- duración en minutos
-    status      TEXT NOT NULL DEFAULT 'upcoming'
-                    CHECK (status IN ('upcoming', 'completed', 'cancelled')),
-    "order"     INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+-- 6. Clases / Sesiones (class_sessions)
+CREATE TABLE IF NOT EXISTS public.class_sessions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  subtopic_id uuid NOT NULL,
+  program_id uuid,
+  teacher_id uuid,
+  title character varying NOT NULL,
+  description text,
+  class_date timestamp with time zone,
+  duration integer,
+  video_url text,
+  presentation_url text,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  drive_folder_id text,
+  drive_sync_enabled boolean NOT NULL DEFAULT false,
+  meet_url text,
+  CONSTRAINT class_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT class_sessions_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id),
+  CONSTRAINT class_sessions_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(id),
+  CONSTRAINT class_sessions_subtopic_id_fkey FOREIGN KEY (subtopic_id) REFERENCES public.subtopics(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_class_sessions_subtopic ON class_sessions(subtopic_id);
-CREATE INDEX IF NOT EXISTS idx_class_sessions_teacher  ON class_sessions(teacher_id);
-CREATE INDEX IF NOT EXISTS idx_class_sessions_status   ON class_sessions(status);
-
-
--- ─────────────────────────────────────────────────────────────
--- PASO 8: Tabla de recursos (resources)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS resources (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    class_id   UUID NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
-    title      TEXT NOT NULL,
-    type       TEXT NOT NULL
-                   CHECK (type IN ('presentation', 'pdf', 'link', 'file')),
-    url        TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- 7. Recursos (resources)
+CREATE TABLE IF NOT EXISTS public.resources (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL,
+  program_id uuid,
+  title character varying NOT NULL,
+  resource_type character varying NOT NULL CHECK (resource_type::text = ANY (ARRAY['presentation'::character varying, 'pdf'::character varying, 'link'::character varying, 'video'::character varying, 'file'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  url text,
+  provider text DEFAULT 'external'::text CHECK (provider = ANY (ARRAY['drive'::text, 'youtube'::text, 'supabase'::text, 'external'::text])),
+  file_path text,
+  is_visible boolean DEFAULT true,
+  CONSTRAINT resources_pkey PRIMARY KEY (id),
+  CONSTRAINT resources_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id),
+  CONSTRAINT resources_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_resources_class ON resources(class_id);
-
-
--- ─────────────────────────────────────────────────────────────
--- PASO 9: Tabla de anuncios (announcements)
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS announcements (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    teacher_id UUID NOT NULL REFERENCES teacher_profiles(id) ON DELETE CASCADE,
-    title      TEXT NOT NULL,
-    body       TEXT NOT NULL,
-    tag        TEXT NOT NULL DEFAULT 'general'
-                   CHECK (tag IN ('general', 'urgent', 'info')),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- 8. Anuncios (announcements)
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid,
+  teacher_id uuid,
+  title character varying NOT NULL,
+  body text NOT NULL,
+  tag character varying DEFAULT 'general'::character varying CHECK (tag::text = ANY (ARRAY['general'::character varying, 'urgent'::character varying, 'info'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT announcements_pkey PRIMARY KEY (id),
+  CONSTRAINT announcements_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(id),
+  CONSTRAINT announcements_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_announcements_teacher ON announcements(teacher_id);
+-- 9. Inscripciones (enrollments)
+CREATE TABLE IF NOT EXISTS public.enrollments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  student_id uuid NOT NULL,
+  program_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT enrollments_pkey PRIMARY KEY (id),
+  CONSTRAINT enrollments_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id),
+  CONSTRAINT enrollments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id)
+);
 
+-- 10. Tareas (assignments)
+CREATE TABLE IF NOT EXISTS public.assignments (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  due_date timestamp with time zone NOT NULL,
+  is_published boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT assignments_pkey PRIMARY KEY (id),
+  CONSTRAINT assignments_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id)
+);
 
--- ─────────────────────────────────────────────────────────────
--- PASO 10: Seguridad — Row Level Security (RLS)
--- Protege cada tabla para que solo Supabase Auth pueda operar.
--- ─────────────────────────────────────────────────────────────
-ALTER TABLE user_profiles    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teacher_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE diploma_programs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE modules          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE subtopics        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE class_sessions   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE resources        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE announcements    ENABLE ROW LEVEL SECURITY;
+-- 11. Entregas de Tareas (assignment_submissions)
+CREATE TABLE IF NOT EXISTS public.assignment_submissions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  assignment_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  file_url text,
+  comments text,
+  submitted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  status character varying DEFAULT 'submitted'::character varying CHECK (status::text = ANY (ARRAY['submitted'::character varying, 'graded'::character varying, 'returned'::character varying]::text[])),
+  CONSTRAINT assignment_submissions_pkey PRIMARY KEY (id),
+  CONSTRAINT assignment_submissions_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES public.assignments(id),
+  CONSTRAINT assignment_submissions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id)
+);
 
+-- 12. Quizzes / Cuestionarios (quizzes)
+CREATE TABLE IF NOT EXISTS public.quizzes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  due_date timestamp with time zone NOT NULL,
+  is_published boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT quizzes_pkey PRIMARY KEY (id),
+  CONSTRAINT quizzes_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id)
+);
 
--- ── Políticas públicas de LECTURA (cualquier usuario autenticado puede leer) ──
-CREATE POLICY "Lectura pública autenticada - diploma_programs"
-    ON diploma_programs FOR SELECT USING (auth.role() = 'authenticated');
+-- 13. Entregas de Quizzes (quiz_submissions)
+CREATE TABLE IF NOT EXISTS public.quiz_submissions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  quiz_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  score numeric,
+  completed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT quiz_submissions_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_submissions_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES public.quizzes(id),
+  CONSTRAINT quiz_submissions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id)
+);
 
-CREATE POLICY "Lectura pública autenticada - modules"
-    ON modules FOR SELECT USING (auth.role() = 'authenticated');
+-- 14. Dudas de Clase (class_doubts)
+CREATE TABLE IF NOT EXISTS public.class_doubts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL,
+  module_id uuid,
+  program_id uuid,
+  student_id uuid NOT NULL,
+  teacher_id uuid,
+  subject character varying NOT NULL,
+  description text NOT NULL,
+  topic character varying,
+  status character varying DEFAULT 'enviada'::character varying CHECK (status::text = ANY (ARRAY['enviada'::character varying, 'revisada'::character varying, 'atendida'::character varying, 'archivada'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT class_doubts_pkey PRIMARY KEY (id),
+  CONSTRAINT class_doubts_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id),
+  CONSTRAINT class_doubts_module_id_fkey FOREIGN KEY (module_id) REFERENCES public.modules(id),
+  CONSTRAINT class_doubts_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id),
+  CONSTRAINT class_doubts_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id),
+  CONSTRAINT class_doubts_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(id)
+);
 
-CREATE POLICY "Lectura pública autenticada - subtopics"
-    ON subtopics FOR SELECT USING (auth.role() = 'authenticated');
+-- 15. Actividades de Clase (class_activities)
+CREATE TABLE IF NOT EXISTS public.class_activities (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL UNIQUE,
+  title character varying NOT NULL,
+  description text,
+  available_from timestamp with time zone,
+  is_published boolean DEFAULT false,
+  is_mandatory boolean DEFAULT false,
+  max_attempts integer DEFAULT 1,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT class_activities_pkey PRIMARY KEY (id),
+  CONSTRAINT class_activities_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id)
+);
 
-CREATE POLICY "Lectura pública autenticada - class_sessions"
-    ON class_sessions FOR SELECT USING (auth.role() = 'authenticated');
+-- 16. Preguntas de Actividades (activity_questions)
+CREATE TABLE IF NOT EXISTS public.activity_questions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  activity_id uuid NOT NULL,
+  text text NOT NULL,
+  question_type character varying NOT NULL CHECK (question_type::text = ANY (ARRAY['single_choice'::character varying, 'true_false'::character varying]::text[])),
+  order_num integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT activity_questions_pkey PRIMARY KEY (id),
+  CONSTRAINT activity_questions_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.class_activities(id)
+);
 
-CREATE POLICY "Lectura pública autenticada - resources"
-    ON resources FOR SELECT USING (auth.role() = 'authenticated');
+-- 17. Opciones de Pregunta (question_options)
+CREATE TABLE IF NOT EXISTS public.question_options (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  question_id uuid NOT NULL,
+  text text NOT NULL,
+  order_num integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT question_options_pkey PRIMARY KEY (id),
+  CONSTRAINT question_options_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.activity_questions(id)
+);
 
-CREATE POLICY "Lectura pública autenticada - teacher_profiles"
-    ON teacher_profiles FOR SELECT USING (auth.role() = 'authenticated');
+-- 18. Respuestas Correctas de Pregunta (question_correct_answers)
+CREATE TABLE IF NOT EXISTS public.question_correct_answers (
+  question_id uuid NOT NULL,
+  correct_option_id uuid NOT NULL,
+  CONSTRAINT question_correct_answers_pkey PRIMARY KEY (question_id),
+  CONSTRAINT question_correct_answers_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.activity_questions(id),
+  CONSTRAINT question_correct_answers_correct_option_id_fkey FOREIGN KEY (correct_option_id) REFERENCES public.question_options(id)
+);
 
-CREATE POLICY "Lectura pública autenticada - announcements"
-    ON announcements FOR SELECT USING (auth.role() = 'authenticated');
+-- 19. Intentos de Actividad (activity_attempts)
+CREATE TABLE IF NOT EXISTS public.activity_attempts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  activity_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  completed_at timestamp with time zone,
+  score numeric,
+  started_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  status character varying DEFAULT 'in_progress'::character varying CHECK (status::text = ANY (ARRAY['in_progress'::character varying, 'completed'::character varying]::text[])),
+  attempt_number integer NOT NULL DEFAULT 1,
+  CONSTRAINT activity_attempts_pkey PRIMARY KEY (id),
+  CONSTRAINT activity_attempts_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id),
+  CONSTRAINT activity_attempts_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.class_activities(id)
+);
 
+-- 20. Respuestas de Intento (attempt_answers)
+CREATE TABLE IF NOT EXISTS public.attempt_answers (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  attempt_id uuid NOT NULL,
+  question_id uuid NOT NULL,
+  selected_option_id uuid NOT NULL,
+  is_correct boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT attempt_answers_pkey PRIMARY KEY (id),
+  CONSTRAINT attempt_answers_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.activity_questions(id),
+  CONSTRAINT attempt_answers_selected_option_id_fkey FOREIGN KEY (selected_option_id) REFERENCES public.question_options(id),
+  CONSTRAINT attempt_answers_attempt_id_fkey FOREIGN KEY (attempt_id) REFERENCES public.activity_attempts(id)
+);
 
--- ── El usuario ve y edita solo su propio perfil ──
-CREATE POLICY "Usuario ve su perfil"
-    ON user_profiles FOR SELECT USING (auth.uid() = user_id);
+-- 21. Trabajos de Generación de Actividades por IA (activity_generation_jobs)
+CREATE TABLE IF NOT EXISTS public.activity_generation_jobs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL,
+  activity_id uuid,
+  requested_by uuid,
+  source_video_url text,
+  ai_provider text,
+  ai_model text,
+  error_message text,
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'review_ready'::text, 'completed'::text, 'failed'::text])),
+  progress integer NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT activity_generation_jobs_pkey PRIMARY KEY (id),
+  CONSTRAINT activity_generation_jobs_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id),
+  CONSTRAINT activity_generation_jobs_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.class_activities(id),
+  CONSTRAINT activity_generation_jobs_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.users_profile(id)
+);
 
-CREATE POLICY "Usuario actualiza su perfil"
-    ON user_profiles FOR UPDATE USING (auth.uid() = user_id);
+-- 22. Trabajos de Transcripción de Google Drive (drive_transcript_jobs)
+CREATE TABLE IF NOT EXISTS public.drive_transcript_jobs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL,
+  drive_file_id text NOT NULL,
+  drive_file_name text NOT NULL,
+  drive_modified_at timestamp with time zone,
+  activity_id uuid,
+  error_message text,
+  processing_started_at timestamp with time zone,
+  processed_at timestamp with time zone,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'review_ready'::text, 'completed'::text, 'failed'::text])),
+  attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  detected_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT drive_transcript_jobs_pkey PRIMARY KEY (id),
+  CONSTRAINT drive_transcript_jobs_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id),
+  CONSTRAINT drive_transcript_jobs_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.class_activities(id)
+);
 
-
--- ============================================================
---  FIN DEL SCRIPT
---  Tablas creadas:
---    1. user_profiles
---    2. teacher_profiles
---    3. diploma_programs
---    4. modules
---    5. subtopics
---    6. class_sessions
---    7. resources
---    8. announcements
--- ============================================================
-
-
--- ─────────────────────────────────────────────────────────────
--- PASO 11: Módulo de desactivación de usuarios
--- ─────────────────────────────────────────────────────────────
-ALTER TABLE users_profile ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
-
-
--- ─────────────────────────────────────────────────────────────
--- PASO 12: Hacer opcional el user_id en profesores
--- ─────────────────────────────────────────────────────────────
-ALTER TABLE teacher_profiles ALTER COLUMN user_id DROP NOT NULL;
+-- 23. Borradores de Actividades (activity_drafts)
+CREATE TABLE IF NOT EXISTS public.activity_drafts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL,
+  drive_folder_id text,
+  draft_data jsonb NOT NULL,
+  reviewed_by uuid,
+  reviewed_at timestamp with time zone,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT activity_drafts_pkey PRIMARY KEY (id),
+  CONSTRAINT activity_drafts_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id),
+  CONSTRAINT activity_drafts_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users_profile(id)
+);
