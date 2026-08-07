@@ -157,14 +157,14 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
 
-            if (dueDateStr === todayStr) {
+            if (dueDate < now) {
+              return; // No mostrar entregas vencidas en los pendientes activos
+            } else if (dueDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
             } else if (dueDateStr === tomorrowStr) {
               urgency = 'tomorrow';
               statusLabel = 'Mañana';
-            } else if (dueDate < now) {
-              return; // No mostrar entregas vencidas en los pendientes activos
             }
 
             pendingActivities.push({
@@ -223,14 +223,14 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
 
-            if (dueDateStr === todayStr) {
+            if (dueDate < now) {
+              return; // No mostrar cuestionarios vencidos en los pendientes activos
+            } else if (dueDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
             } else if (dueDateStr === tomorrowStr) {
               urgency = 'tomorrow';
               statusLabel = 'Mañana';
-            } else if (dueDate < now) {
-              return; // No mostrar cuestionarios vencidos en los pendientes activos
             }
 
             pendingActivities.push({
@@ -405,15 +405,38 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
                            completedActivityIds.has(pId.toLowerCase());
             if (isDone) return;
 
+            let defaultDate = new Date();
+            const nextClasses = futureClassesByProgram[pId];
+            if (nextClasses && nextClasses.length > 0) {
+              const nextClassDate = new Date(nextClasses[0].class_date);
+              defaultDate = new Date(nextClassDate.getTime() - 5 * 60000); // 5 min before next class
+            } else {
+              defaultDate.setDate(defaultDate.getDate() + 7); // Default to 7 days from now
+            }
+            
+            if (defaultDate < now) return; // Si aún así está vencido, no mostrarlo
+            
+            const defDateStr = defaultDate.toISOString().split('T')[0];
+            let urgency = 'upcoming';
+            let statusLabel = 'Sin realizar';
+            
+            if (defDateStr === todayStr) {
+              urgency = 'today';
+              statusLabel = 'Hoy';
+            } else if (defDateStr === tomorrowStr) {
+              urgency = 'tomorrow';
+              statusLabel = 'Mañana';
+            }
+
             pendingActivities.push({
               id: refId,
               title: `Cuestionario de Reforzamiento - Repaso Módulo`,
               type: 'Actividad de Reforzamiento',
               programId: pId,
               programTitle: programMap[pId] || 'Programa Inscrito',
-              date: todayStr,
-              urgency: 'today',
-              statusLabel: 'Sin realizar',
+              date: defaultDate.toISOString(),
+              urgency,
+              statusLabel,
               link: `/modules/${pId}`
             });
           });
