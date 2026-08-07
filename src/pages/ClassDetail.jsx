@@ -367,88 +367,7 @@ export default function ClassDetail() {
       try {
         setLoading(true);
 
-        // 1. Obtener detalles de la clase y el profesor
-        const { data: classData, error: classError } = await supabase
-          .from('class_sessions')
-          .select('*, teacher_profiles(*)')
-          .eq('id', id)
-          .maybeSingle();
-        
-        if (classError) console.error('Error fetching class session:', classError);
-        setClsData(classData);
-
-        // 2. Obtener el módulo y su nombre para el encabezado y botón "Volver"
-        if (classData) {
-          const parentSessionId = classData.session_id || classData.subtopic_id;
-          if (parentSessionId) {
-            let sessionData = null;
-            const { data: sData } = await supabase
-              .from('sessions')
-              .select('module_id, modules(title)')
-              .eq('id', parentSessionId)
-              .maybeSingle();
-            
-            if (sData) {
-              sessionData = sData;
-            } else {
-              const { data: subData } = await supabase
-                .from('subtopics')
-                .select('module_id, modules(title)')
-                .eq('id', parentSessionId)
-                .maybeSingle();
-              sessionData = subData;
-            }
-            
-            if (sessionData) {
-              setModuleId(sessionData.module_id);
-              if (sessionData.modules?.title) {
-                setModuleTitle(sessionData.modules.title);
-                setTopic(sessionData.modules.title);
-              }
-            }
-          }
-
-          if (classData.program_id) {
-            const { data: progData } = await supabase
-              .from('diploma_programs')
-              .select('program_type')
-              .eq('id', classData.program_id)
-              .maybeSingle();
-
-            localStorage.setItem('activeProgramId', classData.program_id);
-            if (progData?.program_type) {
-              setProgramType(progData.program_type);
-              localStorage.setItem('activeProgramType', progData.program_type);
-            }
-            window.dispatchEvent(new Event('programContextChanged'));
-            
-            if (currentUser?.id) {
-              const progDetails = await calculateProgramProgressDetails(classData.program_id, currentUser.id);
-              setProgramProgressDetails(progDetails);
-            }
-          }
-        }
-
-        // 3. Obtener los recursos de la clase
-        const { data: resData, error: resError } = await supabase
-          .from('resources')
-          .select('*')
-          .eq('class_id', id)
-          .order('created_at', { ascending: true });
-          
-        if (resError) {
-          console.error('Error fetching resources:', resError);
-        } else {
-          setResources(resData || []);
-        }
-
-        // 4. Obtener las dudas enviadas previamente por el estudiante en esta clase
-        if (currentUser?.id) {
-          const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
-          setUserDoubts(doubts || []);
-        }
-
-        // 5. Obtener la actividad de reforzamiento para esta clase
+        // BLOQUE 1: Peticiones principales independientes en paralelo
         let actQuery = supabase
           .from('class_activities')
           .select(`
@@ -460,152 +379,197 @@ export default function ClassDetail() {
           `)
           .eq('class_id', id);
 
-        // Si es estudiante (o sin rol especial), filtrar solo actividades publicadas
         const userRole = currentUser?.role;
         if (userRole !== 'admin' && userRole !== 'teacher') {
           actQuery = actQuery.eq('is_published', true);
         }
 
-        const { data: actList, error: actError } = await actQuery.order('created_at', { ascending: false });
+        const [
+          classRes,
+          resRes,
+          doubtsRes,
+          actRes
+        ] = await Promise.all([
+          // 1. Detalles de la clase
+          supabase.from('class_sessions').select('*, teacher_profiles(*)').eq('id', id).maybeSingle(),
+          // 2. Recursos
+          supabase.from('resources').select('*').eq('class_id', id).order('created_at', { ascending: true }),
+          // 3. Dudas
+          currentUser?.id ? fetchStudentDoubtsForClass(id, currentUser.id) : Promise.resolve({ doubts: [] }),
+          // 4. Actividades
+          actQuery.order('created_at', { ascending: false })
+        ]);
 
-        if (actError) {
-          console.error('Error cargando actividad publicada:', actError);
+        const classData = classRes.data;
+        if (classRes.error) console.error('Error fetching class session:', classRes.error);
+        setClsData(classData);
+
+        setResources(resRes.data || []);
+        setUserDoubts(doubtsRes.doubts || []);
+
+        const actData = (actRes.data && actRes.data.length > 0) ? actRes.data[0] : null;
+
+        // BLOQUE 2: Dependencias secundarias basadas en la clase y en la actividad (en paralelo)
+        const secondaryPromises = [];
+
+        // 2a. Si hay clase, pedir la sesión/programa
+        if (classData) {
+          const parentSessionId = classData.session_id || classData.subtopic_id;
+          
+          if (parentSessionId) {
+            secondaryPromises.push(
+              (async () => {
+                let sessionData = null;
+                const { data: sData } = await supabase.from('sessions').select('module_id, modules(title)').eq('id', parentSessionId).maybeSingle();
+                if (sData) {
+                  sessionData = sData;
+                } else {
+                  const { data: subData } = await supabase.from('subtopics').select('module_id, modules(title)').eq('id', parentSessionId).maybeSingle();
+                  sessionData = subData;
+                }
+                if (sessionData) {
+                  setModuleId(sessionData.module_id);
+                  if (sessionData.modules?.title) {
+                    setModuleTitle(sessionData.modules.title);
+                    setTopic(sessionData.modules.title);
+                  }
+                }
+              })()
+            );
+          }
+
+          if (classData.program_id) {
+            secondaryPromises.push(
+              (async () => {
+                const { data: progData } = await supabase.from('diploma_programs').select('program_type').eq('id', classData.program_id).maybeSingle();
+                localStorage.setItem('activeProgramId', classData.program_id);
+                if (progData?.program_type) {
+                  setProgramType(progData.program_type);
+                  localStorage.setItem('activeProgramType', progData.program_type);
+                }
+                window.dispatchEvent(new Event('programContextChanged'));
+              })()
+            );
+
+            if (currentUser?.id) {
+              secondaryPromises.push(
+                (async () => {
+                  const progDetails = await calculateProgramProgressDetails(classData.program_id, currentUser.id);
+                  setProgramProgressDetails(progDetails);
+                })()
+              );
+            }
+          }
         }
 
-        const actData = (actList && actList.length > 0) ? actList[0] : null;
-
+        // 2b. Si hay actividad, pedir sus detalles (preguntas, respuestas, borradores, intentos)
         if (actData) {
-          let questions = actData.activity_questions || [];
+          secondaryPromises.push(
+            (async () => {
+              let questions = actData.activity_questions || [];
+              if (questions.length === 0) {
+                const { data: fetchedQ } = await supabase.from('activity_questions').select('*, question_options(*)').eq('activity_id', actData.id).order('order_num', { ascending: true });
+                if (fetchedQ) questions = fetchedQ;
+              }
 
-          // Si por alguna razón la relación anidada no trajo las preguntas, hacer consulta directa de respaldo
-          if (questions.length === 0) {
-            const { data: fetchedQ } = await supabase
-              .from('activity_questions')
-              .select('*, question_options(*)')
-              .eq('activity_id', actData.id)
-              .order('order_num', { ascending: true });
-            if (fetchedQ) {
-              questions = fetchedQ;
-            }
-          }
+              if (questions.length > 0) {
+                const qIds = questions.map(q => q.id);
+                
+                // Ejecutar sub-dependencias de la actividad en paralelo
+                const studentIdToUse = currentUser?.id;
+                const filterClause = currentUser?.auth_user_id 
+                  ? `student_id.eq.${studentIdToUse},student_id.eq.${currentUser.auth_user_id}`
+                  : `student_id.eq.${studentIdToUse}`;
 
-          if (questions.length > 0) {
-            const qIds = questions.map(q => q.id);
-            const { data: correctAnswers } = await supabase
-              .from('question_correct_answers')
-              .select('*')
-              .in('question_id', qIds);
+                const [correctRes, draftRes, attemptsRes] = await Promise.all([
+                  supabase.from('question_correct_answers').select('*').in('question_id', qIds),
+                  supabase.from('activity_drafts').select('draft_data').eq('class_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+                  studentIdToUse 
+                    ? supabase.from('activity_attempts').select('*').eq('activity_id', actData.id).or(filterClause).order('completed_at', { ascending: false })
+                    : Promise.resolve({ data: [] })
+                ]);
 
-            const correctMap = {};
-            if (correctAnswers) {
-              correctAnswers.forEach(ca => {
-                correctMap[ca.question_id] = ca.correct_option_id;
-              });
-            }
+                const correctMap = {};
+                if (correctRes.data) {
+                  correctRes.data.forEach(ca => correctMap[ca.question_id] = ca.correct_option_id);
+                }
 
-            // Cargar explicaciones pedagógicas de la IA desde activity_drafts si existen
-            let draftQuestionsMap = {};
-            try {
-              const { data: draftData } = await supabase
-                .from('activity_drafts')
-                .select('draft_data')
-                .eq('class_id', id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+                let draftQuestionsMap = {};
+                if (draftRes.data?.draft_data?.questions) {
+                  draftRes.data.draft_data.questions.forEach(dq => {
+                    if (dq.text) draftQuestionsMap[dq.text.trim().toLowerCase()] = dq;
+                  });
+                }
 
-              if (draftData?.draft_data?.questions) {
-                draftData.draft_data.questions.forEach(dq => {
-                  if (dq.text) {
-                    draftQuestionsMap[dq.text.trim().toLowerCase()] = dq;
+                const formattedQuestions = questions
+                  .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+                  .map(q => {
+                    const dq = draftQuestionsMap[q.text?.trim().toLowerCase()];
+                    return {
+                      id: q.id,
+                      type: q.question_type,
+                      statement: q.text,
+                      explanation: q.explanation || dq?.explanation || null,
+                      sourceBasis: q.source_basis || dq?.source_basis || null,
+                      options: (q.question_options || [])
+                        .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
+                        .map(o => ({ id: o.id, text: o.text })),
+                      correctOptionId: correctMap[q.id] || null
+                    };
+                  });
+
+                setActivityConfig({
+                  id: actData.id,
+                  title: actData.title,
+                  description: actData.description,
+                  estimatedTimeMinutes: 10,
+                  maxAttempts: 1,
+                  isMandatory: actData.is_mandatory,
+                  questions: formattedQuestions
+                });
+
+                if (studentIdToUse && actData.id) {
+                  const savedAnswers = localStorage.getItem(`liater_answers_${actData.id}_${studentIdToUse}`);
+                  if (savedAnswers) {
+                    try { setUserAnswers(JSON.parse(savedAnswers)); } catch (_) {}
                   }
-                });
-              }
-            } catch (_) {}
 
-            const formattedQuestions = questions
-              .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
-              .map(q => {
-                const dq = draftQuestionsMap[q.text?.trim().toLowerCase()];
-                return {
-                  id: q.id,
-                  type: q.question_type,
-                  statement: q.text,
-                  explanation: q.explanation || dq?.explanation || null,
-                  sourceBasis: q.source_basis || dq?.source_basis || null,
-                  options: (q.question_options || [])
-                    .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
-                    .map(o => ({ id: o.id, text: o.text })),
-                  correctOptionId: correctMap[q.id] || null
-                };
-              });
+                  let stateToSet = 'no_iniciada';
+                  const attempts = attemptsRes.data;
+                  const localCompleted = JSON.parse(localStorage.getItem(`completed_activities_${studentIdToUse}`) || '[]');
+                  const isLocallyCompleted = actData.id ? localCompleted.includes(actData.id) : false;
+                  const hasDbCompletedAttempt = attempts && attempts.length > 0 && attempts[0].status === 'completed';
 
-            setActivityConfig({
-              id: actData.id,
-              title: actData.title,
-              description: actData.description,
-              estimatedTimeMinutes: 10,
-              maxAttempts: 1, // Regla estricta: 1 solo intento por actividad
-              isMandatory: actData.is_mandatory,
-              questions: formattedQuestions
-            });
-
-            // Recuperar respuestas guardadas si existen
-            if (currentUser?.id && actData.id) {
-              const savedAnswers = localStorage.getItem(`liater_answers_${actData.id}_${currentUser.id}`);
-              if (savedAnswers) {
-                try {
-                  setUserAnswers(JSON.parse(savedAnswers));
-                } catch (_) {}
-              }
-            }
-
-            let stateToSet = 'no_iniciada';
-            if (currentUser?.id) {
-              const studentIdToUse = currentUser.id;
-              const filterClause = currentUser.auth_user_id 
-                ? `student_id.eq.${studentIdToUse},student_id.eq.${currentUser.auth_user_id}`
-                : `student_id.eq.${studentIdToUse}`;
-
-              const { data: attempts } = await supabase
-                .from('activity_attempts')
-                .select('*')
-                .eq('activity_id', actData.id)
-                .or(filterClause)
-                .order('completed_at', { ascending: false });
-
-              // Verificar únicamente si ESTA actividad específica (actData.id) fue realizada localmente o en BD
-              const localCompleted = JSON.parse(localStorage.getItem(`completed_activities_${studentIdToUse}`) || '[]');
-              const isLocallyCompleted = actData.id ? localCompleted.includes(actData.id) : false;
-              const hasDbCompletedAttempt = attempts && attempts.length > 0 && attempts[0].status === 'completed';
-
-              if (hasDbCompletedAttempt || isLocallyCompleted) {
-                const lastAttempt = (attempts && attempts.length > 0) ? attempts[0] : null;
-                stateToSet = 'completada';
-                const finalScore = lastAttempt?.score ?? 100;
-                setCompletedResult({
-                  correctCount: Math.round((finalScore / 100) * formattedQuestions.length),
-                  totalCount: formattedQuestions.length,
-                  scorePct: finalScore,
-                  completedAt: lastAttempt?.completed_at
-                    ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES')
-                    : 'Realizada'
-                });
-              } else if (attempts && attempts.length > 0 && attempts[0].status === 'in_progress') {
-                stateToSet = 'en_progreso';
+                  if (hasDbCompletedAttempt || isLocallyCompleted) {
+                    const lastAttempt = (attempts && attempts.length > 0) ? attempts[0] : null;
+                    stateToSet = 'completada';
+                    const finalScore = lastAttempt?.score ?? 100;
+                    setCompletedResult({
+                      correctCount: Math.round((finalScore / 100) * formattedQuestions.length),
+                      totalCount: formattedQuestions.length,
+                      scorePct: finalScore,
+                      completedAt: lastAttempt?.completed_at ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES') : 'Realizada'
+                    });
+                  } else if (attempts && attempts.length > 0 && attempts[0].status === 'in_progress') {
+                    stateToSet = 'en_progreso';
+                  } else {
+                    stateToSet = 'no_iniciada';
+                  }
+                  setActivityState(stateToSet);
+                }
               } else {
-                stateToSet = 'no_iniciada';
+                setActivityConfig(null);
+                setActivityState('no_configurada');
               }
-            }
-            setActivityState(stateToSet);
-          } else {
-            setActivityConfig(null);
-            setActivityState('no_configurada');
-          }
+            })()
+          );
         } else {
           setActivityConfig(null);
           setActivityState('no_configurada');
         }
+
+        // Ejecutar bloque secundario (todas las peticiones dependientes, en paralelo entre sí)
+        await Promise.all(secondaryPromises);
 
       } catch (err) {
         console.error('Error fetching class detail:', err.message);

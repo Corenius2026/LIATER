@@ -27,49 +27,49 @@ export default function Dashboard() {
       }
       try {
         setLoading(true);
+        const now = new Date().toISOString();
 
-        // 1. Obtener Diplomado / Curso activo
-        const { data: diplomaData } = await supabase
-          .from('diploma_programs')
-          .select('title, program_type, is_published, status, meet_url')
-          .eq('id', cleanProgramId)
-          .maybeSingle();
+        // Ejecutar las 5 consultas en paralelo
+        const [
+          { data: diplomaData },
+          { data: modulesData },
+          { data: upcomingData },
+          { data: recordingsData },
+          { data: announcementsData }
+        ] = await Promise.all([
+          supabase
+            .from('diploma_programs')
+            .select('title, program_type, is_published, status, meet_url')
+            .eq('id', cleanProgramId)
+            .maybeSingle(),
+          supabase
+            .from('modules')
+            .select('id')
+            .eq('program_id', cleanProgramId)
+            .order('order_index', { ascending: true }),
+          supabase
+            .from('class_sessions')
+            .select('id, title, class_date, duration, video_url')
+            .eq('program_id', cleanProgramId)
+            .gte('class_date', now)
+            .order('class_date', { ascending: true })
+            .limit(3),
+          supabase
+            .from('class_sessions')
+            .select('id, title, class_date, video_url')
+            .eq('program_id', cleanProgramId)
+            .not('video_url', 'is', null)
+            .order('class_date', { ascending: false })
+            .limit(3),
+          supabase
+            .from('announcements')
+            .select('*, teacher_profiles(name)')
+            .eq('program_id', cleanProgramId)
+            .order('created_at', { ascending: false })
+            .limit(5)
+        ]);
 
         const isPublished = diplomaData ? (diplomaData.is_published !== false && diplomaData.status !== 'draft' && diplomaData.status !== 'disabled') : true;
-
-        // 2. Obtener conteo de módulos y el ID del primer módulo
-        const { data: modulesData } = await supabase
-          .from('modules')
-          .select('id')
-          .eq('program_id', cleanProgramId)
-          .order('order_index', { ascending: true });
-
-        // 3. Obtener próximas clases (fecha >= ahora)
-        const now = new Date().toISOString();
-        const { data: upcomingData } = await supabase
-          .from('class_sessions')
-          .select('id, title, class_date, duration, video_url')
-          .eq('program_id', cleanProgramId)
-          .gte('class_date', now)
-          .order('class_date', { ascending: true })
-          .limit(3);
-
-        // 4. Obtener últimas grabaciones
-        const { data: recordingsData } = await supabase
-          .from('class_sessions')
-          .select('id, title, class_date, video_url')
-          .eq('program_id', cleanProgramId)
-          .not('video_url', 'is', null)
-          .order('class_date', { ascending: false })
-          .limit(3);
-
-        // 5. Obtener anuncios
-        const { data: announcementsData } = await supabase
-          .from('announcements')
-          .select('*, teacher_profiles(name)')
-          .eq('program_id', cleanProgramId)
-          .order('created_at', { ascending: false })
-          .limit(5);
 
         setDashboardData({
           diplomaTitle: diplomaData?.title || 'Programa Académico',

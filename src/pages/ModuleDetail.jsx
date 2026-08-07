@@ -20,53 +20,45 @@ export default function ModuleDetail() {
       }
       try {
         setLoading(true);
-        // 1. Obtener los datos del módulo
-        const { data: modData, error: modError } = await supabase
-          .from('modules')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
+        
+        // 1. Obtener los datos del módulo y sesiones en paralelo
+        const [
+          { data: modData, error: modError },
+          sRes
+        ] = await Promise.all([
+          supabase.from('modules').select('*').eq('id', id).maybeSingle(),
+          (async () => {
+            let res = await supabase.from('sessions').select('*').eq('module_id', id).order('order_index', { ascending: true });
+            if (res.error) {
+              res = await supabase.from('subtopics').select('*').eq('module_id', id).order('order_index', { ascending: true });
+            }
+            return res;
+          })()
+        ]);
         
         if (modError) console.error('Error fetching module:', modError);
         setModuleData(modData);
 
         if (modData) {
-          // Actualizar contexto global para el Sidebar
+          // Actualizar contexto global para el Sidebar y disparar peticiones secundarias
           if (modData.program_id) {
-            const { data: progData } = await supabase
+            // No hacemos await aquí para no bloquear, lo dejamos en background
+            supabase
               .from('diploma_programs')
               .select('program_type')
               .eq('id', modData.program_id)
-              .maybeSingle();
-
-            if (progData?.program_type) {
-              setProgramType(progData.program_type);
-              localStorage.setItem('activeProgramType', progData.program_type);
-            }
-            localStorage.setItem('activeProgramId', modData.program_id);
-            window.dispatchEvent(new Event('programContextChanged'));
+              .maybeSingle()
+              .then(({ data: progData }) => {
+                if (progData?.program_type) {
+                  setProgramType(progData.program_type);
+                  localStorage.setItem('activeProgramType', progData.program_type);
+                }
+                localStorage.setItem('activeProgramId', modData.program_id);
+                window.dispatchEvent(new Event('programContextChanged'));
+              });
           }
 
-          // 2. Obtener las sesiones
-          let sessionsData = [];
-          const { data: sData, error: sError } = await supabase
-            .from('sessions')
-            .select('*')
-            .eq('module_id', id)
-            .order('order_index', { ascending: true });
-          
-          if (sError) {
-            const { data: oldData } = await supabase
-              .from('subtopics')
-              .select('*')
-              .eq('module_id', id)
-              .order('order_index', { ascending: true });
-            sessionsData = oldData || [];
-          } else {
-            sessionsData = sData || [];
-          }
-
-          let sessionsWithClasses = sessionsData;
+          let sessionsWithClasses = sRes.data || [];
 
           // 3. Obtener las clases si hay sesiones
           if (sessionsWithClasses.length > 0) {
