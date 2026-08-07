@@ -59,11 +59,19 @@ function formatEmbedVideoUrl(url) {
 
 function PrivateVideoPlayer({ videoUrl, title, studentName }) {
   const iframeRef = useRef(null);
+  const realEmbedUrl = formatEmbedVideoUrl(videoUrl);
+  const isGoogleDrive = realEmbedUrl.includes('drive.google.com');
 
   useEffect(() => {
     if (!iframeRef.current || !videoUrl) return;
 
-    const realEmbedUrl = formatEmbedVideoUrl(videoUrl);
+    if (isGoogleDrive) {
+      // Google Drive bloquea iframes dentro de URLs blob: por políticas de cookies.
+      // Así que lo montamos directamente en el iframe.
+      iframeRef.current.src = realEmbedUrl;
+      return;
+    }
+
     const obfuscatedUrl = btoa(encodeURIComponent(realEmbedUrl || ''));
     
     // Documento en memoria que descifra la URL vía JS dinámico sin escribir jamás "src=https://..." en el código HTML
@@ -130,7 +138,7 @@ function PrivateVideoPlayer({ videoUrl, title, studentName }) {
     return () => {
       URL.revokeObjectURL(blobUrl);
     };
-  }, [videoUrl, title]);
+  }, [videoUrl, title, realEmbedUrl, isGoogleDrive]);
 
   return (
     <div 
