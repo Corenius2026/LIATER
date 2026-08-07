@@ -84,7 +84,7 @@ export default function PendingActivitiesCard({ studentId }) {
   const pendingsList = activities.filter(a => a.type !== 'Anuncio importante');
   const announcementsList = activities.filter(a => a.type === 'Anuncio importante');
   const reinforcementCount = pendingsList.filter(a => a.type.includes('Reforzamiento') || a.type === 'Cuestionario').length;
-  const currentList = (activeTab === 'pendings' ? pendingsList : announcementsList).slice(0, 2);
+  const currentList = (activeTab === 'pendings' ? pendingsList : announcementsList).slice(0, 4);
 
   return (
     <div className="card static-card" style={{ padding: '1.5rem' }}>
@@ -333,7 +333,10 @@ export default function PendingActivitiesCard({ studentId }) {
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.programTitle}
                     </span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{formatShortDate(item.date)}</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      {item.type === 'Sesión en vivo' || item.type === 'Clase hoy' ? 'Próxima clase: ' : 'Cierra: '}
+                      {formatShortDate(item.date)}
+                    </span>
                   </div>
                 </div>
 

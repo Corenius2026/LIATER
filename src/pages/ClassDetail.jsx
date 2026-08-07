@@ -212,7 +212,7 @@ export default function ClassDetail() {
   const [programProgressDetails, setProgramProgressDetails] = useState(null);
 
   const [activityConfig, setActivityConfig] = useState(null);
-  const [activityState, setActivityState] = useState('no_configurada'); // 'no_configurada' | 'bloqueada' | 'no_iniciada' | 'en_progreso' | 'completada'
+  const [activityState, setActivityState] = useState('no_configurada'); // 'no_configurada' | 'bloqueada' | 'no_iniciada' | 'en_progreso' | 'completada' | 'vencida'
 
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
@@ -482,12 +482,20 @@ export default function ClassDetail() {
                   ? `student_id.eq.${studentIdToUse},student_id.eq.${currentUser.auth_user_id}`
                   : `student_id.eq.${studentIdToUse}`;
 
-                const [correctRes, draftRes, attemptsRes] = await Promise.all([
+                let nextClassQuery = Promise.resolve({ data: null });
+                if (!actData.due_date && classData?.program_id) {
+                  let q = supabase.from('class_sessions').select('class_date').eq('program_id', classData.program_id).gt('class_date', classData?.class_date || new Date().toISOString()).order('class_date', { ascending: true }).limit(1);
+                  if (classData.teacher_id) q = q.eq('teacher_id', classData.teacher_id);
+                  nextClassQuery = q.maybeSingle();
+                }
+
+                const [correctRes, draftRes, attemptsRes, nextClassRes] = await Promise.all([
                   supabase.from('question_correct_answers').select('*').in('question_id', qIds),
                   supabase.from('activity_drafts').select('draft_data').eq('class_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
                   studentIdToUse 
                     ? supabase.from('activity_attempts').select('*').eq('activity_id', actData.id).or(filterClause).order('completed_at', { ascending: false })
-                    : Promise.resolve({ data: [] })
+                    : Promise.resolve({ data: [] }),
+                  nextClassQuery
                 ]);
 
                 const correctMap = {};
@@ -556,11 +564,34 @@ export default function ClassDetail() {
                   } else {
                     stateToSet = 'no_iniciada';
                   }
+
+                  // Verificar si la actividad está vencida
+                  if (stateToSet !== 'completada') {
+                    let dueDate = actData.due_date ? new Date(actData.due_date) : null;
+                    if (!dueDate && nextClassRes.data?.class_date) {
+                      dueDate = new Date(new Date(nextClassRes.data.class_date).getTime() - 5 * 60000);
+                    } else if (!dueDate && classData?.class_date) {
+                      dueDate = new Date(new Date(classData.class_date).getTime() + 7 * 24 * 60 * 60000);
+                    }
+                    if (dueDate && dueDate < new Date()) {
+                      stateToSet = 'vencida';
+                    }
+                  }
+
                   setActivityState(stateToSet);
                 }
               } else {
-                setActivityConfig(null);
-                setActivityState('no_configurada');
+                // La actividad existe en DB (is_published) pero aún no tiene preguntas configuradas
+                setActivityConfig({
+                  id: actData.id,
+                  title: actData.title,
+                  description: actData.description,
+                  estimatedTimeMinutes: 10,
+                  maxAttempts: actData.max_attempts || 1,
+                  isMandatory: actData.is_mandatory,
+                  questions: []
+                });
+                setActivityState('bloqueada');
               }
             })()
           );
@@ -991,6 +1022,13 @@ export default function ClassDetail() {
               >
                 <Award size={16} /> {activityState === 'en_progreso' ? 'Continuar actividad' : 'Comenzar actividad'}
               </button>
+            )}
+
+            {activityState === 'vencida' && (
+              <div style={{ padding: '0.85rem', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Lock size={16} />
+                <span>La fecha límite para realizar esta actividad ha finalizado.</span>
+              </div>
             )}
 
             {activityState === 'completada' && completedResult && (

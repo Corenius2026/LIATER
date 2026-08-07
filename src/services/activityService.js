@@ -164,8 +164,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               urgency = 'tomorrow';
               statusLabel = 'Mañana';
             } else if (dueDate < now) {
-              urgency = 'overdue';
-              statusLabel = 'Vencida';
+              return; // No mostrar entregas vencidas en los pendientes activos
             }
 
             pendingActivities.push({
@@ -231,8 +230,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               urgency = 'tomorrow';
               statusLabel = 'Mañana';
             } else if (dueDate < now) {
-              urgency = 'overdue';
-              statusLabel = 'Vencida';
+              return; // No mostrar cuestionarios vencidos en los pendientes activos
             }
 
             pendingActivities.push({
@@ -248,98 +246,53 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             });
           });
         }
-
-        // 3.5. CONSULTAR ACTIVIDADES PUBLICADAS EN CLASES (class_activities)
-        try {
-          const { data: classActs } = await supabase
-            .from('class_activities')
-            .select('id, class_id, title, is_published, class_sessions(id, title, class_date, program_id, video_url)')
-            .eq('is_published', true);
-
-          if (classActs) {
-            classActs.forEach(ca => {
-              const clsSession = ca.class_sessions;
-              const pId = clsSession?.program_id;
-              
-              // Solo incluir si la clase tiene grabación (video_url), lo que implica que ya pasó y está disponible
-              if (pId && programIds.includes(pId) && clsSession?.video_url) {
-                const strId = String(ca.id).toLowerCase();
-                const strTitle = String(ca.title).toLowerCase();
-                if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir si ya fue realizada
-
-                pendingActivities.push({
-                  id: ca.id,
-                  title: ca.title || 'Actividad de Reforzamiento',
-                  type: 'Actividad de Reforzamiento',
-                  programId: pId,
-                  programTitle: programMap[pId] || 'Programa Inscrito',
-                  date: clsSession?.class_date || todayStr,
-                  urgency: 'today',
-                  statusLabel: 'Sin realizar',
-                  link: `/class/${ca.class_id}`
-                });
-              }
-            });
-          }
-        } catch (err) {
-          console.info('Información sobre class_activities:', err);
-        }
-
-        // Si no hay cuestionarios ni actividades registradas en DB para los programas inscritos, generar la actividad de reforzamiento por defecto si no está realizada
-        if (pendingActivities.length === 0 && programIds.length > 0) {
-          programIds.forEach(pId => {
-            const refId = `reforzamiento-${pId}`;
-            const isDone = completedActivityIds.has(refId) || 
-                           completedActivityIds.has(refId.toLowerCase()) || 
-                           completedActivityIds.has(pId.toLowerCase());
-            if (isDone) return;
-
-            pendingActivities.push({
-              id: refId,
-              title: `Cuestionario de Reforzamiento - Repaso Módulo`,
-              type: 'Actividad de Reforzamiento',
-              programId: pId,
-              programTitle: programMap[pId] || 'Programa Inscrito',
-              date: todayStr,
-              urgency: 'today',
-              statusLabel: 'Sin realizar',
-              link: `/modules/${pId}`
-            });
-          });
-        }
       } catch (err) {
-        console.info('Información: Generando actividades de reforzamiento por defecto para programas activos.', err);
+        console.info('Información sobre cuestionarios:', err);
       }
     }
 
     // -------------------------------------------------------------
-    // 4. CONSULTAR SESIONES EN VIVO PRÓXIMAS (class_sessions)
+    // 3.5. CONSULTAR SESIONES EN VIVO PRÓXIMAS (class_sessions)
+    // (Mover antes de class_activities para calcular due_date basado en la siguiente clase)
     // -------------------------------------------------------------
     const classMap = {};
+    const futureClassesByProgram = {};
+
     if (programIds.length > 0) {
       try {
         const { data: classes, error: classErr } = await supabase
           .from('class_sessions')
-          .select('id, title, class_date, program_id')
+          .select('id, title, class_date, program_id, teacher_id')
           .in('program_id', programIds)
           .order('class_date', { ascending: true })
-          .limit(10);
+          .limit(100);
 
         if (!classErr && classes) {
           classes.forEach(cls => {
             if (!cls.class_date) return;
             const strId = String(cls.id).toLowerCase();
             const strTitle = String(cls.title).toLowerCase();
-            if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir clases ya realizadas
+            
+            // Inicializar array para el programa si no existe
+            if (!futureClassesByProgram[cls.program_id]) {
+              futureClassesByProgram[cls.program_id] = [];
+            }
             
             const clsDate = new Date(cls.class_date);
+
+            // Solo agregar a la lista de clases futuras si no ha pasado
+            if (clsDate > now) {
+              futureClassesByProgram[cls.program_id].push(cls);
+            }
+
+            if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir clases ya realizadas
             
-            // Guardar primera clase asociada al programa para redirección
+            // Guardar primera clase (futura o sin realizar) asociada al programa para redirección
             if (!classMap[cls.program_id]) {
               classMap[cls.program_id] = cls.id;
             }
 
-            if (clsDate < now) return; // Solo clases futuras
+            if (clsDate < now) return; // Solo mostramos clases futuras en pendientes
 
             const programTitle = programMap[cls.program_id] || 'Programa Inscrito';
             const clsDateStr = clsDate.toISOString().split('T')[0];
@@ -370,6 +323,153 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         }
       } catch (err) {
         console.info('Información sobre clases:', err);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 4. CONSULTAR ACTIVIDADES PUBLICADAS EN CLASES (class_activities)
+    // -------------------------------------------------------------
+    if (programIds.length > 0) {
+      try {
+        // Filtrar por class_id in clases del programa (el filtro en join no funciona en Supabase PostgREST)
+        const allClassIds = Object.values(classMap);
+        
+        // Obtener también los IDs de todas las sesiones del programa (pasadas y futuras)
+        const allSessionIds = [];
+        for (const pId of programIds) {
+          const futureSessions = futureClassesByProgram[pId] || [];
+          futureSessions.forEach(s => allSessionIds.push(s.id));
+        }
+
+        const { data: classActs, error: actErr } = await supabase
+          .from('class_activities')
+          .select('id, class_id, title, description, due_date, class_sessions!inner(id, program_id, title, video_url, class_date, teacher_id)')
+          .eq('is_published', true);
+
+        if (classActs) {
+          classActs.forEach(ca => {
+            const clsSession = ca.class_sessions;
+            const pId = clsSession?.program_id;
+            
+            // Solo incluir si pertenece a un programa inscrito del estudiante
+            if (pId && programIds.includes(pId)) {
+              const strId = String(ca.id).toLowerCase();
+              const strTitle = String(ca.title).toLowerCase();
+              if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir si ya fue realizada
+
+              let dueDate = new Date();
+              if (ca.due_date) {
+                dueDate = new Date(ca.due_date);
+              } else {
+                const teacherId = clsSession?.teacher_id;
+                const nextClasses = futureClassesByProgram[pId];
+                let nextClassOfSameTeacher = null;
+                
+                if (nextClasses && nextClasses.length > 0 && teacherId) {
+                  nextClassOfSameTeacher = nextClasses.find(c => c.teacher_id === teacherId);
+                }
+                
+                if (nextClassOfSameTeacher) {
+                  const nextClassDate = new Date(nextClassOfSameTeacher.class_date);
+                  // 5 min antes de la siguiente clase del mismo profe
+                  dueDate = new Date(nextClassDate.getTime() - 5 * 60000);
+                } else if (clsSession?.class_date) {
+                  // 7 dias despues de la clase actual
+                  const currClassDate = new Date(clsSession.class_date);
+                  dueDate = new Date(currClassDate.getTime() + 7 * 24 * 60 * 60000);
+                }
+              }
+
+              // Si la actividad ya venció, NO mostrarla en los pendientes
+              if (dueDate < now) {
+                return;
+              }
+
+              const dueDateStr = dueDate.toISOString().split('T')[0];
+
+              let urgency = 'upcoming';
+              let statusLabel = 'Sin realizar';
+
+              if (dueDateStr === todayStr) {
+                urgency = 'today';
+                statusLabel = 'Hoy';
+              } else if (dueDateStr === tomorrowStr) {
+                urgency = 'tomorrow';
+                statusLabel = 'Mañana';
+              }
+
+              pendingActivities.push({
+                id: ca.id,
+                title: ca.title || 'Actividad de Reforzamiento',
+                type: 'Actividad de Reforzamiento',
+                programId: pId,
+                programTitle: programMap[pId] || 'Programa Inscrito',
+                date: dueDate.toISOString(),
+                urgency,
+                statusLabel,
+                link: `/class/${ca.class_id}`
+              });
+            }
+          });
+        }
+      } catch (err) {
+        console.info('Información sobre class_activities:', err);
+      }
+
+      // Fallback: generar actividad de reforzamiento por defecto si NO hay ninguna de ese tipo en DB
+      // IMPORTANTE: se activa aunque haya sesiones en vivo pendientes
+      try {
+        const hasReinforcementActivity = pendingActivities.some(a => a.type === 'Actividad de Reforzamiento');
+        
+        if (!hasReinforcementActivity && programIds.length > 0) {
+          programIds.forEach(pId => {
+            const refId = `reforzamiento-${pId}`;
+            const isDone = completedActivityIds.has(refId) || 
+                           completedActivityIds.has(refId.toLowerCase()) || 
+                           completedActivityIds.has(pId.toLowerCase());
+            if (isDone) return;
+
+            // Calcular fecha límite: 5 min antes de la próxima clase del programa
+            let defaultDate = null;
+            const nextClasses = futureClassesByProgram[pId];
+            if (nextClasses && nextClasses.length > 0) {
+              // Usar la próxima clase que esté en el futuro
+              const nextCls = nextClasses.find(c => new Date(c.class_date) > now);
+              if (nextCls) {
+                defaultDate = new Date(new Date(nextCls.class_date).getTime() - 5 * 60000);
+              }
+            }
+            
+            // Si no hay clase futura o la fecha ya venció, no mostrar
+            if (!defaultDate || defaultDate < now) return;
+
+            const defDateStr = defaultDate.toISOString().split('T')[0];
+            let urgency = 'upcoming';
+            let statusLabel = 'Sin realizar';
+            
+            if (defDateStr === todayStr) {
+              urgency = 'today';
+              statusLabel = 'Hoy';
+            } else if (defDateStr === tomorrowStr) {
+              urgency = 'tomorrow';
+              statusLabel = 'Mañana';
+            }
+
+            pendingActivities.push({
+              id: refId,
+              title: `Actividad de Reforzamiento - ${programMap[pId] || 'Repaso Módulo'}`,
+              type: 'Actividad de Reforzamiento',
+              programId: pId,
+              programTitle: programMap[pId] || 'Programa Inscrito',
+              date: defaultDate.toISOString(),
+              urgency,
+              statusLabel,
+              link: classMap[pId] ? `/class/${classMap[pId]}` : `/modules/${pId}`
+            });
+          });
+        }
+      } catch (err) {
+        console.info('Información: Generando actividades de reforzamiento por defecto.', err);
       }
     }
 
