@@ -61,12 +61,13 @@ function PrivateVideoPlayer({ videoUrl, title, studentName }) {
   const iframeRef = useRef(null);
   const realEmbedUrl = formatEmbedVideoUrl(videoUrl);
   const isGoogleDrive = realEmbedUrl.includes('drive.google.com');
+  const isYouTube = realEmbedUrl.includes('youtube.com') || realEmbedUrl.includes('youtu.be');
 
   useEffect(() => {
     if (!iframeRef.current || !videoUrl) return;
 
-    if (isGoogleDrive) {
-      // Google Drive bloquea iframes dentro de URLs blob: por políticas de cookies.
+    if (isGoogleDrive || isYouTube) {
+      // Google Drive y YouTube bloquean iframes dentro de URLs blob: por políticas de cookies u origen.
       // Así que lo montamos directamente en el iframe.
       iframeRef.current.src = realEmbedUrl;
       return;
