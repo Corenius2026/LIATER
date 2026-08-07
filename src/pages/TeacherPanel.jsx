@@ -28,7 +28,7 @@ const useTeacherContext = () => React.useContext(TeacherContext);
    MODAL DE DETALLE DE CLASE — CICLO 360°
    Fases: PRE-CLASE | GRABACIÓN | ACTIVIDAD IA
 ───────────────────────────────────────── */
-function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
+function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }) {
   const { currentProgram } = useTeacherContext();
   const [activeSection, setActiveSection] = useState('preclass'); // 'preclass' | 'recording' | 'activity'
   
@@ -119,7 +119,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
       // Stats de la actividad publicada para esta clase
       const { data: actData } = await supabase
         .from('class_activities')
-        .select('id, title, is_published')
+        .select('id, title, is_published, due_date')
         .eq('class_id', selectedClass.id)
         .maybeSingle();
       
@@ -129,9 +129,9 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
             .from('activity_responses')
             .select('id', { count: 'exact', head: true })
             .eq('activity_id', actData.id);
-          setActivityStats({ isPublished: actData.is_published, totalResponses: totalResponses || 0 });
+          setActivityStats({ isPublished: actData.is_published, totalResponses: totalResponses || 0, due_date: actData.due_date });
         } catch {
-          setActivityStats({ isPublished: actData.is_published, totalResponses: 0 });
+          setActivityStats({ isPublished: actData.is_published, totalResponses: 0, due_date: actData.due_date });
         }
       }
     } catch (err) {
@@ -212,18 +212,52 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
 
   // ── ACTIVIDAD IA: Publicar / Despublicar ──
   const syncAndPublish = async (draftData, classId) => {
+    // Calcular dueDate: 5 min antes de la siguiente clase
+    let calculatedDueDate = null;
+    if (allClasses && allClasses.length > 0) {
+      const nextClass = allClasses
+        .filter(c => new Date(c.class_date) > new Date(selectedClass.class_date))
+        .sort((a, b) => new Date(a.class_date) - new Date(b.class_date))[0];
+      
+      if (nextClass) {
+        calculatedDueDate = new Date(new Date(nextClass.class_date).getTime() - 300000).toISOString();
+      } else {
+        // Última clase del programa, por defecto 7 días
+        calculatedDueDate = new Date(new Date(selectedClass.class_date).getTime() + 7*24*60*60*1000).toISOString();
+      }
+    }
+
     const { data: existing } = await supabase.from('class_activities').select('id').eq('class_id', classId).maybeSingle();
     let actId;
     if (existing) {
-      const { data: updated, error } = await supabase.from('class_activities').update({ title: draftData.activity_title || 'Actividad de Reforzamiento', description: draftData.activity_description || '', is_published: true, max_attempts: 3 }).eq('id', existing.id).select('id').single();
+      const updatePayload = { 
+        title: draftData.activity_title || 'Actividad de Reforzamiento', 
+        description: draftData.activity_description || '', 
+        is_published: true, 
+        max_attempts: 3 
+      };
+      if (calculatedDueDate) updatePayload.due_date = calculatedDueDate;
+      
+      const { data: updated, error } = await supabase.from('class_activities').update(updatePayload).eq('id', existing.id).select('id').single();
       if (error) throw error;
       actId = updated.id;
       await supabase.from('activity_questions').delete().eq('activity_id', actId);
     } else {
-      const { data: newAct, error } = await supabase.from('class_activities').insert({ class_id: classId, title: draftData.activity_title || 'Actividad de Reforzamiento', description: draftData.activity_description || '', is_published: true, max_attempts: 3, is_mandatory: false }).select('id').single();
+      const insertPayload = { 
+        class_id: classId, 
+        title: draftData.activity_title || 'Actividad de Reforzamiento', 
+        description: draftData.activity_description || '', 
+        is_published: true, 
+        max_attempts: 3, 
+        is_mandatory: false 
+      };
+      if (calculatedDueDate) insertPayload.due_date = calculatedDueDate;
+      
+      const { data: newAct, error } = await supabase.from('class_activities').insert(insertPayload).select('id').single();
       if (error) throw error;
       actId = newAct.id;
     }
+    
     for (let qi = 0; qi < (draftData.questions || []).length; qi++) {
       const q = draftData.questions[qi];
       const qPayload = {
@@ -571,6 +605,7 @@ function ClassDetailModal({ selectedClass, onClose, onClassUpdated }) {
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                           {draft.draft_data?.activity_title || 'Sin título'} · {(localQuestions.length)} preguntas
                           {activityStats && ` · ${activityStats.totalResponses} respuestas recibidas`}
+                          {activityStats?.due_date && ` · Cierra: ${formatClassDate(activityStats.due_date, true)}`}
                         </div>
                       </div>
                     </div>
@@ -679,7 +714,7 @@ function ClasesTab() {
       let data = [];
       const { data: sData, error: sErr } = await supabase
         .from('class_sessions')
-        .select('*, sessions(id, title, order_index, module_id, modules(id, title, program_id)), meet_url')
+        .select('*, sessions(id, title, order_index, module_id, modules(id, title, program_id)), meet_url, class_activities(id, is_published)')
         .eq('program_id', programId)
         .eq('teacher_id', teacherId)         // ← Solo clases del profesor
         .order('class_date', { ascending: true });
@@ -687,7 +722,7 @@ function ClasesTab() {
       if (sErr) {
         const { data: oldData, error: oldErr } = await supabase
           .from('class_sessions')
-          .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
+          .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url, class_activities(id, is_published)')
           .eq('program_id', programId)
           .eq('teacher_id', teacherId)       // ← Fallback también filtrado
           .order('class_date', { ascending: true });
@@ -832,8 +867,12 @@ function ClasesTab() {
 
               {/* CLASES */}
               {expandedSessions[sesId] && ses.classes.map(cls => {
-                const isCompleted = new Date(cls.class_date) < now;
+                const isPast      = new Date(cls.class_date) < now;
                 const hasVideo    = !!cls.video_url;
+                // class_activities is an array, check if any is published
+                const hasActivity = Array.isArray(cls.class_activities) && cls.class_activities.some(a => a.is_published);
+                const isCompleted = isPast && hasVideo && hasActivity;
+                const isPending   = isPast && !isCompleted;
                 const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();
 
                 return (
@@ -843,16 +882,21 @@ function ClasesTab() {
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', flex: 1, minWidth: 0 }}>
                       {/* Indicador de estado */}
                       <div style={{ width: '8px', height: '8px', borderRadius: '50%', marginTop: '6px', flexShrink: 0,
-                        background: isCompleted ? '#16a34a' : isToday ? '#FCA311' : '#E5E5E5' }} />
+                        background: isCompleted ? '#16a34a' : isPending ? '#f97316' : isToday ? '#FCA311' : '#E5E5E5' }} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cls.title}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><CalendarDays size={12} />{formatClassDate(cls.class_date, false)}</span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><Timer size={12} />{cls.duration || 0} min</span>
-                          {isCompleted && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: hasVideo ? '#16a34a' : '#FCA311', fontWeight: 600 }}>
-                              {hasVideo ? <><CheckCircle2 size={12} /> Grabación OK</> : <><AlertCircle size={12} /> Sin grabación</>}
-                            </span>
+                          {isPast && (
+                            <>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: hasVideo ? '#16a34a' : '#f97316', fontWeight: 600 }}>
+                                {hasVideo ? <><CheckCircle2 size={12} /> Grabación OK</> : <><AlertCircle size={12} /> Grabación pendiente</>}
+                              </span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: hasActivity ? '#16a34a' : '#f97316', fontWeight: 600 }}>
+                                {hasActivity ? <><CheckCircle2 size={12} /> Actividad OK</> : <><AlertCircle size={12} /> Actividad pendiente</>}
+                              </span>
+                            </>
                           )}
                         </div>
                       </div>
@@ -886,6 +930,7 @@ function ClasesTab() {
       {selectedClass && (
         <ClassDetailModal
           selectedClass={selectedClass}
+          allClasses={classes}
           onClose={() => setSelectedClass(null)}
           onClassUpdated={fetchMyClasses}
         />

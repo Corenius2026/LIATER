@@ -126,6 +126,20 @@ CREATE TABLE IF NOT EXISTS public.enrollments (
   CONSTRAINT enrollments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS public.class_activities (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  class_id uuid NOT NULL,
+  title text NOT NULL,
+  description text NULL,
+  is_published boolean NOT NULL DEFAULT false,
+  is_mandatory boolean NOT NULL DEFAULT false,
+  max_attempts integer NOT NULL DEFAULT 3,
+  due_date timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT class_activities_pkey PRIMARY KEY (id)
+);
+
 CREATE TABLE IF NOT EXISTS public.assignments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   program_id uuid NOT NULL,
