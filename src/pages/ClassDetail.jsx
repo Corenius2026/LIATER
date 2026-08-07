@@ -717,8 +717,35 @@ export default function ClassDetail() {
 
   if (loading) {
     return (
-      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <h2>Cargando detalle de la clase...</h2>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%', padding: '1rem 0' }}>
+        {/* Esqueleto del Encabezado */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
+          <div style={{ width: '100%' }}>
+            <div className="skeleton" style={{ width: '120px', height: '20px', marginBottom: '12px' }}></div>
+            <div className="skeleton" style={{ width: 'max(300px, 40%)', height: '36px', marginBottom: '16px' }}></div>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <div className="skeleton" style={{ width: '150px', height: '20px' }}></div>
+              <div className="skeleton" style={{ width: '150px', height: '20px' }}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Esqueleto del Cuerpo (Grid) */}
+        <div style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: '1fr' }} className="skeleton-grid">
+          <style>{`@media(min-width: 1024px) { .skeleton-grid { grid-template-columns: 2fr 1fr !important; } }`}</style>
+          
+          {/* Columna Izquierda (Video) */}
+          <div>
+            <div className="skeleton" style={{ width: '100%', aspectRatio: '16/9', borderRadius: 'var(--radius-lg)' }}></div>
+            <div className="skeleton" style={{ width: '100%', height: '80px', marginTop: '1.5rem', borderRadius: 'var(--radius-md)' }}></div>
+          </div>
+          
+          {/* Columna Derecha (Tarjetas laterales) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="skeleton" style={{ width: '100%', height: '240px', borderRadius: 'var(--radius-lg)' }}></div>
+            <div className="skeleton" style={{ width: '100%', height: '180px', borderRadius: 'var(--radius-lg)' }}></div>
+          </div>
+        </div>
       </div>
     );
   }
