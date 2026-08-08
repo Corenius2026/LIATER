@@ -437,7 +437,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              {(selectedClass?.meet_url || currentProgram?.meet_url) && (
+              {new Date(selectedClass?.class_date) >= new Date() && (selectedClass?.meet_url || currentProgram?.meet_url) && (
                 <a href={selectedClass?.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer" style={{ background: '#FCA311', color: '#14213D', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 2px 4px rgba(252,163,17,0.2)', flexShrink: 0 }}>
                   <Video size={16} /> Entrar a la reunión
                 </a>
@@ -1072,7 +1072,7 @@ function ClasesTab() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {(cls.meet_url || currentProgram?.meet_url) && (
+                      {!isPast && (cls.meet_url || currentProgram?.meet_url) && (
                         <a href={cls.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer"
                           style={{ background: '#FCA311', color: '#14213D', padding: '0.45rem 0.9rem', borderRadius: '7px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease', boxShadow: '0 2px 4px rgba(252,163,17,0.2)' }}
                           onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
