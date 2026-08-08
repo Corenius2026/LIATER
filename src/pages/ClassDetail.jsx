@@ -573,12 +573,10 @@ export default function ClassDetail() {
 
                   let stateToSet = 'no_iniciada';
                   const attempts = attemptsRes.data;
-                  const localCompleted = JSON.parse(localStorage.getItem(`completed_activities_${studentIdToUse}`) || '[]');
-                  const isLocallyCompleted = actData.id ? localCompleted.includes(actData.id) : false;
                   const hasDbCompletedAttempt = attempts && attempts.length > 0 && attempts[0].status === 'completed';
 
-                  if (hasDbCompletedAttempt || isLocallyCompleted) {
-                    const lastAttempt = (attempts && attempts.length > 0) ? attempts[0] : null;
+                  if (hasDbCompletedAttempt) {
+                    const lastAttempt = attempts[0];
                     stateToSet = 'completada';
 
                     if (lastAttempt?.id) {
@@ -616,7 +614,18 @@ export default function ClassDetail() {
                       completedAt: lastAttempt?.completed_at ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES') : 'Realizada'
                     });
                   } else {
-                    setUserAnswers(initialAnswers);
+                    // Si no hay intento guardado en BD, limpiar cualquier registro local
+                    try {
+                      localStorage.removeItem(`liater_answers_${actData.id}_${studentIdToUse}`);
+                      const key = `completed_activities_${studentIdToUse}`;
+                      const localList = JSON.parse(localStorage.getItem(key) || '[]');
+                      const filtered = localList.filter(id => id !== actData.id);
+                      localStorage.setItem(key, JSON.stringify(filtered));
+                    } catch (_) {}
+
+                    setUserAnswers({});
+                    setCompletedResult(null);
+
                     if (attempts && attempts.length > 0 && attempts[0].status === 'in_progress') {
                       stateToSet = 'en_progreso';
                     } else {
