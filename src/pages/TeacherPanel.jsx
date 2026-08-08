@@ -908,8 +908,15 @@ function ClasesTab() {
 
   // Filtrar por estado
   const filteredClasses = classes.filter(c => {
-    if (filterStatus === 'upcoming')  return new Date(c.class_date) >= now;
-    if (filterStatus === 'completed') return new Date(c.class_date) < now;
+    const isPast = new Date(c.class_date) < now;
+    const hasVideo = !!c.video_url;
+    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
+    const isCompleted = isPast && hasVideo && hasActivity;
+    const isPending   = isPast && !isCompleted;
+
+    if (filterStatus === 'upcoming')  return !isPast;
+    if (filterStatus === 'pending')   return isPending;
+    if (filterStatus === 'completed') return isCompleted;
     return true;
   });
 
@@ -935,22 +942,40 @@ function ClasesTab() {
     if (!sess.maxDate || d > new Date(sess.maxDate)) sess.maxDate = cls.class_date;
   });
 
-  const totalCompleted = classes.filter(c => new Date(c.class_date) < now).length;
   const totalUpcoming  = classes.filter(c => new Date(c.class_date) >= now).length;
+  const totalPending   = classes.filter(c => {
+    const isPast = new Date(c.class_date) < now;
+    const hasVideo = !!c.video_url;
+    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
+    return isPast && !(hasVideo && hasActivity);
+  }).length;
+  const totalCompleted = classes.filter(c => {
+    const isPast = new Date(c.class_date) < now;
+    const hasVideo = !!c.video_url;
+    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
+    return isPast && hasVideo && hasActivity;
+  }).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Encabezado + Filtros */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
           <span><strong style={{ color: '#14213D' }}>{classes.length}</strong> clases totales</span>
           <span>·</span>
-          <span><strong style={{ color: '#16a34a' }}>{totalCompleted}</strong> completadas</span>
-          <span>·</span>
           <span><strong style={{ color: '#FCA311' }}>{totalUpcoming}</strong> próximas</span>
+          <span>·</span>
+          <span><strong style={{ color: '#f97316' }}>{totalPending}</strong> pendientes</span>
+          <span>·</span>
+          <span><strong style={{ color: '#16a34a' }}>{totalCompleted}</strong> finalizadas</span>
         </div>
-        <div style={{ display: 'flex', gap: '0.4rem' }}>
-          {[{ id: 'all', label: 'Todas' }, { id: 'upcoming', label: 'Próximas' }, { id: 'completed', label: 'Finalizadas' }].map(f => (
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: 'Todas' },
+            { id: 'upcoming', label: 'Próximas' },
+            { id: 'pending', label: 'Pendientes' },
+            { id: 'completed', label: 'Finalizadas' }
+          ].map(f => (
             <button key={f.id} onClick={() => setFilterStatus(f.id)}
               style={{ padding: '0.35rem 0.85rem', borderRadius: '9999px', border: '1px solid', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease',
                 background: filterStatus === f.id ? '#14213D' : '#FFFFFF',
