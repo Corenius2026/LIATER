@@ -133,7 +133,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
       // Stats de la actividad publicada para esta clase
       const { data: actData } = await supabase
         .from('class_activities')
-        .select('id, title, is_published, due_date, max_attempts')
+        .select('id, title, is_published, max_attempts')
         .eq('class_id', selectedClass.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -145,10 +145,10 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
             .from('activity_responses')
             .select('id', { count: 'exact', head: true })
             .eq('activity_id', actData.id);
-          setActivityStats({ isPublished: actData.is_published, totalResponses: totalResponses || 0, due_date: actData.due_date });
+          setActivityStats({ isPublished: actData.is_published, totalResponses: totalResponses || 0 });
           if (actData.max_attempts !== undefined) setMaxAttempts(actData.max_attempts);
         } catch {
-          setActivityStats({ isPublished: actData.is_published, totalResponses: 0, due_date: actData.due_date });
+          setActivityStats({ isPublished: actData.is_published, totalResponses: 0 });
           if (actData.max_attempts !== undefined) setMaxAttempts(actData.max_attempts);
         }
       }
@@ -166,6 +166,19 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
       fetchMaterials();
       fetchDraftAndStats();
     }
+  }, [selectedClass?.id]);
+
+  // Suscripción realtime: si admin publica/despublica, el modal se actualiza
+  useEffect(() => {
+    if (!selectedClass?.id) return;
+    const channel = supabase
+      .channel('class_activities_modal_sync_' + selectedClass.id)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'class_activities', filter: `class_id=eq.${selectedClass.id}` },
+        () => { fetchDraftAndStats(); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [selectedClass?.id]);
 
   // ── GUARDAR INFO DE CLASE ──
@@ -267,7 +280,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
         is_published: true, 
         max_attempts: maxAttempts 
       };
-      if (calculatedDueDate) updatePayload.due_date = calculatedDueDate;
+      // due_date no existe en class_activities — no se incluye en el payload
       
       const { data: updated, error } = await supabase.from('class_activities').update(updatePayload).eq('id', existing.id).select('id').single();
       if (error) throw error;
@@ -279,10 +292,10 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
         title: draftData.activity_title || 'Actividad de Reforzamiento', 
         description: draftData.activity_description || '', 
         is_published: true, 
-        max_attempts: 3, 
+        max_attempts: maxAttempts, 
         is_mandatory: false 
       };
-      if (calculatedDueDate) insertPayload.due_date = calculatedDueDate;
+      // due_date no existe en class_activities — no se incluye en el payload
       
       const { data: newAct, error } = await supabase.from('class_activities').insert(insertPayload).select('id').single();
       if (error) throw error;
@@ -636,7 +649,6 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                           {draft.draft_data?.activity_title || 'Sin título'} · {(localQuestions.length)} preguntas
                           {activityStats && ` · ${activityStats.totalResponses} respuestas recibidas`}
-                          {activityStats?.due_date && ` · Cierra: ${formatClassDate(activityStats.due_date, true)}`}
                         </div>
                       </div>
                     </div>
