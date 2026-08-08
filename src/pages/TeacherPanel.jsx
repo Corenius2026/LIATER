@@ -606,14 +606,14 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
               ) : (
                 <>
                   {/* Estado de la actividad */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderRadius: '8px', background: draft.status === 'approved' ? 'rgba(22,163,74,0.08)' : 'rgba(252,163,17,0.08)', border: `1px solid ${draft.status === 'approved' ? 'rgba(22,163,74,0.25)' : 'rgba(252,163,17,0.25)'}`, flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderRadius: '8px', background: activityStats?.isPublished ? 'rgba(22,163,74,0.08)' : 'rgba(252,163,17,0.08)', border: `1px solid ${activityStats?.isPublished ? 'rgba(22,163,74,0.25)' : 'rgba(252,163,17,0.25)'}`, flexWrap: 'wrap', gap: '0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      {draft.status === 'approved'
+                      {activityStats?.isPublished
                         ? <CheckCircle2 size={18} color="#16a34a" />
                         : <Sparkles size={18} color="#FCA311" />}
                       <div>
                         <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#14213D' }}>
-                          {draft.status === 'approved' ? 'Actividad publicada a estudiantes' : 'Borrador IA pendiente de revisión'}
+                          {activityStats?.isPublished ? 'Actividad publicada a estudiantes' : 'Borrador IA pendiente de revisión'}
                         </div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                           {draft.draft_data?.activity_title || 'Sin título'} · {(localQuestions.length)} preguntas
@@ -623,7 +623,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {draft.status === 'approved' ? (
+                      {activityStats?.isPublished ? (
                         <button onClick={handleUnpublishActivity} disabled={actionLoading === 'unpublishing'}
                           style={{ background: '#FFFFFF', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
                           {actionLoading === 'unpublishing' ? '...' : <><EyeOff size={12} /> Despublicar</>}
