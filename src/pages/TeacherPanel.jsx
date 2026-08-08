@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { updateDoubtStatus } from '../services/doubtService';
 import { formatClassDate } from '../utils/dateUtils';
+import { extractYouTubeId, formatYouTubeUrls, linkYouTubeVideoToClass } from '../services/youtubeAutomationService';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   BookOpen, Video, FileText, Megaphone, Presentation,
@@ -60,6 +61,34 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
   const [actionLoading, setActionLoading]       = useState(null);
   const [activityMsg, setActivityMsg]           = useState('');
   const [activityStats, setActivityStats]       = useState(null);
+
+  // — GRABACIÓN YOUTUBE Y AUTOMATIZACIÓN —
+  const [ytInput, setYtInput]                 = useState(selectedClass?.video_url || '');
+  const [ytLinking, setYtLinking]             = useState(false);
+  const [ytMsg, setYtMsg]                     = useState('');
+  const [showAutomationHelp, setShowAutomationHelp] = useState(false);
+
+  const detectedYtId = extractYouTubeId(ytInput);
+
+  const handleLinkYouTubeVideo = async (e) => {
+    if (e) e.preventDefault();
+    if (!ytInput.trim()) return;
+    setYtLinking(true);
+    setYtMsg('');
+
+    const res = await linkYouTubeVideoToClass(selectedClass.id, ytInput);
+    if (res.success) {
+      setYtMsg(`✓ Video vinculado exitosamente (ID de YouTube: ${res.data.youtubeId || 'Extraído'})`);
+      if (selectedClass) {
+        selectedClass.video_url = res.data.watchUrl;
+        selectedClass.status = 'completed';
+      }
+      if (onClassUpdated) onClassUpdated();
+    } else {
+      setYtMsg(`Error: ${res.error}`);
+    }
+    setYtLinking(false);
+  };
 
   const isPastClass = new Date(selectedClass?.class_date) < new Date();
 
@@ -614,11 +643,12 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
               {!isPastClass && !selectedClass?.video_url && (
                 <div style={{ padding: '0.85rem 1.1rem', borderRadius: '8px', background: 'rgba(20,33,61,0.04)', border: '1px solid rgba(20,33,61,0.12)', fontSize: '0.82rem', color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <Info size={16} color="#FCA311" style={{ flexShrink: 0 }} />
-                  <span>Esta clase está programada para una fecha futura. Aún no hay grabación disponible.</span>
+                  <span>Esta clase está programada para una fecha futura. Puedes vincular el video con antelación o esperar a la automatización.</span>
                 </div>
               )}
+
               {/* Semáforo de estado */}
-              <div style={{ padding: '1.5rem', borderRadius: '10px', border: `2px solid ${selectedClass?.video_url ? 'rgba(22,163,74,0.3)' : 'rgba(252,163,17,0.3)'}`, background: selectedClass?.video_url ? 'rgba(22,163,74,0.05)' : 'rgba(252,163,17,0.05)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ padding: '1.5rem', borderRadius: '10px', border: `2px solid ${selectedClass?.video_url ? 'rgba(22,163,74,0.3)' : 'rgba(252,163,17,0.3)'}`, background: selectedClass?.video_url ? 'rgba(22,163,74,0.05)' : 'rgba(252,163,17,0.05)', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: selectedClass?.video_url ? '#16a34a' : '#FCA311', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {selectedClass?.video_url ? <CheckCircle2 size={24} color="#FFFFFF" /> : <AlertCircle size={24} color="#FFFFFF" />}
                 </div>
@@ -627,13 +657,100 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
                     {selectedClass?.video_url ? '✓ Grabación vinculada' : 'Grabación pendiente'}
                   </div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {selectedClass?.video_url ? 'La grabación está disponible para los estudiantes inscritos.' : 'La grabación de esta clase aún no ha sido vinculada.'}
+                    {selectedClass?.video_url 
+                      ? `La grabación está activa para los estudiantes (${extractYouTubeId(selectedClass.video_url) ? `ID YouTube: ${extractYouTubeId(selectedClass.video_url)}` : 'Enlace directo'})` 
+                      : 'La grabación aún no ha sido vinculada manualmente o por la automatización.'}
                   </div>
                 </div>
                 {selectedClass?.video_url && (
                   <a href={selectedClass.video_url} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', background: '#14213D', color: '#FFFFFF', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
                     <Play size={13} /> Ver grabación
                   </a>
+                )}
+              </div>
+
+              {/* Formulario extractor de ID de YouTube */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '10px', padding: '1.25rem' }}>
+                <h4 style={{ margin: '0 0 0.75rem 0', color: '#14213D', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Video size={18} color="#FCA311" /> Extractor de ID y Vinculación de YouTube
+                </h4>
+                
+                <form onSubmit={handleLinkYouTubeVideo} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#14213D', marginBottom: '4px' }}>
+                      Enlace de YouTube o ID del video
+                    </label>
+                    <input
+                      type="text"
+                      value={ytInput}
+                      onChange={e => setYtInput(e.target.value)}
+                      placeholder="Ej. https://www.youtube.com/watch?v=dQw4w9WgXcQ o dQw4w9WgXcQ"
+                      style={{ width: '100%', padding: '0.65rem 0.85rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.88rem' }}
+                    />
+                  </div>
+
+                  {/* Badge extractor en tiempo real */}
+                  {detectedYtId ? (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '0.5rem 0.85rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CheckCircle2 size={14} color="#16a34a" />
+                      <span>ID de YouTube detectado: <strong>{detectedYtId}</strong></span>
+                    </div>
+                  ) : ytInput.trim() ? (
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '0.5rem 0.85rem', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Info size={14} color="#FCA311" />
+                      <span>Se guardará como enlace directo.</span>
+                    </div>
+                  ) : null}
+
+                  {ytMsg && (
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: ytMsg.startsWith('✓') ? '#16a34a' : '#dc2626' }}>
+                      {ytMsg}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="submit"
+                      disabled={ytLinking || !ytInput.trim()}
+                      style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.55rem 1.25rem', fontSize: '0.84rem', fontWeight: 700, cursor: ytLinking ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                      {ytLinking ? 'Vinculando...' : 'Vincular y Extraer ID'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Guía desplegable de automatización Make.com / Drive */}
+              <div style={{ background: '#f8fafc', border: '1px solid #E5E5E5', borderRadius: '10px', padding: '1.25rem' }}>
+                <div
+                  onClick={() => setShowAutomationHelp(!showAutomationHelp)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <Sparkles size={18} color="#FCA311" />
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#14213D' }}>
+                      Automatización Google Drive → YouTube (Make.com / API)
+                    </span>
+                  </div>
+                  <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                    {showAutomationHelp ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </div>
+
+                {showAutomationHelp && (
+                  <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0', fontSize: '0.82rem', color: '#334155', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <p style={{ margin: 0, lineHeight: 1.5 }}>
+                      Al subir un video a Google Drive, la automatización (Make.com) lo publica en YouTube como <i>No listado</i>, extrae el ID de YouTube y actualiza esta clase automáticamente.
+                    </p>
+                    <div style={{ background: '#ffffff', padding: '0.85rem', borderRadius: '6px', border: '1px solid #CBD5E1' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        ID Único de esta clase (para Payload Make.com):
+                      </div>
+                      <code style={{ background: '#f1f5f9', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>
+                        {selectedClass?.id}
+                      </code>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
