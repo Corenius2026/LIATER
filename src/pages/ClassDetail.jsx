@@ -305,7 +305,7 @@ export default function ClassDetail() {
     if (currentUser?.id && activityConfig.id) {
       try {
         const studentIdToUse = currentUser.id;
-        const { error: insertErr } = await supabase
+        const { data: insertedAttempt, error: insertErr } = await supabase
           .from('activity_attempts')
           .insert([{
             activity_id: activityConfig.id,
@@ -313,8 +313,30 @@ export default function ClassDetail() {
             status: 'completed',
             score: scorePct,
             completed_at: new Date().toISOString()
-          }]);
+          }])
+          .select('id')
+          .maybeSingle();
+
         if (insertErr) console.error('Error guardando intento:', insertErr);
+
+        if (insertedAttempt?.id && Object.keys(userAnswers).length > 0) {
+          try {
+            const attemptAnswersToInsert = Object.entries(userAnswers).map(([qId, optId]) => {
+              const q = activityConfig.questions.find(item => item.id === qId);
+              const isCorr = q && q.correctOptionId && String(q.correctOptionId) === String(optId);
+              return {
+                attempt_id: insertedAttempt.id,
+                question_id: qId,
+                selected_option_id: optId,
+                is_correct: !!isCorr
+              };
+            });
+            const { error: ansInsertErr } = await supabase.from('attempt_answers').insert(attemptAnswersToInsert);
+            if (ansInsertErr) console.error('Error guardando respuestas del intento:', ansInsertErr);
+          } catch (ansErr) {
+            console.error('Error procesando attempt_answers:', ansErr);
+          }
+        }
         // Guardar intento en localStorage de respaldo inmediato
         try {
           const key = `completed_activities_${studentIdToUse}`;
@@ -375,7 +397,8 @@ export default function ClassDetail() {
             *,
             activity_questions (
               *,
-              question_options (*)
+              question_options (*),
+              question_correct_answers (correct_option_id)
             )
           `)
           .eq('class_id', id);
@@ -514,6 +537,10 @@ export default function ClassDetail() {
                   .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
                   .map(q => {
                     const dq = draftQuestionsMap[q.text?.trim().toLowerCase()];
+                    const correctOptFromJoin = Array.isArray(q.question_correct_answers)
+                      ? q.question_correct_answers[0]?.correct_option_id
+                      : q.question_correct_answers?.correct_option_id;
+
                     return {
                       id: q.id,
                       type: q.question_type,
@@ -523,7 +550,7 @@ export default function ClassDetail() {
                       options: (q.question_options || [])
                         .sort((a, b) => (a.order_num || 0) - (b.order_num || 0))
                         .map(o => ({ id: o.id, text: o.text })),
-                      correctOptionId: correctMap[q.id] || null
+                      correctOptionId: correctOptFromJoin || correctMap[q.id] || null
                     };
                   });
 
@@ -538,9 +565,10 @@ export default function ClassDetail() {
                 });
 
                 if (studentIdToUse && actData.id) {
+                  let initialAnswers = {};
                   const savedAnswers = localStorage.getItem(`liater_answers_${actData.id}_${studentIdToUse}`);
                   if (savedAnswers) {
-                    try { setUserAnswers(JSON.parse(savedAnswers)); } catch (_) {}
+                    try { initialAnswers = JSON.parse(savedAnswers); } catch (_) {}
                   }
 
                   let stateToSet = 'no_iniciada';
@@ -552,17 +580,48 @@ export default function ClassDetail() {
                   if (hasDbCompletedAttempt || isLocallyCompleted) {
                     const lastAttempt = (attempts && attempts.length > 0) ? attempts[0] : null;
                     stateToSet = 'completada';
-                    const finalScore = lastAttempt?.score ?? 100;
+
+                    if (lastAttempt?.id) {
+                      try {
+                        const { data: dbAns } = await supabase
+                          .from('attempt_answers')
+                          .select('question_id, selected_option_id')
+                          .eq('attempt_id', lastAttempt.id);
+
+                        if (dbAns && dbAns.length > 0) {
+                          dbAns.forEach(a => {
+                            initialAnswers[a.question_id] = a.selected_option_id;
+                          });
+                        }
+                      } catch (errAns) {
+                        console.error('Error cargando respuestas de la BD:', errAns);
+                      }
+                    }
+
+                    setUserAnswers(initialAnswers);
+
+                    let realCorrectCount = 0;
+                    formattedQuestions.forEach(q => {
+                      if (initialAnswers[q.id] && q.correctOptionId && String(initialAnswers[q.id]) === String(q.correctOptionId)) {
+                        realCorrectCount++;
+                      }
+                    });
+
+                    const finalScore = lastAttempt?.score ?? (formattedQuestions.length > 0 ? Math.round((realCorrectCount / formattedQuestions.length) * 100) : 0);
+
                     setCompletedResult({
-                      correctCount: Math.round((finalScore / 100) * formattedQuestions.length),
+                      correctCount: realCorrectCount,
                       totalCount: formattedQuestions.length,
                       scorePct: finalScore,
                       completedAt: lastAttempt?.completed_at ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES') : 'Realizada'
                     });
-                  } else if (attempts && attempts.length > 0 && attempts[0].status === 'in_progress') {
-                    stateToSet = 'en_progreso';
                   } else {
-                    stateToSet = 'no_iniciada';
+                    setUserAnswers(initialAnswers);
+                    if (attempts && attempts.length > 0 && attempts[0].status === 'in_progress') {
+                      stateToSet = 'en_progreso';
+                    } else {
+                      stateToSet = 'no_iniciada';
+                    }
                   }
 
                   // Verificar si la actividad está vencida
