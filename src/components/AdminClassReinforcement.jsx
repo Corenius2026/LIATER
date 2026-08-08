@@ -657,6 +657,19 @@ export default function AdminClassReinforcement({ classId }) {
         .eq('id', currentAct.id);
         
       if (error) throw error;
+
+      // Sincronizar también activity_drafts para mantener consistencia bidireccional
+      try {
+        await supabase
+          .from('activity_drafts')
+          .update({ 
+            status: willPublish ? 'approved' : 'pending',
+            reviewed_at: willPublish ? new Date().toISOString() : null 
+          })
+          .eq('class_id', classId);
+      } catch (draftErr) {
+        console.warn('Nota: No se pudo actualizar status en activity_drafts:', draftErr);
+      }
       
       setActivity(prev => ({ ...prev, is_published: willPublish }));
       setSuccess(willPublish ? 'Actividad publicada exitosamente.' : 'Actividad regresada a borrador.');

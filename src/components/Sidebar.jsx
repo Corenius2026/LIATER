@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Home, BookOpen, Users, LogOut, Settings, LayoutDashboard,
   GraduationCap, UserCircle, HelpCircle, ListTree, ArrowLeft,
-  Video, FileText, Megaphone, CalendarDays, MessageSquare
+  Video, FileText, Megaphone, CalendarDays, MessageSquare, BarChart2
 } from 'lucide-react';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 
@@ -210,6 +210,10 @@ export default function Sidebar() {
                         <span>Sesiones</span>
                       </NavLink>
                     )}
+                    <NavLink to={`/resultados/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
+                      <BarChart2 size={18} />
+                      <span>Mis Resultados</span>
+                    </NavLink>
                     <NavLink to={`/teachers/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                       <Users size={18} />
                       <span>Profesores</span>

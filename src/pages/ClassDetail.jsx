@@ -8,7 +8,7 @@ import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
   Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck,
-  MessageSquare, Check, Lock, RotateCcw
+  MessageSquare, Check, Lock, RotateCcw, Zap, Radio
 } from 'lucide-react';
 
 function formatEmbedVideoUrl(url) {
@@ -867,6 +867,27 @@ export default function ClassDetail() {
               {clsData.status === 'completed' || clsData.video_url ? 'Finalizada' : 'Programada'}
             </span>
           )}
+          {/* BADGE ESTADO DE ACTIVIDAD */}
+          {activityState === 'completada' && completedResult && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+              padding: '0.2rem 0.65rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700,
+              background: completedResult.scorePct >= 70 ? '#f0fdf4' : completedResult.scorePct >= 50 ? '#fffbeb' : '#fef2f2',
+              color: completedResult.scorePct >= 70 ? '#166534' : completedResult.scorePct >= 50 ? '#92400e' : '#991b1b',
+              border: `1px solid ${completedResult.scorePct >= 70 ? '#86efac' : completedResult.scorePct >= 50 ? '#fcd34d' : '#fca5a5'}`
+            }}>
+              <Award size={13} /> Actividad: {completedResult.scorePct}%
+            </span>
+          )}
+          {activityState === 'no_iniciada' && activityConfig && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+              padding: '0.2rem 0.65rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700,
+              background: '#eef2ff', color: '#6366f1', border: '1px solid #c7d2fe'
+            }}>
+              <Zap size={13} /> Actividad pendiente
+            </span>
+          )}
         </div>
       </div>
 
@@ -876,7 +897,49 @@ export default function ClassDetail() {
         {/* COLUMNA PRINCIPAL (68% - 72%) */}
         <div className="class-detail-main">
 
-          {/* 1. GRABACIÓN / TRANSMISIÓN */}
+          {/* BANNER CLASE EN VIVO (HOY) */}
+          {(() => {
+            if (!clsData?.class_date || clsData?.video_url) return null;
+            const classDate = new Date(clsData.class_date);
+            const now = new Date();
+            const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+            const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+            const isClassToday = classDate >= todayStart && classDate <= todayEnd;
+            const meetLink = clsData?.meet_url || null;
+            if (!isClassToday || !meetLink) return null;
+            return (
+              <div style={{
+                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                borderRadius: 'var(--radius-lg)', padding: '1.1rem 1.4rem',
+                marginBottom: '0.5rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                flexWrap: 'wrap', gap: '0.75rem',
+                boxShadow: '0 4px 20px rgba(220,38,38,0.25)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Radio size={18} color="#ffffff" />
+                  </div>
+                  <div>
+                    <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.1rem 0' }}>Clase en vivo · HOY</p>
+                    <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>
+                      {classDate.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs — La grabación estará disponible después
+                    </p>
+                  </div>
+                </div>
+                <a href={meetLink} target="_blank" rel="noreferrer" style={{
+                  background: '#ffffff', color: '#dc2626',
+                  padding: '0.5rem 1.1rem', borderRadius: '7px',
+                  fontWeight: 800, fontSize: '0.85rem', textDecoration: 'none',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)', flexShrink: 0
+                }}>
+                  <Video size={14} /> Entrar a la Clase
+                </a>
+              </div>
+            );
+          })()}
+
           <div className="card-placeholder order-grabacion">
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Video size={18} color="var(--gold-dark)" /> Grabación / Transmisión de la Clase

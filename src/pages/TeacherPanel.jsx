@@ -76,9 +76,15 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
     const hasVideo = !!selectedClass.video_url;
     let isActPublished = false;
     if (activityStats) {
-      isActPublished = activityStats.isPublished;
+      isActPublished = !!activityStats.isPublished;
+    } else if (selectedClass.has_published_activity) {
+      isActPublished = true;
     } else if (Array.isArray(selectedClass.class_activities)) {
       isActPublished = selectedClass.class_activities.some(a => a.is_published);
+    } else if (Array.isArray(selectedClass.activity_drafts)) {
+      isActPublished = selectedClass.activity_drafts.some(d => d.status === 'approved' || d.status === 'published');
+    } else if (draft) {
+      isActPublished = draft.status === 'approved' || draft.status === 'published';
     }
     
     if (hasVideo && isActPublished) return 'completed';
@@ -145,12 +151,16 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
             .from('activity_responses')
             .select('id', { count: 'exact', head: true })
             .eq('activity_id', actData.id);
-          setActivityStats({ isPublished: actData.is_published, totalResponses: totalResponses || 0 });
+          setActivityStats({ isPublished: !!actData.is_published, totalResponses: totalResponses || 0 });
           if (actData.max_attempts !== undefined) setMaxAttempts(actData.max_attempts);
         } catch {
-          setActivityStats({ isPublished: actData.is_published, totalResponses: 0 });
+          setActivityStats({ isPublished: !!actData.is_published, totalResponses: 0 });
           if (actData.max_attempts !== undefined) setMaxAttempts(actData.max_attempts);
         }
+      } else if (draftData?.status === 'approved' || draftData?.status === 'published') {
+        setActivityStats({ isPublished: true, totalResponses: 0 });
+      } else {
+        setActivityStats({ isPublished: false, totalResponses: 0 });
       }
     } catch (err) {
       setDraftError(err.message);
@@ -168,14 +178,24 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
     }
   }, [selectedClass?.id]);
 
-  // Suscripción realtime: si admin publica/despublica, el modal se actualiza
+  // Suscripción realtime: si admin publica/despublica, el modal y la lista se actualizan
   useEffect(() => {
     if (!selectedClass?.id) return;
     const channel = supabase
       .channel('class_activities_modal_sync_' + selectedClass.id)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'class_activities', filter: `class_id=eq.${selectedClass.id}` },
-        () => { fetchDraftAndStats(); }
+        () => { 
+          fetchDraftAndStats();
+          if (onClassUpdated) onClassUpdated();
+        }
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'activity_drafts', filter: `class_id=eq.${selectedClass.id}` },
+        () => { 
+          fetchDraftAndStats();
+          if (onClassUpdated) onClassUpdated();
+        }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -359,6 +379,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
       await supabase.from('activity_drafts').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', draft.id);
       setActivityMsg('✓ Actividad publicada correctamente. Los estudiantes ya pueden responderla.');
       await fetchDraftAndStats();
+      if (onClassUpdated) onClassUpdated();
     } catch (err) {
       setActivityMsg('Error al publicar: ' + err.message);
     } finally { setActionLoading(null); }
@@ -372,6 +393,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
       await supabase.from('activity_drafts').update({ status: 'pending' }).eq('id', draft?.id);
       setActivityMsg('Actividad despublicada. Los estudiantes ya no pueden verla.');
       await fetchDraftAndStats();
+      if (onClassUpdated) onClassUpdated();
     } catch (err) {
       setActivityMsg('Error: ' + err.message);
     } finally { setActionLoading(null); }
@@ -791,6 +813,48 @@ function ClasesTab() {
         data = sData || [];
       }
 
+      // Enriquecer con class_activities y activity_drafts para asegurar sincronización exacta
+      const classIds = data.map(c => c.id);
+      if (classIds.length > 0) {
+        const [{ data: acts }, { data: drafts }] = await Promise.all([
+          supabase
+            .from('class_activities')
+            .select('id, class_id, is_published, created_at')
+            .in('class_id', classIds)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('activity_drafts')
+            .select('id, class_id, status, created_at')
+            .in('class_id', classIds)
+            .neq('status', 'rejected')
+            .order('created_at', { ascending: false })
+        ]);
+
+        const actsByClass = {};
+        (acts || []).forEach(a => {
+          if (!actsByClass[a.class_id]) actsByClass[a.class_id] = [];
+          actsByClass[a.class_id].push(a);
+        });
+
+        const draftsByClass = {};
+        (drafts || []).forEach(d => {
+          if (!draftsByClass[d.class_id]) draftsByClass[d.class_id] = [];
+          draftsByClass[d.class_id].push(d);
+        });
+
+        data = data.map(c => {
+          const classActs = actsByClass[c.id] || (Array.isArray(c.class_activities) ? c.class_activities : []);
+          const classDrafts = draftsByClass[c.id] || [];
+          const hasPublishedActivity = classActs.some(a => a.is_published) || classDrafts.some(d => d.status === 'approved' || d.status === 'published');
+          return {
+            ...c,
+            class_activities: classActs,
+            activity_drafts: classDrafts,
+            has_published_activity: hasPublishedActivity
+          };
+        });
+      }
+
       setClasses(data);
 
       // Expandir todos los módulos y sesiones por defecto
@@ -812,6 +876,27 @@ function ClasesTab() {
   };
 
   useEffect(() => { if (programId && teacherId) fetchMyClasses(); }, [programId, teacherId]);
+
+  // Suscripción Realtime en ClasesTab para que se actualice instantáneamente cuando admin o profesor publiquen
+  useEffect(() => {
+    if (!programId) return;
+    const channel = supabase
+      .channel('clases_tab_realtime_sync_' + programId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_activities' }, () => {
+        fetchMyClasses();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_drafts' }, () => {
+        fetchMyClasses();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_sessions' }, () => {
+        fetchMyClasses();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [programId, teacherId]);
 
   const toggleModule   = id => setExpandedModules(p => ({ ...p, [id]: !p[id] }));
   const toggleSession  = id => setExpandedSessions(p => ({ ...p, [id]: !p[id] }));
@@ -928,8 +1013,8 @@ function ClasesTab() {
               {expandedSessions[sesId] && ses.classes.map(cls => {
                 const isPast      = new Date(cls.class_date) < now;
                 const hasVideo    = !!cls.video_url;
-                // class_activities is an array, check if any is published
-                const hasActivity = Array.isArray(cls.class_activities) && cls.class_activities.some(a => a.is_published);
+                // class_activities is an array, check if any is published, or check has_published_activity
+                const hasActivity = !!cls.has_published_activity || (Array.isArray(cls.class_activities) && cls.class_activities.some(a => a.is_published)) || (Array.isArray(cls.activity_drafts) && cls.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
                 const isCompleted = isPast && hasVideo && hasActivity;
                 const isPending   = isPast && !isCompleted;
                 const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();
@@ -3148,11 +3233,30 @@ function BorradoresTab() {
 
       if (error) throw error;
 
-      // Vincular datos de clase para renderizar
-      const formattedDrafts = (data || []).map(d => ({
-        ...d,
-        class_sessions: classMap[d.class_id] || { id: d.class_id, title: 'Clase vinculada' }
-      }));
+      // 3. Consultar estado en class_activities para sincronizar con lo que haya hecho el admin
+      let actMap = {};
+      if (classIds.length > 0) {
+        const { data: actRows } = await supabase
+          .from('class_activities')
+          .select('id, class_id, is_published, max_attempts')
+          .in('class_id', classIds);
+
+        (actRows || []).forEach(a => {
+          actMap[a.class_id] = a;
+        });
+      }
+
+      // Vincular datos de clase y estado real de publicación para renderizar
+      const formattedDrafts = (data || []).map(d => {
+        const act = actMap[d.class_id];
+        const isPublished = act ? !!act.is_published : (d.status === 'approved' || d.status === 'published');
+        return {
+          ...d,
+          status: isPublished ? 'approved' : (d.status === 'approved' ? 'pending' : d.status),
+          is_published_activity: isPublished,
+          class_sessions: classMap[d.class_id] || { id: d.class_id, title: 'Clase vinculada' }
+        };
+      });
 
       setDrafts(formattedDrafts);
     } catch (err) {
@@ -3166,10 +3270,13 @@ function BorradoresTab() {
   useEffect(() => {
     fetchDrafts();
 
-    // Suscripción realtime para detectar cambios del admin en class_activities
+    // Suscripción realtime para detectar cambios del admin en class_activities y activity_drafts
     const channel = supabase
-      .channel('class_activities_teacher_sync')
+      .channel('class_activities_teacher_sync_' + (programId || 'all'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'class_activities' }, () => {
+        fetchDrafts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_drafts' }, () => {
         fetchDrafts();
       })
       .subscribe();
@@ -4832,6 +4939,24 @@ function ReforzamientoIATab({ onChangeTab }) {
 
   useEffect(() => {
     loadData();
+
+    // Suscripción Realtime para actualizar la vista instantáneamente
+    const channel = supabase
+      .channel('reforzamiento_ia_tab_sync_' + (programId || 'all'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_activities' }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_drafts' }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_attempts' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [teacherId, profile?.id, programId]);
 
   // Cálculos de KPIs superiores

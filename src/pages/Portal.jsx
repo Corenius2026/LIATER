@@ -92,9 +92,15 @@ function StudentPortal({ getDiplomadoLink }) {
   }, [currentUser?.id, loadUpcoming]);
 
   const getButtonLabel = (progress) => {
-    if (progress === 0) return 'Comenzar →';
-    if (progress === 100) return 'Revisar contenido →';
-    return 'Continuar →';
+    if (progress === 0) return 'Comenzar';
+    if (progress === 100) return 'Revisar contenido';
+    return 'Continuar';
+  };
+
+  // Destino dinámico: si ya inició, ir directo a módulos; si no, al dashboard de bienvenida
+  const getContinueLink = (dip) => {
+    if (dip.progress > 0) return `/modules/${dip.id}`;
+    return getDiplomadoLink(dip.id);
   };
 
   const getBadgeLabel = (type) => {
@@ -103,17 +109,80 @@ function StudentPortal({ getDiplomadoLink }) {
     return 'Diplomado';
   };
 
+  // Saludo contextual
+  const studentName = currentUser?.full_name || currentUser?.user_metadata?.full_name || currentUser?.name || '';
+  const firstName = studentName.split(' ')[0] || 'Estudiante';
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches';
+  const todayLabel = now.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+  const programWithClassToday = diplomas.find(d => d.liveUrl);
+
   return (
-    <div className="portal-layout">
-      {/* 1. TARJETA DE PENDIENTES Y PRÓXIMAS FECHAS (Reemplaza a "Tu progreso". En móvil orden 1, en escritorio columna lateral superior) */}
-      <div className="mobile-order-pending desktop-sidebar-pending">
-        <PendingActivitiesCard studentId={currentUser?.id} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      {/* ══ SALUDO CONTEXTUAL HERO ══ */}
+      <div style={{
+        background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '1.5rem 2rem',
+        marginBottom: '1.75rem',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '1rem',
+        boxShadow: '0 4px 20px rgba(20,33,61,0.12)'
+      }}>
+        <div>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 0.2rem 0' }}>
+            {todayLabel}
+          </p>
+          <h1 style={{ color: '#ffffff', fontSize: '1.75rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
+            {greeting}, {firstName} 👋
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.88rem', margin: '0.4rem 0 0 0' }}>
+            {diplomas.length > 0
+              ? `Tienes ${diplomas.length} ${diplomas.length === 1 ? 'programa activo' : 'programas activos'}.`
+              : 'No tienes programas activos aún.'}
+          </p>
+        </div>
+        {programWithClassToday && (
+          <a
+            href={programWithClassToday.liveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'var(--gold)',
+              color: 'var(--navy)',
+              padding: '0.65rem 1.25rem',
+              borderRadius: '999px',
+              fontWeight: 800,
+              fontSize: '0.88rem',
+              textDecoration: 'none',
+              boxShadow: '0 4px 16px rgba(252,163,17,0.35)',
+              flexShrink: 0,
+              animation: 'pulse 2s ease-in-out infinite'
+            }}
+          >
+            <Video size={16} /> Clase en vivo hoy · Unirse
+          </a>
+        )}
       </div>
 
-      {/* 2. COLUMNA PRINCIPAL CON FILTROS Y REJILLA DE PROGRAMAS (En móvil orden 2, en escritorio columna principal flexible) */}
-      <div className="portal-main mobile-order-main">
-        {/* FILTROS TIPO PASTILLA CON SCROLL HORIZONTAL CONTROLADO EN MÓVIL */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '0.3rem', width: '100%', background: 'rgba(255,255,255,0.4)', padding: '0.35rem', borderRadius: '9999px', backdropFilter: 'blur(10px)', width: 'fit-content' }} className="hide-scrollbar">
+      <div className="portal-layout">
+        {/* 1. TARJETA DE PENDIENTES Y PRÓXIMAS FECHAS */}
+        <div className="mobile-order-pending desktop-sidebar-pending">
+          <PendingActivitiesCard studentId={currentUser?.id} />
+        </div>
+
+        {/* 2. COLUMNA PRINCIPAL CON FILTROS Y REJILLA */}
+        <div className="portal-main mobile-order-main">
+        {/* FILTROS TIPO PASTILLA */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '0.3rem', background: 'rgba(255,255,255,0.4)', padding: '0.35rem', borderRadius: '9999px', backdropFilter: 'blur(10px)', width: 'fit-content', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
           {filters.map(filter => {
             const isActive = activeFilter === filter;
             return (
@@ -173,12 +242,17 @@ function StudentPortal({ getDiplomadoLink }) {
             ))
           ) : diplomas.length === 0 ? (
             /* ESTADO VACÍO CUANDO NO HAY PROGRAMAS */
-            <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', borderRadius: 'var(--radius-lg)' }}>
-              <BookOpen size={48} color="var(--navy)" style={{ marginBottom: '1rem', opacity: 0.4 }} />
-              <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>No estás inscrito en ningún programa</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
-                Explora los cursos y diplomados disponibles para iniciar tu aprendizaje.
+            <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4.5rem 2rem', borderRadius: 'var(--radius-lg)', background: 'linear-gradient(to bottom, #ffffff, #f8fafc)', border: '1px dashed #cbd5e1' }}>
+              <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(20,33,61,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                <BookOpen size={40} color="var(--navy)" style={{ opacity: 0.5 }} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', color: 'var(--navy)', fontWeight: 800, marginBottom: '0.75rem' }}>No estás inscrito en ningún programa</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '420px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
+                Parece que aún no tienes cursos o diplomados activos. Explora nuestra oferta académica e inicia tu aprendizaje.
               </p>
+              <Link to="/proximos-programas" className="btn btn-outline" style={{ display: 'inline-flex', padding: '0.6rem 1.25rem', fontWeight: 700 }}>
+                Explorar Catálogo
+              </Link>
             </div>
           ) : (
             /* LISTA DE TARJETAS DE PROGRAMAS ENROLADOS */
@@ -204,7 +278,13 @@ function StudentPortal({ getDiplomadoLink }) {
                     padding: 0, 
                     overflow: 'hidden', 
                     opacity: isPublished ? 1 : 0.88,
+                    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                    cursor: 'default',
+                    border: '1px solid var(--border-color)',
+                    boxShadow: '0 2px 8px rgba(20,33,61,0.04)'
                   }}
+                  onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 24px rgba(20,33,61,0.1)'; e.currentTarget.style.borderColor = 'var(--navy-light)'; }}
+                  onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(20,33,61,0.04)'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                 >
                   {/* 1. IMAGEN DE PORTADA DESTACADA Y AMPLIA (ALTURA 200PX CON BADGE SOBREPUESTO) */}
                   <div style={{ width: '100%', height: '200px', overflow: 'hidden', position: 'relative', background: 'var(--navy)' }}>
@@ -330,7 +410,7 @@ function StudentPortal({ getDiplomadoLink }) {
                           localStorage.setItem('activeProgramId', dip.id); 
                           localStorage.setItem('activeProgramType', dip.program_type); 
                         }} 
-                        to={getDiplomadoLink(dip.id)} 
+                        to={getContinueLink(dip)} 
                         className="btn btn-primary" 
                         style={{ 
                           textAlign: 'center', 
@@ -343,7 +423,7 @@ function StudentPortal({ getDiplomadoLink }) {
                           boxShadow: 'var(--shadow-sm)'
                         }}
                       >
-                        {buttonText}
+                        {buttonText} →
                       </Link>
                     ) : (
                       <button 
@@ -371,10 +451,10 @@ function StudentPortal({ getDiplomadoLink }) {
             })
           )}
         </div>
-      </div>
+        </div>
 
-      {/* 3. BLOQUE DE PRÓXIMOS PROGRAMAS (En móvil orden 3, en escritorio columna lateral inferior) */}
-      <div className="mobile-order-upcoming desktop-sidebar-upcoming">
+        {/* 3. BLOQUE DE PRÓXIMOS PROGRAMAS */}
+        <div className="mobile-order-upcoming desktop-sidebar-upcoming">
         <div className="card static-card" style={{ padding: '1.35rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
             <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Próximos programas</h3>
@@ -410,9 +490,14 @@ function StudentPortal({ getDiplomadoLink }) {
             </div>
           ) : upcomingPrograms.length === 0 ? (
             /* ESTADO VACÍO DISCRETO */
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, padding: '0.25rem 0' }}>
-              No hay nuevos programas próximos por el momento.
-            </p>
+            <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(20,33,61,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.5rem auto' }}>
+                <CalendarDays size={20} color="var(--text-muted)" style={{ opacity: 0.6 }} />
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
+                No hay nuevos programas próximos por el momento.
+              </p>
+            </div>
           ) : (
             /* LISTADO COMPACTO HASTA 3 ELEMENTOS */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -471,7 +556,8 @@ function StudentPortal({ getDiplomadoLink }) {
           )}
         </div>
 
-      </div>
+        </div>{/* cierre portal-layout */}
+      </div>{/* cierre wrapper externo */}
     </div>
   );
 }
