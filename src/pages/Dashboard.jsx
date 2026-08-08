@@ -233,12 +233,25 @@ export default function Dashboard() {
 
             const { data: atts } = await supabase
               .from('activity_attempts')
-              .select('activity_id, score, status')
+              .select('id, activity_id, score, status')
               .eq('student_id', currentUser.id)
               .eq('status', 'completed')
               .in('activity_id', actIds);
 
-            return { activities: acts || [], attempts: atts || [] };
+            const attIds = (atts || []).map(a => a.id).filter(Boolean);
+            let attAnsMap = {};
+            if (attIds.length > 0) {
+              const { data: ans } = await supabase.from('attempt_answers').select('attempt_id, is_correct').in('attempt_id', attIds);
+              if (ans && ans.length > 0) {
+                ans.forEach(a => {
+                  if (!attAnsMap[a.attempt_id]) attAnsMap[a.attempt_id] = { total: 0, correct: 0 };
+                  attAnsMap[a.attempt_id].total++;
+                  if (a.is_correct) attAnsMap[a.attempt_id].correct++;
+                });
+              }
+            }
+
+            return { activities: acts || [], attempts: atts || [], attAnsMap };
           })()
         ]);
 
@@ -246,13 +259,18 @@ export default function Dashboard() {
         setProgress(progressDetails?.percentage || 0);
 
         // Calcular estadísticas de actividades
-        const { activities, attempts } = activityData;
+        const { activities, attempts, attAnsMap } = activityData;
         if (activities.length > 0) {
           // Mejor intento por actividad
           const bestByActivity = {};
           (attempts || []).forEach(att => {
-            if (!bestByActivity[att.activity_id] || att.score > bestByActivity[att.activity_id]) {
-              bestByActivity[att.activity_id] = att.score;
+            let realScore = att.score;
+            const ansStats = attAnsMap ? attAnsMap[att.id] : null;
+            if (ansStats && ansStats.total > 0) {
+              realScore = Math.round((ansStats.correct / ansStats.total) * 100);
+            }
+            if (!bestByActivity[att.activity_id] || realScore > bestByActivity[att.activity_id]) {
+              bestByActivity[att.activity_id] = realScore;
             }
           });
           const completedIds = new Set(Object.keys(bestByActivity));

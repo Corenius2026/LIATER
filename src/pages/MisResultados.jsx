@@ -112,17 +112,51 @@ export default function MisResultados() {
         // 4. Intentos completados — ordenados desc para tomar el mejor
         const { data: attempts } = await supabase
           .from('activity_attempts')
-          .select('activity_id, score, completed_at, status')
+          .select('id, activity_id, score, completed_at, status')
           .eq('student_id', currentUser.id)
           .eq('status', 'completed')
           .in('activity_id', activityIds)
           .order('score', { ascending: false });
 
+        const attemptIds = (attempts || []).map(a => a.id).filter(Boolean);
+        let attemptAnswersMap = {};
+
+        if (attemptIds.length > 0) {
+          const { data: ansData } = await supabase
+            .from('attempt_answers')
+            .select('attempt_id, is_correct')
+            .in('attempt_id', attemptIds);
+
+          if (ansData && ansData.length > 0) {
+            ansData.forEach(ans => {
+              if (!attemptAnswersMap[ans.attempt_id]) {
+                attemptAnswersMap[ans.attempt_id] = { total: 0, correct: 0 };
+              }
+              attemptAnswersMap[ans.attempt_id].total++;
+              if (ans.is_correct) {
+                attemptAnswersMap[ans.attempt_id].correct++;
+              }
+            });
+          }
+        }
+
         // Mapa: activity_id → mejor intento (primero en lista ordenada desc)
         const bestAttemptMap = {};
         (attempts || []).forEach(att => {
-          if (!bestAttemptMap[att.activity_id]) {
-            bestAttemptMap[att.activity_id] = att;
+          let realScore = att.score;
+          const ansStats = attemptAnswersMap[att.id];
+          if (ansStats && ansStats.total > 0) {
+            realScore = Math.round((ansStats.correct / ansStats.total) * 100);
+            // Sincronizar con Supabase si el puntaje guardado difiere del real
+            if (realScore !== att.score) {
+              supabase.from('activity_attempts').update({ score: realScore }).eq('id', att.id).then(() => {});
+            }
+          }
+
+          const processedAtt = { ...att, score: realScore };
+
+          if (!bestAttemptMap[att.activity_id] || processedAtt.score > bestAttemptMap[att.activity_id].score) {
+            bestAttemptMap[att.activity_id] = processedAtt;
           }
         });
 
