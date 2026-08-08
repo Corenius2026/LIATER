@@ -532,7 +532,7 @@ export default function ClassDetail() {
                   title: actData.title,
                   description: actData.description,
                   estimatedTimeMinutes: 10,
-                  maxAttempts: 1,
+                  maxAttempts: actData.max_attempts ?? 1,
                   isMandatory: actData.is_mandatory,
                   questions: formattedQuestions
                 });
@@ -995,7 +995,12 @@ export default function ClassDetail() {
                   </span>
                 )}
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <RotateCcw size={13} color="var(--gold-dark)" /> Único intento permitido
+                  <RotateCcw size={13} color="var(--gold-dark)" />
+                  {activityConfig.maxAttempts === 0
+                    ? 'Intentos ilimitados'
+                    : activityConfig.maxAttempts === 1
+                    ? 'Único intento permitido'
+                    : `${activityConfig.maxAttempts} intentos permitidos`}
                 </span>
               </div>
             )}

@@ -56,6 +56,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
   const [draftError, setDraftError]       = useState('');
   const [editingQuestions, setEditingQuestions] = useState(false);
   const [localQuestions, setLocalQuestions]     = useState([]);
+  const [maxAttempts, setMaxAttempts]           = useState(1);
   const [actionLoading, setActionLoading]       = useState(null);
   const [activityMsg, setActivityMsg]           = useState('');
   const [activityStats, setActivityStats]       = useState(null);
@@ -64,18 +65,31 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
 
   // Determina el estado de ciclo de vida de la clase
   const classStatus = (() => {
+    if (!selectedClass) return 'upcoming';
     const now = new Date();
-    const classDate = new Date(selectedClass?.class_date);
+    const classDate = new Date(selectedClass.class_date);
     const diff = classDate - now;
     if (diff > 0 && diff < 60 * 60 * 1000) return 'live';   // próxima hora
     if (diff > 0) return 'upcoming';
-    return 'completed';
+    
+    // Lógica para completada vs pendiente si ya pasó la fecha
+    const hasVideo = !!selectedClass.video_url;
+    let isActPublished = false;
+    if (activityStats) {
+      isActPublished = activityStats.isPublished;
+    } else if (Array.isArray(selectedClass.class_activities)) {
+      isActPublished = selectedClass.class_activities.some(a => a.is_published);
+    }
+    
+    if (hasVideo && isActPublished) return 'completed';
+    return 'pending';
   })();
 
   const STATUS_LABELS = {
     upcoming:  { label: 'Programada',  bg: 'rgba(20,33,61,0.08)',   color: '#14213D' },
     live:      { label: '🔴 EN VIVO',  bg: 'rgba(220,38,38,0.1)',   color: '#dc2626' },
     completed: { label: 'Finalizada',  bg: 'rgba(22,163,74,0.1)',   color: '#16a34a' },
+    pending:   { label: 'Pendiente',   bg: 'rgba(252,163,17,0.1)',  color: '#b45309' },
   };
   const statusInfo = STATUS_LABELS[classStatus];
 
@@ -119,8 +133,10 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
       // Stats de la actividad publicada para esta clase
       const { data: actData } = await supabase
         .from('class_activities')
-        .select('id, title, is_published, due_date')
+        .select('id, title, is_published, due_date, max_attempts')
         .eq('class_id', selectedClass.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
       
       if (actData?.id) {
@@ -130,8 +146,10 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
             .select('id', { count: 'exact', head: true })
             .eq('activity_id', actData.id);
           setActivityStats({ isPublished: actData.is_published, totalResponses: totalResponses || 0, due_date: actData.due_date });
+          if (actData.max_attempts !== undefined) setMaxAttempts(actData.max_attempts);
         } catch {
           setActivityStats({ isPublished: actData.is_published, totalResponses: 0, due_date: actData.due_date });
+          if (actData.max_attempts !== undefined) setMaxAttempts(actData.max_attempts);
         }
       }
     } catch (err) {
@@ -247,7 +265,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
         title: draftData.activity_title || 'Actividad de Reforzamiento', 
         description: draftData.activity_description || '', 
         is_published: true, 
-        max_attempts: 3 
+        max_attempts: maxAttempts 
       };
       if (calculatedDueDate) updatePayload.due_date = calculatedDueDate;
       
@@ -641,6 +659,22 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
                     </div>
                   </div>
                   {activityMsg && <div style={{ fontSize: '0.82rem', fontWeight: 600, color: activityMsg.startsWith('✓') ? '#16a34a' : '#dc2626', background: activityMsg.startsWith('✓') ? '#f0fdf4' : '#fef2f2', padding: '0.6rem 0.85rem', borderRadius: '6px' }}>{activityMsg}</div>}
+
+                  {editingQuestions && (
+                    <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '1rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Intentos permitidos</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <input 
+                          type="number" 
+                          min="0"
+                          value={maxAttempts} 
+                          onChange={e => setMaxAttempts(parseInt(e.target.value) || 0)}
+                          style={{ width: '100px', padding: '0.4rem', border: '1px solid var(--border-color)', borderRadius: '6px' }} 
+                        />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(0 = Ilimitados)</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Lista de preguntas — modo visualización */}
                   {!editingQuestions && (
@@ -3063,6 +3097,7 @@ function BorradoresTab() {
   const [expandedId, setExpandedId] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
+  const [maxAttemptsByDraft, setMaxAttemptsByDraft] = useState({});
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -3116,16 +3151,32 @@ function BorradoresTab() {
     }
   };
 
-  useEffect(() => { fetchDrafts(); }, [programId]);
+  useEffect(() => {
+    fetchDrafts();
+
+    // Suscripción realtime para detectar cambios del admin en class_activities
+    const channel = supabase
+      .channel('class_activities_teacher_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_activities' }, () => {
+        fetchDrafts();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [programId]);
 
   // Helper para sincronizar la actividad en las tablas públicas de Supabase
-  const syncAndPublishActivity = async (classId, draftData) => {
+  const syncAndPublishActivity = async (classId, draftData, attempts) => {
+    const attemptsValue = (attempts !== undefined && attempts !== null) ? attempts : 1;
     // 1. Upsert / update en class_activities
-    const { data: existingAct } = await supabase
+    // Usar order + limit(1) para evitar problemas con duplicados
+    const { data: existingRows } = await supabase
       .from('class_activities')
       .select('id')
       .eq('class_id', classId)
-      .maybeSingle();
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const existingAct = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
     let activityId;
 
@@ -3136,7 +3187,7 @@ function BorradoresTab() {
           title: draftData.activity_title || 'Actividad de Reforzamiento',
           description: draftData.activity_description || '',
           is_published: true,
-          max_attempts: 3,
+          max_attempts: attemptsValue,
           is_mandatory: false,
         })
         .eq('id', existingAct.id)
@@ -3156,7 +3207,7 @@ function BorradoresTab() {
           title: draftData.activity_title || 'Actividad de Reforzamiento',
           description: draftData.activity_description || '',
           is_published: true,
-          max_attempts: 3,
+          max_attempts: attemptsValue,
           is_mandatory: false,
         })
         .select('id')
@@ -3225,7 +3276,8 @@ function BorradoresTab() {
       const classId = draft.class_id || draft.class_sessions?.id;
       if (!classId) throw new Error('No se encontró el ID de la clase vinculada.');
 
-      await syncAndPublishActivity(classId, draft.draft_data);
+      const attempts = maxAttemptsByDraft[draft.id] ?? 1;
+      await syncAndPublishActivity(classId, draft.draft_data, attempts);
 
       await supabase
         .from('activity_drafts')
@@ -3376,7 +3428,8 @@ function BorradoresTab() {
 
       // 2. Si se publica o ya estaba aprobado, sincronizar en base de datos real
       if (shouldPublish && classId) {
-        await syncAndPublishActivity(classId, editFormData);
+        const attempts = maxAttemptsByDraft[editingDraft.id] ?? 1;
+        await syncAndPublishActivity(classId, editFormData, attempts);
       }
 
       showToast(shouldPublish ? '¡Borrador guardado y publicado exitosamente!' : 'Borrador guardado con éxito.');
@@ -3520,6 +3573,18 @@ function BorradoresTab() {
                   {/* Botones según estado */}
                   {draft.status === 'pending' && (
                     <>
+                      {/* Input intentos permitidos */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>Intentos:</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={maxAttemptsByDraft[draft.id] ?? 1}
+                          onChange={e => setMaxAttemptsByDraft(prev => ({ ...prev, [draft.id]: parseInt(e.target.value) || 0 }))}
+                          style={{ width: '60px', padding: '0.3rem 0.4rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center' }}
+                          title="0 = Intentos ilimitados"
+                        />
+                      </div>
                       <button
                         onClick={() => handleApprove(draft)}
                         disabled={!!actionLoading}
