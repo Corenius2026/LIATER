@@ -1697,7 +1697,7 @@ export default function ClassDetail() {
                               color: isCorrect ? '#166534' : isAnswered ? '#dc2626' : '#64748b',
                               flexShrink: 0
                             }}>
-                              {isCorrect ? '✓ Correcta' : isAnswered ? '✗ Incorrecta' : 'Sin responder'}
+                              {isCorrect ? '✓ Correcta' : isAnswered ? '✗ Incorrecta' : 'Clave de respuesta'}
                             </span>
                           </div>
 
@@ -1789,7 +1789,19 @@ export default function ClassDetail() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => {
+                      setUserAnswers({});
+                      setCurrentQuestionIdx(0);
+                      setViewingResultsMode(false);
+                      setShowConfirmFinishModal(false);
+                    }}
+                    className="btn btn-outline"
+                    style={{ padding: '0.6rem 1.25rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    <RotateCcw size={16} /> Volver a realizar la actividad
+                  </button>
                   <button onClick={() => setIsActivityModalOpen(false)} className="btn btn-primary" style={{ padding: '0.6rem 1.4rem', fontWeight: 700 }}>
                     Cerrar y volver a la clase
                   </button>
