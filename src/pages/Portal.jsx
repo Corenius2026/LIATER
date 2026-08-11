@@ -2082,11 +2082,11 @@ function AdminPortal({ getDiplomadoLink }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #F1F5F9' }}>
               <div>
-                <h2 style={{ fontSize: '1.25rem', color: '#14213D', margin: 0, fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  🎓 Catálogo de Diplomados
+                <h2 style={{ fontSize: '1.25rem', color: '#14213D', margin: 0, fontWeight: 800 }}>
+                  Catálogo de Diplomados
                 </h2>
-                <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 500, marginTop: '2px', display: 'block' }}>
-                  Estructura modular con clases y actividades de reforzamiento
+                <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 500, marginTop: '3px', display: 'block' }}>
+                  Programas de formación integral estructurados en módulos temáticos y clases interactivas.
                 </span>
               </div>
               <span style={{ 
@@ -2273,11 +2273,11 @@ function AdminPortal({ getDiplomadoLink }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #F1F5F9' }}>
               <div>
-                <h2 style={{ fontSize: '1.25rem', color: '#14213D', margin: 0, fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  📚 Catálogo de Cursos Cortos
+                <h2 style={{ fontSize: '1.25rem', color: '#14213D', margin: 0, fontWeight: 800 }}>
+                  Catálogo de Cursos Cortos
                 </h2>
-                <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 500, marginTop: '2px', display: 'block' }}>
-                  Temario ágil y directo sin módulos intermedios
+                <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 500, marginTop: '3px', display: 'block' }}>
+                  Programas especializados y de temario continuo diseñados para un aprendizaje dinámico y práctico.
                 </span>
               </div>
               <span style={{ 
