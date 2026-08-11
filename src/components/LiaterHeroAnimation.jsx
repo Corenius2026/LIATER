@@ -1,379 +1,428 @@
 import { useState, useEffect, useRef } from 'react';
-import { Zap, Sun, Award } from 'lucide-react';
-import liater3dEmblem from '../assets/liater_3d_emblem.jpg';
 
 export default function LiaterHeroAnimation() {
-  const canvasRef = useRef(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
+  const [mouse, setMouse] = useState({ x: 0, y: 0, targetX: 0, targetY: 0 });
+  const [activeItem, setActiveItem] = useState(null); // 'tower' | 'lightning' | 'solar' | 'logo'
 
-  // Canvas 3D de Partículas de Alta Tensión y Descargas Eléctricas
+  // Suavizado cinético (Lerp) de la posición del cursor para animación 3D ultra fluida
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let animationFrameId;
+    let animId;
+    const lerp = (a, b, n) => (1 - n) * a + n * b;
 
-    const width = 540;
-    const height = 520;
-    canvas.width = width * window.devicePixelRatio || width;
-    canvas.height = height * window.devicePixelRatio || height;
-    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-
-    // Partículas orbitales de energía
-    const numParticles = 40;
-    const particles = Array.from({ length: numParticles }, (_, i) => ({
-      angle: (i / numParticles) * Math.PI * 2,
-      radius: 200 + (Math.random() - 0.5) * 45,
-      speed: 0.008 + Math.random() * 0.012,
-      size: Math.random() * 2.5 + 1.5,
-      color: i % 3 === 0 ? '#38BDF8' : '#FCA311'
-    }));
-
-    let time = 0;
-    const render = () => {
-      time += 0.02;
-      ctx.clearRect(0, 0, width, height);
-
-      const centerX = width / 2;
-      const centerY = height / 2;
-
-      // 1. Rayos eléctricos aleatorios que cruzan la composición
-      if (Math.sin(time * 6) > 0.88) {
-        ctx.strokeStyle = Math.random() > 0.5 ? 'rgba(56, 189, 248, 0.7)' : 'rgba(252, 163, 17, 0.7)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        let curX = centerX - 180 + (Math.random() - 0.5) * 40;
-        let curY = centerY + (Math.random() - 0.5) * 60;
-        ctx.moveTo(curX, curY);
-
-        for (let s = 0; s < 4; s++) {
-          curX += 45 + Math.random() * 20;
-          curY += (Math.random() - 0.5) * 40;
-          ctx.lineTo(curX, curY);
-        }
-        ctx.stroke();
-      }
-
-      // 2. Partículas orbitales
-      particles.forEach((p) => {
-        p.angle += p.speed;
-        const x = centerX + Math.cos(p.angle) * p.radius;
-        const y = centerY + Math.sin(p.angle) * (p.radius * 0.65); // Elipse 3D
-
-        ctx.beginPath();
-        ctx.arc(x, y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 8;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      });
-
-      animationFrameId = requestAnimationFrame(render);
+    const loop = () => {
+      setMouse((prev) => ({
+        ...prev,
+        x: lerp(prev.x, prev.targetX, 0.08),
+        y: lerp(prev.y, prev.targetY, 0.08)
+      }));
+      animId = requestAnimationFrame(loop);
     };
+    loop();
 
-    render();
-
-    return () => cancelAnimationFrame(animationFrameId);
+    return () => cancelAnimationFrame(animId);
   }, []);
 
-  // Parallax interactivo 3D suave al mover el ratón
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      const { innerWidth, innerHeight } = window;
-      const x = (e.clientX / innerWidth - 0.5) * 26;
-      const y = (e.clientY / innerHeight - 0.5) * 26;
-      setMousePos({ x, y });
-    };
+  const handleMouseMove = (e) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = e.clientX - rect.left - rect.width / 2;
+    const clientY = e.clientY - rect.top - rect.height / 2;
 
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
+    // Normalizado de -1 a 1
+    const targetX = clientX / (rect.width / 2);
+    const targetY = clientY / (rect.height / 2);
+
+    setMouse((prev) => ({ ...prev, targetX, targetY }));
+  };
+
+  const handleMouseLeave = () => {
+    setMouse((prev) => ({ ...prev, targetX: 0, targetY: 0 }));
+    setActiveItem(null);
+  };
+
+  // Rotaciones dinámicas 3D
+  const rotX = -mouse.y * 18;
+  const rotY = mouse.x * 22;
 
   return (
-    <div 
-      className="liater-3d-emblem-container"
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="liater-3d-interactive-scene"
       style={{
         position: 'relative',
         width: '100%',
         maxWidth: '540px',
-        height: '520px',
+        height: '460px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        perspective: '1400px',
+        perspective: '1200px',
+        cursor: 'pointer',
         userSelect: 'none'
       }}
     >
-      {/* 1. Resplandor Ambiental Dorado y Azul de Fondo */}
+      {/* Resplandor suave de fondo */}
       <div style={{
         position: 'absolute',
-        width: '380px',
-        height: '380px',
+        width: '360px',
+        height: '360px',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(252, 163, 17, 0.32) 0%, rgba(56, 189, 248, 0.18) 45%, transparent 70%)',
-        filter: 'blur(40px)',
-        animation: 'pulseGlow3D 5s ease-in-out infinite alternate',
-        pointerEvents: 'none'
+        background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(56, 189, 248, 0.08) 50%, transparent 70%)',
+        filter: 'blur(45px)',
+        pointerEvents: 'none',
+        transform: `translate(${mouse.x * 20}px, ${mouse.y * 20}px)`,
+        transition: 'transform 0.3s ease-out'
       }} />
 
-      {/* 2. Canvas de Chispas y Partículas Eléctricas */}
-      <canvas 
-        ref={canvasRef}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          zIndex: 2,
-          pointerEvents: 'none'
-        }}
-      />
-
-      {/* 3. Anillos Giroscópicos 3D en Perspectiva */}
-      <div 
-        style={{
-          position: 'absolute',
-          width: '440px',
-          height: '440px',
-          transformStyle: 'preserve-3d',
-          transform: `rotateX(${62 + mousePos.y * 0.4}deg) rotateY(${18 + mousePos.x * 0.4}deg)`,
-          transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
-          pointerEvents: 'none',
-          zIndex: 3
-        }}
-      >
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          border: '2px solid rgba(252, 163, 17, 0.55)',
-          boxShadow: '0 0 20px rgba(252, 163, 17, 0.4), inset 0 0 20px rgba(252, 163, 17, 0.2)',
-          animation: 'spin3DOrbit 20s linear infinite'
-        }} />
-
-        <div style={{
-          position: 'absolute',
-          inset: '30px',
-          borderRadius: '50%',
-          border: '1.5px dashed rgba(56, 189, 248, 0.5)',
-          animation: 'spin3DOrbitReverse 26s linear infinite'
-        }} />
-      </div>
-
-      {/* 4. MEDALLÓN EMBLEMA 3D LIATER (Torre Alta Tensión + Onda + Panel Solar) */}
-      <div 
+      {/* --- ESCENARIO 3D PRINCIPAL --- */}
+      <div
         style={{
           position: 'relative',
-          width: '320px',
-          height: '320px',
-          borderRadius: '50%',
-          padding: '8px',
-          background: 'linear-gradient(145deg, rgba(252, 163, 17, 0.8) 0%, rgba(20, 33, 61, 0.9) 60%, rgba(56, 189, 248, 0.8) 100%)',
-          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.65), 0 0 50px rgba(252, 163, 17, 0.40), inset 0 0 30px rgba(20, 33, 61, 0.8)',
+          width: '100%',
+          height: '100%',
+          transformStyle: 'preserve-3d',
+          transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
+          transition: 'transform 0.1s ease-out'
+        }}
+      >
+
+        {/* ========================================================= */}
+        {/* CAPA 1: ÓRBITAS Y LÍNEAS DE FLUJO ENERGÉTICO (Fondo 3D)  */}
+        {/* ========================================================= */}
+        <div style={{
+          position: 'absolute',
+          inset: '20px',
+          transformStyle: 'preserve-3d',
+          transform: 'translateZ(-40px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 5,
-          transform: `rotateX(${-mousePos.y * 0.5}deg) rotateY(${mousePos.x * 0.5}deg) translateZ(40px)`,
-          transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
-          animation: 'floatingEmblem3D 6s ease-in-out infinite'
-        }}
-      >
-        <div style={{
-          position: 'relative',
-          width: '100%',
-          height: '100%',
-          borderRadius: '50%',
-          overflow: 'hidden',
-          border: '2px solid rgba(255, 255, 255, 0.35)',
-          boxShadow: 'inset 0 0 25px rgba(0,0,0,0.8)'
+          pointerEvents: 'none'
         }}>
-          <img 
-            src={liater3dEmblem} 
-            alt="Laboratorio LIATER - Alta Tensión y Energías Renovables" 
-            style={{ 
-              width: '100%', 
-              height: '100%', 
-              objectFit: 'cover',
-              transform: 'scale(1.04)',
-              transition: 'transform 0.3s ease'
-            }} 
-          />
-
-          {/* Reflejo de Luz 3D Holográfico */}
+          {/* Anillo de Inducción */}
           <div style={{
             position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, transparent 45%, rgba(0,0,0,0.4) 100%)',
-            pointerEvents: 'none'
+            width: '380px',
+            height: '380px',
+            borderRadius: '50%',
+            border: '1.5px dashed rgba(252, 163, 17, 0.3)',
+            animation: 'spinClockwise 30s linear infinite'
           }} />
+
+          {/* Anillo de Campo Magnético */}
+          <div style={{
+            position: 'absolute',
+            width: '280px',
+            height: '280px',
+            borderRadius: '50%',
+            border: '1px solid rgba(56, 189, 248, 0.25)',
+            boxShadow: '0 0 20px rgba(56, 189, 248, 0.15)',
+            animation: 'spinCounter 22s linear infinite'
+          }} />
+
+          {/* Línea Eléctrica Conductora Horizontal que une Torre, Rayo y Panel */}
+          <svg
+            viewBox="0 0 500 100"
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100px',
+              overflow: 'visible'
+            }}
+          >
+            <defs>
+              <linearGradient id="fluxLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#FCA311" stopOpacity="0.8" />
+                <stop offset="50%" stopColor="#38BDF8" stopOpacity="1" />
+                <stop offset="100%" stopColor="#FCA311" stopOpacity="0.8" />
+              </linearGradient>
+            </defs>
+            {/* Cable de transmisión con pulso animado */}
+            <path
+              d="M 60 50 L 210 50 M 290 50 L 440 50"
+              stroke="url(#fluxLineGrad)"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+              style={{ animation: 'dashMove 2s linear infinite' }}
+            />
+          </svg>
         </div>
+
+
+        {/* ========================================================= */}
+        {/* ELEMENTO 1: TORRE DE ALTA TENSIÓN 3D (Izquierda)         */}
+        {/* ========================================================= */}
+        <div
+          onMouseEnter={() => setActiveItem('tower')}
+          onMouseLeave={() => setActiveItem(null)}
+          style={{
+            position: 'absolute',
+            left: '30px',
+            top: '50%',
+            marginTop: '-110px',
+            width: '130px',
+            height: '220px',
+            transformStyle: 'preserve-3d',
+            transform: `translateZ(${activeItem === 'tower' ? 85 : 45}px) translateX(${mouse.x * -18}px) translateY(${mouse.y * -18}px) scale(${activeItem === 'tower' ? 1.08 : 1})`,
+            transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+            filter: 'drop-shadow(0 15px 25px rgba(0,0,0,0.5))'
+          }}
+        >
+          {/* Tarjeta / Base Flotante Sutil */}
+          <div style={{
+            position: 'absolute',
+            inset: '-10px',
+            borderRadius: '16px',
+            background: activeItem === 'tower' ? 'rgba(20, 33, 61, 0.75)' : 'rgba(20, 33, 61, 0.45)',
+            border: `1.5px solid ${activeItem === 'tower' ? '#FCA311' : 'rgba(252, 163, 17, 0.35)'}`,
+            backdropFilter: 'blur(8px)',
+            transition: 'all 0.3s ease'
+          }} />
+
+          {/* Torre Vectorial 3D Minimalista */}
+          <svg viewBox="0 0 100 160" style={{ width: '100%', height: '100%', position: 'relative', zIndex: 2 }}>
+            <defs>
+              <linearGradient id="towerGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#FFD166" />
+                <stop offset="50%" stopColor="#FCA311" />
+                <stop offset="100%" stopColor="#C77D00" />
+              </linearGradient>
+            </defs>
+
+            {/* Estructura de Celosía de Alta Tensión */}
+            {/* Patas principales */}
+            <path d="M 50 15 L 20 150 M 50 15 L 80 150" stroke="url(#towerGold)" strokeWidth="3" strokeLinecap="round" />
+            
+            {/* Brazos transversales (Crucetas) */}
+            <path d="M 15 45 L 85 45" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M 22 75 L 78 75" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+            <path d="M 28 105 L 72 105" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+            
+            {/* Celosías en X */}
+            <path d="M 22 45 L 78 75 M 78 45 L 22 75" stroke="url(#towerGold)" strokeWidth="1.5" />
+            <path d="M 25 75 L 75 105 M 75 75 L 25 105" stroke="url(#towerGold)" strokeWidth="1.5" />
+            <path d="M 28 105 L 72 145 M 72 105 L 28 145" stroke="url(#towerGold)" strokeWidth="1.5" />
+
+            {/* Aisladores en los extremos con chispas */}
+            <circle cx="15" cy="45" r="4" fill="#38BDF8" style={{ animation: 'sparkFlash 2s infinite' }} />
+            <circle cx="85" cy="45" r="4" fill="#38BDF8" style={{ animation: 'sparkFlash 2s infinite 0.5s' }} />
+            <circle cx="50" cy="15" r="4.5" fill="#FCA311" style={{ animation: 'sparkFlash 1.5s infinite' }} />
+          </svg>
+
+          {/* Etiqueta Flotante */}
+          <div style={{
+            position: 'absolute',
+            bottom: '-12px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#14213D',
+            border: '1px solid #FCA311',
+            borderRadius: '10px',
+            padding: '3px 8px',
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            color: '#FFFFFF',
+            whiteSpace: 'nowrap',
+            zIndex: 3
+          }}>
+            ⚡ Alta Tensión
+          </div>
+        </div>
+
+
+        {/* ========================================================= */}
+        {/* ELEMENTO 2: RAYO / ONDA ELÉCTRICA DE POTENCIA 3D (Centro) */}
+        {/* ========================================================= */}
+        <div
+          onMouseEnter={() => setActiveItem('lightning')}
+          onMouseLeave={() => setActiveItem(null)}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            marginTop: '-95px',
+            marginLeft: '-75px',
+            width: '150px',
+            height: '190px',
+            transformStyle: 'preserve-3d',
+            transform: `translateZ(${activeItem === 'lightning' ? 120 : 80}px) translateX(${mouse.x * 25}px) translateY(${mouse.y * 25}px) scale(${activeItem === 'lightning' ? 1.12 : 1})`,
+            transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 6
+          }}
+        >
+          {/* Núcleo Holográfico de Energía */}
+          <div style={{
+            position: 'absolute',
+            width: '130px',
+            height: '130px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(252, 163, 17, 0.35) 0%, rgba(20, 33, 61, 0.8) 65%)',
+            border: '2px solid #FCA311',
+            boxShadow: '0 0 35px rgba(252, 163, 17, 0.6), inset 0 0 20px rgba(56, 189, 248, 0.4)',
+            animation: 'floatingCore 4s ease-in-out infinite'
+          }} />
+
+          {/* SVG de Rayo y Onda de Pulso */}
+          <svg viewBox="0 0 100 100" style={{ width: '90px', height: '90px', position: 'relative', zIndex: 3 }}>
+            <defs>
+              <filter id="glowBolt" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            {/* Rayo Eléctrico 3D Centelleante */}
+            <path
+              d="M 54 10 L 32 46 L 50 46 L 42 90 L 68 48 L 50 48 Z"
+              fill="#FCA311"
+              stroke="#FFFFFF"
+              strokeWidth="2"
+              filter="url(#glowBolt)"
+              style={{ animation: 'boltPulse 1.8s ease-in-out infinite alternate' }}
+            />
+          </svg>
+
+          {/* Símbolo LIATER en Texto Claro */}
+          <div style={{
+            marginTop: '8px',
+            padding: '3px 12px',
+            borderRadius: '20px',
+            background: 'rgba(20, 33, 61, 0.95)',
+            border: '1.5px solid #FCA311',
+            color: '#FFFFFF',
+            fontWeight: 800,
+            fontSize: '0.78rem',
+            letterSpacing: '0.08em',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+            position: 'relative',
+            zIndex: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px'
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
+            LIATER
+          </div>
+        </div>
+
+
+        {/* ========================================================= */}
+        {/* ELEMENTO 3: PANEL SOLAR FOTOVOLTAICO 3D (Derecha)        */}
+        {/* ========================================================= */}
+        <div
+          onMouseEnter={() => setActiveItem('solar')}
+          onMouseLeave={() => setActiveItem(null)}
+          style={{
+            position: 'absolute',
+            right: '30px',
+            top: '50%',
+            marginTop: '-100px',
+            width: '140px',
+            height: '200px',
+            transformStyle: 'preserve-3d',
+            transform: `translateZ(${activeItem === 'solar' ? 85 : 45}px) translateX(${mouse.x * 18}px) translateY(${mouse.y * 18}px) scale(${activeItem === 'solar' ? 1.08 : 1})`,
+            transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+            filter: 'drop-shadow(0 15px 25px rgba(0,0,0,0.5))'
+          }}
+        >
+          {/* Base / Card Flotante */}
+          <div style={{
+            position: 'absolute',
+            inset: '-10px',
+            borderRadius: '16px',
+            background: activeItem === 'solar' ? 'rgba(20, 33, 61, 0.75)' : 'rgba(20, 33, 61, 0.45)',
+            border: `1.5px solid ${activeItem === 'solar' ? '#38BDF8' : 'rgba(56, 189, 248, 0.35)'}`,
+            backdropFilter: 'blur(8px)',
+            transition: 'all 0.3s ease'
+          }} />
+
+          {/* Panel Solar Isométrico 3D en SVG */}
+          <svg viewBox="0 0 120 140" style={{ width: '100%', height: '100%', position: 'relative', zIndex: 2 }}>
+            <defs>
+              <linearGradient id="solarGlass" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#1E3A8A" />
+                <stop offset="50%" stopColor="#0284C7" />
+                <stop offset="100%" stopColor="#0369A1" />
+              </linearGradient>
+            </defs>
+
+            {/* Soporte / Poste de Montaje */}
+            <path d="M 60 90 L 60 130 M 40 130 L 80 130" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+
+            {/* Marco del Panel Inclinado en Perspectiva 3D */}
+            <polygon
+              points="15,40 85,20 105,80 35,100"
+              fill="url(#solarGlass)"
+              stroke="#FFFFFF"
+              strokeWidth="2.5"
+              style={{ filter: 'drop-shadow(0 4px 10px rgba(56, 189, 248, 0.3))' }}
+            />
+
+            {/* Celdas Solares Cuadriculadas */}
+            <line x1="38" y1="33" x2="58" y2="93" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
+            <line x1="62" y1="27" x2="82" y2="87" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
+            
+            <line x1="22" y1="60" x2="92" y2="40" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
+            <line x1="28" y1="80" x2="98" y2="60" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
+
+            {/* Fotones / Rayos Solares Flotando */}
+            <circle cx="25" cy="20" r="3" fill="#FCA311" style={{ animation: 'sparkFlash 2.5s infinite' }} />
+            <circle cx="95" cy="15" r="4" fill="#FCA311" style={{ animation: 'sparkFlash 2s infinite 0.7s' }} />
+          </svg>
+
+          {/* Etiqueta Flotante */}
+          <div style={{
+            position: 'absolute',
+            bottom: '-12px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#14213D',
+            border: '1px solid #38BDF8',
+            borderRadius: '10px',
+            padding: '3px 8px',
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            color: '#FFFFFF',
+            whiteSpace: 'nowrap',
+            zIndex: 3
+          }}>
+            ☀️ Energía Solar
+          </div>
+        </div>
+
       </div>
 
-      {/* 5. TARJETAS FLOTANTES 3D HUD (Tipografía 100% Blanca y Clara) */}
-      
-      {/* Badge 1: Alta Tensión & Redes (Arriba a la Derecha) */}
-      <div 
-        style={{
-          position: 'absolute',
-          top: '20px',
-          right: '-10px',
-          background: 'rgba(15, 23, 42, 0.92)',
-          backdropFilter: 'blur(16px)',
-          border: '1.5px solid rgba(252, 163, 17, 0.55)',
-          borderRadius: '14px',
-          padding: '0.75rem 1.1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.5), 0 0 15px rgba(252, 163, 17, 0.2)',
-          zIndex: 7,
-          transform: `translate3d(${mousePos.x * -0.9}px, ${mousePos.y * -0.9}px, 70px)`,
-          transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
-          animation: 'floatingBadge1 5s ease-in-out infinite alternate'
-        }}
-      >
-        <div style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '10px',
-          background: 'linear-gradient(135deg, rgba(252, 163, 17, 0.3) 0%, rgba(252, 163, 17, 0.1) 100%)',
-          border: '1px solid rgba(252, 163, 17, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#FCA311'
-        }}>
-          <Zap size={20} />
-        </div>
-        <div>
-          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
-            Alta Tensión
-          </div>
-          <div style={{ fontSize: '0.72rem', color: '#E2E8F0', fontWeight: 500, marginTop: '2px' }}>
-            Torres & Redes Eléctricas
-          </div>
-        </div>
-      </div>
-
-      {/* Badge 2: Energías Renovables & Solar (Abajo a la Izquierda) */}
-      <div 
-        style={{
-          position: 'absolute',
-          bottom: '25px',
-          left: '-15px',
-          background: 'rgba(15, 23, 42, 0.92)',
-          backdropFilter: 'blur(16px)',
-          border: '1.5px solid rgba(56, 189, 248, 0.55)',
-          borderRadius: '14px',
-          padding: '0.75rem 1.1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.2)',
-          zIndex: 7,
-          transform: `translate3d(${mousePos.x * 0.9}px, ${mousePos.y * 0.9}px, 75px)`,
-          transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
-          animation: 'floatingBadge2 6s ease-in-out infinite alternate'
-        }}
-      >
-        <div style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '10px',
-          background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(56, 189, 248, 0.1) 100%)',
-          border: '1px solid rgba(56, 189, 248, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#38BDF8'
-        }}>
-          <Sun size={20} />
-        </div>
-        <div>
-          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
-            Energías Renovables
-          </div>
-          <div style={{ fontSize: '0.72rem', color: '#E2E8F0', fontWeight: 500, marginTop: '2px' }}>
-            Paneles Solares & Fotometría
-          </div>
-        </div>
-      </div>
-
-      {/* Badge 3: Certificación y Universidad Nacional */}
-      <div 
-        style={{
-          position: 'absolute',
-          bottom: '50px',
-          right: '5px',
-          background: 'rgba(15, 23, 42, 0.95)',
-          backdropFilter: 'blur(16px)',
-          border: '1.5px solid rgba(34, 197, 94, 0.5)',
-          borderRadius: '14px',
-          padding: '0.65rem 1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.65rem',
-          boxShadow: '0 14px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(34, 197, 94, 0.2)',
-          zIndex: 7,
-          transform: `translate3d(${mousePos.x * -0.6}px, ${mousePos.y * -0.6}px, 60px)`,
-          transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
-          animation: 'floatingBadge3 7s ease-in-out infinite alternate'
-        }}
-      >
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
-          background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.3) 0%, rgba(34, 197, 94, 0.1) 100%)',
-          border: '1px solid rgba(34, 197, 94, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#22C55E'
-        }}>
-          <Award size={18} />
-        </div>
-        <div>
-          <div style={{ fontSize: '0.80rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
-            Certificación UNAL
-          </div>
-          <div style={{ fontSize: '0.70rem', color: '#FDE68A', fontWeight: 700, marginTop: '2px' }}>
-            100% Práctico
-          </div>
-        </div>
-      </div>
-
-      {/* Estilos de Animación 3D */}
+      {/* Estilos e interactividad CSS */}
       <style>{`
-        @keyframes spin3DOrbit {
-          from { transform: rotateZ(0deg); }
-          to { transform: rotateZ(360deg); }
+        @keyframes spinClockwise {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
-        @keyframes spin3DOrbitReverse {
-          from { transform: rotateZ(360deg); }
-          to { transform: rotateZ(0deg); }
+        @keyframes spinCounter {
+          from { transform: rotate(360deg); }
+          to { transform: rotate(0deg); }
         }
-        @keyframes pulseGlow3D {
-          0% { transform: scale(0.85); opacity: 0.55; }
-          100% { transform: scale(1.2); opacity: 0.9; }
-        }
-        @keyframes floatingEmblem3D {
+        @keyframes floatingCore {
           0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-12px) scale(1.02); }
+          50% { transform: translateY(-8px) scale(1.04); }
         }
-        @keyframes floatingBadge1 {
-          0% { transform: translateY(0px); }
-          100% { transform: translateY(-12px); }
+        @keyframes boltPulse {
+          0% { filter: drop-shadow(0 0 4px #FCA311); transform: scale(0.96); }
+          100% { filter: drop-shadow(0 0 16px #38BDF8); transform: scale(1.05); }
         }
-        @keyframes floatingBadge2 {
-          0% { transform: translateY(0px); }
-          100% { transform: translateY(10px); }
+        @keyframes sparkFlash {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.3); }
         }
-        @keyframes floatingBadge3 {
-          0% { transform: translateY(0px); }
-          100% { transform: translateY(-8px); }
+        @keyframes dashMove {
+          to { stroke-dashoffset: -24; }
         }
       `}</style>
     </div>
