@@ -382,30 +382,55 @@ export default function AdminClassReinforcement({ classId }) {
 
       // 1. Crear o actualizar la pregunta en DB
       if (String(q.id).startsWith('temp-')) {
-        const { data: insertedQ, error: qErr } = await supabase
+        const qPayload = {
+          activity_id: targetActId,
+          text: q.text || 'Sin enunciado',
+          question_type: validQType,
+          order_num: qIndex
+        };
+        if (q.explanation) qPayload.explanation = q.explanation;
+        if (q.source_basis) qPayload.source_basis = q.source_basis;
+
+        let { data: insertedQ, error: qErr } = await supabase
           .from('activity_questions')
-          .insert([{
-            activity_id: activityId,
-            text: q.text || 'Sin enunciado',
-            question_type: validQType,
-            explanation: q.explanation || null,
-            order_num: qIndex
-          }])
+          .insert([qPayload])
           .select()
           .single();
+
+        if (qErr && (qErr.message?.includes('explanation') || qErr.message?.includes('source_basis') || qErr.code === 'PGRST204')) {
+          delete qPayload.explanation;
+          delete qPayload.source_basis;
+          const retryRes = await supabase
+            .from('activity_questions')
+            .insert([qPayload])
+            .select()
+            .single();
+          insertedQ = retryRes.data;
+          qErr = retryRes.error;
+        }
 
         if (qErr) throw qErr;
         realQId = insertedQ.id;
       } else {
-        await supabase
+        const updatePayload = {
+          text: q.text,
+          question_type: validQType,
+          order_num: qIndex
+        };
+        if (q.explanation !== undefined) updatePayload.explanation = q.explanation || null;
+
+        let { error: updateQErr } = await supabase
           .from('activity_questions')
-          .update({
-            text: q.text,
-            question_type: validQType,
-            explanation: q.explanation || null,
-            order_num: qIndex
-          })
+          .update(updatePayload)
           .eq('id', q.id);
+
+        if (updateQErr && (updateQErr.message?.includes('explanation') || updateQErr.code === 'PGRST204')) {
+          delete updatePayload.explanation;
+          await supabase
+            .from('activity_questions')
+            .update(updatePayload)
+            .eq('id', q.id);
+        }
       }
 
       // Eliminar de DB opciones huérfanas de esta pregunta
@@ -621,8 +646,11 @@ export default function AdminClassReinforcement({ classId }) {
     setQuestions(questions.map(q => q.id === id ? { ...q, explanation } : q));
     if (!String(id).startsWith('temp-')) {
       try {
-        await supabase.from('activity_questions').update({ explanation }).eq('id', id);
-      } catch (err) { console.error(err); }
+        const { error } = await supabase.from('activity_questions').update({ explanation }).eq('id', id);
+        if (error && error.message?.includes('explanation')) {
+          // Ignorar si la columna no existe en schema cache
+        }
+      } catch (err) { console.warn('Nota: no se pudo guardar explanation en DB:', err); }
     }
   };
 
