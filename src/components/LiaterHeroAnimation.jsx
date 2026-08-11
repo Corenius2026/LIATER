@@ -2,396 +2,407 @@ import { useState, useEffect, useRef } from 'react';
 
 export default function LiaterHeroAnimation() {
   const containerRef = useRef(null);
-  const [mouse, setMouse] = useState({ x: 0, y: 0, targetX: 0, targetY: 0 });
-  const [activeItem, setActiveItem] = useState(null); // 'tower' | 'lightning' | 'solar' | 'logo'
+  const rafRef       = useRef(null);
+  const mouseRef     = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
+  const [renderMouse, setRenderMouse] = useState({ x: 0, y: 0 });
+  const [hovered, setHovered] = useState(null);
 
-  // Suavizado cinético (Lerp) de la posición del cursor para animación 3D ultra fluida
+  // ─── Lerp suavizado en RAF (no re-render en cada frame, solo actualiza ref) ──
   useEffect(() => {
-    let animId;
-    const lerp = (a, b, n) => (1 - n) * a + n * b;
-
+    const lerp = (a, b, n) => a + (b - a) * n;
     const loop = () => {
-      setMouse((prev) => ({
-        ...prev,
-        x: lerp(prev.x, prev.targetX, 0.08),
-        y: lerp(prev.y, prev.targetY, 0.08)
-      }));
-      animId = requestAnimationFrame(loop);
+      const m = mouseRef.current;
+      m.x = lerp(m.x, m.tx, 0.07);
+      m.y = lerp(m.y, m.ty, 0.07);
+      setRenderMouse({ x: m.x, y: m.y });
+      rafRef.current = requestAnimationFrame(loop);
     };
-    loop();
-
-    return () => cancelAnimationFrame(animId);
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const clientX = e.clientX - rect.left - rect.width / 2;
-    const clientY = e.clientY - rect.top - rect.height / 2;
-
-    // Normalizado de -1 a 1
-    const targetX = clientX / (rect.width / 2);
-    const targetY = clientY / (rect.height / 2);
-
-    setMouse((prev) => ({ ...prev, targetX, targetY }));
+    const r = containerRef.current.getBoundingClientRect();
+    mouseRef.current.tx = (e.clientX - r.left - r.width  / 2) / (r.width  / 2);
+    mouseRef.current.ty = (e.clientY - r.top  - r.height / 2) / (r.height / 2);
   };
-
   const handleMouseLeave = () => {
-    setMouse((prev) => ({ ...prev, targetX: 0, targetY: 0 }));
-    setActiveItem(null);
+    mouseRef.current.tx = 0;
+    mouseRef.current.ty = 0;
+    setHovered(null);
   };
 
-  // Rotaciones dinámicas 3D
-  const rotX = -mouse.y * 18;
-  const rotY = mouse.x * 22;
+  const mx = renderMouse.x;
+  const my = renderMouse.y;
+  const rotX = -my * 14;
+  const rotY =  mx * 18;
+
+  // ─── Helper: estilo base de tarjeta glassmorphism ─────────────────────────
+  const card = (active, accent = '#FCA311') => ({
+    position: 'absolute',
+    inset: 0,
+    borderRadius: '20px',
+    background: active
+      ? `linear-gradient(145deg, rgba(255,255,255,0.10) 0%, rgba(20,33,61,0.65) 100%)`
+      : `linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(20,33,61,0.45) 100%)`,
+    border: `1px solid ${active ? accent : accent + '55'}`,
+    backdropFilter: 'blur(18px)',
+    WebkitBackdropFilter: 'blur(18px)',
+    boxShadow: active
+      ? `0 0 0 1px ${accent}33, 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12)`
+      : `0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)`,
+    transition: 'all 0.35s cubic-bezier(0.23,1,0.32,1)',
+  });
 
   return (
     <div
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="liater-3d-interactive-scene"
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: '540px',
-        height: '460px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        perspective: '1200px',
-        cursor: 'pointer',
-        userSelect: 'none'
+        maxWidth: '560px',
+        height: '480px',
+        perspective: '1100px',
+        cursor: 'default',
+        userSelect: 'none',
       }}
     >
-      {/* Resplandor suave de fondo */}
+      {/* ── Luces de fondo tipo aurora ───────────────────────────────────── */}
       <div style={{
-        position: 'absolute',
-        width: '360px',
-        height: '360px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(56, 189, 248, 0.08) 50%, transparent 70%)',
-        filter: 'blur(45px)',
-        pointerEvents: 'none',
-        transform: `translate(${mouse.x * 20}px, ${mouse.y * 20}px)`,
-        transition: 'transform 0.3s ease-out'
-      }} />
-
-      {/* --- ESCENARIO 3D PRINCIPAL --- */}
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: '100%',
-          transformStyle: 'preserve-3d',
-          transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
-          transition: 'transform 0.1s ease-out'
-        }}
-      >
-
-        {/* ========================================================= */}
-        {/* CAPA 1: ÓRBITAS Y LÍNEAS DE FLUJO ENERGÉTICO (Fondo 3D)  */}
-        {/* ========================================================= */}
+        position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', borderRadius: '24px',
+      }}>
+        {/* Halo dorado izquierdo */}
         <div style={{
-          position: 'absolute',
-          inset: '20px',
+          position: 'absolute', left: '5%', top: '30%',
+          width: '220px', height: '220px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252,163,17,0.22) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+          transform: `translate(${mx * -18}px, ${my * -12}px)`,
+          transition: 'transform 0.4s ease-out',
+        }} />
+        {/* Halo cian derecho */}
+        <div style={{
+          position: 'absolute', right: '5%', top: '25%',
+          width: '200px', height: '200px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(56,189,248,0.20) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+          transform: `translate(${mx * 18}px, ${my * -12}px)`,
+          transition: 'transform 0.4s ease-out',
+        }} />
+        {/* Núcleo central dorado */}
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          width: '260px', height: '260px', borderRadius: '50%',
+          marginLeft: '-130px', marginTop: '-130px',
+          background: 'radial-gradient(circle, rgba(252,163,17,0.13) 0%, rgba(56,189,248,0.06) 50%, transparent 70%)',
+          filter: 'blur(30px)',
+          transform: `translate(${mx * 10}px, ${my * 10}px)`,
+          transition: 'transform 0.4s ease-out',
+        }} />
+      </div>
+
+      {/* ── Escenario 3D ─────────────────────────────────────────────────── */}
+      <div style={{
+        position: 'relative', width: '100%', height: '100%',
+        transformStyle: 'preserve-3d',
+        transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
+        transition: 'transform 0.08s linear',
+      }}>
+
+        {/* ── Anillos orbitales de fondo ──────────────────────────────────── */}
+        <div style={{
+          position: 'absolute', inset: '40px',
           transformStyle: 'preserve-3d',
-          transform: 'translateZ(-40px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none'
+          transform: 'translateZ(-60px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
         }}>
-          {/* Anillo de Inducción */}
-          <div style={{
-            position: 'absolute',
-            width: '380px',
-            height: '380px',
-            borderRadius: '50%',
-            border: '1.5px dashed rgba(252, 163, 17, 0.3)',
-            animation: 'spinClockwise 30s linear infinite'
-          }} />
-
-          {/* Anillo de Campo Magnético */}
-          <div style={{
-            position: 'absolute',
-            width: '280px',
-            height: '280px',
-            borderRadius: '50%',
-            border: '1px solid rgba(56, 189, 248, 0.25)',
-            boxShadow: '0 0 20px rgba(56, 189, 248, 0.15)',
-            animation: 'spinCounter 22s linear infinite'
-          }} />
-
-          {/* Línea Eléctrica Conductora Horizontal que une Torre, Rayo y Panel */}
-          <svg
-            viewBox="0 0 500 100"
-            style={{
+          {[
+            { size: 360, color: 'rgba(252,163,17,0.18)', dash: '8 6',  dur: '28s', dir: 'normal'  },
+            { size: 270, color: 'rgba(56,189,248,0.14)',  dash: '4 8',  dur: '20s', dir: 'reverse' },
+            { size: 180, color: 'rgba(252,163,17,0.10)', dash: '2 10', dur: '14s', dir: 'normal'  },
+          ].map((ring, i) => (
+            <div key={i} style={{
               position: 'absolute',
-              width: '100%',
-              height: '100px',
-              overflow: 'visible'
-            }}
-          >
+              width: ring.size, height: ring.size,
+              borderRadius: '50%',
+              border: `1px dashed ${ring.color}`,
+              animation: `spin${i} ${ring.dur} linear infinite`,
+              animationDirection: ring.dir,
+            }} />
+          ))}
+
+          {/* Líneas de flujo energético entre elementos */}
+          <svg viewBox="0 0 500 60" style={{ position: 'absolute', width: '90%', height: '60px', overflow: 'visible' }}>
             <defs>
-              <linearGradient id="fluxLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#FCA311" stopOpacity="0.8" />
-                <stop offset="50%" stopColor="#38BDF8" stopOpacity="1" />
-                <stop offset="100%" stopColor="#FCA311" stopOpacity="0.8" />
+              <linearGradient id="flowL" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stopColor="#FCA311" stopOpacity="0" />
+                <stop offset="40%"  stopColor="#FCA311" stopOpacity="0.9" />
+                <stop offset="60%"  stopColor="#38BDF8" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
               </linearGradient>
             </defs>
-            {/* Cable de transmisión con pulso animado */}
-            <path
-              d="M 60 50 L 210 50 M 290 50 L 440 50"
-              stroke="url(#fluxLineGrad)"
-              strokeWidth="2"
-              strokeDasharray="6 6"
-              style={{ animation: 'dashMove 2s linear infinite' }}
-            />
+            <path d="M 50 30 Q 250 10 450 30" stroke="url(#flowL)" strokeWidth="1.5" fill="none"
+              strokeDasharray="8 6" style={{ animation: 'dashFlow 2.5s linear infinite' }} />
+            <path d="M 50 30 Q 250 50 450 30" stroke="url(#flowL)" strokeWidth="1.5" fill="none"
+              strokeDasharray="8 6" style={{ animation: 'dashFlow 3s linear infinite reverse' }} />
           </svg>
         </div>
 
-
-        {/* ========================================================= */}
-        {/* ELEMENTO 1: TORRE DE ALTA TENSIÓN 3D (Izquierda)         */}
-        {/* ========================================================= */}
+        {/* ══════════════════════════════════════════════ */}
+        {/*  TARJETA IZQUIERDA — TORRE DE ALTA TENSIÓN    */}
+        {/* ══════════════════════════════════════════════ */}
         <div
-          onMouseEnter={() => setActiveItem('tower')}
-          onMouseLeave={() => setActiveItem(null)}
+          onMouseEnter={() => setHovered('tower')}
+          onMouseLeave={() => setHovered(null)}
           style={{
-            position: 'absolute',
-            left: '30px',
-            top: '50%',
-            marginTop: '-110px',
-            width: '130px',
-            height: '220px',
+            position: 'absolute', left: '18px', top: '50%',
+            width: '148px', height: '230px',
+            marginTop: '-115px',
             transformStyle: 'preserve-3d',
-            transform: `translateZ(${activeItem === 'tower' ? 85 : 45}px) translateX(${mouse.x * -18}px) translateY(${mouse.y * -18}px) scale(${activeItem === 'tower' ? 1.08 : 1})`,
-            transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
-            filter: 'drop-shadow(0 15px 25px rgba(0,0,0,0.5))'
+            transform: `translateZ(${hovered === 'tower' ? 90 : 48}px) translate(${mx * -22}px, ${my * -14}px) scale(${hovered === 'tower' ? 1.07 : 1})`,
+            transition: 'transform 0.38s cubic-bezier(0.23,1,0.32,1)',
+            animation: 'floatA 5.5s ease-in-out infinite',
           }}
         >
-          {/* Tarjeta / Base Flotante Sutil */}
+          <div style={card(hovered === 'tower', '#FCA311')} />
+
+          {/* Partícula superior decorativa */}
           <div style={{
-            position: 'absolute',
-            inset: '-10px',
-            borderRadius: '16px',
-            background: activeItem === 'tower' ? 'rgba(20, 33, 61, 0.75)' : 'rgba(20, 33, 61, 0.45)',
-            border: `1.5px solid ${activeItem === 'tower' ? '#FCA311' : 'rgba(252, 163, 17, 0.35)'}`,
-            backdropFilter: 'blur(8px)',
-            transition: 'all 0.3s ease'
+            position: 'absolute', top: '10px', right: '12px',
+            width: '8px', height: '8px', borderRadius: '50%',
+            background: '#38BDF8',
+            boxShadow: '0 0 12px #38BDF8',
+            animation: 'particlePulse 2s ease-in-out infinite',
           }} />
 
-          {/* Torre Vectorial 3D Minimalista */}
-          <svg viewBox="0 0 100 160" style={{ width: '100%', height: '100%', position: 'relative', zIndex: 2 }}>
+          {/* Torre SVG */}
+          <svg viewBox="0 0 100 170" style={{ width: '100%', height: '82%', padding: '14px 10px 4px', position: 'relative', zIndex: 2 }}>
             <defs>
-              <linearGradient id="towerGold" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FFD166" />
-                <stop offset="50%" stopColor="#FCA311" />
-                <stop offset="100%" stopColor="#C77D00" />
+              <linearGradient id="goldTower" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%"   stopColor="#FFD166" />
+                <stop offset="60%"  stopColor="#FCA311" />
+                <stop offset="100%" stopColor="#B86000" />
               </linearGradient>
+              <filter id="tGlow">
+                <feGaussianBlur stdDeviation="1.5" result="b" />
+                <feComposite in="SourceGraphic" in2="b" operator="over" />
+              </filter>
             </defs>
-
-            {/* Estructura de Celosía de Alta Tensión */}
-            {/* Patas principales */}
-            <path d="M 50 15 L 20 150 M 50 15 L 80 150" stroke="url(#towerGold)" strokeWidth="3" strokeLinecap="round" />
-            
-            {/* Brazos transversales (Crucetas) */}
-            <path d="M 15 45 L 85 45" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M 22 75 L 78 75" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-            <path d="M 28 105 L 72 105" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-            
+            {/* Patas */}
+            <path d="M50 8 L16 158 M50 8 L84 158" stroke="url(#goldTower)" strokeWidth="3.5" strokeLinecap="round" filter="url(#tGlow)" />
+            {/* Crucetas */}
+            {[[12, 42, 88, 42],[18, 70, 82, 70],[24, 100, 76, 100],[30, 130, 70, 130]].map(([x1,y1,x2,y2], i) => (
+              <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#E2E8F0" strokeWidth={i === 0 ? 3 : 2} strokeLinecap="round" />
+            ))}
             {/* Celosías en X */}
-            <path d="M 22 45 L 78 75 M 78 45 L 22 75" stroke="url(#towerGold)" strokeWidth="1.5" />
-            <path d="M 25 75 L 75 105 M 75 75 L 25 105" stroke="url(#towerGold)" strokeWidth="1.5" />
-            <path d="M 28 105 L 72 145 M 72 105 L 28 145" stroke="url(#towerGold)" strokeWidth="1.5" />
-
-            {/* Aisladores en los extremos con chispas */}
-            <circle cx="15" cy="45" r="4" fill="#38BDF8" style={{ animation: 'sparkFlash 2s infinite' }} />
-            <circle cx="85" cy="45" r="4" fill="#38BDF8" style={{ animation: 'sparkFlash 2s infinite 0.5s' }} />
-            <circle cx="50" cy="15" r="4.5" fill="#FCA311" style={{ animation: 'sparkFlash 1.5s infinite' }} />
+            {[
+              [18,42,82,70, 82,42,18,70],
+              [22,70,78,100,78,70,22,100],
+              [26,100,74,130,74,100,26,130],
+            ].map(([x1,y1,x2,y2,x3,y3,x4,y4], i) => (
+              <g key={i}>
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="url(#goldTower)" strokeWidth="1.8" strokeOpacity="0.7" />
+                <line x1={x3} y1={y3} x2={x4} y2={y4} stroke="url(#goldTower)" strokeWidth="1.8" strokeOpacity="0.7" />
+              </g>
+            ))}
+            {/* Aisladores eléctricos */}
+            <circle cx="12" cy="42" r="5" fill="#38BDF8" style={{ animation: 'sparkFlash 2.2s ease-in-out infinite' }} />
+            <circle cx="88" cy="42" r="5" fill="#38BDF8" style={{ animation: 'sparkFlash 2.2s ease-in-out infinite 0.6s' }} />
+            <circle cx="50" cy="8"  r="5.5" fill="#FCA311" style={{ animation: 'sparkFlash 1.6s ease-in-out infinite' }} />
           </svg>
 
-          {/* Etiqueta Flotante */}
+          {/* Label */}
           <div style={{
-            position: 'absolute',
-            bottom: '-12px',
-            left: '50%',
+            position: 'absolute', bottom: '12px', left: '50%',
             transform: 'translateX(-50%)',
-            background: '#14213D',
-            border: '1px solid #FCA311',
-            borderRadius: '10px',
-            padding: '3px 8px',
-            fontSize: '0.68rem',
-            fontWeight: 800,
-            color: '#FFFFFF',
-            whiteSpace: 'nowrap',
-            zIndex: 3
+            background: 'rgba(252,163,17,0.15)',
+            border: '1px solid rgba(252,163,17,0.6)',
+            borderRadius: '20px', padding: '4px 10px',
+            fontSize: '0.65rem', fontWeight: 700, color: '#FFFFFF',
+            whiteSpace: 'nowrap', zIndex: 4,
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 2px 12px rgba(252,163,17,0.3)',
+            letterSpacing: '0.04em',
           }}>
             ⚡ Alta Tensión
           </div>
         </div>
 
-
-        {/* ========================================================= */}
-        {/* ELEMENTO 2: RAYO / ONDA ELÉCTRICA DE POTENCIA 3D (Centro) */}
-        {/* ========================================================= */}
+        {/* ══════════════════════════════════════════════ */}
+        {/*  TARJETA CENTRAL — LIATER                     */}
+        {/* ══════════════════════════════════════════════ */}
         <div
-          onMouseEnter={() => setActiveItem('lightning')}
-          onMouseLeave={() => setActiveItem(null)}
+          onMouseEnter={() => setHovered('core')}
+          onMouseLeave={() => setHovered(null)}
           style={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            marginTop: '-95px',
-            marginLeft: '-75px',
-            width: '150px',
-            height: '190px',
+            position: 'absolute', left: '50%', top: '50%',
+            width: '162px', height: '200px',
+            marginLeft: '-81px', marginTop: '-100px',
             transformStyle: 'preserve-3d',
-            transform: `translateZ(${activeItem === 'lightning' ? 120 : 80}px) translateX(${mouse.x * 25}px) translateY(${mouse.y * 25}px) scale(${activeItem === 'lightning' ? 1.12 : 1})`,
-            transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 6
+            transform: `translateZ(${hovered === 'core' ? 130 : 85}px) translate(${mx * 28}px, ${my * 18}px) scale(${hovered === 'core' ? 1.1 : 1})`,
+            transition: 'transform 0.38s cubic-bezier(0.23,1,0.32,1)',
+            animation: 'floatB 4.8s ease-in-out infinite',
+            zIndex: 8,
           }}
         >
-          {/* Núcleo Holográfico de Energía */}
+          {/* Halo de energía detrás */}
           <div style={{
-            position: 'absolute',
-            width: '130px',
-            height: '130px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(252, 163, 17, 0.35) 0%, rgba(20, 33, 61, 0.8) 65%)',
-            border: '2px solid #FCA311',
-            boxShadow: '0 0 35px rgba(252, 163, 17, 0.6), inset 0 0 20px rgba(56, 189, 248, 0.4)',
-            animation: 'floatingCore 4s ease-in-out infinite'
+            position: 'absolute', inset: '-24px', borderRadius: '50%',
+            background: `radial-gradient(circle, rgba(252,163,17,${hovered === 'core' ? 0.35 : 0.2}) 0%, transparent 65%)`,
+            filter: 'blur(20px)',
+            transition: 'all 0.4s ease',
+            pointerEvents: 'none',
           }} />
 
-          {/* SVG de Rayo y Onda de Pulso */}
-          <svg viewBox="0 0 100 100" style={{ width: '90px', height: '90px', position: 'relative', zIndex: 3 }}>
-            <defs>
-              <filter id="glowBolt" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feComposite in="SourceGraphic" in2="blur" operator="over" />
-              </filter>
-            </defs>
-
-            {/* Rayo Eléctrico 3D Centelleante */}
-            <path
-              d="M 54 10 L 32 46 L 50 46 L 42 90 L 68 48 L 50 48 Z"
-              fill="#FCA311"
-              stroke="#FFFFFF"
-              strokeWidth="2"
-              filter="url(#glowBolt)"
-              style={{ animation: 'boltPulse 1.8s ease-in-out infinite alternate' }}
-            />
-          </svg>
-
-          {/* Símbolo LIATER en Texto Claro */}
+          {/* Card glassmorphism central */}
           <div style={{
-            marginTop: '8px',
-            padding: '3px 12px',
-            borderRadius: '20px',
-            background: 'rgba(20, 33, 61, 0.95)',
-            border: '1.5px solid #FCA311',
-            color: '#FFFFFF',
-            fontWeight: 800,
-            fontSize: '0.78rem',
-            letterSpacing: '0.08em',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-            position: 'relative',
-            zIndex: 4,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px'
+            ...card(hovered === 'core', '#FCA311'),
+            background: 'linear-gradient(145deg, rgba(252,163,17,0.12) 0%, rgba(20,33,61,0.80) 100%)',
+            boxShadow: `0 0 0 1px #FCA31155, 0 12px 50px rgba(0,0,0,0.6), 0 0 80px rgba(252,163,17,${hovered === 'core' ? 0.25 : 0.12}), inset 0 1px 0 rgba(255,255,255,0.14)`,
+          }} />
+
+          {/* Anillo exterior animado */}
+          <div style={{
+            position: 'absolute', inset: '-6px', borderRadius: '26px',
+            border: `1.5px solid rgba(252,163,17,${hovered === 'core' ? 0.7 : 0.3})`,
+            animation: 'ringPulse 3s ease-in-out infinite',
+            transition: 'border-color 0.3s ease',
+            pointerEvents: 'none',
+          }} />
+
+          {/* SVG Rayo central */}
+          <div style={{
+            position: 'relative', zIndex: 3,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '75%', paddingTop: '10px',
           }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
-            LIATER
+            {/* Círculo de energía */}
+            <div style={{
+              width: '96px', height: '96px', borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(252,163,17,0.30) 0%, rgba(20,33,61,0.70) 65%)',
+              border: '2px solid #FCA311',
+              boxShadow: '0 0 30px rgba(252,163,17,0.55), inset 0 0 18px rgba(56,189,248,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'coreFloat 4s ease-in-out infinite',
+              marginBottom: '12px',
+            }}>
+              <svg viewBox="0 0 60 80" style={{ width: '44px', height: '58px' }}>
+                <defs>
+                  <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%"   stopColor="#FFE066" />
+                    <stop offset="50%"  stopColor="#FCA311" />
+                    <stop offset="100%" stopColor="#FF6B00" />
+                  </linearGradient>
+                  <filter id="boltGlow">
+                    <feGaussianBlur stdDeviation="2.5" result="b" />
+                    <feComposite in="SourceGraphic" in2="b" operator="over" />
+                  </filter>
+                </defs>
+                <path d="M36 4 L14 38 H30 L22 76 L48 34 H32 Z"
+                  fill="url(#boltGrad)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5"
+                  filter="url(#boltGlow)"
+                  style={{ animation: 'boltFlash 2s ease-in-out infinite alternate' }}
+                />
+              </svg>
+            </div>
+
+            {/* Badge LIATER */}
+            <div style={{
+              background: 'rgba(20,33,61,0.92)',
+              border: '1.5px solid #FCA311',
+              borderRadius: '20px',
+              padding: '5px 14px',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              boxShadow: '0 4px 18px rgba(252,163,17,0.35)',
+            }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 10px #22C55E', flexShrink: 0 }} />
+              <span style={{ color: '#FFFFFF', fontWeight: 800, fontSize: '0.82rem', letterSpacing: '0.10em' }}>LIATER</span>
+            </div>
           </div>
         </div>
 
-
-        {/* ========================================================= */}
-        {/* ELEMENTO 3: PANEL SOLAR FOTOVOLTAICO 3D (Derecha)        */}
-        {/* ========================================================= */}
+        {/* ══════════════════════════════════════════════ */}
+        {/*  TARJETA DERECHA — PANEL SOLAR                */}
+        {/* ══════════════════════════════════════════════ */}
         <div
-          onMouseEnter={() => setActiveItem('solar')}
-          onMouseLeave={() => setActiveItem(null)}
+          onMouseEnter={() => setHovered('solar')}
+          onMouseLeave={() => setHovered(null)}
           style={{
-            position: 'absolute',
-            right: '30px',
-            top: '50%',
-            marginTop: '-100px',
-            width: '140px',
-            height: '200px',
+            position: 'absolute', right: '18px', top: '50%',
+            width: '148px', height: '220px',
+            marginTop: '-110px',
             transformStyle: 'preserve-3d',
-            transform: `translateZ(${activeItem === 'solar' ? 85 : 45}px) translateX(${mouse.x * 18}px) translateY(${mouse.y * 18}px) scale(${activeItem === 'solar' ? 1.08 : 1})`,
-            transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
-            filter: 'drop-shadow(0 15px 25px rgba(0,0,0,0.5))'
+            transform: `translateZ(${hovered === 'solar' ? 90 : 48}px) translate(${mx * 22}px, ${my * -14}px) scale(${hovered === 'solar' ? 1.07 : 1})`,
+            transition: 'transform 0.38s cubic-bezier(0.23,1,0.32,1)',
+            animation: 'floatC 6.2s ease-in-out infinite',
           }}
         >
-          {/* Base / Card Flotante */}
-          <div style={{
-            position: 'absolute',
-            inset: '-10px',
-            borderRadius: '16px',
-            background: activeItem === 'solar' ? 'rgba(20, 33, 61, 0.75)' : 'rgba(20, 33, 61, 0.45)',
-            border: `1.5px solid ${activeItem === 'solar' ? '#38BDF8' : 'rgba(56, 189, 248, 0.35)'}`,
-            backdropFilter: 'blur(8px)',
-            transition: 'all 0.3s ease'
-          }} />
+          <div style={card(hovered === 'solar', '#38BDF8')} />
 
-          {/* Panel Solar Isométrico 3D en SVG */}
-          <svg viewBox="0 0 120 140" style={{ width: '100%', height: '100%', position: 'relative', zIndex: 2 }}>
+          {/* Partículas decorativas */}
+          {[{t:'12px', r:'14px', c:'#FCA311', d:'0s'}, {t:'28px', r:'8px', c:'#38BDF8', d:'1.1s'}].map((p, i) => (
+            <div key={i} style={{
+              position: 'absolute', top: p.t, right: p.r,
+              width: '7px', height: '7px', borderRadius: '50%',
+              background: p.c, boxShadow: `0 0 10px ${p.c}`,
+              animation: `particlePulse 2.4s ease-in-out infinite ${p.d}`,
+            }} />
+          ))}
+
+          {/* Panel Solar SVG */}
+          <svg viewBox="0 0 120 140" style={{ width: '100%', height: '80%', padding: '12px 8px 6px', position: 'relative', zIndex: 2 }}>
             <defs>
-              <linearGradient id="solarGlass" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#1E3A8A" />
-                <stop offset="50%" stopColor="#0284C7" />
-                <stop offset="100%" stopColor="#0369A1" />
+              <linearGradient id="solarBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%"   stopColor="#1E3A8A" />
+                <stop offset="45%"  stopColor="#1D4ED8" />
+                <stop offset="100%" stopColor="#0284C7" />
+              </linearGradient>
+              <linearGradient id="solarReflect" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%"  stopColor="rgba(255,255,255,0.25)" />
+                <stop offset="60%" stopColor="rgba(255,255,255,0)" />
               </linearGradient>
             </defs>
 
-            {/* Soporte / Poste de Montaje */}
-            <path d="M 60 90 L 60 130 M 40 130 L 80 130" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+            {/* Soporte */}
+            <line x1="60" y1="98" x2="60" y2="130" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round" />
+            <line x1="38" y1="130" x2="82" y2="130" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round" />
 
-            {/* Marco del Panel Inclinado en Perspectiva 3D */}
-            <polygon
-              points="15,40 85,20 105,80 35,100"
-              fill="url(#solarGlass)"
-              stroke="#FFFFFF"
-              strokeWidth="2.5"
-              style={{ filter: 'drop-shadow(0 4px 10px rgba(56, 189, 248, 0.3))' }}
-            />
+            {/* Panel inclinado 3D */}
+            <polygon points="14,38 88,16 108,84 34,106" fill="url(#solarBlue)" stroke="#E2E8F0" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 6px 16px rgba(56,189,248,0.4))' }} />
+            {/* Reflejo especular */}
+            <polygon points="14,38 88,16 108,84 34,106" fill="url(#solarReflect)" />
 
-            {/* Celdas Solares Cuadriculadas */}
-            <line x1="38" y1="33" x2="58" y2="93" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
-            <line x1="62" y1="27" x2="82" y2="87" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
-            
-            <line x1="22" y1="60" x2="92" y2="40" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
-            <line x1="28" y1="80" x2="98" y2="60" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
+            {/* Grilla de celdas */}
+            {/* verticales */}
+            {[[38,30,58,100],[62,23,82,93]].map(([x1,y1,x2,y2], i) => (
+              <line key={`v${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" />
+            ))}
+            {/* horizontales */}
+            {[[20,58,96,36],[27,80,103,58],[34,102,108,82]].map(([x1,y1,x2,y2], i) => (
+              <line key={`h${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" />
+            ))}
 
-            {/* Fotones / Rayos Solares Flotando */}
-            <circle cx="25" cy="20" r="3" fill="#FCA311" style={{ animation: 'sparkFlash 2.5s infinite' }} />
-            <circle cx="95" cy="15" r="4" fill="#FCA311" style={{ animation: 'sparkFlash 2s infinite 0.7s' }} />
+            {/* Fotones */}
+            <circle cx="24" cy="18" r="4"  fill="#FCA311" style={{ animation: 'sparkFlash 2.8s ease-in-out infinite 0.3s' }} />
+            <circle cx="96" cy="12" r="4.5" fill="#FFD166" style={{ animation: 'sparkFlash 2.1s ease-in-out infinite 0.9s' }} />
           </svg>
 
-          {/* Etiqueta Flotante */}
+          {/* Label */}
           <div style={{
-            position: 'absolute',
-            bottom: '-12px',
-            left: '50%',
+            position: 'absolute', bottom: '12px', left: '50%',
             transform: 'translateX(-50%)',
-            background: '#14213D',
-            border: '1px solid #38BDF8',
-            borderRadius: '10px',
-            padding: '3px 8px',
-            fontSize: '0.68rem',
-            fontWeight: 800,
-            color: '#FFFFFF',
-            whiteSpace: 'nowrap',
-            zIndex: 3
+            background: 'rgba(56,189,248,0.15)',
+            border: '1px solid rgba(56,189,248,0.6)',
+            borderRadius: '20px', padding: '4px 10px',
+            fontSize: '0.65rem', fontWeight: 700, color: '#FFFFFF',
+            whiteSpace: 'nowrap', zIndex: 4,
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 2px 12px rgba(56,189,248,0.3)',
+            letterSpacing: '0.04em',
           }}>
             ☀️ Energía Solar
           </div>
@@ -399,31 +410,47 @@ export default function LiaterHeroAnimation() {
 
       </div>
 
-      {/* Estilos e interactividad CSS */}
+      {/* ── Keyframes ──────────────────────────────────────────────────────── */}
       <style>{`
-        @keyframes spinClockwise {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes floatA {
+          0%,100% { transform: translateZ(48px) translateY(0px); }
+          50%      { transform: translateZ(48px) translateY(-12px); }
         }
-        @keyframes spinCounter {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
+        @keyframes floatB {
+          0%,100% { transform: translateZ(85px) translateY(-6px); }
+          50%      { transform: translateZ(85px) translateY(6px); }
         }
-        @keyframes floatingCore {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-8px) scale(1.04); }
+        @keyframes floatC {
+          0%,100% { transform: translateZ(48px) translateY(-4px); }
+          50%      { transform: translateZ(48px) translateY(10px); }
         }
-        @keyframes boltPulse {
-          0% { filter: drop-shadow(0 0 4px #FCA311); transform: scale(0.96); }
-          100% { filter: drop-shadow(0 0 16px #38BDF8); transform: scale(1.05); }
+        @keyframes coreFloat {
+          0%,100% { transform: scale(1);    box-shadow: 0 0 30px rgba(252,163,17,0.55), inset 0 0 18px rgba(56,189,248,0.3); }
+          50%      { transform: scale(1.05); box-shadow: 0 0 48px rgba(252,163,17,0.80), inset 0 0 26px rgba(56,189,248,0.5); }
+        }
+        @keyframes boltFlash {
+          0%   { opacity: 0.85; filter: drop-shadow(0 0 4px #FCA311); }
+          100% { opacity: 1;    filter: drop-shadow(0 0 14px #38BDF8); }
         }
         @keyframes sparkFlash {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.3); }
+          0%,100% { opacity: 0.35; transform: scale(0.75); }
+          50%      { opacity: 1;    transform: scale(1.35); }
         }
-        @keyframes dashMove {
-          to { stroke-dashoffset: -24; }
+        @keyframes particlePulse {
+          0%,100% { opacity: 0.4; transform: scale(0.8); }
+          50%      { opacity: 1;   transform: scale(1.2); }
         }
+        @keyframes ringPulse {
+          0%,100% { opacity: 0.5; transform: scale(1);    }
+          50%      { opacity: 1;   transform: scale(1.03); }
+        }
+        @keyframes dashFlow {
+          from { stroke-dashoffset: 0; }
+          to   { stroke-dashoffset: -28; }
+        }
+        @keyframes spin0 { to { transform: rotate(360deg); } }
+        @keyframes spin1 { to { transform: rotate(-360deg); } }
+        @keyframes spin2 { to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );
