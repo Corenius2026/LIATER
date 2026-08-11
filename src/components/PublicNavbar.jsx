@@ -4,7 +4,7 @@ import liaterLogo from '../assets/liater-logo.png';
 import liaterLogoWhite from '../assets/liater-logo-white.png';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 import unalPillNavyLogo from '../assets/unal-pill-navy-logo.png';
-import LightningBolt from './LightningBolt';
+import LightningBrandCanvas from './LightningBolt';
 
 export default function PublicNavbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -65,28 +65,27 @@ export default function PublicNavbar() {
               transition: 'all 0.3s ease' 
             }} 
           />
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative' }}>
-            <span 
-              style={{ 
-                color: isScrolled ? 'var(--navy)' : '#FFFFFF',
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {isScrolled ? (
+              /* Modo scroll: texto plano nítido */
+              <span style={{
+                color: 'var(--navy)',
                 fontSize: '0.86rem',
                 fontWeight: 800,
                 letterSpacing: '0.04em',
                 lineHeight: 1.35,
                 textTransform: 'uppercase',
                 maxWidth: '340px',
-                transition: 'color 0.3s ease',
-                WebkitFontSmoothing: 'antialiased'
-              }}
-            >
-              Laboratorio de Investigación en Alta Tensión y Energías Renovables
-            </span>
-
-            {/* Rayo eléctrico ramificado real */}
-            {!isScrolled && (
-              <div style={{ marginTop: '2px' }}>
-                <LightningBolt width={360} height={60} />
-              </div>
+              }}>
+                Laboratorio de Investigación en Alta Tensión y Energías Renovables
+              </span>
+            ) : (
+              /* Modo hero: canvas integrado con texto + rayo */
+              <LightningBrandCanvas
+                line1="LABORATORIO DE INVESTIGACIÓN EN ALTA"
+                line2="TENSIÓN Y ENERGÍAS RENOVABLES"
+                width={380}
+              />
             )}
           </div>
         </Link>
