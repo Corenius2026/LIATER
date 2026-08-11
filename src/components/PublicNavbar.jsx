@@ -64,21 +64,45 @@ export default function PublicNavbar() {
               transition: 'all 0.3s ease' 
             }} 
           />
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative' }}>
             <span 
-              className={isScrolled ? 'liater-title-scrolled' : 'liater-title-electric'}
               style={{ 
-                fontSize: '0.84rem',
+                color: isScrolled ? 'var(--navy)' : '#FFFFFF',
+                fontSize: '0.86rem',
                 fontWeight: 800,
                 letterSpacing: '0.04em',
                 lineHeight: 1.35,
                 textTransform: 'uppercase',
                 maxWidth: '340px',
-                transition: 'all 0.3s ease'
+                transition: 'color 0.3s ease',
+                WebkitFontSmoothing: 'antialiased'
               }}
             >
               Laboratorio de Investigación en Alta Tensión y Energías Renovables
             </span>
+
+            {/* Línea de corriente eléctrica nítida sin desenfoque */}
+            {!isScrolled && (
+              <div style={{ 
+                marginTop: '4px', 
+                height: '2px', 
+                width: '100%', 
+                background: 'rgba(255, 255, 255, 0.18)', 
+                position: 'relative',
+                overflow: 'hidden',
+                borderRadius: '2px'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  height: '100%',
+                  width: '70px',
+                  background: 'linear-gradient(90deg, transparent, #FCA311, #38BDF8, #FFFFFF, transparent)',
+                  animation: 'electricZapLine 2.8s ease-in-out infinite'
+                }} />
+              </div>
+            )}
           </div>
         </Link>
       </div>
