@@ -1701,7 +1701,11 @@ function ClasesTab({ classes, teachers, loading, onRefresh, programId }) {
         setSuccess('');
       }, 1500);
     } catch (err) {
-      setError('Error al guardar clase: ' + err.message);
+      if (err.message?.includes('class_sessions_drive_folder_id_unique')) {
+        setError('Esa carpeta de Google Drive ya está vinculada a otra clase. Cada clase debe tener su propia subcarpeta única en Google Drive o puedes dejarla en blanco.');
+      } else {
+        setError('Error al guardar clase: ' + err.message);
+      }
     } finally {
       setSubmitting(false);
     }
