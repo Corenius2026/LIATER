@@ -1937,48 +1937,99 @@ function AdminPortal({ getDiplomadoLink }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.25rem', animation: 'fadeSlideUp 0.35s ease-out' }}>
       
-      {/* HEADER DE BIENVENIDA PERSONALIZADO Y ACCIONES */}
+      {/* HEADER DE BIENVENIDA HERO EN AZUL OSCURO INSTITUCIONAL (#14213D) */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
         flexWrap: 'wrap', 
         gap: '1.25rem',
-        padding: '1.5rem 1.75rem',
-        background: '#FFFFFF',
+        padding: '1.75rem 2rem',
+        background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
         borderRadius: '16px',
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.04)'
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+        color: '#FFFFFF',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', background: 'rgba(20, 33, 61, 0.08)', color: '#14213D', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {/* Glow sutil de acento */}
+        <div style={{
+          position: 'absolute',
+          top: '-40px',
+          right: '-40px',
+          width: '180px',
+          height: '180px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
+            <span style={{ 
+              fontSize: '0.72rem', 
+              fontWeight: 800, 
+              padding: '3px 10px', 
+              borderRadius: '20px', 
+              background: 'rgba(252, 163, 17, 0.2)', 
+              color: '#FCA311', 
+              textTransform: 'uppercase', 
+              letterSpacing: '0.06em',
+              border: '1px solid rgba(252, 163, 17, 0.3)'
+            }}>
               Administración Global
             </span>
-            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>•</span>
-            <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 500 }}>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>•</span>
+            <span style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500 }}>
               {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#14213D', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             Panel de Control LIATER
           </h1>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.86rem', color: '#64748B', lineHeight: 1.4 }}>
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.82)', lineHeight: 1.4 }}>
             ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! 👋 Bienvenido a tu centro de supervisión de programas, profesores y estudiantes.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+
+        <div style={{ display: 'flex', gap: '0.75rem', position: 'relative', zIndex: 1 }}>
           <button 
             onClick={() => { setNewProgram({ title: '', description: '', program_type: 'diplomado' }); setShowModal(true); }}
             className="btn btn-gold"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem', fontWeight: 700, borderRadius: '8px', fontSize: '0.88rem' }}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              padding: '0.7rem 1.35rem', 
+              fontWeight: 700, 
+              borderRadius: '9px', 
+              fontSize: '0.88rem',
+              boxShadow: '0 4px 14px rgba(252, 163, 17, 0.35)'
+            }}
           >
             <Plus size={17} /> Crear Diplomado
           </button>
           <button 
             onClick={() => { setNewProgram({ title: '', description: '', program_type: 'curso' }); setShowModal(true); }}
-            className="btn btn-navy"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem', fontWeight: 700, borderRadius: '8px', fontSize: '0.88rem' }}
+            className="btn"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              padding: '0.7rem 1.35rem', 
+              fontWeight: 700, 
+              borderRadius: '9px', 
+              fontSize: '0.88rem',
+              background: 'rgba(255, 255, 255, 0.12)',
+              color: '#FFFFFF',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              backdropFilter: 'blur(8px)',
+              transition: 'all 0.2s ease',
+              cursor: 'pointer'
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.22)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)'; }}
           >
             <Plus size={17} /> Crear Curso
           </button>
