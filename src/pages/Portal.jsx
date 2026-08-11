@@ -1737,6 +1737,7 @@ function TeacherPortal({ getDiplomadoLink }) {
    SUB-COMPONENTE: Portal de Administrador
 ───────────────────────────────────────────────────────────────────────────── */
 function AdminPortal({ getDiplomadoLink }) {
+  const { currentUser } = useAuth();
   const [counts, setCounts] = useState({ students: 0, teachers: 0, programs: 0 });
   const [diplomas, setDiplomas] = useState([]);
   const [recentUsers, setRecentUsers] = useState([]);
@@ -1818,53 +1819,77 @@ function AdminPortal({ getDiplomadoLink }) {
 
   useEffect(() => {
     async function fetchData() {
-      // Counts
-      const pStudents = supabase.from('users_profile').select('*', { count: 'exact', head: true }).eq('role', 'student');
-      const pTeachers = supabase.from('users_profile').select('*', { count: 'exact', head: true }).eq('role', 'teacher');
-      const pPrograms = supabase.from('diploma_programs').select('*', { count: 'exact', head: true });
-      
-      const [resS, resT, resP] = await Promise.all([pStudents, pTeachers, pPrograms]);
-      setCounts({ students: resS.count || 0, teachers: resT.count || 0, programs: resP.count || 0 });
+      try {
+        // Conteo de estudiantes
+        const { count: studentCount } = await supabase
+          .from('users_profile')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'student');
 
-      // Diplomas list
-      const { data: dData } = await supabase.from('diploma_programs').select('*').order('created_at', { ascending: false });
-      
-      let diplomasData = dData || [];
-      if (diplomasData.length > 0) {
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+        // Conteo de profesores
+        const { count: teacherCount } = await supabase
+          .from('users_profile')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'teacher');
 
-        const { data: todayClasses } = await supabase
-          .from('class_sessions')
-          .select('program_id, meet_url')
-          .in('program_id', diplomasData.map(d => d.id))
-          .gte('class_date', todayStart)
-          .lt('class_date', todayEnd);
+        // Conteo de diplomados/programas
+        const { data: progData, count: programCount } = await supabase
+          .from('diploma_programs')
+          .select('id, title, description, program_type, image_url, is_published, status, live_class_url, live_class_date', { count: 'exact' })
+          .order('created_at', { ascending: false });
 
-        diplomasData = diplomasData.map(dip => {
-          const liveClass = todayClasses?.find(c => c.program_id === dip.id);
-          const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
-          return { ...dip, liveUrl };
+        setCounts({
+          students: studentCount || 0,
+          teachers: teacherCount || 0,
+          programs: programCount || 0
         });
-      }
-      setDiplomas(diplomasData);
 
-      // Recent users
-      const { data: rData } = await supabase.from('users_profile').select('*').order('created_at', { ascending: false }).limit(4);
-      setRecentUsers(rData || []);
+        // Formatear programas para incluir enlaces de clase en vivo si están programados para hoy
+        const todayStr = new Date().toISOString().split('T')[0];
+        const formattedDiplomas = (progData || []).map(p => {
+          let hasLiveToday = false;
+          if (p.live_class_url && p.live_class_date) {
+            const classDateStr = new Date(p.live_class_date).toISOString().split('T')[0];
+            if (classDateStr === todayStr) {
+              hasLiveToday = true;
+            }
+          }
+          return {
+            ...p,
+            liveUrl: hasLiveToday ? p.live_class_url : null
+          };
+        });
+
+        setDiplomas(formattedDiplomas);
+
+        // Usuarios recientes (últimos 5)
+        const { data: userData } = await supabase
+          .from('users_profile')
+          .select('id, full_name, email, role, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        setRecentUsers(userData || []);
+
+      } catch (err) {
+        console.error('Error al cargar datos del panel de administrador:', err);
+      }
     }
     fetchData();
   }, []);
 
   const handleCreateProgram = async (e) => {
     e.preventDefault();
-    setError('');
-    setSubmitting(true);
-    try {
-      if (!newProgram.title) throw new Error("El título es obligatorio");
+    if (!newProgram.title.trim()) {
+      setError('El título es obligatorio.');
+      return;
+    }
 
-      // 1. Insertar el programa básico primero para obtener su ID
+    setSubmitting(true);
+    setError('');
+
+    try {
+      // 1. Crear el programa base en diploma_programs
       const { data: progData, error: progError } = await supabase
         .from('diploma_programs')
         .insert([{ 
@@ -1932,7 +1957,7 @@ function AdminPortal({ getDiplomadoLink }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.25rem', animation: 'fadeSlideUp 0.35s ease-out' }}>
       
-      {/* HEADER DE BIENVENIDA Y ACCIÓN RÁPIDA */}
+      {/* HEADER DE BIENVENIDA PERSONALIZADO Y ACCIONES */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -1946,11 +1971,20 @@ function AdminPortal({ getDiplomadoLink }) {
         boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.04)'
       }}>
         <div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#14213D', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            Panel de Control LIATER
-          </h1>
-          <p style={{ margin: '0.35rem 0 0', fontSize: '0.88rem', color: '#64748B', lineHeight: 1.4 }}>
-            Supervisión integral de programas académicos, profesores, estudiantes y actividad reciente.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', background: 'rgba(20, 33, 61, 0.08)', color: '#14213D', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Administración Global
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>•</span>
+            <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 500 }}>
+              {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#14213D', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! 👋
+          </h2>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.86rem', color: '#64748B', lineHeight: 1.4 }}>
+            Bienvenido a tu centro de control. Supervisa los programas académicos, docentes y estudiantes de la plataforma.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -2625,17 +2659,15 @@ export default function Portal() {
 
   return (
     <div style={{ padding: '1rem 1rem 2.5rem 1rem', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* HEADER PRINCIPAL COMPARTIDO (Se oculta para profesores para usar el encabezado propio de Inicio docente) */}
-      {role !== 'teacher' && (
+      {/* HEADER PRINCIPAL COMPARTIDO (Solo estudiantes; Profesores y Admins tienen su propio banner personalizado) */}
+      {role === 'student' && (
         <div style={{ marginBottom: '1.5rem' }}>
           <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-            {role === 'admin' ? 'Panel de Control LIATER' : 'Mis Programas'}
+            Mis Programas
           </h1>
-          {role === 'student' && (
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-              Continúa tu formación y revisa tus próximos compromisos.
-            </p>
-          )}
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
+            Continúa tu formación y revisa tus próximos compromisos.
+          </p>
         </div>
       )}
 
