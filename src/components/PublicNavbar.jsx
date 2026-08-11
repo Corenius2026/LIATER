@@ -68,11 +68,12 @@ export default function PublicNavbar() {
             className={isScrolled ? 'liater-electric-text-scrolled' : 'liater-electric-text'}
             style={{
               fontSize: isScrolled ? '0.82rem' : '1rem',
-              maxWidth: '360px',
+              maxWidth: '480px',
+              whiteSpace: 'normal',
               transition: 'font-size 0.3s ease',
             }}
           >
-            Laboratorio de Investigación<br />en Alta Tensión y Energías Renovables
+            Laboratorio de Investigación en Alta Tensión<br />y Energías Renovables
           </span>
         </Link>
       </div>
