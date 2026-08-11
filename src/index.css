@@ -202,6 +202,30 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   transform: translateY(-1px);
 }
 
+/* Efecto Electrificado para el Título LIATER */
+.liater-title-electric {
+  background: linear-gradient(90deg, #FFFFFF 0%, #FFF3B0 30%, #67E8F9 60%, #FFFFFF 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.45)) drop-shadow(0 0 18px rgba(252, 163, 17, 0.35));
+  animation: electricTextGlow 4s linear infinite;
+}
+
+.liater-title-electric:hover {
+  filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.75)) drop-shadow(0 0 25px rgba(252, 163, 17, 0.6));
+}
+
+.liater-title-scrolled {
+  color: var(--navy);
+}
+
+@keyframes electricTextGlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 .btn-outline {
   border: 1.5px solid var(--border-color);
   color: var(--text-secondary);
