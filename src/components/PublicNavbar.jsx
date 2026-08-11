@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import liaterLogo from '../assets/liater-logo.png';
 import liaterLogoWhite from '../assets/liater-logo-white.png';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 import unalPillNavyLogo from '../assets/unal-pill-navy-logo.png';
-import LightningBrandCanvas from './LightningBolt';
 
 export default function PublicNavbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -56,38 +55,25 @@ export default function PublicNavbar() {
         }}></div>
 
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none' }}>
-          <img 
-            src={isScrolled ? liaterLogo : liaterLogoWhite} 
-            alt="LIATER" 
-            style={{ 
-              height: isScrolled ? '54px' : '62px', 
+          <img
+            src={isScrolled ? liaterLogo : liaterLogoWhite}
+            alt="LIATER"
+            style={{
+              height: isScrolled ? '54px' : '62px',
               objectFit: 'contain',
-              transition: 'all 0.3s ease' 
-            }} 
+              transition: 'all 0.3s ease'
+            }}
           />
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            {isScrolled ? (
-              /* Modo scroll: texto plano nítido */
-              <span style={{
-                color: 'var(--navy)',
-                fontSize: '0.86rem',
-                fontWeight: 800,
-                letterSpacing: '0.04em',
-                lineHeight: 1.35,
-                textTransform: 'uppercase',
-                maxWidth: '340px',
-              }}>
-                Laboratorio de Investigación en Alta Tensión y Energías Renovables
-              </span>
-            ) : (
-              /* Modo hero: canvas integrado con texto + rayo */
-              <LightningBrandCanvas
-                line1="LABORATORIO DE INVESTIGACIÓN EN ALTA"
-                line2="TENSIÓN Y ENERGÍAS RENOVABLES"
-                width={380}
-              />
-            )}
-          </div>
+          <span
+            className={isScrolled ? 'liater-electric-text-scrolled' : 'liater-electric-text'}
+            style={{
+              fontSize: isScrolled ? '0.82rem' : '1rem',
+              maxWidth: '360px',
+              transition: 'font-size 0.3s ease',
+            }}
+          >
+            Laboratorio de Investigación<br />en Alta Tensión y Energías Renovables
+          </span>
         </Link>
       </div>
 
