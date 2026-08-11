@@ -189,6 +189,19 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   transform: translateY(-1px);
 }
 
+.btn-navy {
+  background: var(--navy);
+  color: var(--white);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+.btn-navy:hover {
+  background: var(--navy-light);
+  color: var(--white);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
 .btn-outline {
   border: 1.5px solid var(--border-color);
   color: var(--text-secondary);

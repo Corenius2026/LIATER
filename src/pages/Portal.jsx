@@ -2180,7 +2180,18 @@ function AdminPortal({ getDiplomadoLink }) {
                         }}
                         to={getDiplomadoLink(dip.id)}
                         className="btn btn-gold"
-                        style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700, borderRadius: '8px', fontSize: '0.85rem' }}
+                        style={{ 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          justifyContent: 'center', 
+                          padding: '0.6rem', 
+                          fontWeight: 700, 
+                          borderRadius: '8px', 
+                          fontSize: '0.85rem',
+                          background: '#FCA311',
+                          color: '#14213D',
+                          boxShadow: '0 2px 8px rgba(252, 163, 17, 0.25)'
+                        }}
                       >
                         Administrar →
                       </Link>
@@ -2389,7 +2400,18 @@ function AdminPortal({ getDiplomadoLink }) {
                         }}
                         to={getDiplomadoLink(dip.id)}
                         className="btn btn-navy"
-                        style={{ textAlign: 'center', width: '100%', justifyContent: 'center', padding: '0.55rem', fontWeight: 700, borderRadius: '8px', fontSize: '0.85rem' }}
+                        style={{ 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          justifyContent: 'center', 
+                          padding: '0.6rem', 
+                          fontWeight: 700, 
+                          borderRadius: '8px', 
+                          fontSize: '0.85rem',
+                          background: '#14213D',
+                          color: '#FFFFFF',
+                          boxShadow: '0 2px 8px rgba(20, 33, 61, 0.25)'
+                        }}
                       >
                         Administrar →
                       </Link>
