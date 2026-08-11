@@ -59,7 +59,7 @@ export default function PublicNavbar() {
             src={isScrolled ? liaterLogo : liaterLogoWhite} 
             alt="LIATER" 
             style={{ 
-              height: isScrolled ? '48px' : '52px', 
+              height: isScrolled ? '52px' : '56px', 
               objectFit: 'contain',
               transition: 'all 0.3s ease' 
             }} 
@@ -67,23 +67,12 @@ export default function PublicNavbar() {
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <span style={{ 
               color: isScrolled ? 'var(--navy)' : 'var(--white)', 
-              fontWeight: 800, 
-              fontSize: '1.25rem',
-              lineHeight: 1.1,
-              letterSpacing: '-0.02em',
-              transition: 'color 0.3s ease'
-            }}>
-              LIATER
-            </span>
-            <span style={{ 
-              color: isScrolled ? 'var(--text-secondary)' : 'rgba(255, 255, 255, 0.78)', 
-              fontSize: '0.64rem',
-              fontWeight: 600,
-              letterSpacing: '0.03em',
-              lineHeight: 1.25,
-              marginTop: '3px',
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+              lineHeight: 1.3,
               textTransform: 'uppercase',
-              maxWidth: '340px',
+              maxWidth: '300px',
               transition: 'color 0.3s ease'
             }}>
               Laboratorio de Investigación en Alta Tensión y Energías Renovables
