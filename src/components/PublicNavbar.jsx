@@ -84,8 +84,8 @@ export default function PublicNavbar() {
 
             {/* Rayo eléctrico ramificado real */}
             {!isScrolled && (
-              <div style={{ marginTop: '3px' }}>
-                <LightningBolt width={320} height={22} />
+              <div style={{ marginTop: '2px' }}>
+                <LightningBolt width={360} height={60} />
               </div>
             )}
           </div>
