@@ -334,26 +334,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.warn("Búsqueda directa por drive_folder_id falló:", err);
   }
 
-  // 2. Si no se encontró, extraer número de sesión de la nomenclatura
+  // 2. Si no se encontró por ID directo, extraer número de clase/sesión de la nomenclatura
   if (!session) {
     const combinedName = `${folderName} ${docName}`;
     let sessionNumber: number | null = null;
+    let detectedLabel = "";
 
+    // Prioridad 1: Código explícito de Clase (_C03_, Clase-3, C03, Clase 3)
+    const cMatch =
+      combinedName.match(/_C0*(\d+)_/i) ||
+      combinedName.match(/_C0*(\d+)/i) ||
+      combinedName.match(/clase[_\s-]*0*(\d+)/i) ||
+      combinedName.match(/\bC0*(\d+)\b/i);
+
+    // Prioridad 2: Código de Sesión (_S01_, Sesion-1, S01, Sesión 1)
     const sMatch =
       combinedName.match(/_S0*(\d+)_/i) ||
       combinedName.match(/_S0*(\d+)/i) ||
       combinedName.match(/sesi[oó]n[_\s-]*0*(\d+)/i) ||
-      combinedName.match(/clase[_\s-]*0*(\d+)/i) ||
       combinedName.match(/\bS0*(\d+)\b/i);
 
-    if (sMatch) {
+    if (cMatch) {
+      sessionNumber = parseInt(cMatch[1], 10);
+      detectedLabel = `Clase ${sessionNumber}`;
+    } else if (sMatch) {
       sessionNumber = parseInt(sMatch[1], 10);
+      detectedLabel = `Sesión / Clase ${sessionNumber}`;
     }
 
     if (sessionNumber !== null) {
+      // Buscar primero por orden exacto (order_index)
       const { data: byOrder } = await supabaseAdmin
         .from("class_sessions")
-        .select("id, title, video_url, drive_folder_id")
+        .select("id, title, video_url, drive_folder_id, order_index")
         .eq("order_index", sessionNumber)
         .limit(1)
         .maybeSingle();
@@ -361,10 +374,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (byOrder) {
         session = byOrder;
       } else {
+        // Buscar por coincidencia de título
         const { data: byTitle } = await supabaseAdmin
           .from("class_sessions")
-          .select("id, title, video_url, drive_folder_id")
-          .or(`title.ilike.%Sesión ${sessionNumber}%,title.ilike.%Sesion ${sessionNumber}%,title.ilike.%Clase ${sessionNumber}%`)
+          .select("id, title, video_url, drive_folder_id, order_index")
+          .or(`title.ilike.%Clase ${sessionNumber}%,title.ilike.%Clase-${sessionNumber}%,title.ilike.%Sesión ${sessionNumber}%,title.ilike.%Sesion ${sessionNumber}%`)
           .limit(1)
           .maybeSingle();
 
@@ -372,27 +386,40 @@ Deno.serve(async (req: Request): Promise<Response> => {
           session = byTitle;
         }
       }
+
+      // Si se detectó un número de clase específico pero NO existe en la BD, NO asignar a otra clase por error
+      if (!session) {
+        const { data: sampleClasses } = await supabaseAdmin
+          .from("class_sessions")
+          .select("id, title, order_index")
+          .order("order_index", { ascending: true })
+          .limit(10);
+
+        const disponibles = (sampleClasses || [])
+          .map((c: { title: string; order_index: number }) => `[#${c.order_index || '?'}] ${c.title}`)
+          .join(", ");
+
+        return jsonResponse(
+          {
+            ok: false,
+            error: `La '${detectedLabel}' (archivo '${docName || folderName}') NO existe aún en la página web. Por favor crea primero la '${detectedLabel}' en el Panel de Administración de LIATER para poder sincronizar sus grabaciones y preguntas. Clases existentes actualmente: ${disponibles || 'Ninguna'}.`,
+            drive_folder_id: folderId,
+            doc_name: docName,
+            folder_name: folderName,
+          },
+          404,
+        );
+      }
     }
   }
 
-  // 3. Fallback: Si hay una sola clase en el sistema
-  if (!session) {
-    const { data: allClasses } = await supabaseAdmin
-      .from("class_sessions")
-      .select("id, title, video_url, drive_folder_id")
-      .order("created_at", { ascending: true })
-      .limit(2);
-
-    if (allClasses && allClasses.length === 1) {
-      session = allClasses[0];
-    }
-  }
-
+  // Si no se encontró ninguna clase asociada
   if (!session) {
     const { data: sampleClasses } = await supabaseAdmin
       .from("class_sessions")
       .select("id, title, order_index")
-      .limit(5);
+      .order("order_index", { ascending: true })
+      .limit(10);
 
     const disponibles = (sampleClasses || [])
       .map((c: { title: string; order_index: number }) => `[#${c.order_index || '?'}] ${c.title}`)
@@ -401,7 +428,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse(
       {
         ok: false,
-        error: `No se pudo asociar el archivo '${docName || folderName}' a ninguna clase de LIATER. Clases disponibles: ${disponibles || 'Ninguna registrada'}.`,
+        error: `No se pudo asociar la carpeta '${folderName}' (archivo '${docName}') a ninguna clase creada. Por favor verifica que la clase esté creada en el Panel de Administración. Clases existentes: ${disponibles || 'Ninguna'}.`,
         drive_folder_id: folderId,
         doc_name: docName,
         folder_name: folderName,
