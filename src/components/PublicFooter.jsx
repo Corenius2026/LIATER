@@ -86,13 +86,23 @@ export default function PublicFooter() {
             <span style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.55)', fontWeight: 500 }}>
               Diseño y Desarrollo por
             </span>
-            <img 
-              src={coreniusLogoWhite} 
-              alt="Corenius - Transformación Digital" 
-              style={{ height: '24px', objectFit: 'contain', opacity: 0.95, transition: 'opacity 0.2s' }} 
-              onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
-              onMouseOut={(e) => e.currentTarget.style.opacity = '0.95'}
-            />
+            <a 
+              href="https://www.corenius.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              title="Corenius | Transformación Digital"
+              style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none', transition: 'transform 0.2s ease' }}
+              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <img 
+                src={coreniusLogoWhite} 
+                alt="Corenius - Transformación Digital" 
+                style={{ height: '24px', objectFit: 'contain', opacity: 0.95, transition: 'opacity 0.2s' }} 
+                onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                onMouseOut={(e) => e.currentTarget.style.opacity = '0.95'}
+              />
+            </a>
           </div>
         </div>
       </div>

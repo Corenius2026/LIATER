@@ -182,8 +182,12 @@ export default function Login() {
         </span>
       </div>
 
-      {/* Firma de Corenius discreta y elegante en la esquina inferior derecha */}
-      <div 
+      {/* Firma de Corenius discreta y elegante en la esquina inferior derecha con enlace */}
+      <a 
+        href="https://www.corenius.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Corenius | Transformación Digital"
         style={{
           position: 'absolute',
           bottom: '1.25rem',
@@ -193,10 +197,12 @@ export default function Login() {
           gap: '0.45rem',
           zIndex: 10,
           opacity: 0.75,
-          transition: 'opacity 0.2s ease'
+          textDecoration: 'none',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease'
         }}
-        onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
-        onMouseOut={(e) => e.currentTarget.style.opacity = '0.75'}
+        onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+        onMouseOut={(e) => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.transform = 'translateY(0)'; }}
       >
         <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.68rem', fontWeight: 500 }}>
           Desarrollo por
@@ -206,7 +212,7 @@ export default function Login() {
           alt="Corenius - Transformación Digital"
           style={{ height: '18px', objectFit: 'contain' }}
         />
-      </div>
+      </a>
     </div>
   );
 }

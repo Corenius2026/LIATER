@@ -51,7 +51,17 @@ export default function Layout() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: '#94A3B8', fontWeight: 500 }}>Diseño y Desarrollo por</span>
-            <img src={coreniusLogoColor} alt="Corenius - Transformación Digital" style={{ height: '20px', objectFit: 'contain' }} />
+            <a 
+              href="https://www.corenius.com/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              title="Corenius | Transformación Digital"
+              style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none', transition: 'transform 0.2s ease' }}
+              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <img src={coreniusLogoColor} alt="Corenius - Transformación Digital" style={{ height: '20px', objectFit: 'contain' }} />
+            </a>
           </div>
         </footer>
         
