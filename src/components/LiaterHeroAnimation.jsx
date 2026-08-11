@@ -1,178 +1,88 @@
 import { useState, useEffect, useRef } from 'react';
 import { Zap, Sun, Award } from 'lucide-react';
-import liaterLogoWhite from '../assets/liater-logo-white.png';
+import liater3dEmblem from '../assets/liater_3d_emblem.jpg';
 
 export default function LiaterHeroAnimation() {
   const canvasRef = useRef(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  // Canvas 3D Particle Sphere & High-Voltage Electric Arc Engine
+  // Canvas 3D de Partículas de Alta Tensión y Descargas Eléctricas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     let animationFrameId;
 
-    // Configuración de resolución HD
-    const width = 520;
-    const height = 500;
+    const width = 540;
+    const height = 520;
     canvas.width = width * window.devicePixelRatio || width;
     canvas.height = height * window.devicePixelRatio || height;
     ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
 
-    // Generar puntos 3D distribuidos en una esfera (Fibonacci Sphere)
-    const numPoints = 65;
-    const radius = 185;
-    const points = [];
+    // Partículas orbitales de energía
+    const numParticles = 40;
+    const particles = Array.from({ length: numParticles }, (_, i) => ({
+      angle: (i / numParticles) * Math.PI * 2,
+      radius: 200 + (Math.random() - 0.5) * 45,
+      speed: 0.008 + Math.random() * 0.012,
+      size: Math.random() * 2.5 + 1.5,
+      color: i % 3 === 0 ? '#38BDF8' : '#FCA311'
+    }));
 
-    for (let i = 0; i < numPoints; i++) {
-      const phi = Math.acos(1 - (2 * (i + 0.5)) / numPoints);
-      const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
-      points.push({
-        x: radius * Math.sin(phi) * Math.cos(theta),
-        y: radius * Math.sin(phi) * Math.sin(theta),
-        z: radius * Math.cos(phi),
-        baseSize: Math.random() * 2 + 2,
-        colorType: i % 4 === 0 ? 'cyan' : (i % 3 === 0 ? 'white' : 'gold')
-      });
-    }
-
-    let angleX = 0.003;
-    let angleY = 0.005;
-    let currentRotX = 0.2;
-    let currentRotY = 0;
-    let targetRotX = 0;
-    let targetRotY = 0;
-
-    const handleMouseMoveInternal = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const clientX = e.clientX - rect.left - rect.width / 2;
-      const clientY = e.clientY - rect.top - rect.height / 2;
-      targetRotY = (clientX / rect.width) * 0.8;
-      targetRotX = -(clientY / rect.height) * 0.8;
-    };
-
-    window.addEventListener('mousemove', handleMouseMoveInternal);
-
-    // Bucle de renderizado 3D a 60 FPS
     let time = 0;
     const render = () => {
       time += 0.02;
       ctx.clearRect(0, 0, width, height);
 
-      // Suavizado de rotación por ratón + rotación continua
-      currentRotX += (targetRotX + Math.sin(time * 0.5) * 0.1 - currentRotX) * 0.05 + angleX;
-      currentRotY += (targetRotY + Math.cos(time * 0.4) * 0.1 - currentRotY) * 0.05 + angleY;
-
-      const cosX = Math.cos(currentRotX);
-      const sinX = Math.sin(currentRotX);
-      const cosY = Math.cos(currentRotY);
-      const sinY = Math.sin(currentRotY);
-
-      // Proyectar puntos 3D a plano 2D
-      const projected = [];
-      const focalLength = 340;
       const centerX = width / 2;
       const centerY = height / 2;
 
-      for (let i = 0; i < points.length; i++) {
-        const p = points[i];
-
-        // Rotación en Y
-        const x1 = p.x * cosY - p.z * sinY;
-        const z1 = p.z * cosY + p.x * sinY;
-
-        // Rotación en X
-        const y2 = p.y * cosX - z1 * sinX;
-        const z2 = z1 * cosX + p.y * sinX;
-
-        // Proyección en perspectiva
-        const scale = focalLength / (focalLength + z2 + 250);
-        const px = centerX + x1 * scale;
-        const py = centerY + y2 * scale;
-        const alpha = Math.max(0.12, Math.min(1, (z2 + radius) / (2 * radius) + 0.25));
-
-        projected.push({
-          x: px,
-          y: py,
-          z: z2,
-          scale,
-          alpha,
-          colorType: p.colorType,
-          size: p.baseSize * scale
-        });
-      }
-
-      // Ordenar por profundidad Z (Pintar lo lejano primero)
-      projected.sort((a, b) => a.z - b.z);
-
-      // 1. Dibujar Arcos Eléctricos / Conexiones de Alta Tensión entre nodos cercanos
-      ctx.lineWidth = 1;
-      for (let i = 0; i < projected.length; i++) {
-        for (let j = i + 1; j < projected.length; j++) {
-          const dx = projected[i].x - projected[j].x;
-          const dy = projected[i].y - projected[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < 75) {
-            const lineAlpha = (1 - dist / 75) * projected[i].alpha * projected[j].alpha * 0.55;
-            ctx.strokeStyle = `rgba(252, 163, 17, ${lineAlpha})`;
-            ctx.beginPath();
-            ctx.moveTo(projected[i].x, projected[i].y);
-
-            // Chispas o descargas eléctricas aleatorias
-            if (dist < 40 && Math.sin(time * 8 + i + j) > 0.92) {
-              const midX = (projected[i].x + projected[j].x) / 2 + (Math.random() - 0.5) * 8;
-              const midY = (projected[i].y + projected[j].y) / 2 + (Math.random() - 0.5) * 8;
-              ctx.lineTo(midX, midY);
-              ctx.strokeStyle = `rgba(56, 189, 248, ${lineAlpha * 2})`;
-            }
-
-            ctx.lineTo(projected[j].x, projected[j].y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      // 2. Dibujar Nodos / Partículas Energéticas con Glow
-      for (let i = 0; i < projected.length; i++) {
-        const pt = projected[i];
+      // 1. Rayos eléctricos aleatorios que cruzan la composición
+      if (Math.sin(time * 6) > 0.88) {
+        ctx.strokeStyle = Math.random() > 0.5 ? 'rgba(56, 189, 248, 0.7)' : 'rgba(252, 163, 17, 0.7)';
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, Math.max(1, pt.size), 0, Math.PI * 2);
+        let curX = centerX - 180 + (Math.random() - 0.5) * 40;
+        let curY = centerY + (Math.random() - 0.5) * 60;
+        ctx.moveTo(curX, curY);
 
-        if (pt.colorType === 'cyan') {
-          ctx.fillStyle = `rgba(56, 189, 248, ${pt.alpha})`;
-          ctx.shadowColor = '#38BDF8';
-        } else if (pt.colorType === 'white') {
-          ctx.fillStyle = `rgba(255, 255, 255, ${pt.alpha})`;
-          ctx.shadowColor = '#FFFFFF';
-        } else {
-          ctx.fillStyle = `rgba(252, 163, 17, ${pt.alpha})`;
-          ctx.shadowColor = '#FCA311';
+        for (let s = 0; s < 4; s++) {
+          curX += 45 + Math.random() * 20;
+          curY += (Math.random() - 0.5) * 40;
+          ctx.lineTo(curX, curY);
         }
+        ctx.stroke();
+      }
 
-        ctx.shadowBlur = pt.alpha > 0.6 ? 8 : 0;
+      // 2. Partículas orbitales
+      particles.forEach((p) => {
+        p.angle += p.speed;
+        const x = centerX + Math.cos(p.angle) * p.radius;
+        const y = centerY + Math.sin(p.angle) * (p.radius * 0.65); // Elipse 3D
+
+        ctx.beginPath();
+        ctx.arc(x, y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
         ctx.fill();
         ctx.shadowBlur = 0;
-      }
+      });
 
       animationFrameId = requestAnimationFrame(render);
     };
 
     render();
 
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMoveInternal);
-      cancelAnimationFrame(animationFrameId);
-    };
+    return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
-  // Parallax interactivo para tarjetas HUD
+  // Parallax interactivo 3D suave al mover el ratón
   useEffect(() => {
     const handleMouseMove = (e) => {
       const { innerWidth, innerHeight } = window;
-      const x = (e.clientX / innerWidth - 0.5) * 22;
-      const y = (e.clientY / innerHeight - 0.5) * 22;
+      const x = (e.clientX / innerWidth - 0.5) * 26;
+      const y = (e.clientY / innerHeight - 0.5) * 26;
       setMousePos({ x, y });
     };
 
@@ -182,38 +92,37 @@ export default function LiaterHeroAnimation() {
 
   return (
     <div 
-      className="liater-3d-wrapper"
+      className="liater-3d-emblem-container"
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: '520px',
-        height: '500px',
+        maxWidth: '540px',
+        height: '520px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        perspective: '1200px',
+        perspective: '1400px',
         userSelect: 'none'
       }}
     >
-      {/* 1. Resplandor Ambiental Tecnológico de Fondo */}
+      {/* 1. Resplandor Ambiental Dorado y Azul de Fondo */}
       <div style={{
         position: 'absolute',
-        width: '340px',
-        height: '340px',
+        width: '380px',
+        height: '380px',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(252, 163, 17, 0.30) 0%, rgba(56, 189, 248, 0.12) 45%, transparent 70%)',
-        filter: 'blur(35px)',
+        background: 'radial-gradient(circle, rgba(252, 163, 17, 0.32) 0%, rgba(56, 189, 248, 0.18) 45%, transparent 70%)',
+        filter: 'blur(40px)',
         animation: 'pulseGlow3D 5s ease-in-out infinite alternate',
         pointerEvents: 'none'
       }} />
 
-      {/* 2. Canvas 3D Esfera de Partículas y Rayos Eléctricos */}
+      {/* 2. Canvas de Chispas y Partículas Eléctricas */}
       <canvas 
         ref={canvasRef}
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
+          inset: 0,
           width: '100%',
           height: '100%',
           zIndex: 2,
@@ -221,120 +130,106 @@ export default function LiaterHeroAnimation() {
         }}
       />
 
-      {/* 3. Anillos Giroscópicos 3D CSS en el Espacio Tridimensional */}
+      {/* 3. Anillos Giroscópicos 3D en Perspectiva */}
       <div 
         style={{
           position: 'absolute',
-          width: '360px',
-          height: '360px',
+          width: '440px',
+          height: '440px',
           transformStyle: 'preserve-3d',
-          transform: `rotateX(${65 + mousePos.y * 0.4}deg) rotateY(${15 + mousePos.x * 0.4}deg)`,
+          transform: `rotateX(${62 + mousePos.y * 0.4}deg) rotateY(${18 + mousePos.x * 0.4}deg)`,
           transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
           pointerEvents: 'none',
           zIndex: 3
         }}
       >
-        {/* Anillo Orbital 3D 1 (Dorado Alta Tensión) */}
         <div style={{
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
           border: '2px solid rgba(252, 163, 17, 0.55)',
-          boxShadow: '0 0 15px rgba(252, 163, 17, 0.4), inset 0 0 15px rgba(252, 163, 17, 0.2)',
-          animation: 'spin3DOrbit 18s linear infinite'
+          boxShadow: '0 0 20px rgba(252, 163, 17, 0.4), inset 0 0 20px rgba(252, 163, 17, 0.2)',
+          animation: 'spin3DOrbit 20s linear infinite'
         }} />
 
-        {/* Anillo Orbital 3D 2 (Azul Eléctrico / Fotometría) */}
         <div style={{
           position: 'absolute',
-          inset: '25px',
+          inset: '30px',
           borderRadius: '50%',
-          border: '1.5px dashed rgba(56, 189, 248, 0.45)',
-          animation: 'spin3DOrbitReverse 24s linear infinite'
+          border: '1.5px dashed rgba(56, 189, 248, 0.5)',
+          animation: 'spin3DOrbitReverse 26s linear infinite'
         }} />
       </div>
 
-      {/* 4. NÚCLEO 3D CENTRAL LIATER (Reactor Holográfico con Logo Blanco Ultra-Legible) */}
+      {/* 4. MEDALLÓN EMBLEMA 3D LIATER (Torre Alta Tensión + Onda + Panel Solar) */}
       <div 
         style={{
           position: 'relative',
-          width: '190px',
-          height: '190px',
+          width: '320px',
+          height: '320px',
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #1A2B4C 0%, #0B132B 100%)',
-          border: '2.5px solid #FCA311',
-          boxShadow: '0 0 45px rgba(252, 163, 17, 0.45), 0 0 20px rgba(56, 189, 248, 0.3), inset 0 0 30px rgba(20, 33, 61, 0.9)',
+          padding: '8px',
+          background: 'linear-gradient(145deg, rgba(252, 163, 17, 0.8) 0%, rgba(20, 33, 61, 0.9) 60%, rgba(56, 189, 248, 0.8) 100%)',
+          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.65), 0 0 50px rgba(252, 163, 17, 0.40), inset 0 0 30px rgba(20, 33, 61, 0.8)',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 5,
-          transform: `translate3d(${mousePos.x * 0.6}px, ${mousePos.y * 0.6}px, 40px)`,
+          transform: `rotateX(${-mousePos.y * 0.5}deg) rotateY(${mousePos.x * 0.5}deg) translateZ(40px)`,
           transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
-          animation: 'floatingCore3D 6s ease-in-out infinite'
+          animation: 'floatingEmblem3D 6s ease-in-out infinite'
         }}
       >
-        {/* Anillo de energía interna que gira */}
         <div style={{
-          position: 'absolute',
-          inset: '6px',
+          position: 'relative',
+          width: '100%',
+          height: '100%',
           borderRadius: '50%',
-          border: '1px dashed rgba(252, 163, 17, 0.5)',
-          animation: 'spinClockwise 15s linear infinite'
-        }} />
-
-        {/* LOGO LIATER EN BLANCO Y DORADO (100% Nítido y Legible) */}
-        <img 
-          src={liaterLogoWhite} 
-          alt="Laboratorio LIATER" 
-          style={{ 
-            height: '75px', 
-            objectFit: 'contain',
-            filter: 'drop-shadow(0 4px 15px rgba(0,0,0,0.7))',
-            position: 'relative',
-            zIndex: 3
-          }} 
-        />
-        
-        {/* Badge Activo con Texto Claro y Brillante */}
-        <div style={{
-          marginTop: '6px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '5px',
-          padding: '3px 10px',
-          borderRadius: '20px',
-          background: 'rgba(252, 163, 17, 0.2)',
-          border: '1px solid rgba(252, 163, 17, 0.5)',
-          backdropFilter: 'blur(6px)',
-          zIndex: 3
+          overflow: 'hidden',
+          border: '2px solid rgba(255, 255, 255, 0.35)',
+          boxShadow: 'inset 0 0 25px rgba(0,0,0,0.8)'
         }}>
-          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 10px #22C55E' }} />
-          <span style={{ fontSize: '0.66rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '0.08em', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
-            LAB ACTIVO
-          </span>
+          <img 
+            src={liater3dEmblem} 
+            alt="Laboratorio LIATER - Alta Tensión y Energías Renovables" 
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              objectFit: 'cover',
+              transform: 'scale(1.04)',
+              transition: 'transform 0.3s ease'
+            }} 
+          />
+
+          {/* Reflejo de Luz 3D Holográfico */}
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, transparent 45%, rgba(0,0,0,0.4) 100%)',
+            pointerEvents: 'none'
+          }} />
         </div>
       </div>
 
       {/* 5. TARJETAS FLOTANTES 3D HUD (Tipografía 100% Blanca y Clara) */}
       
-      {/* Badge 1: Alta Tensión & Potencia */}
+      {/* Badge 1: Alta Tensión & Redes (Arriba a la Derecha) */}
       <div 
         style={{
           position: 'absolute',
-          top: '25px',
-          right: '-12px',
-          background: 'rgba(20, 33, 61, 0.92)',
+          top: '20px',
+          right: '-10px',
+          background: 'rgba(15, 23, 42, 0.92)',
           backdropFilter: 'blur(16px)',
-          border: '1.5px solid rgba(252, 163, 17, 0.5)',
+          border: '1.5px solid rgba(252, 163, 17, 0.55)',
           borderRadius: '14px',
-          padding: '0.75rem 1.05rem',
+          padding: '0.75rem 1.1rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
-          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.45), 0 0 15px rgba(252, 163, 17, 0.15)',
-          zIndex: 6,
-          transform: `translate3d(${mousePos.x * -0.9}px, ${mousePos.y * -0.9}px, 60px)`,
+          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.5), 0 0 15px rgba(252, 163, 17, 0.2)',
+          zIndex: 7,
+          transform: `translate3d(${mousePos.x * -0.9}px, ${mousePos.y * -0.9}px, 70px)`,
           transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
           animation: 'floatingBadge1 5s ease-in-out infinite alternate'
         }}
@@ -344,7 +239,7 @@ export default function LiaterHeroAnimation() {
           height: '36px',
           borderRadius: '10px',
           background: 'linear-gradient(135deg, rgba(252, 163, 17, 0.3) 0%, rgba(252, 163, 17, 0.1) 100%)',
-          border: '1px solid rgba(252, 163, 17, 0.4)',
+          border: '1px solid rgba(252, 163, 17, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -353,32 +248,32 @@ export default function LiaterHeroAnimation() {
           <Zap size={20} />
         </div>
         <div>
-          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, letterSpacing: '0.01em' }}>
+          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
             Alta Tensión
           </div>
           <div style={{ fontSize: '0.72rem', color: '#E2E8F0', fontWeight: 500, marginTop: '2px' }}>
-            Pruebas & Ensayos
+            Torres & Redes Eléctricas
           </div>
         </div>
       </div>
 
-      {/* Badge 2: Energías Limpias & Fotometría */}
+      {/* Badge 2: Energías Renovables & Solar (Abajo a la Izquierda) */}
       <div 
         style={{
           position: 'absolute',
-          bottom: '30px',
-          left: '-20px',
-          background: 'rgba(20, 33, 61, 0.92)',
+          bottom: '25px',
+          left: '-15px',
+          background: 'rgba(15, 23, 42, 0.92)',
           backdropFilter: 'blur(16px)',
-          border: '1.5px solid rgba(56, 189, 248, 0.5)',
+          border: '1.5px solid rgba(56, 189, 248, 0.55)',
           borderRadius: '14px',
-          padding: '0.75rem 1.05rem',
+          padding: '0.75rem 1.1rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
-          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.45), 0 0 15px rgba(56, 189, 248, 0.15)',
-          zIndex: 6,
-          transform: `translate3d(${mousePos.x * 0.9}px, ${mousePos.y * 0.9}px, 65px)`,
+          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.2)',
+          zIndex: 7,
+          transform: `translate3d(${mousePos.x * 0.9}px, ${mousePos.y * 0.9}px, 75px)`,
           transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
           animation: 'floatingBadge2 6s ease-in-out infinite alternate'
         }}
@@ -388,7 +283,7 @@ export default function LiaterHeroAnimation() {
           height: '36px',
           borderRadius: '10px',
           background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(56, 189, 248, 0.1) 100%)',
-          border: '1px solid rgba(56, 189, 248, 0.4)',
+          border: '1px solid rgba(56, 189, 248, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -397,11 +292,11 @@ export default function LiaterHeroAnimation() {
           <Sun size={20} />
         </div>
         <div>
-          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, letterSpacing: '0.01em' }}>
-            Energías Limpias
+          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+            Energías Renovables
           </div>
           <div style={{ fontSize: '0.72rem', color: '#E2E8F0', fontWeight: 500, marginTop: '2px' }}>
-            Solar & Iluminación
+            Paneles Solares & Fotometría
           </div>
         </div>
       </div>
@@ -410,19 +305,19 @@ export default function LiaterHeroAnimation() {
       <div 
         style={{
           position: 'absolute',
-          bottom: '55px',
-          right: '0px',
-          background: 'rgba(15, 26, 46, 0.95)',
+          bottom: '50px',
+          right: '5px',
+          background: 'rgba(15, 23, 42, 0.95)',
           backdropFilter: 'blur(16px)',
-          border: '1.5px solid rgba(34, 197, 94, 0.45)',
+          border: '1.5px solid rgba(34, 197, 94, 0.5)',
           borderRadius: '14px',
           padding: '0.65rem 1rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.65rem',
-          boxShadow: '0 14px 30px rgba(0, 0, 0, 0.45), 0 0 15px rgba(34, 197, 94, 0.15)',
-          zIndex: 6,
-          transform: `translate3d(${mousePos.x * -0.6}px, ${mousePos.y * -0.6}px, 50px)`,
+          boxShadow: '0 14px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(34, 197, 94, 0.2)',
+          zIndex: 7,
+          transform: `translate3d(${mousePos.x * -0.6}px, ${mousePos.y * -0.6}px, 60px)`,
           transition: 'transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)',
           animation: 'floatingBadge3 7s ease-in-out infinite alternate'
         }}
@@ -432,7 +327,7 @@ export default function LiaterHeroAnimation() {
           height: '32px',
           borderRadius: '8px',
           background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.3) 0%, rgba(34, 197, 94, 0.1) 100%)',
-          border: '1px solid rgba(34, 197, 94, 0.4)',
+          border: '1px solid rgba(34, 197, 94, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -460,17 +355,13 @@ export default function LiaterHeroAnimation() {
           from { transform: rotateZ(360deg); }
           to { transform: rotateZ(0deg); }
         }
-        @keyframes spinClockwise {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
         @keyframes pulseGlow3D {
           0% { transform: scale(0.85); opacity: 0.55; }
           100% { transform: scale(1.2); opacity: 0.9; }
         }
-        @keyframes floatingCore3D {
+        @keyframes floatingEmblem3D {
           0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-10px) scale(1.03); }
+          50% { transform: translateY(-12px) scale(1.02); }
         }
         @keyframes floatingBadge1 {
           0% { transform: translateY(0px); }
