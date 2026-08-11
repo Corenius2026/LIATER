@@ -200,7 +200,7 @@ export default function AdminClassReinforcement({ classId }) {
         if (qError) throw qError;
 
         // Normalizar los datos
-        const normalizedQuestions = (qData || []).map(q => {
+        let normalizedQuestions = (qData || []).map(q => {
           const sortedOptions = (q.question_options || []).sort((a, b) => a.order_num - b.order_num);
           let correctOption = null;
 
@@ -218,6 +218,52 @@ export default function AdminClassReinforcement({ classId }) {
             correctOptionId: correctOption
           };
         });
+
+        // Si la actividad en DB no tiene preguntas pero existe un borrador de IA, cargarlas automáticamente
+        if (normalizedQuestions.length === 0 && draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
+          const isOptionCorrect = (o, oIndex, q) => {
+            if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
+            if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
+            if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
+            if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
+            if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
+            return false;
+          };
+
+          normalizedQuestions = draftData.draft_data.questions.map((q, qIndex) => {
+            const qId = `temp-draft-q-${qIndex}`;
+            let correctOptId = null;
+
+            const newOptions = (q.options || []).map((o, oIndex) => {
+              const oId = `temp-draft-o-${qIndex}-${oIndex}`;
+              if (isOptionCorrect(o, oIndex, q)) {
+                correctOptId = oId;
+              }
+              return {
+                id: oId,
+                question_id: qId,
+                text: o.text || `Opción ${oIndex + 1}`,
+                order_num: oIndex
+              };
+            });
+
+            if (!correctOptId && newOptions.length > 0) {
+              correctOptId = newOptions[0].id;
+            }
+
+            return {
+              id: qId,
+              activity_id: actData.id,
+              text: q.text || 'Sin enunciado',
+              question_type: q.question_type || 'single_choice',
+              explanation: q.explanation || '',
+              source_basis: q.source_basis || '',
+              order_num: qIndex,
+              options: newOptions,
+              correctOptionId: correctOptId
+            };
+          });
+        }
 
         setQuestions(normalizedQuestions);
       } else if (draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
