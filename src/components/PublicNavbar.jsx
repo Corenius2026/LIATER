@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import liaterLogo from '../assets/liater-logo.png';
+import liaterLogoWhite from '../assets/liater-logo-white.png';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 import unalPillNavyLogo from '../assets/unal-pill-navy-logo.png';
 
@@ -54,24 +55,15 @@ export default function PublicNavbar() {
         }}></div>
 
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
-          <div style={{
-            background: isScrolled ? 'transparent' : 'rgba(255, 255, 255, 0.95)',
-            padding: isScrolled ? '0' : '0.25rem 0.75rem',
-            borderRadius: '0.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            transition: 'all 0.3s ease'
-          }}>
-            <img 
-              src={liaterLogo} 
-              alt="LIATER" 
-              style={{ 
-                height: isScrolled ? '50px' : '45px', 
-                objectFit: 'contain',
-                transition: 'all 0.3s ease' 
-              }} 
-            />
-          </div>
+          <img 
+            src={isScrolled ? liaterLogo : liaterLogoWhite} 
+            alt="LIATER" 
+            style={{ 
+              height: isScrolled ? '50px' : '54px', 
+              objectFit: 'contain',
+              transition: 'all 0.3s ease' 
+            }} 
+          />
           <span style={{ 
             color: isScrolled ? 'var(--navy)' : 'var(--white)', 
             fontWeight: 800, 

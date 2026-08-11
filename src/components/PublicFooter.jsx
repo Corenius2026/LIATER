@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import unalPillLogo from '../assets/unal-pill-logo.png';
-import liaterLogo from '../assets/liater-logo.png';
+import liaterLogoWhite from '../assets/liater-logo-white.png';
 import coreniusLogoWhite from '../assets/Corenius_Logo_Blanco.svg';
 
 export default function PublicFooter() {
@@ -21,14 +21,12 @@ export default function PublicFooter() {
           marginBottom: '3rem'
         }}>
           {/* Columna 1: Logos e info principal */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'white', padding: '0.5rem', borderRadius: '0.5rem', width: 'fit-content' }}>
-              <img 
-                src={liaterLogo} 
-                alt="LIATER" 
-                style={{ height: '50px', objectFit: 'contain' }} 
-              />
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <img 
+              src={liaterLogoWhite} 
+              alt="LIATER" 
+              style={{ height: '60px', width: 'fit-content', objectFit: 'contain' }} 
+            />
             <p style={{ fontSize: '0.9rem', lineHeight: 1.6, maxWidth: '300px' }}>
               Portal Académico oficial para la gestión de cursos y diplomados. Transformando la educación tecnológica a través del aprendizaje práctico.
             </p>
