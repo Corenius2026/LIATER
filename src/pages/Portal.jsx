@@ -1980,11 +1980,11 @@ function AdminPortal({ getDiplomadoLink }) {
               {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#14213D', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! 👋
-          </h2>
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#14213D', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            Panel de Control LIATER
+          </h1>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.86rem', color: '#64748B', lineHeight: 1.4 }}>
-            Bienvenido a tu centro de control. Supervisa los programas académicos, docentes y estudiantes de la plataforma.
+            ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! 👋 Bienvenido a tu centro de supervisión de programas, profesores y estudiantes.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
