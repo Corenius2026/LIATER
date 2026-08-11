@@ -39,7 +39,7 @@ export default function PublicNavbar() {
             src={isScrolled ? unalPillNavyLogo : unalPillLogo} 
             alt="Universidad Nacional de Colombia" 
             style={{ 
-              height: isScrolled ? '65px' : '60px', 
+              height: isScrolled ? '72px' : '78px', 
               objectFit: 'contain',
               transition: 'all 0.3s ease' 
             }} 
@@ -48,7 +48,7 @@ export default function PublicNavbar() {
         
         <div style={{ 
           width: '1px', 
-          height: '50px', 
+          height: '54px', 
           background: isScrolled ? 'rgba(20, 33, 61, 0.2)' : 'rgba(255, 255, 255, 0.3)',
           transition: 'background 0.3s ease'
         }}></div>
