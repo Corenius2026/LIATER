@@ -180,18 +180,32 @@ export default function Login() {
         <span style={{ color: 'rgba(255, 255, 255, 0.40)', fontSize: '0.68rem', fontWeight: 400 }}>
           © {new Date().getFullYear()} Laboratorio LIATER
         </span>
+      </div>
 
-        {/* Firma Corenius */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.65rem', opacity: 0.85 }}>
-          <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.68rem', fontWeight: 500 }}>
-            Desarrollo y Transformación Digital por
-          </span>
-          <img
-            src={coreniusLogoWhite}
-            alt="Corenius"
-            style={{ height: '17px', objectFit: 'contain' }}
-          />
-        </div>
+      {/* Firma de Corenius discreta y elegante en la esquina inferior derecha */}
+      <div 
+        style={{
+          position: 'absolute',
+          bottom: '1.25rem',
+          right: '1.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.45rem',
+          zIndex: 10,
+          opacity: 0.75,
+          transition: 'opacity 0.2s ease'
+        }}
+        onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseOut={(e) => e.currentTarget.style.opacity = '0.75'}
+      >
+        <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.68rem', fontWeight: 500 }}>
+          Desarrollo por
+        </span>
+        <img
+          src={coreniusLogoWhite}
+          alt="Corenius - Transformación Digital"
+          style={{ height: '18px', objectFit: 'contain' }}
+        />
       </div>
     </div>
   );
