@@ -1,112 +1,12 @@
 import { useEffect, useRef } from 'react';
 
-// ─── PRNG determinista ────────────────────────────────────────────────────────
-function mulberry32(seed) {
-  let s = Math.floor(seed * 2 ** 32) >>> 0;
-  return () => {
-    s = (s + 0x6D2B79F5) >>> 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// ─── Midpoint Displacement ────────────────────────────────────────────────────
-function buildBolt(x1, y1, x2, y2, spreadX, spreadY, rng) {
-  const pts = [[x1, y1]];
-  function sub(ax, ay, bx, by, sx, sy) {
-    const dx = bx - ax, dy = by - ay;
-    if (Math.sqrt(dx * dx + dy * dy) < 5) { pts.push([bx, by]); return; }
-    const mx = (ax + bx) / 2 + (rng() - 0.5) * sx;
-    const my = (ay + by) / 2 + (rng() - 0.5) * sy;
-    sub(ax, ay, mx, my, sx * 0.58, sy * 0.58);
-    sub(mx, my, bx, by, sx * 0.58, sy * 0.58);
-  }
-  sub(x1, y1, x2, y2, spreadX, spreadY);
-  pts.push([x2, y2]);
-  return pts;
-}
-
-// ─── Dibuja un rayo (glow naranja + núcleo blanco nítido) ─────────────────────
-function strokeBolt(ctx, pts, alpha, coreW, glowW) {
-  if (pts.length < 2) return;
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.strokeStyle = `rgba(255, 110, 0, ${alpha * 0.55})`;
-  ctx.lineWidth   = glowW;
-  ctx.lineJoin    = 'round'; ctx.lineCap = 'round';
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.strokeStyle = `rgba(255, 255, 220, ${alpha})`;
-  ctx.lineWidth   = coreW;
-  ctx.lineJoin    = 'round'; ctx.lineCap = 'round';
-  ctx.stroke();
-}
-
-// ─── Escena: texto + rayo atravesándolo ──────────────────────────────────────
-function drawScene(ctx, W, H, textLines, fontSize, rng, lAlpha) {
-  ctx.clearRect(0, 0, W, H);
-
-  const lineH  = fontSize * 1.38;
-  const textH  = textLines.length * lineH;
-  const textY  = (H - textH) / 2;   // texto centrado verticalmente
-
-  // ── 1. Texto ─────────────────────────────────────────────────────────────
-  ctx.save();
-  ctx.font         = `800 ${fontSize}px 'Inter','Outfit',sans-serif`;
-  ctx.fillStyle    = '#FFFFFF';
-  ctx.textBaseline = 'top';
-  textLines.forEach((line, i) => {
-    ctx.fillText(line, 0, textY + i * lineH);
-  });
-  ctx.restore();
-
-  if (lAlpha <= 0) return;
-
-  // ── 2. Rayo principal que atraviesa el texto de lado a lado ──────────────
-  // El centro Y del rayo pasa por el medio del bloque de texto
-  const cy = H / 2 + (rng() - 0.5) * lineH * 0.6;
-
-  // Desplazamiento vertical grande para que cruce el texto dramáticamente
-  const vSpread = H * 0.42;
-
-  const mainPts = buildBolt(0, cy, W, cy, 0, vSpread, rng);
-  strokeBolt(ctx, mainPts, lAlpha, 1.6, 8);
-
-  // ── 3. Ramificaciones que se adentran en el texto ─────────────────────────
-  const branchCount = 4 + Math.floor(rng() * 3); // 4-6 ramas
-  const step = Math.max(1, Math.floor(mainPts.length / (branchCount + 1)));
-
-  for (let b = 0; b < branchCount; b++) {
-    const idx = step * (b + 1);
-    if (idx >= mainPts.length) break;
-    const [bx, by] = mainPts[idx];
-
-    const goUp = rng() > 0.45;
-    const len  = W * (0.06 + rng() * 0.15);
-    const ex   = bx + len * (0.4 + rng() * 0.6);
-    const ey   = by + (goUp ? -1 : 1) * (vSpread * 0.35 + rng() * vSpread * 0.45);
-
-    const brPts = buildBolt(bx, by, ex, ey, 4, vSpread * 0.28, rng);
-    strokeBolt(ctx, brPts, lAlpha * (0.45 + rng() * 0.45), 0.9, 4);
-
-    // sub-rama
-    if (rng() > 0.5 && brPts.length > 4) {
-      const si = Math.floor(brPts.length * (0.3 + rng() * 0.4));
-      const [sx, sy] = brPts[si] || [ex, ey];
-      const ex2 = sx + W * (0.025 + rng() * 0.06);
-      const ey2 = sy + (rng() - 0.5) * vSpread * 0.35;
-      const sPts = buildBolt(sx, sy, ex2, ey2, 3, vSpread * 0.18, rng);
-      strokeBolt(ctx, sPts, lAlpha * 0.38, 0.5, 2);
-    }
-  }
-}
-
-// ─── Componente ──────────────────────────────────────────────────────────────
+/**
+ * LightningBrandCanvas
+ *
+ * Dibuja el nombre del laboratorio con una descarga eléctrica
+ * que lo envuelve de forma continua (sin parpadeo), como una
+ * corriente orbitando el texto en espiral.
+ */
 export default function LightningBrandCanvas({
   line1 = 'LABORATORIO DE INVESTIGACIÓN EN ALTA',
   line2 = 'TENSIÓN Y ENERGÍAS RENOVABLES',
@@ -120,12 +20,20 @@ export default function LightningBrandCanvas({
     const ctx = canvas.getContext('2d');
     const DPR = window.devicePixelRatio || 1;
 
+    // ── Tipografía y dimensiones ────────────────────────────────────────────
     const fontSize  = 13;
     const lineH     = fontSize * 1.38;
     const textLines = line2 ? [line1, line2] : [line1];
-    // Canvas más alto que el texto para que las ramas puedan salir por arriba y abajo
+    const padX      = 30;   // espacio horizontal para el rayo fuera del texto
+    const padY      = 28;   // espacio vertical para el rayo arriba y abajo
+
     const W = width;
-    const H = Math.ceil(textLines.length * lineH + 40);
+    // Medimos el ancho real del texto para hacer la elipse exacta
+    const tmpCtx = document.createElement('canvas').getContext('2d');
+    tmpCtx.font = `800 ${fontSize}px 'Inter','Outfit',sans-serif`;
+    const maxTextW = Math.max(...textLines.map(l => tmpCtx.measureText(l).width));
+    const textH    = textLines.length * lineH;
+    const H        = Math.ceil(textH + padY * 2);
 
     canvas.width        = W * DPR;
     canvas.height       = H * DPR;
@@ -133,73 +41,134 @@ export default function LightningBrandCanvas({
     canvas.style.height = `${H}px`;
     ctx.scale(DPR, DPR);
 
-    // ── Estado ────────────────────────────────────────────────────────────────
-    let animId, timeoutId;
-    let phase        = 'idle';
-    let lAlpha       = 0;
-    let holdFrames   = 0;
-    let flickerLeft  = 0;
-    let flickerTimer = 0;
-    let flickerOn    = true;
-    let seedVal      = 0.5;
+    // ── Elipse que rodea el texto ───────────────────────────────────────────
+    const cx = W / 2;           // centro X del canvas
+    const cy = H / 2;           // centro Y
+    const rx = maxTextW / 2 + padX;   // radio horizontal de la elipse
+    const ry = textH   / 2 + padY * 0.7;   // radio vertical
 
-    const FLICKER_ON_F  = 3;
-    const FLICKER_OFF_F = 2;
-    const HOLD_F        = 12;
-    const FADE          = 0.055;
+    // ── Pre-generamos offsets de fase por punto (ruido "frozen") ─────────────
+    const N_POINTS = 160;          // puntos de muestreo en la elipse
+    const N_HARMONICS = 3;         // cuántas ondas sinusoidales superponer
+    // Para cada punto: array de [frecuencia, amplitude, velocidad, fase]
+    const harmonics = Array.from({ length: N_HARMONICS }, (_, h) => ({
+      freq  : 3 + h * 2.5,         // frecuencia espacial (oscilaciones por vuelta)
+      amp   : 6 - h * 1.5,         // amplitud de desplazamiento en px
+      speed : 0.8 + h * 0.55,      // velocidad angular (rad/s @ 60fps)
+      phase : Math.random() * Math.PI * 2,
+    }));
 
-    const getRng = (s) => mulberry32(s ?? seedVal);
+    // Ramificaciones: pequeñas chispas que salen y entran
+    const N_SPARKS = 6;
+    const sparks = Array.from({ length: N_SPARKS }, () => ({
+      t      : Math.random(),       // posición 0-1 en la elipse
+      tSpeed : 0.0015 + Math.random() * 0.002, // velocidad de desplazamiento
+      len    : 10 + Math.random() * 18,
+      angle  : (Math.random() - 0.5) * Math.PI * 0.4,
+      alpha  : 0.3 + Math.random() * 0.5,
+    }));
 
-    const scheduleNext = () => {
-      const delay = 1000 + Math.random() * 2500;
-      timeoutId = setTimeout(() => {
-        flickerLeft  = 2 + Math.floor(Math.random() * 2);
-        flickerTimer = 0;
-        flickerOn    = true;
-        seedVal      = Math.random();
-        phase        = 'flicker';
-      }, delay);
-    };
+    // ── Helpers ────────────────────────────────────────────────────────────
+    // Punto en la elipse + desplazamiento radial dado el tiempo t (0..1)
+    function ellipsePoint(t, time) {
+      const angle = t * Math.PI * 2;
+      // base sobre la elipse
+      const bx = cx + rx * Math.cos(angle);
+      const by = cy + ry * Math.sin(angle);
+      // vector normal (hacia afuera)
+      const nx = Math.cos(angle);
+      const ny = Math.sin(angle);
+      // suma de armónicos para el desplazamiento radial
+      let d = 0;
+      for (const h of harmonics) {
+        d += h.amp * Math.sin(h.freq * angle + h.speed * time + h.phase);
+      }
+      return [bx + nx * d, by + ny * d];
+    }
+
+    // ── Dibuja el arco eléctrico completo ──────────────────────────────────
+    function drawArc(time) {
+      const pts = [];
+      for (let i = 0; i <= N_POINTS; i++) {
+        pts.push(ellipsePoint(i / N_POINTS, time));
+      }
+
+      // --- Glow exterior (naranja-dorado) ---
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(255, 120, 0, 0.45)';
+      ctx.lineWidth   = 7;
+      ctx.lineJoin    = 'round';
+      ctx.stroke();
+
+      // --- Núcleo blanco nítido ---
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(255, 255, 220, 0.92)';
+      ctx.lineWidth   = 1.4;
+      ctx.lineJoin    = 'round';
+      ctx.stroke();
+
+      return pts;
+    }
+
+    // ── Dibuja las chispas que orbitan ────────────────────────────────────
+    function drawSparks(time) {
+      sparks.forEach(spark => {
+        spark.t = (spark.t + spark.tSpeed) % 1;
+        const [bx, by] = ellipsePoint(spark.t, time);
+        const angle    = spark.t * Math.PI * 2;
+        // dirección radial + rotación propia
+        const dir = angle + spark.angle + time * 0.5;
+        const ex  = bx + Math.cos(dir) * spark.len;
+        const ey  = by + Math.sin(dir) * spark.len * 0.5;
+
+        // glow
+        ctx.beginPath();
+        ctx.moveTo(bx, by); ctx.lineTo(ex, ey);
+        ctx.strokeStyle = `rgba(255, 110, 0, ${spark.alpha * 0.5})`;
+        ctx.lineWidth   = 3; ctx.lineCap = 'round'; ctx.stroke();
+        // núcleo
+        ctx.beginPath();
+        ctx.moveTo(bx, by); ctx.lineTo(ex, ey);
+        ctx.strokeStyle = `rgba(255, 255, 200, ${spark.alpha})`;
+        ctx.lineWidth   = 0.9; ctx.lineCap = 'round'; ctx.stroke();
+      });
+    }
+
+    // ── Dibuja el texto ────────────────────────────────────────────────────
+    function drawText() {
+      ctx.save();
+      ctx.font         = `800 ${fontSize}px 'Inter','Outfit',sans-serif`;
+      ctx.fillStyle    = '#FFFFFF';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      const startY = cy - ((textLines.length - 1) * lineH) / 2;
+      textLines.forEach((line, i) => {
+        ctx.fillText(line, cx, startY + i * lineH);
+      });
+      ctx.restore();
+    }
+
+    // ── Loop de animación ─────────────────────────────────────────────────
+    let animId;
+    let t = 0;
 
     const render = () => {
-      if (phase === 'idle') {
-        drawScene(ctx, W, H, textLines, fontSize, getRng(), 0);
-      } else if (phase === 'flicker') {
-        flickerTimer++;
-        if (flickerOn) {
-          if (flickerTimer <= FLICKER_ON_F) {
-            drawScene(ctx, W, H, textLines, fontSize, getRng(seedVal * flickerTimer + 0.01), 1.0);
-          } else { flickerTimer = 0; flickerOn = false; }
-        } else {
-          if (flickerTimer <= FLICKER_OFF_F) {
-            drawScene(ctx, W, H, textLines, fontSize, getRng(), 0);
-          } else {
-            flickerTimer = 0; flickerLeft--;
-            if (flickerLeft <= 0) { phase = 'hold'; holdFrames = HOLD_F; lAlpha = 1.0; }
-            else flickerOn = true;
-          }
-        }
-      } else if (phase === 'hold') {
-        drawScene(ctx, W, H, textLines, fontSize, getRng(), lAlpha);
-        if (--holdFrames <= 0) phase = 'out';
-      } else if (phase === 'out') {
-        lAlpha -= FADE;
-        if (lAlpha <= 0) {
-          lAlpha = 0; phase = 'idle';
-          drawScene(ctx, W, H, textLines, fontSize, getRng(), 0);
-          scheduleNext();
-        } else {
-          drawScene(ctx, W, H, textLines, fontSize, getRng(), lAlpha);
-        }
-      }
+      t += 0.018;   // velocidad de flujo del rayo (aumentar = más rápido)
+      ctx.clearRect(0, 0, W, H);
+      drawArc(t);
+      drawSparks(t);
+      drawText();
       animId = requestAnimationFrame(render);
     };
 
-    drawScene(ctx, W, H, textLines, fontSize, getRng(), 0);
-    scheduleNext();
     animId = requestAnimationFrame(render);
-
-    return () => { cancelAnimationFrame(animId); clearTimeout(timeoutId); };
+    return () => cancelAnimationFrame(animId);
   }, [width, line1, line2]);
 
   return (
