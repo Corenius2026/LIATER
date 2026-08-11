@@ -12,6 +12,7 @@ import {
   Video, FileText, Megaphone, CalendarDays, MessageSquare, BarChart2
 } from 'lucide-react';
 import unalPillLogo from '../assets/unal-pill-logo.png';
+import coreniusLogoWhite from '../assets/Corenius_Logo_Blanco.svg';
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
@@ -319,6 +320,29 @@ export default function Sidebar() {
           <LogOut size={18} />
           <span>Cerrar Sesión</span>
         </button>
+
+        {/* Firma Corenius */}
+        <div style={{
+          marginTop: '1rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.35rem'
+        }}>
+          <span style={{ fontSize: '0.65rem', color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+            Desarrollado por
+          </span>
+          <img 
+            src={coreniusLogoWhite} 
+            alt="Corenius - Transformación Digital" 
+            style={{ height: '17px', objectFit: 'contain', opacity: 0.85, transition: 'opacity 0.2s', cursor: 'pointer' }} 
+            onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseOut={(e) => e.currentTarget.style.opacity = '0.85'}
+          />
+        </div>
       </div>
 
     </aside>

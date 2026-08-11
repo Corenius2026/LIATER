@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import liaterLogo from '../assets/liater-logo.png';
 import unalPillLogo from '../assets/unal-pill-logo.png';
+import coreniusLogoWhite from '../assets/Corenius_Logo_Blanco.svg';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -179,6 +180,18 @@ export default function Login() {
         <span style={{ color: 'rgba(255, 255, 255, 0.40)', fontSize: '0.68rem', fontWeight: 400 }}>
           © {new Date().getFullYear()} Laboratorio LIATER
         </span>
+
+        {/* Firma Corenius */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.65rem', opacity: 0.85 }}>
+          <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.68rem', fontWeight: 500 }}>
+            Desarrollo y Transformación Digital por
+          </span>
+          <img
+            src={coreniusLogoWhite}
+            alt="Corenius"
+            style={{ height: '17px', objectFit: 'contain' }}
+          />
+        </div>
       </div>
     </div>
   );

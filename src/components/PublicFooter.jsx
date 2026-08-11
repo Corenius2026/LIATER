@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 import liaterLogo from '../assets/liater-logo.png';
+import coreniusLogoWhite from '../assets/Corenius_Logo_Blanco.svg';
 
 export default function PublicFooter() {
   const currentYear = new Date().getFullYear();
@@ -62,7 +63,7 @@ export default function PublicFooter() {
           </div>
         </div>
 
-        {/* Bottom Line */}
+        {/* Bottom Line con Crédito Corenius */}
         <div style={{
           paddingTop: '2rem',
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
@@ -70,13 +71,28 @@ export default function PublicFooter() {
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '1rem',
+          gap: '1.25rem',
           fontSize: '0.85rem'
         }}>
-          <p>© {currentYear} Laboratorio LIATER. Todos los derechos reservados.</p>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={(e) => e.target.style.color = 'var(--gold)'} onMouseOut={(e) => e.target.style.color = 'inherit'}>Términos de Servicio</span>
-            <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={(e) => e.target.style.color = 'var(--gold)'} onMouseOut={(e) => e.target.style.color = 'inherit'}>Política de Privacidad</span>
+          <div>
+            <p style={{ margin: 0 }}>© {currentYear} Laboratorio LIATER — Universidad Nacional de Colombia.</p>
+            <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.35rem' }}>
+              <span style={{ cursor: 'pointer', transition: 'color 0.2s', fontSize: '0.78rem' }} onMouseOver={(e) => e.target.style.color = 'var(--gold)'} onMouseOut={(e) => e.target.style.color = 'inherit'}>Términos de Servicio</span>
+              <span style={{ cursor: 'pointer', transition: 'color 0.2s', fontSize: '0.78rem' }} onMouseOver={(e) => e.target.style.color = 'var(--gold)'} onMouseOut={(e) => e.target.style.color = 'inherit'}>Política de Privacidad</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.55)', fontWeight: 500 }}>
+              Diseño y Desarrollo por
+            </span>
+            <img 
+              src={coreniusLogoWhite} 
+              alt="Corenius - Transformación Digital" 
+              style={{ height: '24px', objectFit: 'contain', opacity: 0.95, transition: 'opacity 0.2s' }} 
+              onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+              onMouseOut={(e) => e.currentTarget.style.opacity = '0.95'}
+            />
           </div>
         </div>
       </div>
