@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { updateDoubtStatus } from '../services/doubtService';
-import { formatClassDate } from '../utils/dateUtils';
+import { formatClassDate, isClassLiveOrSoon } from '../utils/dateUtils';
 import { extractYouTubeId, formatYouTubeUrls, linkYouTubeVideoToClass } from '../services/youtubeAutomationService';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
@@ -29,9 +29,15 @@ const useTeacherContext = () => React.useContext(TeacherContext);
    MODAL DE DETALLE DE CLASE — CICLO 360°
    Fases: PRE-CLASE | GRABACIÓN | ACTIVIDAD IA
 ───────────────────────────────────────── */
-function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }) {
+function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, initialSection = 'preclass' }) {
   const { currentProgram } = useTeacherContext();
-  const [activeSection, setActiveSection] = useState('preclass'); // 'preclass' | 'recording' | 'activity'
+  const [activeSection, setActiveSection] = useState(initialSection || 'preclass'); // 'preclass' | 'recording' | 'activity'
+
+  useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection, selectedClass?.id]);
   
   // — PRE-CLASE: Materiales —
   const [materials, setMaterials]         = useState([]);
@@ -466,7 +472,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              {new Date(selectedClass?.class_date) >= new Date() && (selectedClass?.meet_url || currentProgram?.meet_url) && (
+              {isClassLiveOrSoon(selectedClass, 10) && (selectedClass?.meet_url || currentProgram?.meet_url) && (
                 <a href={selectedClass?.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer" style={{ background: '#FCA311', color: '#14213D', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 2px 4px rgba(252,163,17,0.2)', flexShrink: 0 }}>
                   <Video size={16} /> Entrar a la reunión
                 </a>
@@ -897,13 +903,15 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated }
 ───────────────────────────────────────── */
 function ClasesTab() {
   const { programId, teacherId, currentProgram } = useTeacherContext();
+  const [searchParams] = useSearchParams();
   const [classes, setClasses]           = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [modalInitialSection, setModalInitialSection] = useState('preclass');
   const [expandedModules, setExpandedModules]   = useState({});
   const [expandedSessions, setExpandedSessions] = useState({});
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'upcoming' | 'completed'
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'upcoming' | 'completed' | 'pending'
 
   const fetchMyClasses = async () => {
     if (!teacherId) return; // Esperar hasta tener el ID del profesor
@@ -993,6 +1001,31 @@ function ClasesTab() {
   };
 
   useEffect(() => { if (programId && teacherId) fetchMyClasses(); }, [programId, teacherId]);
+
+  // Auto-seleccionar clase y sección si vienen por URL (Deep-link desde el Dashboard de Inicio)
+  useEffect(() => {
+    const classIdParam = searchParams.get('classId');
+    const sectionParam = searchParams.get('section');
+    const filterParam = searchParams.get('filter');
+
+    if (filterParam && ['all', 'upcoming', 'completed', 'pending'].includes(filterParam)) {
+      setFilterStatus(filterParam);
+    }
+
+    if (classIdParam && classes.length > 0) {
+      const targetClass = classes.find(c => String(c.id) === String(classIdParam));
+      if (targetClass) {
+        setSelectedClass(targetClass);
+        if (sectionParam === 'actividad' || sectionParam === 'activity' || sectionParam === 'reforzamiento') {
+          setModalInitialSection('activity');
+        } else if (sectionParam === 'recording' || sectionParam === 'grabacion') {
+          setModalInitialSection('recording');
+        } else {
+          setModalInitialSection('preclass');
+        }
+      }
+    }
+  }, [searchParams, classes]);
 
   // Suscripción Realtime en ClasesTab para que se actualice instantáneamente cuando admin o profesor publiquen
   useEffect(() => {
@@ -1189,7 +1222,7 @@ function ClasesTab() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {!isPast && (cls.meet_url || currentProgram?.meet_url) && (
+                      {!isPast && isClassLiveOrSoon(cls, 10) && (cls.meet_url || currentProgram?.meet_url) && (
                         <a href={cls.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer"
                           style={{ background: '#FCA311', color: '#14213D', padding: '0.45rem 0.9rem', borderRadius: '7px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease', boxShadow: '0 2px 4px rgba(252,163,17,0.2)' }}
                           onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
@@ -1217,6 +1250,7 @@ function ClasesTab() {
         <ClassDetailModal
           selectedClass={selectedClass}
           allClasses={classes}
+          initialSection={modalInitialSection}
           onClose={() => setSelectedClass(null)}
           onClassUpdated={fetchMyClasses}
         />
@@ -2295,8 +2329,8 @@ function ResumenTab({ onChangeTab }) {
                         {classDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · {c.duration || 0} min
                       </span>
                     </div>
-                    {c.meet_url ? (
-                      <a href={c.meet_url} target="_blank" rel="noreferrer" style={{
+                    {isClassLiveOrSoon(c, 10) && (c.meet_url || currentProgram?.meet_url) ? (
+                      <a href={c.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer" style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
                         background: '#14213D', color: '#FFFFFF', textDecoration: 'none',
                         padding: '0.5rem 1.1rem', borderRadius: '7px', fontWeight: 700,
@@ -2307,11 +2341,7 @@ function ResumenTab({ onChangeTab }) {
                       >
                         <Video size={15} /> Unirse a la sesión en vivo
                       </a>
-                    ) : (
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Sin enlace de sesión en vivo configurado
-                      </span>
-                    )}
+                    ) : null}
                   </div>
                 );
               })
@@ -3082,23 +3112,27 @@ function EstudiantesTab() {
           return;
         }
 
-        // 2. Obtener class_sessions del programa
+        // 2. Obtener class_sessions del programa con class_date
         const { data: classesData } = await supabase
           .from('class_sessions')
-          .select('id')
+          .select('id, class_date')
           .eq('program_id', programId);
-        const classIds = (classesData || []).map(c => c.id);
+        
+        const classMap = {};
+        (classesData || []).forEach(c => { classMap[c.id] = c; });
+        const classIds = Object.keys(classMap);
 
         // 3. Obtener actividades publicadas de esas clases
-        let activityIds = [];
+        let activitiesList = [];
         if (classIds.length > 0) {
           const { data: actsData } = await supabase
             .from('class_activities')
             .select('id, class_id')
             .in('class_id', classIds)
             .eq('is_published', true);
-          activityIds = (actsData || []).map(a => a.id);
+          activitiesList = actsData || [];
         }
+        const activityIds = activitiesList.map(a => a.id);
 
         // 4. Obtener intentos de esas actividades
         let attemptsData = [];
@@ -3118,36 +3152,69 @@ function EstudiantesTab() {
         const doubtsList = doubtsData || [];
 
         // ENSAMBLAJE
-        const totalActivities = activityIds.length;
+        const totalActivities = activitiesList.length;
+        const now = new Date();
 
         const enrichedStudents = programStudents.map(enroll => {
           const stuId = enroll.student_id;
+          const authUserId = enroll.users_profile?.auth_user_id;
           
-          // Filtrar intentos del estudiante (completados o aprobados/fallados)
-          const stuAttempts = attemptsData.filter(a => a.student_id === stuId && a.status !== 'pending');
+          // Filtrar intentos del estudiante (completados o con score registrado)
+          const stuAttempts = attemptsData.filter(a => 
+            (a.student_id === stuId || (authUserId && a.student_id === authUserId)) && a.status !== 'pending'
+          );
           
-          // Para calcular completitud, contar IDs únicos de actividades que intentó
-          const attemptedActivityIds = new Set(stuAttempts.map(a => a.activity_id));
-          const completedCount = attemptedActivityIds.size;
-          
+          // Mapear el MEJOR intento / puntaje más alto obtenido en cada actividad
+          const bestScoreByAct = {};
+          stuAttempts.forEach(att => {
+            const actId = att.activity_id;
+            const sc = typeof att.score === 'number' ? att.score : 0;
+            if (bestScoreByAct[actId] === undefined || sc > bestScoreByAct[actId]) {
+              bestScoreByAct[actId] = sc;
+            }
+          });
+
+          // Actividades intentadas / completadas
+          const attemptedCount = Object.keys(bestScoreByAct).length;
           const completionRate = totalActivities > 0 
-            ? Math.round((completedCount / totalActivities) * 100) 
+            ? Math.round((attemptedCount / totalActivities) * 100) 
             : 0;
 
-          // Promedio de notas
+          // Cuestionarios evaluables: Hechos o Vencidos
+          let evaluatedCount = 0;
+          let totalScoreSum = 0;
+
+          activitiesList.forEach(act => {
+            const hasAttempt = bestScoreByAct[act.id] !== undefined;
+            const cls = classMap[act.class_id];
+            const isOverdue = cls?.class_date ? new Date(cls.class_date) < now : false;
+
+            if (hasAttempt) {
+              // Cuestionario hecho: suma el mejor puntaje obtenido
+              evaluatedCount++;
+              totalScoreSum += bestScoreByAct[act.id];
+            } else if (isOverdue) {
+              // Cuestionario vencido y no realizado: cuenta en el divisor con puntaje 0
+              evaluatedCount++;
+              totalScoreSum += 0;
+            }
+          });
+
+          // Score promedio del mejor intento sobre cuestionarios hechos o vencidos
           let avgScore = 0;
-          if (stuAttempts.length > 0) {
-            const sumScore = stuAttempts.reduce((acc, curr) => acc + (curr.score || 0), 0);
-            avgScore = Math.round(sumScore / stuAttempts.length);
+          if (evaluatedCount > 0) {
+            avgScore = Math.round(totalScoreSum / evaluatedCount);
           }
 
           // Conteo de dudas
-          const doubtsCount = doubtsList.filter(d => d.student_id === stuId).length;
+          const doubtsCount = doubtsList.filter(d => 
+            d.student_id === stuId || (authUserId && d.student_id === authUserId)
+          ).length;
 
           // Determinar estado de riesgo
           let riskStatus = 'normal';
           if (totalActivities > 0 && completionRate < 50) riskStatus = 'risk';
-          if (avgScore > 0 && avgScore < 60) riskStatus = 'risk';
+          if (evaluatedCount > 0 && avgScore < 60) riskStatus = 'risk';
           if (completionRate >= 80 && avgScore >= 80) riskStatus = 'excellent';
 
           return {
@@ -4478,22 +4545,28 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
             );
           });
 
-          studentAttempts.sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0));
-          const lastAttempt = studentAttempts[0] || null;
-          const isCompleted = lastAttempt && (lastAttempt.status === 'completed' || typeof lastAttempt.score === 'number');
+          // Ordenar por el puntaje más alto obtenido (desempate por fecha más reciente)
+          studentAttempts.sort((a, b) => {
+            const scA = typeof a.score === 'number' ? a.score : -1;
+            const scB = typeof b.score === 'number' ? b.score : -1;
+            if (scB !== scA) return scB - scA;
+            return new Date(b.completed_at || 0) - new Date(a.completed_at || 0);
+          });
+          const bestAttempt = studentAttempts[0] || null;
+          const isCompleted = bestAttempt && (bestAttempt.status === 'completed' || typeof bestAttempt.score === 'number');
 
           return {
             ...st,
-            attempt: lastAttempt,
+            attempt: bestAttempt,
             status: isCompleted ? 'completed' : 'not_started',
-            score: isCompleted && typeof lastAttempt.score === 'number' ? lastAttempt.score : null,
-            completedAt: lastAttempt?.completed_at || null,
+            score: isCompleted && typeof bestAttempt.score === 'number' ? bestAttempt.score : null,
+            completedAt: bestAttempt?.completed_at || null,
           };
         });
 
         setStudents(combinedStudents);
 
-        // 5. Calcular métricas estadísticas del grupo
+        // 5. Calcular métricas estadísticas del grupo usando el mejor intento por estudiante
         const completedAttempts = combinedStudents.filter(s => s.status === 'completed');
         const scores = completedAttempts.map(s => s.score).filter(sc => typeof sc === 'number');
         const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
@@ -5041,10 +5114,19 @@ function ReforzamientoIATab({ onChangeTab }) {
         const attempts = act ? (attemptsByActivity[act.id] || []) : [];
         const completedAttempts = attempts.filter(a => a.status === 'completed' || typeof a.score === 'number');
         
-        // Estudiantes únicos que completaron
+        // Estudiantes únicos que completaron y su mejor puntaje
+        const bestScoreByStudent = {};
+        completedAttempts.forEach(a => {
+          if (typeof a.score === 'number') {
+            const sId = a.student_id;
+            if (bestScoreByStudent[sId] === undefined || a.score > bestScoreByStudent[sId]) {
+              bestScoreByStudent[sId] = a.score;
+            }
+          }
+        });
         const uniqueStudentsCompleted = new Set(completedAttempts.map(a => a.student_id)).size;
-        const scores = completedAttempts.map(a => a.score).filter(s => typeof s === 'number');
-        const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+        const studentBestScores = Object.values(bestScoreByStudent);
+        const avgScore = studentBestScores.length > 0 ? Math.round(studentBestScores.reduce((a, b) => a + b, 0) / studentBestScores.length) : null;
 
         // Determinar estado de la actividad con sincronización exacta
         let actStatus = 'no_activity';
@@ -5738,8 +5820,16 @@ export default function TeacherPanel() {
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [currentProgram, setCurrentProgram] = useState(null);
+  const [programClasses, setProgramClasses] = useState([]);
   const [myPrograms, setMyPrograms] = useState([]);
+  const [nowTime, setNowTime] = useState(Date.now());
   const role = currentUser?.role;
+
+  // Actualizar temporizador cada 30 segundos para recalcular la ventana de 10 minutos
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
@@ -5785,6 +5875,13 @@ export default function TeacherPanel() {
           .eq('id', programId)
           .maybeSingle();
         if (data) setCurrentProgram(data);
+
+        // Cargar clases del programa para determinar si hay clase en vivo activa (faltando 10 min o en curso)
+        const { data: clsData } = await supabase
+          .from('class_sessions')
+          .select('id, title, class_date, duration, meet_url, video_url')
+          .eq('program_id', programId);
+        if (clsData) setProgramClasses(clsData);
       } catch (err) {
         console.error('Error al obtener programa:', err);
       }
@@ -5825,6 +5922,19 @@ export default function TeacherPanel() {
     resolveTeacherProfile();
     fetchProgramDetails();
     fetchAllPrograms();
+
+    // Suscripción en tiempo real a las sesiones de clase del programa
+    if (!programId) return;
+    const channel = supabase
+      .channel(`teacher_program_classes_${programId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_sessions', filter: `program_id=eq.${programId}` }, () => {
+        fetchProgramDetails();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentUser?.id, programId]);
 
   if (role !== 'teacher') {
@@ -5853,8 +5963,11 @@ export default function TeacherPanel() {
 
   const ActiveComponent = TABS.find(t => t.id === activeTab)?.component ?? ResumenTab;
 
+  const activeLiveClass = programClasses.find(c => isClassLiveOrSoon(c, 10));
+  const activeLiveMeetUrl = activeLiveClass ? (activeLiveClass.meet_url || currentProgram?.meet_url) : null;
+
   return (
-    <TeacherContext.Provider value={{ id: teacherProfile.id, teacherId: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId, currentProgram }}>
+    <TeacherContext.Provider value={{ id: teacherProfile.id, teacherId: teacherProfile.id, profile: teacherProfile, setProfile: setTeacherProfile, programId, currentProgram, programClasses, activeLiveClass, activeLiveMeetUrl }}>
       <div>
 
         {/* ALERTA DE PROGRAMA INHABILITADO */}
@@ -5883,9 +5996,9 @@ export default function TeacherPanel() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {currentProgram?.meet_url && (
+            {activeLiveMeetUrl && (
               <a
-                href={currentProgram.meet_url}
+                href={activeLiveMeetUrl}
                 target="_blank"
                 rel="noreferrer"
                 style={{

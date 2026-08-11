@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video } from 'lucide-react';
-import { formatShortDate } from '../utils/dateUtils';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Sparkles, Zap, AlertTriangle, Clock, CalendarPlus, Settings, Filter } from 'lucide-react';
+import { formatShortDate, isClassLiveOrSoon } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
 import PendingActivitiesCard from '../components/PendingActivitiesCard';
@@ -17,6 +17,13 @@ function StudentPortal({ getDiplomadoLink }) {
   const filters = ['Todos', 'Diplomados', 'Cursos Cortos', 'Talleres'];
   const [diplomas, setDiplomas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [nowTime, setNowTime] = useState(Date.now());
+
+  // Ticker para actualizar estados de clases en vivo en tiempo real
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Estados para el bloque de Próximos Programas
   const [upcomingPrograms, setUpcomingPrograms] = useState([]);
@@ -61,7 +68,7 @@ function StudentPortal({ getDiplomadoLink }) {
           // Buscar clases programadas para hoy
           const { data: todayClasses } = await supabase
             .from('class_sessions')
-            .select('program_id, meet_url')
+            .select('id, program_id, meet_url, class_date, duration, video_url')
             .in('program_id', enrolledDiplomas.map(d => d.id))
             .gte('class_date', todayStart)
             .lt('class_date', todayEnd);
@@ -69,9 +76,10 @@ function StudentPortal({ getDiplomadoLink }) {
           const diplomasWithProgress = await Promise.all(
             enrolledDiplomas.map(async (dip) => {
               const progress = await calculateProgramProgress(dip.id, currentUser.id);
-              const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+              const pClasses = todayClasses?.filter(c => c.program_id === dip.id) || [];
+              const liveClass = pClasses.find(c => isClassLiveOrSoon(c, 10));
               const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
-              return { ...dip, progress, liveUrl };
+              return { ...dip, progress, liveUrl, todayClasses: pClasses };
             })
           );
           setDiplomas(diplomasWithProgress);
@@ -109,6 +117,14 @@ function StudentPortal({ getDiplomadoLink }) {
     return 'Diplomado';
   };
 
+  // Recalcular liveUrl según nowTime (10 minutos antes y durante la clase)
+  const activeDiplomas = diplomas.map(dip => {
+    if (!dip.todayClasses || dip.todayClasses.length === 0) return dip;
+    const liveClass = dip.todayClasses.find(c => isClassLiveOrSoon(c, 10));
+    const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
+    return { ...dip, liveUrl };
+  });
+
   // Saludo contextual
   const studentName = currentUser?.full_name || currentUser?.user_metadata?.full_name || currentUser?.name || '';
   const firstName = studentName.split(' ')[0] || 'Estudiante';
@@ -116,7 +132,7 @@ function StudentPortal({ getDiplomadoLink }) {
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches';
   const todayLabel = now.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
-  const programWithClassToday = diplomas.find(d => d.liveUrl);
+  const programWithClassToday = activeDiplomas.find(d => d.liveUrl);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -256,7 +272,7 @@ function StudentPortal({ getDiplomadoLink }) {
             </div>
           ) : (
             /* LISTA DE TARJETAS DE PROGRAMAS ENROLADOS */
-            diplomas.filter(d =>
+            activeDiplomas.filter(d =>
               activeFilter === 'Todos' ||
               (activeFilter === 'Diplomados' && (d.program_type === 'diplomado' || !d.program_type)) ||
               (activeFilter === 'Cursos Cortos' && d.program_type === 'curso') ||
@@ -574,14 +590,24 @@ function TeacherPortal({ getDiplomadoLink }) {
   const [classes, setClasses] = useState([]);
   const [diplomas, setDiplomas] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [pendingClasses, setPendingClasses] = useState([]);
   const [teacherName, setTeacherName] = useState('');
-  const [counts, setCounts] = useState({ doubts: 0, upcomingClasses: 0, activePrograms: 0 });
+  const [counts, setCounts] = useState({ doubts: 0, upcomingClasses: 0, activePrograms: 0, pendingActivities: 0 });
   const [loading, setLoading] = useState(true);
 
-  // Estados para filtro en "Mis programas" y "Bandeja de consultas"
+  // Estados para filtro en "Mis programas", "Bandeja de consultas" y "Agenda"
   const [activeFilter, setActiveFilter] = useState('Todos');
   const filters = ['Todos', 'Diplomados', 'Cursos Cortos', 'Talleres'];
   const [doubtStatusFilter, setDoubtStatusFilter] = useState('todos');
+  const [agendaTimeFilter, setAgendaTimeFilter] = useState('todos'); // 'todos' | 'hoy' | 'semana' | 'proximas'
+  const [agendaProgramFilter, setAgendaProgramFilter] = useState('todos'); // 'todos' | programId
+  const [nowTime, setNowTime] = useState(Date.now());
+
+  // Ticker para actualizar estados de clases en vivo en tiempo real
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleStatusChange = async (doubtId, newStatus) => {
     setQuestions(prev => {
@@ -595,161 +621,233 @@ function TeacherPortal({ getDiplomadoLink }) {
     await updateDoubtStatus(doubtId, newStatus);
   };
 
-  useEffect(() => {
-    async function fetchTeacherData() {
-      if (!currentUser?.id) return;
-      try {
-        const { data: profileData } = await supabase
-          .from('teacher_profiles')
-          .select('id, name, user_id')
-          .eq('user_id', currentUser.id)
-          .maybeSingle();
+  const fetchTeacherData = useCallback(async () => {
+    if (!currentUser?.id) return;
+    try {
+      const { data: profileData } = await supabase
+        .from('teacher_profiles')
+        .select('id, name, user_id')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
 
-        const name = profileData?.name || currentUser?.full_name || currentUser?.name || currentUser?.user_metadata?.full_name || 'Profesor';
-        setTeacherName(name);
+      const name = profileData?.name || currentUser?.full_name || currentUser?.name || currentUser?.user_metadata?.full_name || 'Profesor';
+      setTeacherName(name);
 
-        let teacherDiplomas = [];
-        const { data: enrollData } = await supabase
-          .from('enrollments')
-          .select('diploma_programs(*)')
-          .eq('student_id', currentUser.id)
-          .order('created_at', { ascending: false });
-          
-        if (enrollData) {
-          const fetchedDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
-          
-          if (fetchedDiplomas.length > 0) {
-            const now = new Date();
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-            const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
-
-            const { data: todayClasses } = await supabase
-              .from('class_sessions')
-              .select('program_id, meet_url')
-              .in('program_id', fetchedDiplomas.map(d => d.id))
-              .gte('class_date', todayStart)
-              .lt('class_date', todayEnd);
-
-            teacherDiplomas = fetchedDiplomas.map(dip => {
-              const liveClass = todayClasses?.find(c => c.program_id === dip.id);
-              const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
-              return { ...dip, liveUrl };
-            });
-          } else {
-            teacherDiplomas = [];
-          }
-          setDiplomas(teacherDiplomas);
-        }
-
-        let teacherClasses = [];
-        let doubtsCount = 0;
-        let doubtsData = [];
-
-        const teacherIds = [profileData?.id, profileData?.user_id, currentUser?.id].filter(Boolean);
-        const teacherProgramIds = teacherDiplomas.map(p => p.id).filter(Boolean);
-
-        let classQuery = supabase
-          .from('class_sessions')
-          .select('*, diploma_programs(id, title, program_type, description), sessions(modules(diploma_programs(id, title, program_type, description))), subtopics(modules(diploma_programs(id, title, program_type, description)))')
-          .order('class_date', { ascending: true });
-
-        const orConditions = [];
-        teacherIds.forEach(id => orConditions.push(`teacher_id.eq.${id}`));
-        teacherProgramIds.forEach(pid => orConditions.push(`program_id.eq.${pid}`));
-
-        if (orConditions.length > 0) {
-          classQuery = classQuery.or(orConditions.join(','));
-        }
-
-        let { data: classData, error: classErr } = await classQuery;
+      let teacherDiplomas = [];
+      const { data: enrollData } = await supabase
+        .from('enrollments')
+        .select('diploma_programs(*)')
+        .eq('student_id', currentUser.id)
+        .order('created_at', { ascending: false });
         
-        if (classErr) {
-          // Fallback en caso de incompatibilidad con join de sessions/subtopics
-          const fallbackQuery = supabase
+      if (enrollData) {
+        const fetchedDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
+        
+        if (fetchedDiplomas.length > 0) {
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+          const { data: todayClasses } = await supabase
             .from('class_sessions')
-            .select('*, diploma_programs(id, title, program_type, description)')
-            .order('class_date', { ascending: true });
-          if (orConditions.length > 0) {
-            const { data: fbData } = await fallbackQuery.or(orConditions.join(','));
-            classData = fbData;
-          } else {
-            const { data: fbData } = await fallbackQuery;
-            classData = fbData;
-          }
-        }
-        
-        if (classData) {
-          const seen = new Set();
-          teacherClasses = classData.filter(c => {
-            if (seen.has(c.id)) return false;
-            seen.add(c.id);
-            const prog = c.diploma_programs || c.sessions?.modules?.diploma_programs || c.subtopics?.modules?.diploma_programs;
-            if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
-              return false;
-            }
-            return true;
+            .select('id, program_id, meet_url, class_date, duration, video_url')
+            .in('program_id', fetchedDiplomas.map(d => d.id))
+            .gte('class_date', todayStart)
+            .lt('class_date', todayEnd);
+
+          teacherDiplomas = fetchedDiplomas.map(dip => {
+            const liveClass = todayClasses?.find(c => c.program_id === dip.id && isClassLiveOrSoon(c, 10));
+            const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
+            return { ...dip, liveUrl };
           });
+        } else {
+          teacherDiplomas = [];
         }
-        setClasses(teacherClasses);
-
-        try {
-          const { data: qData, error: qErr } = await supabase
-            .from('class_doubts')
-            .select(`
-              *,
-              class_sessions (
-                id,
-                title
-              ),
-              diploma_programs (
-                id,
-                title,
-                is_published,
-                status
-              ),
-              users_profile:student_id (
-                id,
-                full_name,
-                email
-              )
-            `)
-            .order('created_at', { ascending: false });
-
-          if (qErr) console.error('Error al obtener class_doubts:', qErr);
-
-          doubtsData = (qData || []).filter(d => {
-            const prog = d.diploma_programs;
-            if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
-              return false;
-            }
-            return true;
-          });
-          doubtsCount = doubtsData.filter(d => d.status === 'enviada' || d.status === 'revisada').length;
-        } catch (e) {
-          console.error('Error querying class_doubts:', e);
-          doubtsCount = 0;
-          doubtsData = [];
-        }
-        setQuestions(doubtsData);
-
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= startOfToday).length || teacherClasses.length;
-        const activeProgramsCount = teacherDiplomas.filter(p => p.is_published !== false && p.status !== 'draft' && p.status !== 'disabled').length;
-
-        setCounts({
-          doubts: doubtsCount,
-          upcomingClasses: upcomingCount,
-          activePrograms: activeProgramsCount
-        });
-      } catch (err) {
-        console.error('Error fetching teacher portal data', err);
-      } finally {
-        setLoading(false);
+        setDiplomas(teacherDiplomas);
       }
+
+      let teacherClasses = [];
+      let doubtsCount = 0;
+      let doubtsData = [];
+
+      const teacherIds = [profileData?.id, profileData?.user_id, currentUser?.id].filter(Boolean);
+      const teacherProgramIds = teacherDiplomas.map(p => p.id).filter(Boolean);
+
+      let classQuery = supabase
+        .from('class_sessions')
+        .select('*, diploma_programs(id, title, program_type, description), sessions(modules(diploma_programs(id, title, program_type, description))), subtopics(modules(diploma_programs(id, title, program_type, description)))')
+        .order('class_date', { ascending: true });
+
+      const orConditions = [];
+      teacherIds.forEach(id => orConditions.push(`teacher_id.eq.${id}`));
+      teacherProgramIds.forEach(pid => orConditions.push(`program_id.eq.${pid}`));
+
+      if (orConditions.length > 0) {
+        classQuery = classQuery.or(orConditions.join(','));
+      }
+
+      let { data: classData, error: classErr } = await classQuery;
+      
+      if (classErr) {
+        // Fallback en caso de incompatibilidad con join de sessions/subtopics
+        const fallbackQuery = supabase
+          .from('class_sessions')
+          .select('*, diploma_programs(id, title, program_type, description)')
+          .order('class_date', { ascending: true });
+        if (orConditions.length > 0) {
+          const { data: fbData } = await fallbackQuery.or(orConditions.join(','));
+          classData = fbData;
+        } else {
+          const { data: fbData } = await fallbackQuery;
+          classData = fbData;
+        }
+      }
+      
+      if (classData) {
+        const seen = new Set();
+        teacherClasses = classData.filter(c => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          const prog = c.diploma_programs || c.sessions?.modules?.diploma_programs || c.subtopics?.modules?.diploma_programs;
+          if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
+            return false;
+          }
+          return true;
+        });
+      }
+      setClasses(teacherClasses);
+
+      // Calcular actividades de reforzamiento pendientes de publicar
+      let pendingActivitiesList = [];
+      const classIds = teacherClasses.map(c => c.id);
+      if (classIds.length > 0) {
+        const [{ data: acts }, { data: drafts }] = await Promise.all([
+          supabase
+            .from('class_activities')
+            .select('id, class_id, is_published, created_at')
+            .in('class_id', classIds),
+          supabase
+            .from('activity_drafts')
+            .select('id, class_id, status, created_at')
+            .in('class_id', classIds)
+            .neq('status', 'rejected')
+        ]);
+
+        const actsByClass = {};
+        (acts || []).forEach(a => {
+          if (!actsByClass[a.class_id]) actsByClass[a.class_id] = [];
+          actsByClass[a.class_id].push(a);
+        });
+
+        const draftsByClass = {};
+        (drafts || []).forEach(d => {
+          if (!draftsByClass[d.class_id]) draftsByClass[d.class_id] = [];
+          draftsByClass[d.class_id].push(d);
+        });
+
+        const now = new Date();
+        pendingActivitiesList = teacherClasses.filter(c => {
+          const isPast = new Date(c.class_date) < now;
+          if (!isPast) return false;
+          const classActs = actsByClass[c.id] || [];
+          const classDrafts = draftsByClass[c.id] || [];
+          const hasPublished = classActs.some(a => a.is_published) || classDrafts.some(d => d.status === 'approved' || d.status === 'published');
+          return !hasPublished;
+        }).map(c => ({
+          ...c,
+          class_activities: actsByClass[c.id] || [],
+          activity_drafts: draftsByClass[c.id] || [],
+          hasDraft: (draftsByClass[c.id] || []).length > 0
+        })).sort((a, b) => new Date(b.class_date) - new Date(a.class_date));
+      }
+
+      setPendingClasses(pendingActivitiesList);
+
+      try {
+        const { data: qData, error: qErr } = await supabase
+          .from('class_doubts')
+          .select(`
+            *,
+            class_sessions (
+              id,
+              title
+            ),
+            diploma_programs (
+              id,
+              title,
+              is_published,
+              status
+            ),
+            users_profile:student_id (
+              id,
+              full_name,
+              email
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (qErr) console.error('Error al obtener class_doubts:', qErr);
+
+        doubtsData = (qData || []).filter(d => {
+          const prog = d.diploma_programs;
+          if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
+            return false;
+          }
+          return true;
+        });
+        doubtsCount = doubtsData.filter(d => d.status === 'enviada' || d.status === 'revisada').length;
+      } catch (e) {
+        console.error('Error querying class_doubts:', e);
+        doubtsCount = 0;
+        doubtsData = [];
+      }
+      setQuestions(doubtsData);
+
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= startOfToday).length || teacherClasses.length;
+      const activeProgramsCount = teacherDiplomas.filter(p => p.is_published !== false && p.status !== 'draft' && p.status !== 'disabled').length;
+
+      setCounts({
+        doubts: doubtsCount,
+        upcomingClasses: upcomingCount,
+        pendingActivities: pendingActivitiesList.length,
+        activePrograms: activeProgramsCount
+      });
+    } catch (err) {
+      console.error('Error fetching teacher portal data', err);
+    } finally {
+      setLoading(false);
     }
-    fetchTeacherData();
   }, [currentUser]);
+
+  useEffect(() => {
+    fetchTeacherData();
+  }, [fetchTeacherData]);
+
+  // Suscripción Realtime en TeacherPortal para mantener sincronizado el dashboard
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const channel = supabase
+      .channel('teacher_portal_realtime_' + currentUser.id)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_activities' }, () => {
+        fetchTeacherData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_drafts' }, () => {
+        fetchTeacherData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_sessions' }, () => {
+        fetchTeacherData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_doubts' }, () => {
+        fetchTeacherData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser, fetchTeacherData]);
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -1024,75 +1122,532 @@ function TeacherPortal({ getDiplomadoLink }) {
   }
 
   // -------------------------------------------------------------------
-  // VISTA 3: AGENDA (tab=agenda)
+  // VISTA 3: AGENDA PRO (tab=agenda)
   // -------------------------------------------------------------------
   if (activeTab === 'agenda') {
+    // Helper para generar enlace a Google Calendar
+    const getGoogleCalendarUrl = (cls, progTitle) => {
+      if (!cls || !cls.class_date) return '#';
+      try {
+        const start = new Date(cls.class_date);
+        const durationMin = cls.duration || 120;
+        const end = new Date(start.getTime() + durationMin * 60000);
+        const formatCalDate = (d) => d.toISOString().replace(/-|:|\.\d+/g, '');
+        const dates = `${formatCalDate(start)}/${formatCalDate(end)}`;
+        const title = encodeURIComponent(`${cls.title} | ${progTitle}`);
+        const details = encodeURIComponent(`Sesión de clase en vivo LIATER.\n\nPrograma: ${progTitle}\nClase: ${cls.title}\nPlataforma: Aula Virtual LIATER\nEnlace: ${cls.meet_url || 'Disponible en el portal'}`);
+        const location = encodeURIComponent(cls.meet_url || 'Aula Virtual LIATER');
+        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
+      } catch {
+        return '#';
+      }
+    };
+
+    // Clasificación temporal
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+
+    const isClassToday = (clsDate) => {
+      const d = new Date(clsDate);
+      return d >= startOfToday && d < endOfToday;
+    };
+
+    const isClassThisWeek = (clsDate) => {
+      const d = new Date(clsDate);
+      return d >= endOfToday && d <= endOfWeek;
+    };
+
+    const isClassFuture = (clsDate) => {
+      const d = new Date(clsDate);
+      return d > endOfWeek;
+    };
+
+    // 1. Filtrar por programa si aplica
+    const filteredAgendaClasses = upcomingClassesList.filter(c => {
+      if (agendaProgramFilter === 'todos') return true;
+      const pId = c.diploma_programs?.id || c.sessions?.modules?.diploma_programs?.id || c.subtopics?.modules?.diploma_programs?.id || c.program_id;
+      return String(pId) === String(agendaProgramFilter);
+    });
+
+    // 2. Sub-listas temporales
+    const todayClassesList = filteredAgendaClasses.filter(c => isClassToday(c.class_date));
+    const thisWeekClassesList = filteredAgendaClasses.filter(c => isClassThisWeek(c.class_date));
+    const futureClassesList = filteredAgendaClasses.filter(c => isClassFuture(c.class_date));
+
+    // 3. Renderizador de tarjeta de clase
+    const renderClassCard = (cls) => {
+      const d = new Date(cls.class_date);
+      const day = d.getDate();
+      const month = d.toLocaleString('es-ES', { month: 'short' });
+      const weekday = d.toLocaleString('es-ES', { weekday: 'short' });
+      const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const progTitle = cls.diploma_programs?.title || cls.sessions?.modules?.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
+      const progId = cls.diploma_programs?.id || cls.sessions?.modules?.diploma_programs?.id || cls.subtopics?.modules?.diploma_programs?.id || cls.program_id;
+
+      const isToday = isClassToday(cls.class_date);
+      const isLiveOrSoon = isClassLiveOrSoon(cls, 10);
+      
+      // Consultas de estudiantes asignadas a esta clase
+      const classDoubts = questions.filter(q => (q.class_id === cls.id || q.class_sessions?.id === cls.id) && (q.status === 'enviada' || q.status === 'revisada'));
+
+      return (
+        <div 
+          key={cls.id} 
+          className="card" 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            padding: '1.25rem 1.5rem', 
+            background: isToday ? 'linear-gradient(to right, rgba(252, 163, 17, 0.04), #ffffff)' : 'white', 
+            borderRadius: 'var(--radius-lg)', 
+            border: isToday ? '1px solid rgba(252, 163, 17, 0.4)' : '1px solid var(--border-color)', 
+            boxShadow: isToday ? '0 4px 16px rgba(252, 163, 17, 0.08)' : '0 2px 4px rgba(20, 33, 61, 0.02)',
+            gap: '1.25rem', 
+            flexWrap: 'wrap',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          {/* Bloque de Fecha */}
+          <div style={{ 
+            width: '64px', 
+            height: '64px', 
+            borderRadius: '12px', 
+            background: isToday ? 'var(--navy)' : 'rgba(20, 33, 61, 0.06)', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            flexShrink: 0, 
+            border: isToday ? '2px solid var(--gold)' : '1px solid rgba(20, 33, 61, 0.1)',
+            boxShadow: isToday ? '0 4px 10px rgba(20,33,61,0.2)' : 'none'
+          }}>
+            <span style={{ 
+              fontSize: '0.68rem', 
+              color: isToday ? 'var(--gold)' : 'var(--gold-dark)', 
+              fontWeight: 800, 
+              textTransform: 'uppercase',
+              lineHeight: 1
+            }}>
+              {weekday}. {month}
+            </span>
+            <span style={{ 
+              fontSize: '1.45rem', 
+              color: isToday ? 'var(--white)' : 'var(--navy)', 
+              fontWeight: 800, 
+              lineHeight: 1.1,
+              marginTop: '3px'
+            }}>
+              {day}
+            </span>
+          </div>
+
+          {/* Info Principal */}
+          <div style={{ flex: '1 1 280px', minWidth: '240px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--gold-dark)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                {progTitle}
+              </span>
+              {isToday && (
+                <span style={{ 
+                  fontSize: '0.7rem', 
+                  fontWeight: 800, 
+                  background: '#FCA311', 
+                  color: '#14213D', 
+                  padding: '2px 8px', 
+                  borderRadius: '9999px',
+                  letterSpacing: '0.4px'
+                }}>
+                  ¡HOY!
+                </span>
+              )}
+              {isLiveOrSoon && (
+                <span style={{ 
+                  fontSize: '0.7rem', 
+                  fontWeight: 800, 
+                  background: '#22c55e', 
+                  color: '#ffffff', 
+                  padding: '2px 8px', 
+                  borderRadius: '9999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
+                  EN VIVO AHORA
+                </span>
+              )}
+            </div>
+
+            <h3 style={{ margin: '0 0 0.4rem 0', color: 'var(--navy)', fontSize: '1.15rem', fontWeight: 700, lineHeight: 1.3 }}>
+              {cls.title}
+            </h3>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--navy)', fontWeight: 600 }}>
+                <Clock size={14} style={{ color: 'var(--gold-dark)' }} /> {timeStr} hrs
+              </span>
+              <span>•</span>
+              <span>⏱️ Duración: {cls.duration || 120} min</span>
+
+              {classDoubts.length > 0 && (
+                <>
+                  <span>•</span>
+                  <Link
+                    to={`${getDiplomadoLink(progId)}?tab=dudas`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      color: '#2563eb',
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <MessageSquare size={13} />
+                    {classDoubts.length} {classDoubts.length === 1 ? 'consulta' : 'consultas'}
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Botones de Acción */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginLeft: 'auto' }}>
+            {/* Botón EN VIVO condicional (10 min o en vivo) */}
+            {isLiveOrSoon && cls.meet_url && (
+              <a
+                href={cls.meet_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #FCA311 0%, #D48B0C 100%)',
+                  color: '#14213D',
+                  fontWeight: 800,
+                  fontSize: '0.85rem',
+                  padding: '0.6rem 1.15rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 12px rgba(252, 163, 17, 0.35)',
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Video size={16} />
+                Entrar a la Clase en Vivo
+              </a>
+            )}
+
+            {/* Botón Gestionar Clase */}
+            <Link
+              to={`${getDiplomadoLink(progId)}?tab=clases&classId=${cls.id}`}
+              className="btn btn-outline"
+              style={{
+                fontSize: '0.85rem',
+                padding: '0.6rem 1.1rem',
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                borderColor: 'var(--navy)',
+                color: 'var(--navy)',
+                background: 'white'
+              }}
+            >
+              <Settings size={15} />
+              Gestionar clase
+            </Link>
+
+            {/* Botón Agendar a Google Calendar */}
+            <a
+              href={getGoogleCalendarUrl(cls, progTitle)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Añadir a Google Calendar"
+              className="btn btn-ghost"
+              style={{
+                fontSize: '0.82rem',
+                padding: '0.6rem 0.85rem',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--white)',
+                textDecoration: 'none'
+              }}
+            >
+              <CalendarPlus size={15} style={{ color: 'var(--gold-dark)' }} />
+              <span>Agendar</span>
+            </a>
+
+            {/* Enlace al programa */}
+            <Link
+              to={getDiplomadoLink(progId)}
+              title="Ver resumen del programa"
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+                textDecoration: 'none',
+                padding: '0.4rem 0.6rem'
+              }}
+            >
+              <span>Programa</span>
+              <ChevronRight size={14} />
+            </Link>
+          </div>
+        </div>
+      );
+    };
+
     return (
-      <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
-        <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* Cabecera Principal */}
+        <div>
           <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-            Agenda
+            Agenda de Clases
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-            Revisa tus próximas clases en vivo y prepara tus sesiones de clase.
+            Revisa tus próximas sesiones en vivo, gestiona tus clases y prepara tus materiales de enseñanza.
           </p>
         </div>
 
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando agenda de clases...</p>
-        ) : upcomingClasses.length === 0 ? (
-          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
-            <CalendarClock size={40} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '1rem' }} />
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
-              No tienes clases próximas en tu agenda
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-              Las clases en vivo que te sean asignadas aparecerán aquí ordenadas por fecha.
-            </p>
+        {/* 1. BARRA DE MÉTRICAS RÁPIDAS (KPIs) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+          {/* Métrica 1: Total Clases */}
+          <div className="card" style={{ padding: '1.1rem 1.25rem', background: 'white', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy)', flexShrink: 0 }}>
+              <CalendarDays size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Clases</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1 }}>
+                {upcomingClassesList.length}
+              </div>
+            </div>
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {upcomingClasses.map(cls => {
-              const d = new Date(cls.class_date);
-              const day = d.getDate();
-              const month = d.toLocaleString('es-ES', { month: 'short' });
-              const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-              const progTitle = cls.diploma_programs?.title || cls.sessions?.modules?.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
-              const progId = cls.diploma_programs?.id || cls.sessions?.modules?.diploma_programs?.id || cls.subtopics?.modules?.diploma_programs?.id || cls.program_id;
 
+          {/* Métrica 2: Próxima Sesión */}
+          <div className="card" style={{ padding: '1.1rem 1.25rem', background: 'white', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '10px', background: 'rgba(252, 163, 17, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold-dark)', flexShrink: 0 }}>
+              <Clock size={22} />
+            </div>
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Próxima Sesión</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--navy)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                {nextClass ? (
+                  (() => {
+                    const d = new Date(nextClass.class_date);
+                    const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    if (isClassToday(nextClass.class_date)) return `Hoy a las ${time} hrs`;
+                    const tom = new Date(startOfToday.getTime() + 86400000);
+                    const endTom = new Date(startOfToday.getTime() + 86400000 * 2);
+                    if (d >= tom && d < endTom) return `Mañana a las ${time} hrs`;
+                    return `${d.getDate()} ${d.toLocaleString('es-ES', { month: 'short' })} • ${time} hrs`;
+                  })()
+                ) : 'Sin clases'}
+              </div>
+            </div>
+          </div>
+
+          {/* Métrica 3: Horas Programadas */}
+          <div className="card" style={{ padding: '1.1rem 1.25rem', background: 'white', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '10px', background: 'rgba(34, 197, 94, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', flexShrink: 0 }}>
+              <Video size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tiempo en Vivo</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1 }}>
+                {Math.round(upcomingClassesList.reduce((acc, c) => acc + (c.duration || 120), 0) / 60)} hrs
+              </div>
+            </div>
+          </div>
+
+          {/* Métrica 4: Consultas de Alumnos */}
+          <div className="card" style={{ padding: '1.1rem 1.25rem', background: 'white', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', flexShrink: 0 }}>
+              <MessageSquare size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Dudas de Alumnos</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.1 }}>
+                {counts.doubts}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. BARRA DE FILTROS (TABS TEMPORALES Y SELECTOR DE PROGRAMA) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'white', padding: '0.85rem 1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+          {/* Tabs temporales */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'todos', label: 'Todas', count: filteredAgendaClasses.length },
+              { id: 'hoy', label: 'Hoy', count: todayClassesList.length },
+              { id: 'semana', label: 'Esta semana', count: thisWeekClassesList.length },
+              { id: 'proximas', label: 'Próximas semanas', count: futureClassesList.length }
+            ].map(f => {
+              const active = agendaTimeFilter === f.id;
               return (
-                <div key={cls.id} className="card" style={{ display: 'flex', alignItems: 'center', padding: '1.25rem 1.5rem', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', gap: '1.25rem', flexWrap: 'wrap' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(20, 33, 61, 0.1)' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--gold-dark)', fontWeight: 800, textTransform: 'uppercase' }}>{month}</span>
-                    <span style={{ fontSize: '1.35rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>{day}</span>
-                  </div>
-
-                  <div style={{ flex: '1 1 250px' }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--gold-dark)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.2rem' }}>
-                      {progTitle}
-                    </div>
-                    <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>
-                      {cls.title}
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.4rem', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
-                      <span>🕒 {timeStr} hrs</span>
-                      <span>•</span>
-                      <span>⏱️ Duración: {cls.duration || 120} min</span>
-                    </div>
-                  </div>
-
-                  <Link 
-                    to={getDiplomadoLink(progId)} 
-                    className="btn btn-outline" 
-                    style={{ fontSize: '0.85rem', padding: '0.6rem 1.2rem', fontWeight: 600, whiteSpace: 'nowrap' }}
-                  >
-                    Ir al Programa →
-                  </Link>
-                </div>
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setAgendaTimeFilter(f.id)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: active ? 700 : 500,
+                    border: active ? 'none' : '1px solid var(--border-color)',
+                    background: active ? 'var(--navy)' : 'var(--white)',
+                    color: active ? 'var(--white)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: active ? '0 2px 6px rgba(20,33,61,0.15)' : 'none'
+                  }}
+                >
+                  <span>{f.label}</span>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: '9999px',
+                    background: active ? 'rgba(252, 163, 17, 0.25)' : 'rgba(20, 33, 61, 0.06)',
+                    color: active ? 'var(--gold)' : 'var(--text-muted)'
+                  }}>
+                    {f.count}
+                  </span>
+                </button>
               );
             })}
           </div>
-        )}
+
+          {/* Filtro por Programa */}
+          {diplomas.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Filter size={15} style={{ color: 'var(--text-muted)' }} />
+              <select
+                value={agendaProgramFilter}
+                onChange={e => setAgendaProgramFilter(e.target.value)}
+                style={{
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: 'var(--navy)',
+                  background: 'var(--white)',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                <option value="todos">Todos los programas ({diplomas.length})</option>
+                {diplomas.map(dip => (
+                  <option key={dip.id} value={dip.id}>{dip.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* 3. LISTADO DE CLASES CON AGRUPACIÓN TEMPORAL */}
+        {loading ? (
+          <p style={{ color: 'var(--text-muted)' }}>Cargando agenda de clases...</p>
+        ) : filteredAgendaClasses.length === 0 ? (
+          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
+            <CalendarClock size={40} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '1rem' }} />
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
+              No tienes clases en este filtro
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+              {agendaProgramFilter !== 'todos' ? 'No hay clases programadas para el programa seleccionado.' : 'Las clases en vivo que te sean asignadas aparecerán aquí ordenadas por fecha.'}
+            </p>
+          </div>
+        ) : agendaTimeFilter === 'todos' ? (
+          // VISTA COMPLETA CON AGRUPACIÓN TEMPORAL INTELIGENTE
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* SECCIÓN 1: SESIONES DE HOY */}
+            {todayClassesList.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '2px solid rgba(252, 163, 17, 0.3)', paddingBottom: '0.5rem' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#FCA311', display: 'inline-block', boxShadow: '0 0 8px #FCA311' }} />
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Clases de Hoy ({todayClassesList.length})
+                  </h2>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {todayClassesList.map(cls => renderClassCard(cls))}
+                </div>
+              </div>
+            )}
+
+            {/* SECCIÓN 2: ESTA SEMANA */}
+            {thisWeekClassesList.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Esta Semana ({thisWeekClassesList.length})
+                  </h2>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {thisWeekClassesList.map(cls => renderClassCard(cls))}
+                </div>
+              </div>
+            )}
+
+            {/* SECCIÓN 3: PRÓXIMAS SEMANAS */}
+            {futureClassesList.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Próximas Semanas ({futureClassesList.length})
+                  </h2>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {futureClassesList.map(cls => renderClassCard(cls))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (() => {
+          const currentFilteredList = agendaTimeFilter === 'hoy' ? todayClassesList : agendaTimeFilter === 'semana' ? thisWeekClassesList : futureClassesList;
+          return (
+            // VISTA FILTRADA (HOY / ESTA SEMANA / PRÓXIMAS)
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {currentFilteredList.length === 0 ? (
+                <div className="card" style={{ padding: '3rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
+                  <CalendarClock size={36} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '0.75rem' }} />
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.25rem' }}>
+                    No hay clases en esta categoría
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+                    Prueba seleccionando otra pestaña de tiempo o el filtro general "Todas".
+                  </p>
+                </div>
+              ) : (
+                currentFilteredList.map(cls => renderClassCard(cls))
+              )}
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -1369,7 +1924,7 @@ function TeacherPortal({ getDiplomadoLink }) {
                       )}
                     </div>
 
-                    {/* BOTÓN PRINCIPAL "VER EN EL PROGRAMA" (Requisitos 5, 6) */}
+                    {/* BOTÓN PRINCIPAL "VER EN EL PROGRAMA" */}
                     <Link
                       to={programLink}
                       className="btn"
@@ -1421,18 +1976,18 @@ function TeacherPortal({ getDiplomadoLink }) {
         <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
           Inicio docente
         </h1>
-        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 600, margin: '0.4rem 0 0 0' }}>
-          Hola, {teacherName || 'Profesor'}
+        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 600, margin: '0.4rem 0 0 0', textTransform: 'capitalize' }}>
+          Hola, {teacherName ? teacherName.toLowerCase() : 'Profesor'}
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
           Consulta lo más importante de tus programas y prepara tus próximas clases.
         </p>
       </div>
 
-      {/* TRES TARJETAS DE RESUMEN OPERATIVO */}
+      {/* CUATRO TARJETAS DE RESUMEN OPERATIVO */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         gap: '1.25rem',
         marginBottom: '2.5rem'
       }}>
@@ -1570,6 +2125,72 @@ function TeacherPortal({ getDiplomadoLink }) {
             <ChevronRight size={16} />
           </div>
         </Link>
+
+        {/* TARJETA 4: ACTIVIDADES POR PUBLICAR */}
+        <Link
+          to="/portal?tab=mis-clases&filter=pending"
+          className="teacher-summary-card"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justify: 'space-between',
+            background: counts.pendingActivities > 0 ? '#fffdf7' : 'var(--white, #ffffff)',
+            border: counts.pendingActivities > 0 ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--border-color, #e2e8f0)',
+            borderTop: counts.pendingActivities > 0 ? '3px solid #f59e0b' : '3px solid var(--gold, #fca311)',
+            borderRadius: 'var(--radius-lg, 0.75rem)',
+            padding: '1.5rem',
+            boxShadow: counts.pendingActivities > 0 ? '0 2px 8px rgba(245, 158, 11, 0.12)' : '0 1px 3px rgba(20, 33, 61, 0.05)',
+            textDecoration: 'none',
+            color: 'inherit',
+            transition: 'all 200ms ease-in-out',
+            minHeight: '160px',
+            cursor: 'pointer',
+            position: 'relative'
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: counts.pendingActivities > 0 ? '#b45309' : 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Reforzamiento IA
+              </span>
+              <div style={{ 
+                padding: '0.5rem', 
+                borderRadius: '0.5rem', 
+                background: counts.pendingActivities > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(20, 33, 61, 0.04)', 
+                color: counts.pendingActivities > 0 ? '#d97706' : 'var(--navy, #14213d)' 
+              }}>
+                <Sparkles size={22} />
+              </div>
+            </div>
+            {loading ? (
+              <div style={{ width: '48px', height: '36px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem' }}>
+                <div style={{ fontSize: '2.25rem', fontWeight: 800, color: counts.pendingActivities > 0 ? '#b45309' : 'var(--navy, #14213d)', lineHeight: 1.1 }}>
+                  {counts.pendingActivities}
+                </div>
+                {counts.pendingActivities > 0 && (
+                  <span style={{ 
+                    fontSize: '0.72rem', 
+                    fontWeight: 700, 
+                    padding: '0.2rem 0.55rem', 
+                    borderRadius: '9999px', 
+                    background: '#fef3c7', 
+                    color: '#92400e',
+                    border: '1px solid #fde68a'
+                  }}>
+                    Por publicar
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: counts.pendingActivities > 0 ? '#d97706' : 'var(--gold-dark, #d4a017)' }}>
+            <span>Gestionar clases</span>
+            <ChevronRight size={16} />
+          </div>
+        </Link>
       </div>
 
       {/* BLOQUE ÚNICO: PRÓXIMA CLASE */}
@@ -1606,128 +2227,340 @@ function TeacherPortal({ getDiplomadoLink }) {
               Ver mis programas
             </Link>
           </div>
-        ) : (
-          /* TARJETA DE PRÓXIMA CLASE */
-          <div 
-            className="teacher-summary-card" 
-            style={{ 
-              background: 'var(--white)', 
-              border: '1px solid var(--border-color)', 
-              borderTop: '3px solid var(--gold)', 
-              borderRadius: 'var(--radius-lg)', 
-              padding: '1.5rem', 
-              boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
-              display: 'flex',
-              alignItems: 'center',
-              justify: 'space-between',
-              gap: '1.5rem',
-              flexWrap: 'wrap',
-              transition: 'all 200ms ease-in-out'
-            }}
-          >
-            {/* BLOQUE DE FECHA A LA IZQUIERDA */}
-            <div style={{ 
-              width: '64px', 
-              height: '64px', 
-              borderRadius: '10px', 
-              background: 'rgba(20, 33, 61, 0.04)', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justify: 'center', 
-              flexShrink: 0, 
-              border: '1px solid rgba(20, 33, 61, 0.08)' 
-            }}>
-              <span style={{ fontSize: '0.72rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {nextClassMonth}
-              </span>
-              <span style={{ fontSize: '1.5rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>
-                {nextClassDay}
-              </span>
-            </div>
+        ) : (() => {
+          const nextIsLiveOrSoon = isClassLiveOrSoon(nextClass, 10);
+          const nextDate = new Date(nextClass.class_date);
+          const startOfToday = new Date();
+          startOfToday.setHours(0, 0, 0, 0);
+          const endOfToday = new Date();
+          endOfToday.setHours(23, 59, 59, 999);
+          const nextIsToday = nextDate >= startOfToday && nextDate <= endOfToday;
 
-            {/* INFORMACIÓN DE LA CLASE EN EL CENTRO */}
-            <div style={{ flex: '1 1 280px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {nextClassProgTitle}
+          return (
+            /* TARJETA DE PRÓXIMA CLASE */
+            <div 
+              className="teacher-summary-card" 
+              style={{ 
+                background: nextIsToday ? 'linear-gradient(to right, rgba(252, 163, 17, 0.04), #ffffff)' : 'var(--white)', 
+                border: nextIsToday ? '1px solid rgba(252, 163, 17, 0.4)' : '1px solid var(--border-color)', 
+                borderTop: '3px solid var(--gold)', 
+                borderRadius: 'var(--radius-lg)', 
+                padding: '1.5rem', 
+                boxShadow: nextIsToday ? '0 4px 16px rgba(252, 163, 17, 0.08)' : '0 1px 3px rgba(20, 33, 61, 0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1.5rem',
+                flexWrap: 'wrap',
+                transition: 'all 200ms ease-in-out'
+              }}
+            >
+              {/* BLOQUE DE FECHA A LA IZQUIERDA */}
+              <div style={{ 
+                width: '64px', 
+                height: '64px', 
+                borderRadius: '10px', 
+                background: nextIsToday ? 'var(--navy)' : 'rgba(20, 33, 61, 0.04)', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                flexShrink: 0, 
+                border: nextIsToday ? '2px solid var(--gold)' : '1px solid rgba(20, 33, 61, 0.08)',
+                boxShadow: nextIsToday ? '0 4px 10px rgba(20,33,61,0.2)' : 'none'
+              }}>
+                <span style={{ 
+                  fontSize: '0.72rem', 
+                  color: nextIsToday ? 'var(--gold)' : 'var(--gold-dark, #d4a017)', 
+                  fontWeight: 800, 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.05em' 
+                }}>
+                  {nextClassMonth}
                 </span>
-                {nextClassModuleName && (
-                  <>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>•</span>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                      {nextClassModuleName}
-                    </span>
-                  </>
-                )}
-                {nextClass.status && (
-                  <span style={{ 
-                    background: 'rgba(20, 33, 61, 0.06)', 
-                    color: 'var(--navy)', 
-                    padding: '0.15rem 0.5rem', 
-                    borderRadius: '4px', 
-                    fontSize: '0.7rem', 
-                    fontWeight: 700 
-                  }}>
-                    {nextClass.status}
+                <span style={{ 
+                  fontSize: '1.5rem', 
+                  color: nextIsToday ? 'var(--white)' : 'var(--navy)', 
+                  fontWeight: 800, 
+                  lineHeight: 1,
+                  marginTop: '2px'
+                }}>
+                  {nextClassDay}
+                </span>
+              </div>
+
+              {/* INFORMACIÓN DE LA CLASE EN EL CENTRO */}
+              <div style={{ flex: '1 1 280px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {nextClassProgTitle}
                   </span>
-                )}
+                  {nextIsToday && (
+                    <span style={{ 
+                      fontSize: '0.7rem', 
+                      fontWeight: 800, 
+                      background: '#FCA311', 
+                      color: '#14213D', 
+                      padding: '2px 8px', 
+                      borderRadius: '9999px',
+                      letterSpacing: '0.4px'
+                    }}>
+                      ¡HOY!
+                    </span>
+                  )}
+                  {nextIsLiveOrSoon && (
+                    <span style={{ 
+                      fontSize: '0.7rem', 
+                      fontWeight: 800, 
+                      background: '#22c55e', 
+                      color: '#ffffff', 
+                      padding: '2px 8px', 
+                      borderRadius: '9999px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
+                      EN VIVO AHORA
+                    </span>
+                  )}
+                  {nextClassModuleName && (
+                    <>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>•</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {nextClassModuleName}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <h3 style={{ margin: '0 0 0.35rem 0', color: 'var(--navy)', fontSize: '1.2rem', fontWeight: 800, lineHeight: 1.3 }}>
+                  {nextClass.title}
+                </h3>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--navy)', fontWeight: 600 }}>
+                    <Clock size={14} style={{ color: 'var(--gold-dark)' }} /> {nextClassTimeStr} hrs
+                  </span>
+                  {nextClass.duration && (
+                    <>
+                      <span>•</span>
+                      <span>⏱️ {nextClass.duration} min</span>
+                    </>
+                  )}
+                </div>
               </div>
 
-              <h3 style={{ margin: '0 0 0.35rem 0', color: 'var(--navy)', fontSize: '1.2rem', fontWeight: 800, lineHeight: 1.3 }}>
-                {nextClass.title}
-              </h3>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
-                <span>🕒 {nextClassTimeStr} hrs</span>
-                {nextClass.duration && (
-                  <>
-                    <span>•</span>
-                    <span>⏱️ {nextClass.duration} min</span>
-                  </>
+              {/* ACCIONES A LA DERECHA */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                {/* Botón condicional EN VIVO (10 min) */}
+                {nextIsLiveOrSoon && nextClass.meet_url && (
+                  <a
+                    href={nextClass.meet_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary"
+                    style={{
+                      background: 'linear-gradient(135deg, #FCA311 0%, #D48B0C 100%)',
+                      color: '#14213D',
+                      fontWeight: 800,
+                      fontSize: '0.88rem',
+                      padding: '0.65rem 1.25rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 4px 12px rgba(252, 163, 17, 0.35)',
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Video size={16} />
+                    Entrar a la Clase en Vivo
+                  </a>
                 )}
+
+                {/* Botón Preparar clase directo a la sesión */}
+                <Link 
+                  to={`${getDiplomadoLink(nextClassProgId)}?tab=clases&classId=${nextClass.id}`} 
+                  className="btn" 
+                  style={{ 
+                    background: 'var(--navy)', 
+                    color: 'var(--white)', 
+                    border: 'none', 
+                    padding: '0.65rem 1.25rem', 
+                    fontWeight: 700, 
+                    fontSize: '0.88rem', 
+                    borderRadius: '8px', 
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                >
+                  <Settings size={15} />
+                  Preparar clase
+                </Link>
+
+                <Link 
+                  to="/portal?tab=agenda" 
+                  style={{ 
+                    color: 'var(--gold-dark, #d4a017)', 
+                    fontSize: '0.88rem', 
+                    fontWeight: 700, 
+                    textDecoration: 'none', 
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.2rem'
+                  }}
+                >
+                  Ver agenda →
+                </Link>
               </div>
             </div>
-
-            {/* ACCIONES A LA DERECHA */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexShrink: 0, flexWrap: 'wrap' }}>
-              <Link 
-                to={getDiplomadoLink(nextClassProgId)} 
-                className="btn" 
-                style={{ 
-                  background: 'var(--navy)', 
-                  color: 'var(--white)', 
-                  border: 'none', 
-                  padding: '0.65rem 1.25rem', 
-                  fontWeight: 700, 
-                  fontSize: '0.88rem', 
-                  borderRadius: '8px', 
-                  textDecoration: 'none',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Preparar clase
-              </Link>
-
-              <Link 
-                to="/portal?tab=agenda" 
-                style={{ 
-                  color: 'var(--gold-dark, #d4a017)', 
-                  fontSize: '0.88rem', 
-                  fontWeight: 700, 
-                  textDecoration: 'none', 
-                  whiteSpace: 'nowrap',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.2rem'
-                }}
-              >
-                Ver agenda →
-              </Link>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
+
+      {/* SECCIÓN: ACTIVIDADES DE REFORZAMIENTO PENDIENTES DE PUBLICAR */}
+      {pendingClasses.length > 0 && (
+        <div style={{ marginTop: '2.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ 
+                width: '32px', 
+                height: '32px', 
+                borderRadius: '8px', 
+                background: 'rgba(245, 158, 11, 0.15)', 
+                color: '#d97706',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Sparkles size={18} />
+              </div>
+              <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                Actividades de reforzamiento por publicar ({pendingClasses.length})
+              </h2>
+            </div>
+            <Link 
+              to="/portal?tab=mis-clases&filter=pending"
+              style={{
+                color: 'var(--gold-dark, #d4a017)',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem'
+              }}
+            >
+              Ver todas las pendientes →
+            </Link>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {pendingClasses.slice(0, 3).map((pClass) => {
+              const d = new Date(pClass.class_date);
+              const day = d.getDate();
+              const month = d.toLocaleString('es-ES', { month: 'short' });
+              const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+              const progTitle = pClass.diploma_programs?.title || pClass.sessions?.modules?.diploma_programs?.title || pClass.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
+
+              return (
+                <div
+                  key={pClass.id}
+                  style={{
+                    background: 'var(--white, #ffffff)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                    borderLeft: '4px solid #f59e0b',
+                    borderRadius: 'var(--radius-lg, 0.75rem)',
+                    padding: '1.2rem 1.5rem',
+                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1.25rem',
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flex: '1 1 300px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '8px',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      border: '1px solid rgba(245, 158, 11, 0.2)'
+                    }}>
+                      <span style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: 800, textTransform: 'uppercase' }}>
+                        {month}
+                      </span>
+                      <span style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>
+                        {day}
+                      </span>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {progTitle}
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.68rem', 
+                          fontWeight: 700, 
+                          padding: '0.1rem 0.45rem', 
+                          borderRadius: '9999px', 
+                          background: '#fef3c7', 
+                          color: '#92400e' 
+                        }}>
+                          {pClass.hasDraft ? 'Borrador disponible' : 'Pendiente de publicar'}
+                        </span>
+                      </div>
+                      <h4 style={{ margin: 0, color: 'var(--navy)', fontSize: '1rem', fontWeight: 800 }}>
+                        {pClass.title}
+                      </h4>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        Finalizada el {d.toLocaleDateString('es-ES')} a las {timeStr} hrs
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Link
+                      to={`/portal?tab=mis-clases&classId=${pClass.id}&section=activity`}
+                      className="btn"
+                      style={{
+                        background: '#f59e0b',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '0.6rem 1.25rem',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        borderRadius: '8px',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        boxShadow: '0 2px 4px rgba(245, 158, 11, 0.25)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <Sparkles size={16} />
+                      <span>Gestionar Actividad IA</span>
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -1837,13 +2670,13 @@ function AdminPortal({ getDiplomadoLink }) {
 
         const { data: todayClasses } = await supabase
           .from('class_sessions')
-          .select('program_id, meet_url')
+          .select('id, program_id, meet_url, class_date, duration, video_url')
           .in('program_id', diplomasData.map(d => d.id))
           .gte('class_date', todayStart)
           .lt('class_date', todayEnd);
 
         diplomasData = diplomasData.map(dip => {
-          const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+          const liveClass = todayClasses?.find(c => c.program_id === dip.id && isClassLiveOrSoon(c, 10));
           const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
           return { ...dip, liveUrl };
         });

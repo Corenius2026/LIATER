@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchStudentPendingActivities } from '../services/activityService';
 import { formatShortDate } from '../utils/dateUtils';
-import { Clock, AlertCircle, FileText, CheckCircle2, Video, Bell, ChevronRight, RefreshCw, Calendar } from 'lucide-react';
+import { Clock, AlertCircle, FileText, CheckCircle2, Video, Bell, ChevronRight, RefreshCw, Calendar, User, BookOpen, Award } from 'lucide-react';
 
 /**
  * Página: PendingActivities
- * Muestra el listado completo de actividades pendientes del estudiante autenticado.
+ * Muestra el listado completo de actividades pendientes del estudiante autenticado y anuncios publicados.
  * Ruta: /pendientes
  */
 export default function PendingActivities() {
@@ -22,26 +22,46 @@ export default function PendingActivities() {
     setLoading(true);
     setError(null);
 
-    const { activities: data, error: err } = await fetchStudentPendingActivities(currentUser.id, null);
+    const { activities: data, announcements: annData, error: err } = await fetchStudentPendingActivities(currentUser.id, null);
 
     if (err) {
       setError(err);
     } else {
-      setActivities(data || []);
+      const combined = [...(data || [])];
+      if (annData && annData.length > 0) {
+        annData.forEach(ann => {
+          if (!combined.some(c => c.id === ann.id)) {
+            combined.push(ann);
+          }
+        });
+      }
+      setActivities(combined);
     }
     setLoading(false);
   }, [currentUser?.id]);
 
   useEffect(() => {
     loadActivities();
+
+    const handleSync = () => {
+      loadActivities();
+    };
+
+    window.addEventListener('activityCompleted', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      window.removeEventListener('activityCompleted', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, [loadActivities]);
 
   const filteredActivities = activities.filter(act => {
     if (filterType === 'Todos') return true;
     if (filterType === 'Entregas') return act.type === 'Entrega';
-    if (filterType === 'Cuestionarios') return act.type === 'Cuestionario';
-    if (filterType === 'Clases') return act.type === 'Sesión en vivo';
-    if (filterType === 'Anuncios') return act.type === 'Anuncio importante';
+    if (filterType === 'Cuestionarios') return act.type === 'Cuestionario' || act.type === 'Actividad de Reforzamiento' || act.type === 'Reforzamiento';
+    if (filterType === 'Clases') return act.type === 'Sesión en vivo' || act.type === 'Clase hoy';
+    if (filterType === 'Anuncios') return act.type === 'Anuncio' || act.type === 'Anuncio importante';
     return true;
   });
 
@@ -58,11 +78,26 @@ export default function PendingActivities() {
     }
   };
 
+  const getAnnouncementTagConfig = (tag) => {
+    switch (tag) {
+      case 'urgent':
+        return { emoji: '🔴', label: 'Urgente', color: '#991b1b', bg: '#fee2e2', borderColor: '#ef4444' };
+      case 'info':
+        return { emoji: '📌', label: 'Informativo', color: '#1d4ed8', bg: '#dbeafe', borderColor: '#3b82f6' };
+      case 'general':
+      default:
+        return { emoji: '📢', label: 'General', color: 'var(--navy)', bg: '#EEF2F8', borderColor: 'var(--navy)' };
+    }
+  };
+
   const renderIcon = (type) => {
     switch (type) {
       case 'Sesión en vivo': return <Video size={18} color="var(--navy)" />;
       case 'Entrega': return <FileText size={18} color="var(--navy)" />;
-      case 'Cuestionario': return <Clock size={18} color="var(--navy)" />;
+      case 'Cuestionario':
+      case 'Actividad de Reforzamiento':
+      case 'Reforzamiento':
+        return <Award size={18} color="#d97706" />;
       default: return <Bell size={18} color="var(--navy)" />;
     }
   };
@@ -72,16 +107,16 @@ export default function PendingActivities() {
       {/* HEADER PRINCIPAL */}
       <div style={{ marginBottom: '1.75rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
-          Todas las actividades pendientes
+          Todas las actividades y avisos
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.94rem', margin: '0.35rem 0 0 0' }}>
-          Revisa tus entregas, cuestionarios, clases en vivo y avisos urgentes.
+          Revisa tus actividades de reforzamiento, clases en vivo y comunicados de tus profesores.
         </p>
       </div>
 
       {/* FILTROS TIPO PASTILLA */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.75rem', overflowX: 'auto' }} className="hide-scrollbar">
-        {['Todos', 'Entregas', 'Cuestionarios', 'Clases', 'Anuncios'].map(type => (
+        {['Todos', 'Cuestionarios', 'Clases', 'Anuncios'].map(type => (
           <button
             key={type}
             onClick={() => setFilterType(type)}
@@ -89,7 +124,7 @@ export default function PendingActivities() {
               background: filterType === type ? 'var(--navy)' : '#f1f5f9',
               color: filterType === type ? '#ffffff' : 'var(--text-muted)',
               padding: '0.5rem 1.25rem',
-              borderRadius: '9999px',
+              borderRadius: '999px',
               fontSize: '0.86rem',
               fontWeight: 600,
               cursor: 'pointer',
@@ -133,29 +168,37 @@ export default function PendingActivities() {
         <div className="card" style={{ textAlign: 'center', padding: '4rem 1.5rem', background: '#ffffff', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
           <CheckCircle2 size={54} color="var(--green-600)" style={{ marginBottom: '1rem', opacity: 0.85 }} />
           <h3 style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>
-            No tienes actividades pendientes
+            No hay elementos en esta sección
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '420px', margin: '0 auto' }}>
-            ¡Buen trabajo! Estás al día con todos tus compromisos académicos.
+            Estás al día con tus actividades y no tienes avisos pendientes.
           </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {filteredActivities.map((item) => {
             const urgencyStyle = getUrgencyStyles(item.urgency);
+            const isAnnouncement = item.type === 'Anuncio' || item.type === 'Anuncio importante';
+            const tagConfig = isAnnouncement ? getAnnouncementTagConfig(item.tag) : null;
 
             return (
               <Link
                 key={item.id}
                 to={item.link}
+                onClick={() => {
+                  if (item.programId) {
+                    localStorage.setItem('activeProgramId', item.programId);
+                    window.dispatchEvent(new Event('programContextChanged'));
+                  }
+                }}
                 className="card"
                 style={{
                   display: 'flex',
                   gap: '1rem',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   padding: '1.25rem',
                   background: '#ffffff',
-                  borderLeft: `5px solid ${urgencyStyle.borderColor}`,
+                  borderLeft: `5px solid ${isAnnouncement ? tagConfig.borderColor : urgencyStyle.borderColor}`,
                   borderTop: '1px solid var(--border-color)',
                   borderRight: '1px solid var(--border-color)',
                   borderBottom: '1px solid var(--border-color)',
@@ -167,17 +210,29 @@ export default function PendingActivities() {
                 onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
                 onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
               >
-                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-color)' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: isAnnouncement ? tagConfig.bg : '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-color)', marginTop: '0.2rem' }}>
                   {renderIcon(item.type)}
                 </div>
 
-                <div style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      {item.type}
-                    </span>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '999px', background: urgencyStyle.badgeBg, color: urgencyStyle.badgeColor }}>
-                      {item.statusLabel || urgencyStyle.label}
+                <div style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    {isAnnouncement ? (
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '999px', background: tagConfig.bg, color: tagConfig.color }}>
+                        {tagConfig.emoji} {tagConfig.label}
+                      </span>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          {item.type}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '999px', background: urgencyStyle.badgeBg, color: urgencyStyle.badgeColor }}>
+                          {item.statusLabel || urgencyStyle.label}
+                        </span>
+                      </>
+                    )}
+
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--navy)', background: 'rgba(20,33,61,0.06)', padding: '0.15rem 0.5rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <BookOpen size={12} /> {item.programTitle}
                     </span>
                   </div>
 
@@ -185,16 +240,25 @@ export default function PendingActivities() {
                     {item.title}
                   </h3>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    <span>{item.programTitle}</span>
-                    <span>•</span>
+                  {isAnnouncement && item.body && (
+                    <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0.35rem 0', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      {item.body}
+                    </p>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                    {item.teacherName && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: 'var(--navy)' }}>
+                        <User size={13} color="var(--gold-dark)" /> Prof. {item.teacherName}
+                      </span>
+                    )}
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar size={14} /> {formatShortDate(item.date)}
+                      <Calendar size={13} /> Publicado el {formatShortDate(item.date)}
                     </span>
                   </div>
                 </div>
 
-                <ChevronRight size={20} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                <ChevronRight size={20} color="var(--text-muted)" style={{ flexShrink: 0, alignSelf: 'center' }} />
               </Link>
             );
           })}

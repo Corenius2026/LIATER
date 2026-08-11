@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { createDoubt, fetchStudentDoubtsForClass } from '../services/doubtService';
 import { calculateProgramProgressDetails } from '../services/programService';
+import { isClassLiveOrSoon } from '../utils/dateUtils';
 import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
@@ -219,7 +220,14 @@ export default function ClassDetail() {
   const [userAnswers, setUserAnswers] = useState({});
   const [showConfirmFinishModal, setShowConfirmFinishModal] = useState(false);
   const [completedResult, setCompletedResult] = useState(null);
+  const [userAttempts, setUserAttempts] = useState([]);
   const [viewingResultsMode, setViewingResultsMode] = useState(false);
+  const [nowTime, setNowTime] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleOptionSelect = (questionId, optionId) => {
     setUserAnswers(prev => {
@@ -247,6 +255,20 @@ export default function ClassDetail() {
     }
     setViewingResultsMode(false);
     setShowConfirmFinishModal(false);
+    setIsActivityModalOpen(true);
+  };
+
+  const handleRetakeActivity = () => {
+    setUserAnswers({});
+    if (activityConfig?.id && currentUser?.id) {
+      try {
+        localStorage.removeItem(`liater_answers_${activityConfig.id}_${currentUser.id}`);
+      } catch (_) {}
+    }
+    setCurrentQuestionIdx(0);
+    setViewingResultsMode(false);
+    setShowConfirmFinishModal(false);
+    setActivityState('no_iniciada');
     setIsActivityModalOpen(true);
   };
 
@@ -289,10 +311,29 @@ export default function ClassDetail() {
       minute: '2-digit'
     });
 
+    const newAttempt = {
+      id: `attempt_${Date.now()}`,
+      activity_id: activityConfig.id,
+      student_id: currentUser?.id,
+      status: 'completed',
+      score: scorePct,
+      completed_at: new Date().toISOString()
+    };
+
+    const updatedAttempts = [newAttempt, ...userAttempts];
+    setUserAttempts(updatedAttempts);
+
+    const completedList = updatedAttempts.filter(a => a.status === 'completed');
+    const bestScore = completedList.reduce((max, a) => Math.max(max, a.score ?? 0), scorePct);
+    const currentAttemptsCount = completedList.length;
+
     const result = {
       correctCount,
+      bestCorrectCount: Math.round((bestScore / 100) * totalCount),
       totalCount,
       scorePct,
+      bestScore,
+      attemptsCount: currentAttemptsCount,
       completedAt: formattedDate
     };
 
@@ -318,7 +359,6 @@ export default function ClassDetail() {
           .maybeSingle();
 
         if (insertErr) console.error('Error guardando intento:', insertErr);
-
         if (insertedAttempt?.id && Object.keys(userAnswers).length > 0) {
           try {
             const attemptAnswersToInsert = Object.entries(userAnswers).map(([qId, optId]) => {
@@ -341,11 +381,38 @@ export default function ClassDetail() {
         try {
           const key = `completed_activities_${studentIdToUse}`;
           const currentList = JSON.parse(localStorage.getItem(key) || '[]');
-          if (activityConfig.id && !currentList.includes(activityConfig.id)) {
-            currentList.push(activityConfig.id);
-          }
+          const idsToAdd = [
+            activityConfig.id, 
+            id, 
+            classData?.program_id, 
+            classData?.program_id ? `reforzamiento-${classData.program_id}` : null
+          ].filter(Boolean);
+
+          idsToAdd.forEach(item => {
+            if (!currentList.includes(item)) {
+              currentList.push(item);
+            }
+          });
           localStorage.setItem(key, JSON.stringify(currentList));
+
+          // Guardar clase completada
+          const classKey = `completed_classes_${studentIdToUse}`;
+          const classList = JSON.parse(localStorage.getItem(classKey) || '[]');
+          if (id && !classList.includes(id)) {
+            classList.push(id);
+            localStorage.setItem(classKey, JSON.stringify(classList));
+          }
         } catch (_) {}
+
+        // Disparar eventos globales para sincronizar tarjetas de pendientes inmediatamente
+        window.dispatchEvent(new CustomEvent('activityCompleted', { 
+          detail: { 
+            activityId: activityConfig.id, 
+            classId: id, 
+            programId: classData?.program_id 
+          } 
+        }));
+        window.dispatchEvent(new Event('storage'));
       } catch (err) {
         console.error('Error guardando intento:', err);
       }
@@ -572,13 +639,25 @@ export default function ClassDetail() {
                   }
 
                   let stateToSet = 'no_iniciada';
-                  const attempts = attemptsRes.data;
-                  const hasDbCompletedAttempt = attempts && attempts.length > 0 && attempts[0].status === 'completed';
+                  
+                  const attempts = attemptsRes.data || [];
+                  setUserAttempts(attempts);
+                  const completedAttempts = attempts.filter(a => a.status === 'completed');
+                  const localCompleted = JSON.parse(localStorage.getItem(`completed_activities_${studentIdToUse}`) || '[]');
+                  const isLocallyCompleted = actData.id ? localCompleted.includes(actData.id) : false;
+                  const hasDbCompletedAttempt = completedAttempts.length > 0;
 
-                  if (hasDbCompletedAttempt) {
-                    const lastAttempt = attempts[0];
+                  if (hasDbCompletedAttempt || isLocallyCompleted) {
+                    const lastAttempt = completedAttempts.length > 0 ? completedAttempts[0] : null;
+                    const bestScore = completedAttempts.length > 0
+                      ? Math.max(...completedAttempts.map(a => a.score ?? 0))
+                      : (lastAttempt?.score ?? 0);
+                    const finalScore = lastAttempt?.score ?? bestScore;
+                    const effectiveAttemptsCount = completedAttempts.length || (isLocallyCompleted ? 1 : 0);
+
                     stateToSet = 'completada';
 
+                    // Cargar respuestas de la BD si es posible
                     if (lastAttempt?.id) {
                       try {
                         const { data: dbAns } = await supabase
@@ -605,12 +684,18 @@ export default function ClassDetail() {
                       }
                     });
 
-                    const finalScore = lastAttempt?.score ?? (formattedQuestions.length > 0 ? Math.round((realCorrectCount / formattedQuestions.length) * 100) : 0);
+                    // Si realCorrectCount = 0 por falta de datos, intentar calcular de score
+                    const finalCorrect = realCorrectCount > 0 
+                      ? realCorrectCount 
+                      : Math.round((finalScore / 100) * formattedQuestions.length);
 
                     setCompletedResult({
-                      correctCount: realCorrectCount,
+                      correctCount: finalCorrect,
+                      bestCorrectCount: Math.round((bestScore / 100) * formattedQuestions.length),
                       totalCount: formattedQuestions.length,
                       scorePct: finalScore,
+                      bestScore: bestScore,
+                      attemptsCount: effectiveAttemptsCount,
                       completedAt: lastAttempt?.completed_at ? new Date(lastAttempt.completed_at).toLocaleDateString('es-ES') : 'Realizada'
                     });
                   } else {
@@ -888,76 +973,94 @@ export default function ClassDetail() {
       `}</style>
 
       {/* 1. ENCABEZADO DE LA CLASE */}
-      <div style={{ marginBottom: '1.25rem' }}>
-        <Link to={programType === 'course' ? (clsData?.program_id ? `/dashboard/${clsData.program_id}` : '/portal') : (moduleId ? `/module/${moduleId}` : '/portal')} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-          <ArrowLeft size={14} /> {programType === 'course' ? 'Volver al inicio del curso' : (moduleId ? 'Volver al Módulo' : 'Volver al Portal')}
-        </Link>
-      </div>
+      {(() => {
+        const isCourse = programType === 'curso' || programType === 'course';
+        return (
+          <>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <Link to={isCourse ? (clsData?.program_id ? `/dashboard/${clsData.program_id}` : '/portal') : (moduleId ? `/module/${moduleId}` : '/portal')} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <ArrowLeft size={14} /> {isCourse ? 'Volver al inicio del curso' : (moduleId ? 'Volver al Módulo' : 'Volver al Portal')}
+              </Link>
+            </div>
 
-      <div className="page-header" style={{ marginBottom: '1.75rem' }}>
-        <h1 className="page-title" style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--navy)', margin: '0 0 0.6rem 0', lineHeight: 1.25 }}>
-          {clsData.title}
-        </h1>
+            <div className="page-header" style={{ marginBottom: '1.75rem' }}>
+              <h1 className="page-title" style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--navy)', margin: '0 0 0.6rem 0', lineHeight: 1.25 }}>
+                {clsData.title}
+              </h1>
 
-        {/* METADATOS LIMPIOS (SIN TARJETA PESADA) */}
-        <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.84rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
-          {clsData.class_date && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Calendar size={15} color="var(--gold-dark)" />
-              {new Date(clsData.class_date).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-          {clsData.teacher_profiles?.name && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <User size={15} color="var(--gold-dark)" />
-              Docente: <strong style={{ color: 'var(--navy)' }}>{clsData.teacher_profiles.name}</strong>
-            </span>
-          )}
-          {programType !== 'course' && moduleTitle && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <BookOpen size={15} color="var(--gold-dark)" />
-              Módulo: <strong style={{ color: 'var(--navy)' }}>{moduleTitle}</strong>
-            </span>
-          )}
-          {clsData.duration && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Clock size={15} color="var(--gold-dark)" />
-              {clsData.duration} min
-            </span>
-          )}
-          {(clsData.status || clsData.video_url) && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-              padding: '0.2rem 0.65rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
-              background: clsData.status === 'completed' || clsData.video_url ? '#f0fdf4' : '#f1f5f9',
-              color: clsData.status === 'completed' || clsData.video_url ? '#166534' : '#475569'
-            }}>
-              {clsData.status === 'completed' || clsData.video_url ? 'Finalizada' : 'Programada'}
-            </span>
-          )}
-          {/* BADGE ESTADO DE ACTIVIDAD */}
-          {activityState === 'completada' && completedResult && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-              padding: '0.2rem 0.65rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700,
-              background: completedResult.scorePct >= 70 ? '#f0fdf4' : completedResult.scorePct >= 50 ? '#fffbeb' : '#fef2f2',
-              color: completedResult.scorePct >= 70 ? '#166534' : completedResult.scorePct >= 50 ? '#92400e' : '#991b1b',
-              border: `1px solid ${completedResult.scorePct >= 70 ? '#86efac' : completedResult.scorePct >= 50 ? '#fcd34d' : '#fca5a5'}`
-            }}>
-              <Award size={13} /> Actividad: {completedResult.scorePct}%
-            </span>
-          )}
-          {activityState === 'no_iniciada' && activityConfig && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-              padding: '0.2rem 0.65rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700,
-              background: '#eef2ff', color: '#6366f1', border: '1px solid #c7d2fe'
-            }}>
-              <Zap size={13} /> Actividad pendiente
-            </span>
-          )}
-        </div>
-      </div>
+              {/* METADATOS LIMPIOS */}
+              <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.84rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
+                {clsData.class_date && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Calendar size={15} color="var(--gold-dark)" />
+                    {new Date(clsData.class_date).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+                {clsData.teacher_profiles?.name && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <User size={15} color="var(--gold-dark)" />
+                    Docente: <strong style={{ color: 'var(--navy)' }}>{clsData.teacher_profiles.name}</strong>
+                  </span>
+                )}
+                {!isCourse && moduleTitle && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <BookOpen size={15} color="var(--gold-dark)" />
+                    Módulo: <strong style={{ color: 'var(--navy)' }}>{moduleTitle}</strong>
+                  </span>
+                )}
+                {clsData.duration && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Clock size={15} color="var(--gold-dark)" />
+                    {clsData.duration} min
+                  </span>
+                )}
+
+                {/* INDICADOR DE ESTADO: "Finalizada" ÚNICAMENTE SI SE COMPLETÓ LA ACTIVIDAD DE REFORZAMIENTO */}
+                {activityState === 'completada' ? (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
+                    background: 'var(--green-subtle, #f0fdf4)',
+                    color: 'var(--green-600, #16a34a)',
+                    border: '1px solid var(--green-400, #86efac)'
+                  }}>
+                    <CheckCircle2 size={13} /> Finalizada {completedResult ? `· ${completedResult.scorePct}%` : ''}
+                  </span>
+                ) : (activityState === 'no_iniciada' || activityState === 'en_progreso') ? (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
+                    background: 'var(--gold-subtle, #fef9ec)',
+                    color: 'var(--gold-dark, #b45309)',
+                    border: '1px solid var(--gold-light, #fde68a)'
+                  }}>
+                    <Zap size={13} /> Actividad pendiente
+                  </span>
+                ) : clsData.video_url ? (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
+                    background: 'rgba(20,33,61,0.06)',
+                    color: 'var(--navy)',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    <Video size={13} /> Grabación disponible
+                  </span>
+                ) : (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
+                    background: '#f1f5f9',
+                    color: '#475569'
+                  }}>
+                    Programada
+                  </span>
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* 2. CUADRÍCULA PRINCIPAL (DESKTOP: 2 COLUMNAS / MOBILE: 1 COLUMNA ORDENADA) */}
       <div className="class-detail-grid">
@@ -965,47 +1068,86 @@ export default function ClassDetail() {
         {/* COLUMNA PRINCIPAL (68% - 72%) */}
         <div className="class-detail-main">
 
-          {/* BANNER CLASE EN VIVO (HOY) */}
+          {/* BANNER CLASE EN VIVO (HOY / EN TRANSMISIÓN) */}
           {(() => {
             if (!clsData?.class_date || clsData?.video_url) return null;
             const classDate = new Date(clsData.class_date);
-            const now = new Date();
             const todayStart = new Date(); todayStart.setHours(0,0,0,0);
             const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
             const isClassToday = classDate >= todayStart && classDate <= todayEnd;
             const meetLink = clsData?.meet_url || null;
-            if (!isClassToday || !meetLink) return null;
-            return (
-              <div style={{
-                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                borderRadius: 'var(--radius-lg)', padding: '1.1rem 1.4rem',
-                marginBottom: '0.5rem',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                flexWrap: 'wrap', gap: '0.75rem',
-                boxShadow: '0 4px 20px rgba(220,38,38,0.25)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Radio size={18} color="#ffffff" />
+            const isLiveNow = isClassLiveOrSoon(clsData, 10);
+
+            if (isLiveNow && meetLink) {
+              return (
+                <div style={{
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  borderRadius: 'var(--radius-lg)', padding: '1.1rem 1.4rem',
+                  marginBottom: '1rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  flexWrap: 'wrap', gap: '0.75rem',
+                  boxShadow: '0 4px 20px rgba(220,38,38,0.25)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Radio size={18} color="#ffffff" />
+                    </div>
+                    <div>
+                      <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.1rem 0' }}>Clase en vivo · EN TRANSMISIÓN</p>
+                      <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>
+                        {classDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs — La grabación estará disponible después
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.1rem 0' }}>Clase en vivo · HOY</p>
-                    <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>
-                      {classDate.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs — La grabación estará disponible después
-                    </p>
+                  <a href={meetLink} target="_blank" rel="noreferrer" style={{
+                    background: '#ffffff', color: '#dc2626',
+                    padding: '0.5rem 1.1rem', borderRadius: '7px',
+                    fontWeight: 800, fontSize: '0.85rem', textDecoration: 'none',
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.15)', flexShrink: 0
+                  }}>
+                    <Video size={14} /> Entrar a la Clase
+                  </a>
+                </div>
+              );
+            }
+
+            if (isClassToday) {
+              return (
+                <div style={{
+                  background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)',
+                  borderRadius: 'var(--radius-lg)', padding: '1rem 1.3rem',
+                  marginBottom: '1rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  flexWrap: 'wrap', gap: '0.75rem',
+                  border: '1px solid rgba(252,163,17,0.25)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'var(--gold-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Calendar size={18} color="var(--gold-dark)" />
+                    </div>
+                    <div>
+                      <p style={{ color: 'var(--gold)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.1rem 0' }}>Clase programada para HOY</p>
+                      <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.88rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Clock size={13} color="var(--gold)" />
+                        Inicio: {classDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                    background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.9)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    padding: '0.4rem 0.8rem', borderRadius: '7px',
+                    fontSize: '0.75rem', fontWeight: 600
+                  }}>
+                    <Clock size={12} color="var(--gold)" /> El botón de ingreso se activará 10 min antes
                   </div>
                 </div>
-                <a href={meetLink} target="_blank" rel="noreferrer" style={{
-                  background: '#ffffff', color: '#dc2626',
-                  padding: '0.5rem 1.1rem', borderRadius: '7px',
-                  fontWeight: 800, fontSize: '0.85rem', textDecoration: 'none',
-                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)', flexShrink: 0
-                }}>
-                  <Video size={14} /> Entrar a la Clase
-                </a>
-              </div>
-            );
+              );
+            }
+
+            return null;
           })()}
 
           <div className="card-placeholder order-grabacion">
@@ -1167,30 +1309,60 @@ export default function ClassDetail() {
               </div>
             )}
 
-            {activityState === 'completada' && completedResult && (
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <CheckCircle2 size={16} /> Actividad completada ({completedResult.correctCount}/{completedResult.totalCount})
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: '2px' }}>
-                    Puntaje: <strong>{completedResult.scorePct}%</strong> • {completedResult.completedAt}
-                  </div>
-                  {activityConfig?.isMandatory && programProgressDetails && (
-                    <div style={{ fontSize: '0.74rem', color: '#166534', marginTop: '4px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Award size={13} /> Aporte al programa: {programProgressDetails.percentage}%
+            {activityState === 'completada' && completedResult && (() => {
+              const maxAttempts = activityConfig?.maxAttempts ?? 1;
+              const completedCount = completedResult?.attemptsCount || userAttempts.filter(a => a.status === 'completed').length || 1;
+              const canRetry = (maxAttempts === 0 || completedCount < maxAttempts) && activityState !== 'vencida';
+              const remainingAttempts = maxAttempts === 0 ? 'Ilimitados' : Math.max(0, maxAttempts - completedCount);
+
+              return (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle2 size={16} /> Actividad realizada
+                      </span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                        {maxAttempts === 0 ? `Intento ${completedCount}` : `Intento ${completedCount} de ${maxAttempts}`}
+                      </span>
                     </div>
-                  )}
+                    <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: '4px' }}>
+                      Puntaje: <strong>{completedResult.scorePct}%</strong> ({completedResult.correctCount}/{completedResult.totalCount})
+                      {completedResult.bestScore !== undefined && completedResult.bestScore !== completedResult.scorePct && (
+                        <span> • Mejor: <strong>{completedResult.bestScore}%</strong></span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#166534', marginTop: '2px' }}>
+                      {completedResult.completedAt}
+                    </div>
+                    {activityConfig?.isMandatory && programProgressDetails && (
+                      <div style={{ fontSize: '0.74rem', color: '#166534', marginTop: '4px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Award size={13} /> Aporte al programa: {programProgressDetails.percentage}%
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    <button
+                      onClick={handleOpenResults}
+                      className="btn btn-outline"
+                      style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.8rem', color: '#166534', borderColor: '#86efac', background: '#ffffff', fontWeight: 700 }}
+                    >
+                      Revisar respuestas
+                    </button>
+                    {canRetry && (
+                      <button
+                        onClick={handleRetakeActivity}
+                        className="btn btn-primary"
+                        style={{ width: '100%', fontSize: '0.8rem', padding: '0.5rem 0.8rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      >
+                        <RotateCcw size={14} /> Realizar nuevo intento ({remainingAttempts} {remainingAttempts === 1 ? 'disponible' : 'disponibles'})
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={handleOpenResults}
-                  className="btn btn-outline"
-                  style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.8rem', color: '#166534', borderColor: '#86efac', background: '#ffffff', fontWeight: 700 }}
-                >
-                  Revisar resultado
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
           </div>
 
@@ -1653,30 +1825,53 @@ export default function ClassDetail() {
                 </div>
 
                 {/* TARJETA DE NOTA Y PUNTAJE */}
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: '1rem', background: 'var(--bg-light)', padding: '1.25rem',
-                  borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center'
-                }}>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Puntaje Obtenido</div>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.2, marginTop: '4px' }}>
-                      {completedResult?.scorePct ?? 0}%
+                {(() => {
+                  const maxAttempts = activityConfig?.maxAttempts ?? 1;
+                  const completedCount = completedResult?.attemptsCount || userAttempts.filter(a => a.status === 'completed').length || 1;
+                  const canRetry = (maxAttempts === 0 || completedCount < maxAttempts) && activityState !== 'vencida';
+                  const remainingAttempts = maxAttempts === 0 ? 'Ilimitados' : Math.max(0, maxAttempts - completedCount);
+
+                  return (
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '1rem', background: 'var(--bg-light)', padding: '1.25rem',
+                      borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Puntaje Obtenido</div>
+                        <div style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.2, marginTop: '4px' }}>
+                          {completedResult?.scorePct ?? 0}%
+                        </div>
+                        {completedResult?.bestScore !== undefined && completedResult.bestScore !== completedResult.scorePct && (
+                          <div style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 700, marginTop: '2px' }}>
+                            Mejor: {completedResult.bestScore}%
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Aciertos</div>
+                        <div style={{ fontSize: '1.7rem', fontWeight: 800, color: '#166534', lineHeight: 1.2, marginTop: '4px' }}>
+                          {completedResult?.correctCount ?? 0} / {completedResult?.totalCount ?? (activityConfig?.questions?.length || 0)}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Intentos</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)', marginTop: '8px' }}>
+                          {maxAttempts === 0 ? `${completedCount} realizados` : `${completedCount} / ${maxAttempts}`}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: canRetry ? '#15803d' : 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                          {canRetry ? `${remainingAttempts} ${remainingAttempts === 1 ? 'restante' : 'restantes'}` : 'Sin intentos restantes'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Fecha</div>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy)', marginTop: '12px' }}>
+                          {completedResult?.completedAt || 'Reciente'}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Aciertos</div>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#166534', lineHeight: 1.2, marginTop: '4px' }}>
-                      {completedResult?.correctCount ?? 0} / {completedResult?.totalCount ?? (activityConfig?.questions?.length || 0)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Fecha de Finalización</div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--navy)', marginTop: '8px' }}>
-                      {completedResult?.completedAt || 'Reciente'}
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* REVISIÓN DETALLADA DE PREGUNTAS */}
                 <div>
@@ -1798,11 +1993,35 @@ export default function ClassDetail() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
-                  <button onClick={() => setIsActivityModalOpen(false)} className="btn btn-primary" style={{ padding: '0.6rem 1.4rem', fontWeight: 700 }}>
-                    Cerrar y volver a la clase
-                  </button>
-                </div>
+                {(() => {
+                  const maxAttempts = activityConfig?.maxAttempts ?? 1;
+                  const completedCount = completedResult?.attemptsCount || userAttempts.filter(a => a.status === 'completed').length || 1;
+                  const canRetry = (maxAttempts === 0 || completedCount < maxAttempts) && activityState !== 'vencida';
+                  const remainingAttempts = maxAttempts === 0 ? 'Ilimitados' : Math.max(0, maxAttempts - completedCount);
+
+                  return (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+                      <button onClick={() => setIsActivityModalOpen(false)} className="btn btn-outline" style={{ padding: '0.6rem 1.4rem', fontWeight: 600 }}>
+                        Cerrar y volver a la clase
+                      </button>
+                      {canRetry && (
+                        <button
+                          onClick={handleRetakeActivity}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '0.6rem 1.4rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}
+                        >
+                          <RotateCcw size={16} /> Realizar nuevo intento ({remainingAttempts} {remainingAttempts === 1 ? 'restante' : 'restantes'})
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
             ) : showConfirmFinishModal ? (

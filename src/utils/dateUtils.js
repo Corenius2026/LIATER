@@ -124,3 +124,33 @@ export const isUpcomingClass = (isoString) => {
   if (!isoString) return false;
   return new Date(isoString).getTime() > Date.now();
 };
+
+/**
+ * Determina si una clase está en vivo o a menos de 10 minutos de comenzar.
+ * Regla: Se activa desde 10 minutos antes de la hora (class_date) hasta el fin estimado (class_date + duration min, por defecto 120 min),
+ * siempre y cuando no tenga aún video de grabación disponible (lo que indica que ya fue archivada/finalizada).
+ *
+ * @param {Object|string} cls - Objeto clase con { class_date, duration, video_url } o fecha ISO
+ * @param {number} [preMinutes=10] - Minutos de anticipación permitidos (por defecto 10)
+ * @returns {boolean} True si está dentro de la ventana de clase en vivo
+ */
+export const isClassLiveOrSoon = (cls, preMinutes = 10) => {
+  if (!cls) return false;
+  const isoString = typeof cls === 'string' ? cls : cls.class_date;
+  if (!isoString) return false;
+
+  // Si ya tiene grabación de video disponible, la transmisión en vivo terminó
+  if (typeof cls === 'object' && cls.video_url) return false;
+
+  const classTime = new Date(isoString).getTime();
+  if (isNaN(classTime)) return false;
+
+  const now = Date.now();
+  const durationMinutes = (typeof cls === 'object' && cls.duration && cls.duration > 0) ? cls.duration : 120;
+
+  const startWindow = classTime - (preMinutes * 60 * 1000);
+  const endWindow = classTime + (durationMinutes * 60 * 1000);
+
+  return now >= startWindow && now <= endWindow;
+};
+

@@ -75,7 +75,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
       // A. Intentos completados en activity_attempts
       const { data: attempts } = await supabase
         .from('activity_attempts')
-        .select('activity_id')
+        .select('activity_id, student_id')
         .eq('student_id', studentId);
       if (attempts) {
         totalStudentAttempts += attempts.length;
@@ -108,7 +108,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         });
       }
 
-      // D. Escanear todo localStorage (completed_activities, liater_answers, etc.)
+      // D. Escanear todo localStorage (completed_activities, liater_answers, completed_classes, etc.)
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (!k) continue;
@@ -118,14 +118,26 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             try {
               const parsed = JSON.parse(val);
               if (Array.isArray(parsed)) {
-                parsed.forEach(idVal => completedActivityIds.add(String(idVal).toLowerCase()));
+                parsed.forEach(idVal => {
+                  if (idVal) {
+                    completedActivityIds.add(String(idVal).toLowerCase());
+                    totalStudentAttempts++;
+                  }
+                });
               }
             } catch (_) {}
           }
         } else if (k.startsWith('liater_answers_')) {
-          const parts = k.split('_');
-          if (parts.length >= 3 && parts[2]) {
-            completedActivityIds.add(parts[2].toLowerCase());
+          const rest = k.slice('liater_answers_'.length);
+          const lastUnderscore = rest.lastIndexOf('_');
+          if (lastUnderscore !== -1) {
+            const actId = rest.slice(0, lastUnderscore);
+            if (actId) {
+              completedActivityIds.add(actId.toLowerCase());
+              totalStudentAttempts++;
+            }
+          } else {
+            completedActivityIds.add(rest.toLowerCase());
             totalStudentAttempts++;
           }
         }
@@ -331,15 +343,8 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     // -------------------------------------------------------------
     if (programIds.length > 0) {
       try {
-        // Filtrar por class_id in clases del programa (el filtro en join no funciona en Supabase PostgREST)
-        const allClassIds = Object.values(classMap);
-        
-        // Obtener también los IDs de todas las sesiones del programa (pasadas y futuras)
-        const allSessionIds = [];
-        for (const pId of programIds) {
-          const futureSessions = futureClassesByProgram[pId] || [];
-          futureSessions.forEach(s => allSessionIds.push(s.id));
-        }
+        const programHasClassActivitiesInDb = new Set();
+        const programCompletedActivities = new Set();
 
         const { data: classActs, error: actErr } = await supabase
           .from('class_activities')
@@ -353,9 +358,21 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             
             // Solo incluir si pertenece a un programa inscrito del estudiante
             if (pId && programIds.includes(pId)) {
+              programHasClassActivitiesInDb.add(pId);
               const strId = String(ca.id).toLowerCase();
-              const strTitle = String(ca.title).toLowerCase();
-              if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir si ya fue realizada
+              const strTitle = String(ca.title || '').toLowerCase();
+              const strClassId = String(ca.class_id || '').toLowerCase();
+
+              const isCompleted = completedActivityIds.has(strId) || 
+                                  completedActivityIds.has(strTitle) || 
+                                  completedActivityIds.has(strClassId) ||
+                                  completedActivityIds.has(`reforzamiento-${pId}`) ||
+                                  completedActivityIds.has(String(pId).toLowerCase());
+
+              if (isCompleted) {
+                programCompletedActivities.add(pId);
+                return; // Omitir si ya fue realizada
+              }
 
               let dueDate = new Date();
               if (ca.due_date) {
@@ -416,17 +433,23 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         console.info('Información sobre class_activities:', err);
       }
 
-      // Fallback: generar actividad de reforzamiento por defecto si NO hay ninguna de ese tipo en DB
-      // IMPORTANTE: se activa aunque haya sesiones en vivo pendientes
+      // Fallback: generar actividad de reforzamiento por defecto ÚNICAMENTE si:
+      // 1. NO hay actividades reales publicadas en base de datos para ese programa
+      // 2. El estudiante NO ha completado la actividad de este programa
+      // 3. No está en completedActivityIds
       try {
-        const hasReinforcementActivity = pendingActivities.some(a => a.type === 'Actividad de Reforzamiento');
-        
-        if (!hasReinforcementActivity && programIds.length > 0) {
+        if (programIds.length > 0) {
           programIds.forEach(pId => {
+            // Si ya hay actividades reales en base de datos para este programa, NO generar fallback
+            if (programHasClassActivitiesInDb.has(pId)) return;
+
+            // Si el estudiante ya completó una actividad para este programa, NO generar fallback
+            if (programCompletedActivities.has(pId)) return;
+
             const refId = `reforzamiento-${pId}`;
             const isDone = completedActivityIds.has(refId) || 
                            completedActivityIds.has(refId.toLowerCase()) || 
-                           completedActivityIds.has(pId.toLowerCase());
+                           completedActivityIds.has(String(pId).toLowerCase());
             if (isDone) return;
 
             // Calcular fecha límite: 5 min antes de la próxima clase del programa
@@ -485,39 +508,122 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     });
 
     // -------------------------------------------------------------
-    // 5. CONSULTAR ANUNCIOS URGENTES E IMPORTANTES (announcements)
+    // 5. CONSULTAR ÚLTIMOS ANUNCIOS PUBLICADOS (TODOS LOS TIPOS: general, info, urgent)
     // -------------------------------------------------------------
+    const latestAnnouncements = [];
     if (programIds.length > 0) {
       try {
-        const { data: urgentAnnouncements, error: annErr } = await supabase
+        const { data: annData, error: annErr } = await supabase
           .from('announcements')
-          .select('id, title, created_at, tag, program_id, diploma_programs(id, is_published, status)')
-          .eq('tag', 'urgent')
+          .select('id, title, body, created_at, tag, program_id, teacher_id, teacher_profiles(name), diploma_programs(id, title, is_published, status)')
           .in('program_id', programIds)
           .order('created_at', { ascending: false })
-          .limit(3);
+          .limit(10);
 
-        if (!annErr && urgentAnnouncements) {
-          urgentAnnouncements.forEach(ann => {
+        if (!annErr && annData) {
+          annData.forEach(ann => {
             const prog = ann.diploma_programs;
             if (prog && (prog.is_published === false || prog.status === 'draft' || prog.status === 'disabled')) {
               return;
             }
-            pendingActivities.push({
+
+            const rawTag = (ann.tag || 'general').toLowerCase();
+            let tagKey = 'general';
+            let statusLabel = 'General';
+            let urgency = 'upcoming';
+
+            if (rawTag === 'urgent' || rawTag === 'urgente') {
+              tagKey = 'urgent';
+              statusLabel = 'Urgente';
+              urgency = 'overdue';
+            } else if (rawTag === 'info' || rawTag === 'informativo') {
+              tagKey = 'info';
+              statusLabel = 'Informativo';
+              urgency = 'today';
+            }
+
+            const progTitle = ann.diploma_programs?.title || programMap[ann.program_id] || 'Aviso General';
+            const teacherName = ann.teacher_profiles?.name || 'Administración Académica';
+
+            const announcementObj = {
               id: ann.id,
               title: ann.title,
-              type: 'Anuncio importante',
-              programTitle: 'Aviso Institucional',
+              body: ann.body || '',
+              type: 'Anuncio',
+              tag: tagKey,
+              programId: ann.program_id,
+              programTitle: progTitle,
+              teacherName: teacherName,
               date: ann.created_at,
-              urgency: 'upcoming',
-              statusLabel: 'Importante',
-              link: `/portal`
-            });
+              urgency,
+              statusLabel,
+              link: ann.program_id ? `/dashboard/${ann.program_id}` : `/portal`
+            };
+
+            latestAnnouncements.push(announcementObj);
+
+            // Si es urgente, también lo agregamos a pendingActivities
+            if (tagKey === 'urgent') {
+              pendingActivities.push({
+                ...announcementObj,
+                type: 'Anuncio importante'
+              });
+            }
           });
         }
       } catch (err) {
         console.info('Información sobre anuncios:', err);
       }
+    }
+
+    // Consultar también anuncios institucionales globales sin program_id
+    try {
+      const { data: globalAnn } = await supabase
+        .from('announcements')
+        .select('id, title, body, created_at, tag, program_id, teacher_id, teacher_profiles(name)')
+        .is('program_id', null)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (globalAnn && globalAnn.length > 0) {
+        globalAnn.forEach(ann => {
+          const rawTag = (ann.tag || 'general').toLowerCase();
+          let tagKey = 'general';
+          let statusLabel = 'General';
+          let urgency = 'upcoming';
+
+          if (rawTag === 'urgent' || rawTag === 'urgente') {
+            tagKey = 'urgent';
+            statusLabel = 'Urgente';
+            urgency = 'overdue';
+          } else if (rawTag === 'info' || rawTag === 'informativo') {
+            tagKey = 'info';
+            statusLabel = 'Informativo';
+            urgency = 'today';
+          }
+
+          const teacherName = ann.teacher_profiles?.name || 'Administración General';
+
+          latestAnnouncements.push({
+            id: ann.id,
+            title: ann.title,
+            body: ann.body || '',
+            type: 'Anuncio',
+            tag: tagKey,
+            programId: null,
+            programTitle: 'Aviso Institucional',
+            teacherName: teacherName,
+            date: ann.created_at,
+            urgency,
+            statusLabel,
+            link: `/portal`
+          });
+        });
+
+        latestAnnouncements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }
+    } catch (err) {
+      console.info('Información sobre anuncios globales:', err);
     }
 
     // -------------------------------------------------------------
@@ -527,15 +633,16 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     pendingActivities.sort((a, b) => {
       const timeA = a.date ? new Date(a.date).getTime() : Infinity;
       const timeB = b.date ? new Date(b.date).getTime() : Infinity;
-      return timeA - timeB; // Las fechas más antiguas/cercanas primero (ej: 6 de agosto antes que 8 de agosto)
+      return timeA - timeB; // Las fechas más antiguas/cercanas primero
     });
 
     return {
       activities: limit ? pendingActivities.slice(0, limit) : pendingActivities,
+      announcements: latestAnnouncements.slice(0, 5), // Hasta 5 últimos anuncios publicados
       error: null
     };
   } catch (err) {
     console.error('Error al procesar pendientes:', err);
-    return { activities: [], error: null };
+    return { activities: [], announcements: [], error: null };
   }
 }

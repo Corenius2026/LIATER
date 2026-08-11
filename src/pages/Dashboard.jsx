@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { calculateProgramProgressDetails } from '../services/programService';
+import { isClassLiveOrSoon } from '../utils/dateUtils';
 import {
   PlayCircle, BookOpen, Calendar, Video, Clock, User, Megaphone,
   ArrowRight, ArrowLeft, ChevronRight, MessageSquare, Award,
@@ -115,13 +116,20 @@ export default function Dashboard() {
     ? decodeURIComponent(programId).replace(/\s+/g, '-').trim()
     : '';
   const seenAnnouncementsKey = `seen_announcements_${programId}`;
+  const [, setTimeTick] = useState(0);
+
+  // Actualizador periódico cada 30 segundos para recalcular ventana de 10 min en tiempo real
+  useEffect(() => {
+    const timer = setInterval(() => setTimeTick(t => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     async function fetchDashboardData() {
       if (!cleanProgramId) { setLoading(false); return; }
       try {
         setLoading(true);
-        const now = new Date().toISOString();
+        const todayStartIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
 
         // ─── BLOQUE 1: consultas independientes en paralelo ───
         const [
@@ -147,9 +155,9 @@ export default function Dashboard() {
             .from('class_sessions')
             .select('id, title, class_date, duration, video_url, meet_url, teacher_profiles(name)')
             .eq('program_id', cleanProgramId)
-            .gte('class_date', now)
+            .gte('class_date', todayStartIso)
             .order('class_date', { ascending: true })
-            .limit(4),
+            .limit(6),
           supabase
             .from('announcements')
             .select('*, teacher_profiles(name)')
@@ -345,19 +353,24 @@ export default function Dashboard() {
 
   const isCourse = programType === 'curso';
 
-  // Clase de hoy
+  // ── LÓGICA DE CLASE EN VIVO (Habilitada desde 10 min antes hasta fin de transmisión) ──
+  const activeLiveClass = upcomingClasses.find(c => isClassLiveOrSoon(c, 10));
+  const activeLiveMeetUrl = activeLiveClass ? (activeLiveClass.meet_url || meetUrl) : null;
+
+  // Clase de hoy (si hay alguna programada para hoy sin grabación aún)
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
   const todayEnd   = new Date(); todayEnd.setHours(23,59,59,999);
   const classToday = upcomingClasses.find(c => {
     const d = c.class_date ? new Date(c.class_date) : null;
-    return d && d >= todayStart && d <= todayEnd;
+    return d && d >= todayStart && d <= todayEnd && !c.video_url;
   });
-  const classTodayMeetUrl = classToday?.meet_url || meetUrl;
+  const isClassTodayLive = classToday ? isClassLiveOrSoon(classToday, 10) : false;
+  const classTodayMeetUrl = classToday ? (classToday.meet_url || meetUrl) : null;
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
 
-      {/* ── BREADCRUMB + BOTÓN CLASE EN VIVO ── */}
+      {/* ── BREADCRUMB + BOTÓN CLASE EN VIVO (Solo visible 10 min antes o durante transmisión) ── */}
       <div style={{ marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Link to="/portal" className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
@@ -378,8 +391,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {classTodayMeetUrl && (
-          <a href={classTodayMeetUrl} target="_blank" rel="noreferrer" style={{
+        {activeLiveMeetUrl && (
+          <a href={activeLiveMeetUrl} target="_blank" rel="noreferrer" style={{
             background: '#dc2626', color: '#ffffff',
             padding: '0.5rem 1.1rem', borderRadius: '8px',
             fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none',
@@ -419,57 +432,108 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* ── BANNER CLASE HOY ── */}
+      {/* ── BANNER CLASE HOY (EN VIVO O PROGRAMADA) ── */}
       {classToday && (
-        <div style={{
-          background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-          borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem',
-          marginBottom: '1.75rem', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem',
-          boxShadow: '0 4px 20px rgba(220,38,38,0.25)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div style={{
-              width: '42px', height: '42px', borderRadius: '10px',
-              background: 'rgba(255,255,255,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Video size={20} color="#ffffff" />
-            </div>
-            <div>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.72rem', fontWeight: 700,
-                textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.15rem 0' }}>
-                Clase en vivo — HOY
-              </p>
-              <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>
-                {classToday.title}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
-                {classToday.class_date && (
-                  <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.78rem', margin: 0 }}>
-                    {new Date(classToday.class_date).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs
-                  </p>
-                )}
-                {classToday.teacher_profiles?.name && (
-                  <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: '0.78rem', margin: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <User size={12} color="#ffffff" /> Prof. {classToday.teacher_profiles.name}
-                  </p>
-                )}
+        isClassTodayLive ? (
+          <div style={{
+            background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+            borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem',
+            marginBottom: '1.75rem', display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem',
+            boxShadow: '0 4px 20px rgba(220,38,38,0.25)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '42px', height: '42px', borderRadius: '10px',
+                background: 'rgba(255,255,255,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Video size={20} color="#ffffff" />
+              </div>
+              <div>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.72rem', fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.15rem 0' }}>
+                  Clase en vivo — EN TRANSMISIÓN
+                </p>
+                <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>
+                  {classToday.title}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                  {classToday.class_date && (
+                    <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.78rem', margin: 0 }}>
+                      {new Date(classToday.class_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs
+                    </p>
+                  )}
+                  {classToday.teacher_profiles?.name && (
+                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: '0.78rem', margin: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <User size={12} color="#ffffff" /> Prof. {classToday.teacher_profiles.name}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
+            {classTodayMeetUrl && (
+              <a href={classTodayMeetUrl} target="_blank" rel="noreferrer" style={{
+                background: '#ffffff', color: '#dc2626',
+                padding: '0.6rem 1.25rem', borderRadius: '8px',
+                fontWeight: 800, fontSize: '0.88rem', textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)', flexShrink: 0
+              }}>
+                <Video size={15} /> Entrar a la Clase
+              </a>
+            )}
           </div>
-          {classTodayMeetUrl && (
-            <a href={classTodayMeetUrl} target="_blank" rel="noreferrer" style={{
-              background: '#ffffff', color: '#dc2626',
-              padding: '0.6rem 1.25rem', borderRadius: '8px',
-              fontWeight: 800, fontSize: '0.88rem', textDecoration: 'none',
-              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)', flexShrink: 0
+        ) : (
+          <div style={{
+            background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)',
+            borderRadius: 'var(--radius-lg)', padding: '1.15rem 1.5rem',
+            marginBottom: '1.75rem', display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem',
+            border: '1px solid rgba(252,163,17,0.25)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '10px',
+                background: 'var(--gold-subtle)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Calendar size={20} color="var(--gold-dark)" />
+              </div>
+              <div>
+                <p style={{ color: 'var(--gold)', fontSize: '0.72rem', fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.15rem 0' }}>
+                  Clase programada para HOY
+                </p>
+                <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>
+                  {classToday.title}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                  {classToday.class_date && (
+                    <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.78rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Clock size={12} color="var(--gold)" />
+                      Inicio: {new Date(classToday.class_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs
+                    </p>
+                  )}
+                  {classToday.teacher_profiles?.name && (
+                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: '0.78rem', margin: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <User size={12} color="var(--gold)" /> Prof. {classToday.teacher_profiles.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+              background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.9)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              padding: '0.45rem 0.9rem', borderRadius: '8px',
+              fontSize: '0.78rem', fontWeight: 600
             }}>
-              <Video size={15} /> Entrar a la Clase
-            </a>
-          )}
-        </div>
+              <Clock size={13} color="var(--gold)" /> El botón de ingreso se activará 10 min antes
+            </div>
+          </div>
+        )
       )}
 
       {/* ── 4 MÉTRICAS CLAVE ── */}
@@ -601,21 +665,31 @@ export default function Dashboard() {
                 const tomorrowEnd = new Date(todayEnd); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
                 const isTomorrow = classDate && classDate > todayEnd && classDate <= tomorrowEnd;
                 const urgencyLabel = isToday ? 'HOY' : isTomorrow ? 'MAÑANA' : null;
+                const isLiveNow = isClassLiveOrSoon(cls, 10);
                 const clsMeet = cls.meet_url || meetUrl;
 
                 return (
                   <div key={cls.id} style={{
                     padding: '0.85rem 1rem',
-                    border: `1px solid ${isToday ? '#fca5a5' : isTomorrow ? '#fcd34d' : 'var(--border-color)'}`,
-                    borderLeft: `4px solid ${isToday ? '#dc2626' : isTomorrow ? '#d97706' : 'var(--navy)'}`,
+                    border: `1px solid ${isLiveNow ? '#fca5a5' : isToday ? 'rgba(220,38,38,0.2)' : isTomorrow ? '#fcd34d' : 'var(--border-color)'}`,
+                    borderLeft: `4px solid ${isLiveNow ? '#dc2626' : isToday ? '#e11d48' : isTomorrow ? '#d97706' : 'var(--navy)'}`,
                     borderRadius: 'var(--radius-md)',
-                    background: isToday ? '#fff5f5' : isTomorrow ? '#fffbeb' : 'var(--surface-light)'
+                    background: isLiveNow ? '#fff5f5' : isToday ? '#fff8f8' : isTomorrow ? '#fffbeb' : 'var(--surface-light)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
                           <h4 style={{ fontWeight: 700, color: 'var(--navy)', margin: 0, fontSize: '0.87rem' }}>{cls.title}</h4>
-                          {urgencyLabel && (
+                          {isLiveNow ? (
+                            <span style={{
+                              padding: '0.08rem 0.45rem', borderRadius: '999px',
+                              background: '#dc2626', color: '#ffffff',
+                              fontSize: '0.63rem', fontWeight: 800, flexShrink: 0,
+                              animation: 'pulse 2s ease-in-out infinite'
+                            }}>
+                              EN VIVO
+                            </span>
+                          ) : urgencyLabel && (
                             <span style={{
                               padding: '0.08rem 0.45rem', borderRadius: '999px',
                               background: isToday ? '#fee2e2' : '#fffbe6',
@@ -638,7 +712,7 @@ export default function Dashboard() {
                           </p>
                         )}
                       </div>
-                      {isToday && clsMeet ? (
+                      {isLiveNow && clsMeet ? (
                         <a href={clsMeet} target="_blank" rel="noreferrer" className="btn btn-primary"
                           style={{ padding: '0.3rem 0.7rem', fontSize: '0.72rem', flexShrink: 0, background: '#dc2626', border: 'none' }}>
                           <Video size={12} /> Entrar
