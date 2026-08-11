@@ -1819,61 +1819,41 @@ function AdminPortal({ getDiplomadoLink }) {
 
   useEffect(() => {
     async function fetchData() {
-      try {
-        // Conteo de estudiantes
-        const { count: studentCount } = await supabase
-          .from('users_profile')
-          .select('id', { count: 'exact', head: true })
-          .eq('role', 'student');
+      // Counts
+      const pStudents = supabase.from('users_profile').select('*', { count: 'exact', head: true }).eq('role', 'student');
+      const pTeachers = supabase.from('users_profile').select('*', { count: 'exact', head: true }).eq('role', 'teacher');
+      const pPrograms = supabase.from('diploma_programs').select('*', { count: 'exact', head: true });
+      
+      const [resS, resT, resP] = await Promise.all([pStudents, pTeachers, pPrograms]);
+      setCounts({ students: resS.count || 0, teachers: resT.count || 0, programs: resP.count || 0 });
 
-        // Conteo de profesores
-        const { count: teacherCount } = await supabase
-          .from('users_profile')
-          .select('id', { count: 'exact', head: true })
-          .eq('role', 'teacher');
+      // Diplomas list
+      const { data: dData } = await supabase.from('diploma_programs').select('*').order('created_at', { ascending: false });
+      
+      let diplomasData = dData || [];
+      if (diplomasData.length > 0) {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-        // Conteo de diplomados/programas
-        const { data: progData, count: programCount } = await supabase
-          .from('diploma_programs')
-          .select('id, title, description, program_type, image_url, is_published, status, live_class_url, live_class_date', { count: 'exact' })
-          .order('created_at', { ascending: false });
+        const { data: todayClasses } = await supabase
+          .from('class_sessions')
+          .select('program_id, meet_url')
+          .in('program_id', diplomasData.map(d => d.id))
+          .gte('class_date', todayStart)
+          .lt('class_date', todayEnd);
 
-        setCounts({
-          students: studentCount || 0,
-          teachers: teacherCount || 0,
-          programs: programCount || 0
+        diplomasData = diplomasData.map(dip => {
+          const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+          const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
+          return { ...dip, liveUrl };
         });
-
-        // Formatear programas para incluir enlaces de clase en vivo si están programados para hoy
-        const todayStr = new Date().toISOString().split('T')[0];
-        const formattedDiplomas = (progData || []).map(p => {
-          let hasLiveToday = false;
-          if (p.live_class_url && p.live_class_date) {
-            const classDateStr = new Date(p.live_class_date).toISOString().split('T')[0];
-            if (classDateStr === todayStr) {
-              hasLiveToday = true;
-            }
-          }
-          return {
-            ...p,
-            liveUrl: hasLiveToday ? p.live_class_url : null
-          };
-        });
-
-        setDiplomas(formattedDiplomas);
-
-        // Usuarios recientes (últimos 5)
-        const { data: userData } = await supabase
-          .from('users_profile')
-          .select('id, full_name, email, role, created_at')
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        setRecentUsers(userData || []);
-
-      } catch (err) {
-        console.error('Error al cargar datos del panel de administrador:', err);
       }
+      setDiplomas(diplomasData);
+
+      // Recent users
+      const { data: rData } = await supabase.from('users_profile').select('*').order('created_at', { ascending: false }).limit(5);
+      setRecentUsers(rData || []);
     }
     fetchData();
   }, []);
