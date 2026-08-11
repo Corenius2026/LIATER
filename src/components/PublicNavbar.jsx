@@ -54,25 +54,41 @@ export default function PublicNavbar() {
           transition: 'background 0.3s ease'
         }}></div>
 
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', textDecoration: 'none' }}>
           <img 
             src={isScrolled ? liaterLogo : liaterLogoWhite} 
             alt="LIATER" 
             style={{ 
-              height: isScrolled ? '50px' : '54px', 
+              height: isScrolled ? '48px' : '52px', 
               objectFit: 'contain',
               transition: 'all 0.3s ease' 
             }} 
           />
-          <span style={{ 
-            color: isScrolled ? 'var(--navy)' : 'var(--white)', 
-            fontWeight: 800, 
-            fontSize: '1.35rem',
-            letterSpacing: '-0.02em',
-            transition: 'color 0.3s ease'
-          }}>
-            LIATER
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <span style={{ 
+              color: isScrolled ? 'var(--navy)' : 'var(--white)', 
+              fontWeight: 800, 
+              fontSize: '1.25rem',
+              lineHeight: 1.1,
+              letterSpacing: '-0.02em',
+              transition: 'color 0.3s ease'
+            }}>
+              LIATER
+            </span>
+            <span style={{ 
+              color: isScrolled ? 'var(--text-secondary)' : 'rgba(255, 255, 255, 0.78)', 
+              fontSize: '0.64rem',
+              fontWeight: 600,
+              letterSpacing: '0.03em',
+              lineHeight: 1.25,
+              marginTop: '3px',
+              textTransform: 'uppercase',
+              maxWidth: '340px',
+              transition: 'color 0.3s ease'
+            }}>
+              Laboratorio de Investigación en Alta Tensión y Energías Renovables
+            </span>
+          </div>
         </Link>
       </div>
 
