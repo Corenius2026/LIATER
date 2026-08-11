@@ -1992,48 +1992,6 @@ function AdminPortal({ getDiplomadoLink }) {
             ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! 👋 Bienvenido a tu centro de supervisión de programas, profesores y estudiantes.
           </p>
         </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', position: 'relative', zIndex: 1 }}>
-          <button 
-            onClick={() => { setNewProgram({ title: '', description: '', program_type: 'diplomado' }); setShowModal(true); }}
-            className="btn btn-gold"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              padding: '0.7rem 1.35rem', 
-              fontWeight: 700, 
-              borderRadius: '9px', 
-              fontSize: '0.88rem',
-              boxShadow: '0 4px 14px rgba(252, 163, 17, 0.35)'
-            }}
-          >
-            <Plus size={17} /> Crear Diplomado
-          </button>
-          <button 
-            onClick={() => { setNewProgram({ title: '', description: '', program_type: 'curso' }); setShowModal(true); }}
-            className="btn"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              padding: '0.7rem 1.35rem', 
-              fontWeight: 700, 
-              borderRadius: '9px', 
-              fontSize: '0.88rem',
-              background: 'rgba(255, 255, 255, 0.12)',
-              color: '#FFFFFF',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              backdropFilter: 'blur(8px)',
-              transition: 'all 0.2s ease',
-              cursor: 'pointer'
-            }}
-            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.22)'; }}
-            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)'; }}
-          >
-            <Plus size={17} /> Crear Curso
-          </button>
-        </div>
       </div>
 
       {/* BLOQUE 1: MÉTRICAS GLOBALES ADMIN (KPIS CON DISTINCIÓN Y ELEVACIÓN) */}
