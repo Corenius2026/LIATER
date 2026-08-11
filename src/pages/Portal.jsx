@@ -2106,22 +2106,35 @@ function AdminPortal({ getDiplomadoLink }) {
                 const isPublished = dip.is_published !== false && dip.status !== 'draft';
 
                 return (
-                  <div key={dip.id} style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    background: '#FFFFFF', 
-                    border: '1px solid #E2E8F0', 
-                    borderRadius: '12px',
-                    padding: '1.35rem', 
-                    boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    transition: 'all 0.2s ease'
-                  }}>
+                  <div 
+                    key={dip.id} 
+                    style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      background: '#FFFFFF', 
+                      border: '1.5px solid #CBD5E1', 
+                      borderRadius: '14px',
+                      padding: '1.35rem', 
+                      boxShadow: '0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = '#94A3B8';
+                      e.currentTarget.style.boxShadow = '0 8px 22px rgba(15, 23, 42, 0.10)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
                     {/* Indicador de acento superior */}
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: isPublished ? '#FCA311' : '#CBD5E1' }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: isPublished ? '#FCA311' : '#CBD5E1' }} />
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', marginTop: '2px' }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: '#14213D', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Diplomado
                       </span>
@@ -2220,14 +2233,14 @@ function AdminPortal({ getDiplomadoLink }) {
                 style={{ textDecoration: 'none', cursor: 'pointer' }}
               >
                 <div style={{
-                  display: 'flex', flexDirection: 'column', border: '2px dashed #CBD5E1',
-                  borderRadius: '12px', background: '#F8FAFC', padding: '1.5rem',
+                  display: 'flex', flexDirection: 'column', border: '2px dashed #94A3B8',
+                  borderRadius: '14px', background: '#F8FAFC', padding: '1.5rem',
                   alignItems: 'center', justifyContent: 'center', color: '#14213D',
                   height: '100%', minHeight: '210px', transition: 'all 0.2s ease',
                   textAlign: 'center'
                 }}
                 onMouseOver={(e) => { e.currentTarget.style.borderColor = '#FCA311'; e.currentTarget.style.background = '#FFFDF5'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#94A3B8'; e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
                   <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: '#14213D', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem', color: '#FCA311' }}>
                     <Plus size={22} />
@@ -2273,22 +2286,35 @@ function AdminPortal({ getDiplomadoLink }) {
                 const isPublished = dip.is_published !== false && dip.status !== 'draft';
 
                 return (
-                  <div key={dip.id} style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    background: '#FFFFFF', 
-                    border: '1px solid #E2E8F0', 
-                    borderRadius: '12px',
-                    padding: '1.35rem', 
-                    boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    transition: 'all 0.2s ease'
-                  }}>
+                  <div 
+                    key={dip.id} 
+                    style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      background: '#FFFFFF', 
+                      border: '1.5px solid #CBD5E1', 
+                      borderRadius: '14px',
+                      padding: '1.35rem', 
+                      boxShadow: '0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = '#94A3B8';
+                      e.currentTarget.style.boxShadow = '0 8px 22px rgba(15, 23, 42, 0.10)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
                     {/* Indicador de acento superior */}
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: isPublished ? '#14213D' : '#CBD5E1' }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: isPublished ? '#14213D' : '#CBD5E1' }} />
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', marginTop: '2px' }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: '#F1F5F9', color: '#14213D', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Curso Corto
                       </span>
@@ -2416,14 +2442,14 @@ function AdminPortal({ getDiplomadoLink }) {
                 style={{ textDecoration: 'none', cursor: 'pointer' }}
               >
                 <div style={{
-                  display: 'flex', flexDirection: 'column', border: '2px dashed #CBD5E1',
-                  borderRadius: '12px', background: '#F8FAFC', padding: '1.5rem',
+                  display: 'flex', flexDirection: 'column', border: '2px dashed #94A3B8',
+                  borderRadius: '14px', background: '#F8FAFC', padding: '1.5rem',
                   alignItems: 'center', justifyContent: 'center', color: '#14213D',
                   height: '100%', minHeight: '210px', transition: 'all 0.2s ease',
                   textAlign: 'center'
                 }}
                 onMouseOver={(e) => { e.currentTarget.style.borderColor = '#14213D'; e.currentTarget.style.background = '#F0F4FA'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#94A3B8'; e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
                   <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: '#14213D', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem', color: '#FFFFFF' }}>
                     <Plus size={22} />
