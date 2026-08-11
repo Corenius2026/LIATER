@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import liaterLogo from '../assets/liater-logo.png';
 import liaterLogoWhite from '../assets/liater-logo-white.png';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 import unalPillNavyLogo from '../assets/unal-pill-navy-logo.png';
+import LightningBolt from './LightningBolt';
 
 export default function PublicNavbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -81,26 +82,10 @@ export default function PublicNavbar() {
               Laboratorio de Investigación en Alta Tensión y Energías Renovables
             </span>
 
-            {/* Línea de corriente eléctrica nítida sin desenfoque */}
+            {/* Rayo eléctrico ramificado real */}
             {!isScrolled && (
-              <div style={{ 
-                marginTop: '4px', 
-                height: '2px', 
-                width: '100%', 
-                background: 'rgba(255, 255, 255, 0.18)', 
-                position: 'relative',
-                overflow: 'hidden',
-                borderRadius: '2px'
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  height: '100%',
-                  width: '70px',
-                  background: 'linear-gradient(90deg, transparent, #FCA311, #38BDF8, #FFFFFF, transparent)',
-                  animation: 'electricZapLine 2.8s ease-in-out infinite'
-                }} />
+              <div style={{ marginTop: '3px' }}>
+                <LightningBolt width={320} height={22} />
               </div>
             )}
           </div>
