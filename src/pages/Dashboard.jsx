@@ -793,7 +793,7 @@ export default function Dashboard() {
                     <h4 style={{ fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.35rem 0', fontSize: '0.92rem' }}>{a.title}</h4>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem 0', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{a.body}</p>
                     <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', fontWeight: 500, borderTop: '1px solid var(--border-color)', paddingTop: '0.4rem' }}>
-                      Publicado por: <strong>{a.teacher_profiles?.name ? `Prof. ${a.teacher_profiles.name}` : 'Administración Académica'}</strong>
+                      Publicado por: <strong>{a.teacher_profiles?.name ? (a.teacher_profiles.name.toLowerCase().includes('admin') ? a.teacher_profiles.name : `Prof. ${a.teacher_profiles.name}`) : 'Administración Académica'}</strong>
                     </div>
                   </div>
                 );

@@ -577,6 +577,7 @@ function TeacherPortal({ getDiplomadoLink }) {
   const [teacherName, setTeacherName] = useState('');
   const [counts, setCounts] = useState({ doubts: 0, upcomingClasses: 0, activePrograms: 0 });
   const [loading, setLoading] = useState(true);
+  const [adminAnnouncements, setAdminAnnouncements] = useState([]);
 
   // Estados para filtro en "Mis programas" y "Bandeja de consultas"
   const [activeFilter, setActiveFilter] = useState('Todos');
@@ -731,6 +732,21 @@ function TeacherPortal({ getDiplomadoLink }) {
           doubtsData = [];
         }
         setQuestions(doubtsData);
+
+        try {
+          const { data: annData, error: annErr } = await supabase
+            .from('announcements')
+            .select('*, diploma_programs(id, title), teacher_profiles(id, name)')
+            .or('is_global.eq.true,program_id.is.null,teacher_id.is.null')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+          if (!annErr && annData) {
+            setAdminAnnouncements(annData);
+          }
+        } catch (e) {
+          console.error('Error fetching admin announcements', e);
+        }
 
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
@@ -1570,6 +1586,82 @@ function TeacherPortal({ getDiplomadoLink }) {
             <ChevronRight size={16} />
           </div>
         </Link>
+      </div>
+
+      {/* BLOQUE: AVISOS DE ADMINISTRACIÓN */}
+      <div style={{ marginTop: '0.5rem', marginBottom: '2.5rem' }}>
+        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>
+          Avisos de Administración
+        </h2>
+
+        {loading ? (
+          <p style={{ color: 'var(--text-muted)' }}>Cargando avisos...</p>
+        ) : adminAnnouncements.length === 0 ? (
+          <div className="card" style={{ padding: '2rem 1.5rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-muted)', margin: 0 }}>No hay avisos recientes de administración</h3>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+            {adminAnnouncements.map(ann => {
+              const dateObj = new Date(ann.created_at);
+              const isGlobal = ann.is_global || (!ann.program_id && !ann.teacher_id);
+              
+              let scopeLabel = 'Toda la Institución';
+              if (ann.program_id) {
+                if (ann.target_role === 'student') scopeLabel = 'Estudiantes del Programa';
+                else if (ann.target_role === 'teacher') scopeLabel = 'Profesores del Programa';
+                else scopeLabel = 'Todos en el Programa';
+              } else {
+                if (ann.target_role === 'student') scopeLabel = 'Todos los Estudiantes';
+                else if (ann.target_role === 'teacher') scopeLabel = 'Todos los Profesores';
+              }
+
+              const programName = ann.diploma_programs?.title || 'Anuncio Global';
+              const programLink = ann.program_id ? getDiplomadoLink(ann.program_id) : '#';
+
+              return (
+                <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--white)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: isGlobal ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: isGlobal ? '#ef4444' : '#d97706', textTransform: 'uppercase' }}>
+                        {scopeLabel}
+                      </span>
+                      {ann.tag && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: '#f1f5f9', color: '#64748b', textTransform: 'capitalize' }}>
+                          {ann.tag}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                  
+                  <div>
+                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)' }}>{ann.title}</h4>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ann.body}</p>
+                  </div>
+                  
+                  <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                      Publicado por: <strong style={{ color: 'var(--navy)' }}>Administración Académica</strong>
+                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {programName}
+                      </span>
+                      {ann.program_id && (
+                        <Link to={`${programLink}?tab=anuncios`} style={{ fontSize: '0.75rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          Ver <ArrowRight size={12} />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* BLOQUE ÚNICO: PRÓXIMA CLASE */}
