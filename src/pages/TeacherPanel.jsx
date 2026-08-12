@@ -31,6 +31,7 @@ const useTeacherContext = () => React.useContext(TeacherContext);
 ───────────────────────────────────────── */
 function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, initialSection = 'preclass' }) {
   const { currentProgram } = useTeacherContext();
+  const { currentUser } = useAuth();
   const [activeSection, setActiveSection] = useState(initialSection || 'preclass'); // 'preclass' | 'recording' | 'activity'
 
   useEffect(() => {
@@ -697,8 +698,10 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                 )}
               </div>
 
-              {/* Formulario extractor de ID de YouTube */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '10px', padding: '1.25rem' }}>
+              {/* Formulario extractor de ID de YouTube (Solo Admins) */}
+              {currentUser?.role === 'admin' && (
+                <>
+                  <div style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '10px', padding: '1.25rem' }}>
                 <h4 style={{ margin: '0 0 0.75rem 0', color: '#14213D', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <Video size={18} color="#FCA311" /> Extractor de ID y Vinculación de YouTube
                 </h4>
@@ -781,6 +784,8 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                   </div>
                 )}
               </div>
+                </>
+              )}
             </div>
           )}
 
