@@ -779,13 +779,17 @@ function TeacherPortal({ getDiplomadoLink }) {
     fetchTeacherData();
   }, [currentUser]);
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const upcomingClassesList = classes.filter(c => new Date(c.class_date) >= startOfToday).sort((a,b) => new Date(a.class_date) - new Date(b.class_date));
-  const upcomingClasses = upcomingClassesList.length > 0 ? upcomingClassesList : classes;
+  const now = new Date();
+  const upcomingClassesList = classes
+    .filter(c => {
+      const classEndTime = new Date(new Date(c.class_date).getTime() + (parseInt(c.duration) || 120) * 60000);
+      return classEndTime >= now;
+    })
+    .sort((a, b) => new Date(a.class_date) - new Date(b.class_date));
+  const upcomingClasses = upcomingClassesList;
 
   // Próxima clase única (la futura más cercana)
-  const nextClass = upcomingClassesList.length > 0 ? upcomingClassesList[0] : (classes.length > 0 ? classes[0] : null);
+  const nextClass = upcomingClassesList.length > 0 ? upcomingClassesList[0] : null;
 
   let nextClassDay = '';
   let nextClassMonth = '';
