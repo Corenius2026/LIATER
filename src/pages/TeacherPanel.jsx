@@ -6045,7 +6045,7 @@ export default function TeacherPanel() {
                 onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
               >
-                <Video size={16} /> Entrar a la Clase en Vivo
+                <Video size={16} /> Unirse a la sesión en vivo
               </a>
             )}
             <Link

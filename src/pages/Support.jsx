@@ -65,8 +65,34 @@ export default function Support() {
       answer: 'En la parte superior, revisa el selector "Mis Programas". Si no lo ves allí, asegúrate de que estás ingresando con el correo con el que te registraste, y de lo contrario comunícate con soporte.'
     }
   ];
+  const adminFaqs = [
+    {
+      question: '¿Cómo creo un nuevo programa o curso?',
+      answer: 'Desde la sección de Panorama General, puedes utilizar el acceso rápido "Nuevo Programa" para abrir el formulario de creación y definir el título, descripción y tipo de programa.'
+    },
+    {
+      question: '¿Cómo activo o desactivo un programa?',
+      answer: 'Puedes hacerlo desde el menú de opciones (tres puntos) en la tarjeta del programa en tu panel de Panorama General, y usar el interruptor "Estado de publicación" para cambiarlo a Publicado o Borrador.'
+    },
+    {
+      question: '¿Cómo envío una comunicación masiva?',
+      answer: 'Dirígete a la pestaña de "Comunicaciones" y selecciona "Redactar Nuevo Mensaje". Podrás elegir enviar un mensaje a todos los estudiantes de un programa específico o buscar usuarios particulares.'
+    },
+    {
+      question: '¿Cómo gestiono las cuentas de estudiantes y profesores?',
+      answer: 'En la sección de "Gestión de Usuarios" puedes buscar a cualquier usuario registrado, visualizar sus datos, y editar su rol o información básica utilizando las acciones disponibles en la tabla.'
+    },
+    {
+      question: '¿Cómo puedo monitorear las clases en vivo?',
+      answer: 'En tu Panorama General, los programas que tengan una clase activa en este momento mostrarán un indicador rojo de "En vivo" junto con un botón para que puedas unirte a la sesión como observador.'
+    },
+    {
+      question: '¿Qué hago si necesito asistencia técnica avanzada?',
+      answer: 'Para configuraciones del sistema, problemas de acceso, o dudas complejas de la plataforma, utiliza nuestros canales directos de "Envíanos un correo" o "Asistencia rápida" situados en la parte superior.'
+    }
+  ];
 
-  const faqs = currentUser?.role === 'teacher' || currentUser?.role === 'admin' ? teacherFaqs : studentFaqs;
+  const faqs = currentUser?.role === 'admin' ? adminFaqs : (currentUser?.role === 'teacher' ? teacherFaqs : studentFaqs);
 
   return (
     <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto', animation: 'fadeSlideUp 0.35s ease-out' }}>

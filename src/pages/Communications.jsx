@@ -96,16 +96,18 @@ export default function Communications() {
             <thead>
               <tr>
                 <th>Título</th>
+                <th>Publicado por</th>
                 <th>Alcance</th>
                 <th>Etiqueta</th>
                 <th>Fecha</th>
-                <th style={{ width: '100px', textAlign: 'center' }}>Acciones</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {announcements.map(a => (
                 <tr key={a.id} style={{ transition: "background 0.15s" }}>
                   <td style={{ fontWeight: 600, color: 'var(--navy)' }}>{a.title}</td>
+                  <td>{a.teacher_profiles?.name || 'Administración'}</td>
                   <td>
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, background: '#f1f5f9', color: '#475569', padding: '0.25rem 0.6rem', borderRadius: '12px' }}>
                       {a.program_id ? a.diploma_programs?.title || 'Específico' : 'Global (Todos)'}
@@ -126,11 +128,13 @@ export default function Communications() {
                     </span>
                   </td>
                   <td style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{formatShortDate(a.created_at)}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', alignItems: 'center' }}>
-                      <button onClick={() => handleEdit(a)} title="Editar" style={{ display: "flex", alignItems: "center", gap: "0.25rem", padding: "0.3rem 0.65rem", background: "var(--navy)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
-                        <Pencil size={12} /> Editar
-                      </button>
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                      {!a.teacher_id && (
+                        <button onClick={() => handleEdit(a)} title="Editar" style={{ display: "flex", alignItems: "center", gap: "0.25rem", padding: "0.3rem 0.65rem", background: "var(--navy)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
+                          <Pencil size={12} /> Editar
+                        </button>
+                      )}
                       <button onClick={() => handleDelete(a.id)} title="Eliminar" style={{ padding: "0.3rem 0.6rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 700 }}>
                         <Trash2 size={14} />
                       </button>

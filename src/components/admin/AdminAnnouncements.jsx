@@ -74,6 +74,7 @@ export default function AnunciosTab({ programId }) {
                 <th>Título</th>
                 <th>Publicado por</th>
                 <th>Etiqueta</th>
+                <th>Alcance</th>
                 <th>Fecha</th>
                 <th style={{ width: '100px', textAlign: 'right' }}>Acciones</th>
               </tr>
@@ -91,10 +92,25 @@ export default function AnunciosTab({ programId }) {
                       {a.tag}
                     </span>
                   </td>
+                  <td>
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px',
+                      backgroundColor: a.target_role === 'student' ? '#f3e8ff' : a.target_role === 'teacher' ? '#ffedd5' : '#e2e8f0',
+                      color: a.target_role === 'student' ? '#7e22ce' : a.target_role === 'teacher' ? '#c2410c' : '#475569',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {a.target_role === 'student' ? 'Estudiantes' : a.target_role === 'teacher' ? 'Profesores' : 'Todos'}
+                    </span>
+                  </td>
                   <td>{formatShortDate(a.created_at)}</td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                      <button onClick={() => handleEdit(a)} className="action-btn" title="Editar"><Pencil size={15} /></button>
+                      {!a.teacher_id && (
+                        <button onClick={() => handleEdit(a)} className="action-btn" title="Editar"><Pencil size={15} /></button>
+                      )}
                       <button onClick={() => handleDelete(a.id)} className="action-btn action-delete" title="Eliminar"><Trash2 size={15} /></button>
                     </div>
                   </td>

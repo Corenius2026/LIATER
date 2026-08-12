@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   ListTree, Video, FileText, Settings, ShieldAlert, ArrowLeft, Megaphone
 } from 'lucide-react';
+import { isClassLiveOrSoon } from '../utils/dateUtils';
 
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminStudents from '../components/admin/AdminStudents';
@@ -62,9 +63,32 @@ export default function AdminPanel() {
     upcomingClasses: [], enrolledStudents: [],
     counts: { usuarios: 0, profesores: 0, modulos: 0, sesiones: 0, subtemas: 0, clases: 0 }
   });
+  
+  const activeLiveClass = data.classes.find(c => isClassLiveOrSoon(c, 10));
+  const activeLiveMeetUrl = activeLiveClass ? (activeLiveClass.meet_url || data.program?.meet_url) : null;
+
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const refreshData = () => setRefreshTrigger(prev => prev + 1);
+
+  const handleTogglePublish = async () => {
+    if (!programId || !data.program) return;
+    const currentlyPublished = data.program?.is_published !== false && data.program?.status !== 'draft';
+    const nextState = !currentlyPublished;
+    try {
+      const updates = nextState
+        ? { is_published: true, status: 'published' }
+        : { is_published: false, status: 'draft' };
+      const { error } = await supabase
+        .from('diploma_programs')
+        .update(updates)
+        .eq('id', decodeURIComponent(programId).trim());
+      if (error) throw error;
+      refreshData();
+    } catch (err) {
+      console.error('Error al cambiar estado de publicación:', err);
+    }
+  };
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -192,7 +216,7 @@ export default function AdminPanel() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'resumen':    return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
+      case 'resumen':    return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} isPublished={data.program?.is_published !== false && data.program?.status !== 'draft'} onTabChange={handleTabChange} onTogglePublish={handleTogglePublish} activeLiveMeetUrl={activeLiveMeetUrl} activeLiveTitle={activeLiveClass?.title || null} />;
       case 'curriculum': return <CourseBuilder modules={data.modules} sessions={data.sessions} classes={data.classes} teachers={data.teachers} isCourse={isCourse} programId={programId} onRefresh={refreshData} />;
       case 'alumnos':    return <AdminStudents enrolledStudents={data.enrolledStudents} programId={programId} programTitle={data.program?.title} onRefresh={refreshData} />;
       case 'profesores': return <AdminTeachers teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} programTitle={data.program?.title} />;
@@ -215,9 +239,29 @@ export default function AdminPanel() {
           <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
           <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
         </div>
-        {data.program?.meet_url && (
-          <a href={data.program.meet_url} target="_blank" rel="noreferrer" style={{ background: '#FCA311', color: '#14213D', padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 2px 4px rgba(252,163,17,0.2)' }}>
-            <Video size={18} /> Entrar a la Clase
+        {activeLiveMeetUrl && (
+          <a
+            href={activeLiveMeetUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              background: '#FCA311',
+              color: '#14213D',
+              padding: '0.45rem 1rem',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <Video size={16} /> Unirse a la sesión en vivo
           </a>
         )}
       </div>

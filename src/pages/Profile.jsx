@@ -1176,15 +1176,15 @@ export default function Profile() {
           <div className="card static-card" style={{ padding: '1.5rem 1.75rem', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', borderTop: '4px solid var(--navy)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
               <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '1.8rem', boxShadow: '0 6px 18px rgba(20, 33, 61, 0.15)', border: '2.5px solid #ffffff', flexShrink: 0 }}>
-                {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'E'}
+                {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : (role === 'admin' ? 'A' : 'E')}
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                   <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
-                    {personalData.full_name || 'Estudiante'}
+                    {personalData.full_name || (role === 'admin' ? 'Administrador' : 'Estudiante')}
                   </h2>
                   <span className="badge badge-navy" style={{ padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: 700 }}>
-                    Estudiante LIATER
+                    {role === 'admin' ? 'ADMINISTRADOR LIATER' : 'ESTUDIANTE LIATER'}
                   </span>
                 </div>
                 

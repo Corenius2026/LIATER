@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video } from 'lucide-react';
-import { formatShortDate } from '../utils/dateUtils';
+import { formatShortDate, isClassLiveOrSoon } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
 import PendingActivitiesCard from '../components/PendingActivitiesCard';
@@ -61,7 +61,7 @@ function StudentPortal({ getDiplomadoLink }) {
           // Buscar clases programadas para hoy
           const { data: todayClasses } = await supabase
             .from('class_sessions')
-            .select('program_id, meet_url')
+            .select('program_id, meet_url, class_date, duration')
             .in('program_id', enrolledDiplomas.map(d => d.id))
             .gte('class_date', todayStart)
             .lt('class_date', todayEnd);
@@ -69,7 +69,7 @@ function StudentPortal({ getDiplomadoLink }) {
           const diplomasWithProgress = await Promise.all(
             enrolledDiplomas.map(async (dip) => {
               const progress = await calculateProgramProgress(dip.id, currentUser.id);
-              const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+              const liveClass = todayClasses?.find(c => c.program_id === dip.id && isClassLiveOrSoon(c, 10));
               const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
               return { ...dip, progress, liveUrl };
             })
@@ -627,13 +627,13 @@ function TeacherPortal({ getDiplomadoLink }) {
 
             const { data: todayClasses } = await supabase
               .from('class_sessions')
-              .select('program_id, meet_url')
+              .select('program_id, meet_url, class_date, duration')
               .in('program_id', fetchedDiplomas.map(d => d.id))
               .gte('class_date', todayStart)
               .lt('class_date', todayEnd);
 
             teacherDiplomas = fetchedDiplomas.map(dip => {
-              const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+              const liveClass = todayClasses?.find(c => c.program_id === dip.id && isClassLiveOrSoon(c, 10));
               const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
               return { ...dip, liveUrl };
             });
@@ -1002,26 +1002,27 @@ function TeacherPortal({ getDiplomadoLink }) {
                         href={program.liveUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="btn"
                         style={{ 
-                          textAlign: 'center', 
-                          width: '100%', 
+                          display: 'flex', 
+                          alignItems: 'center', 
                           justifyContent: 'center', 
-                          padding: '0.55rem', 
+                          gap: '0.4rem',
+                          width: '100%', 
+                          padding: '0.45rem 1rem', 
                           fontWeight: 700, 
                           fontSize: '0.85rem',
-                          borderRadius: 'var(--radius-md)',
-                          background: '#fee2e2',
-                          color: '#dc2626',
-                          border: '1px solid #fecaca',
+                          borderRadius: '6px',
+                          background: '#FCA311',
+                          color: '#14213D',
+                          textDecoration: 'none',
                           marginBottom: '0.75rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem'
+                          boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
+                          transition: 'all 0.2s ease'
                         }}
+                        onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                        onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
                       >
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', animation: 'pulse 1.5s infinite' }} />
-                        Clase en Vivo (Hoy)
+                        <Video size={16} /> Unirse a la sesión en vivo
                       </a>
                     )}
 
@@ -1813,23 +1814,42 @@ function TeacherPortal({ getDiplomadoLink }) {
 
             {/* ACCIONES A LA DERECHA */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexShrink: 0, flexWrap: 'wrap' }}>
-              <Link 
-                to={getDiplomadoLink(nextClassProgId)} 
-                className="btn" 
-                style={{ 
-                  background: 'var(--navy)', 
-                  color: 'var(--white)', 
-                  border: 'none', 
-                  padding: '0.65rem 1.25rem', 
-                  fontWeight: 700, 
-                  fontSize: '0.88rem', 
-                  borderRadius: '8px', 
-                  textDecoration: 'none',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Preparar clase
-              </Link>
+              {isClassLiveOrSoon(nextClass, 10) && (nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url) ? (
+                <a 
+                  href={nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  style={{ 
+                    display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                    background: '#14213D', color: '#FFFFFF', textDecoration: 'none',
+                    padding: '0.5rem 1.1rem', borderRadius: '7px', fontWeight: 700,
+                    fontSize: '0.83rem', transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                  onMouseOut={e => e.currentTarget.style.background = '#14213D'}
+                >
+                  <Video size={15} /> Unirse a la sesión en vivo
+                </a>
+              ) : (
+                <Link 
+                  to={getDiplomadoLink(nextClassProgId)} 
+                  className="btn" 
+                  style={{ 
+                    background: 'var(--navy)', 
+                    color: 'var(--white)', 
+                    border: 'none', 
+                    padding: '0.65rem 1.25rem', 
+                    fontWeight: 700, 
+                    fontSize: '0.88rem', 
+                    borderRadius: '8px', 
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Preparar clase
+                </Link>
+              )}
 
               <Link 
                 to="/portal?tab=agenda" 
@@ -1960,13 +1980,13 @@ function AdminPortal({ getDiplomadoLink }) {
 
         const { data: todayClasses } = await supabase
           .from('class_sessions')
-          .select('program_id, meet_url')
+          .select('program_id, meet_url, class_date, duration')
           .in('program_id', diplomasData.map(d => d.id))
           .gte('class_date', todayStart)
           .lt('class_date', todayEnd);
 
         diplomasData = diplomasData.map(dip => {
-          const liveClass = todayClasses?.find(c => c.program_id === dip.id);
+          const liveClass = todayClasses?.find(c => c.program_id === dip.id && isClassLiveOrSoon(c, 10));
           const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
           return { ...dip, liveUrl };
         });
@@ -2116,81 +2136,155 @@ function AdminPortal({ getDiplomadoLink }) {
         </div>
       </div>
 
-      {/* BLOQUE 1: MÉTRICAS GLOBALES ADMIN (KPIS CON DISTINCIÓN Y ELEVACIÓN) */}
+      {/* BLOQUE 1: MÉTRICAS GLOBALES ADMIN (KPIS — accionables) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
         
-        {/* Total Estudiantes */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '14px',
-          padding: '1.4rem 1.5rem',
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1.25rem',
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #14213D, #2563EB)' }} />
-          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'rgba(20, 33, 61, 0.07)', color: '#14213D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Users size={24} />
+        {/* Total Estudiantes → /users */}
+        <Link to="/users" style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: '#FFFFFF', borderRadius: '14px', padding: '1.4rem 1.5rem',
+            border: '1px solid #E2E8F0', boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
+            display: 'flex', alignItems: 'center', gap: '1.25rem',
+            position: 'relative', overflow: 'hidden', cursor: 'pointer',
+            transition: 'box-shadow 0.2s, transform 0.2s'
+          }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px -4px rgba(15,23,42,0.12)'; }}
+            onMouseOut={e  => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = '0 4px 20px -2px rgba(15,23,42,0.05)'; }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #14213D, #2563EB)' }} />
+            <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'rgba(20, 33, 61, 0.07)', color: '#14213D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Users size={24} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>Total Estudiantes</span>
+              <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#14213D', lineHeight: 1.1, marginTop: '0.15rem' }}>{counts.students}</div>
+            </div>
           </div>
-          <div>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>Total Estudiantes</span>
-            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#14213D', lineHeight: 1.1, marginTop: '0.15rem' }}>{counts.students}</div>
-          </div>
-        </div>
+        </Link>
 
-        {/* Programas Creados */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '14px',
-          padding: '1.4rem 1.5rem',
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1.25rem',
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #4F46E5, #06B6D4)' }} />
-          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'rgba(79, 70, 229, 0.08)', color: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <BookOpen size={24} />
+        {/* Programas Creados → scroll al catálogo */}
+        <a href="#admin-catalogos" style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: '#FFFFFF', borderRadius: '14px', padding: '1.4rem 1.5rem',
+            border: '1px solid #E2E8F0', boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
+            display: 'flex', alignItems: 'center', gap: '1.25rem',
+            position: 'relative', overflow: 'hidden', cursor: 'pointer',
+            transition: 'box-shadow 0.2s, transform 0.2s'
+          }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px -4px rgba(15,23,42,0.12)'; }}
+            onMouseOut={e  => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = '0 4px 20px -2px rgba(15,23,42,0.05)'; }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #4F46E5, #06B6D4)' }} />
+            <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'rgba(79, 70, 229, 0.08)', color: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <BookOpen size={24} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>Programas Creados</span>
+              <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#14213D', lineHeight: 1.1, marginTop: '0.15rem' }}>{counts.programs}</div>
+            </div>
           </div>
-          <div>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>Programas Creados</span>
-            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#14213D', lineHeight: 1.1, marginTop: '0.15rem' }}>{counts.programs}</div>
-          </div>
-        </div>
+        </a>
 
-        {/* Profesores */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '14px',
-          padding: '1.4rem 1.5rem',
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1.25rem',
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #FCA311, #F59E0B)' }} />
-          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'rgba(252, 163, 17, 0.12)', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <GraduationCap size={24} />
+        {/* Profesores → /users */}
+        <Link to="/users" style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: '#FFFFFF', borderRadius: '14px', padding: '1.4rem 1.5rem',
+            border: '1px solid #E2E8F0', boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
+            display: 'flex', alignItems: 'center', gap: '1.25rem',
+            position: 'relative', overflow: 'hidden', cursor: 'pointer',
+            transition: 'box-shadow 0.2s, transform 0.2s'
+          }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px -4px rgba(15,23,42,0.12)'; }}
+            onMouseOut={e  => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = '0 4px 20px -2px rgba(15,23,42,0.05)'; }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #FCA311, #F59E0B)' }} />
+            <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'rgba(252, 163, 17, 0.12)', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <GraduationCap size={24} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>Profesores</span>
+              <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#14213D', lineHeight: 1.1, marginTop: '0.15rem' }}>{counts.teachers}</div>
+            </div>
           </div>
-          <div>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>Profesores</span>
-            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: '#14213D', lineHeight: 1.1, marginTop: '0.15rem' }}>{counts.teachers}</div>
-          </div>
-        </div>
+        </Link>
 
       </div>
 
+      {/* BLOQUE 1.5: ACCESOS RÁPIDOS GLOBALES */}
+      <div style={{ background: '#FFFFFF', borderRadius: '14px', padding: '1.25rem 1.5rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 20px -2px rgba(15,23,42,0.04)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>Accesos Rápidos</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+
+          {/* Nuevo Programa */}
+          <button
+            onClick={() => { setNewProgram({ title: '', description: '', program_type: 'diplomado' }); setShowModal(true); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.85rem',
+              padding: '0.9rem 1.1rem', borderRadius: '10px',
+              background: 'rgba(20,33,61,0.05)', border: '1px solid #E2E8F0',
+              cursor: 'pointer', textAlign: 'left', transition: 'all 0.18s'
+            }}
+            onMouseOver={e => { e.currentTarget.style.background = 'rgba(20,33,61,0.09)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseOut={e  => { e.currentTarget.style.background = 'rgba(20,33,61,0.05)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <div style={{ width: 36, height: 36, borderRadius: '8px', background: '#14213D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Plus size={18} color="#FCA311" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.87rem', color: '#14213D' }}>Nuevo Programa</div>
+              <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>Crear diplomado o curso</div>
+            </div>
+          </button>
+
+          {/* Gestión de Usuarios */}
+          <Link to="/users" style={{ textDecoration: 'none' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.85rem',
+              padding: '0.9rem 1.1rem', borderRadius: '10px',
+              background: 'rgba(252,163,17,0.07)', border: '1px solid #FDE68A',
+              cursor: 'pointer', transition: 'all 0.18s'
+            }}
+              onMouseOver={e => { e.currentTarget.style.background = 'rgba(252,163,17,0.13)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseOut={e  => { e.currentTarget.style.background = 'rgba(252,163,17,0.07)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ width: 36, height: 36, borderRadius: '8px', background: '#FCA311', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Users size={18} color="#14213D" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.87rem', color: '#14213D' }}>Gestión de Usuarios</div>
+                <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>Ver y administrar cuentas</div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Comunicaciones */}
+          <Link to="/communications" style={{ textDecoration: 'none' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.85rem',
+              padding: '0.9rem 1.1rem', borderRadius: '10px',
+              background: 'rgba(79,70,229,0.06)', border: '1px solid #C7D2FE',
+              cursor: 'pointer', transition: 'all 0.18s'
+            }}
+              onMouseOver={e => { e.currentTarget.style.background = 'rgba(79,70,229,0.11)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseOut={e  => { e.currentTarget.style.background = 'rgba(79,70,229,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ width: 36, height: 36, borderRadius: '8px', background: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <MessageSquare size={18} color="#FFFFFF" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.87rem', color: '#14213D' }}>Comunicaciones</div>
+                <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2 }}>Anuncios y mensajes globales</div>
+              </div>
+            </div>
+          </Link>
+
+        </div>
+      </div>
+
       {/* BLOQUE PRINCIPAL: CATÁLOGOS + SIDEBAR */}
+      <div id="admin-catalogos" />
       <div className="portal-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '2rem', alignItems: 'start' }}>
         <div className="portal-main" style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           
@@ -2492,25 +2586,26 @@ function AdminPortal({ getDiplomadoLink }) {
                           href={dip.liveUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="btn"
                           style={{ 
-                            textAlign: 'center', 
-                            width: '100%', 
+                            display: 'flex', 
+                            alignItems: 'center', 
                             justifyContent: 'center', 
-                            padding: '0.55rem', 
+                            gap: '0.4rem',
+                            width: '100%', 
+                            padding: '0.45rem 1rem', 
                             fontWeight: 700, 
-                            fontSize: '0.82rem',
-                            borderRadius: '8px',
-                            background: '#FEE2E2',
-                            color: '#DC2626',
-                            border: '1px solid #FECACA',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
+                            fontSize: '0.85rem',
+                            borderRadius: '6px',
+                            background: '#FCA311',
+                            color: '#14213D',
+                            textDecoration: 'none',
+                            boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
+                            transition: 'all 0.2s ease'
                           }}
+                          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
                         >
-                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#DC2626' }} />
-                          Clase en Vivo (Hoy)
+                          <Video size={16} /> Unirse a la sesión en vivo
                         </a>
                       )}
 
@@ -2621,9 +2716,20 @@ function AdminPortal({ getDiplomadoLink }) {
               <h3 style={{ fontSize: '1.05rem', color: '#14213D', margin: 0, fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Users size={18} color="#14213D" /> Usuarios Recientes
               </h3>
-              <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#64748B' }}>
-                Últimos registros
-              </span>
+              <Link
+                to="/users"
+                style={{
+                  fontSize: '0.76rem', fontWeight: 700, color: '#14213D',
+                  textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '0.25rem 0.6rem', borderRadius: '20px',
+                  background: 'rgba(20,33,61,0.06)', border: '1px solid #E2E8F0',
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(20,33,61,0.12)'}
+                onMouseOut={e  => e.currentTarget.style.background = 'rgba(20,33,61,0.06)'}
+              >
+                Ver todos <ArrowRight size={12} />
+              </Link>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>

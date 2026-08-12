@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Save, AlertCircle, CheckCircle, Upload, Trash2, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
+import { Save, AlertCircle, CheckCircle, Upload, Trash2, Image as ImageIcon, Eye, EyeOff, Video, MessageCircle, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import { uploadProgramCover } from '../../services/programService';
@@ -28,6 +28,10 @@ export default function AdminSettingsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Estados para modal de eliminación
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   useEffect(() => {
     async function fetchProgram() {
@@ -112,9 +116,13 @@ export default function AdminSettingsTab() {
     }
   };
 
-  const handleDeleteProgram = async () => {
-    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente este programa ("${title}")?\n\nEsta acción no se puede deshacer y borrará TODOS sus módulos, clases, tareas, inscripciones y contenido asociado.`);
-    if (!confirmed) return;
+  const handleDeleteProgram = () => {
+    setShowDeleteModal(true);
+    setDeleteConfirmText('');
+  };
+
+  const confirmDeleteProgram = async () => {
+    if (deleteConfirmText !== title) return;
 
     try {
       // 1. Eliminar inscripciones vinculadas
@@ -143,10 +151,12 @@ export default function AdminSettingsTab() {
 
       if (deleteError) throw deleteError;
 
+      setShowDeleteModal(false);
       navigate('/portal');
     } catch (err) {
       console.error('Error al eliminar el programa y su contenido:', err);
       setError('Hubo un error al intentar eliminar el programa.');
+      setShowDeleteModal(false);
     }
   };
 
@@ -251,6 +261,8 @@ export default function AdminSettingsTab() {
               style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
             />
           </div>
+
+
           
           <div>
             <label htmlFor="settings-description-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Descripción</label>
@@ -264,7 +276,9 @@ export default function AdminSettingsTab() {
           </div>
 
           <div>
-            <label htmlFor="settings-meet-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Enlace Global de Clase en Vivo (Meet/Zoom)</label>
+            <label htmlFor="settings-meet-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', marginBottom: '8px' }}>
+              <Video size={16} /> Enlace Global de Clase en Vivo (Meet/Zoom)
+            </label>
             <input 
               id="settings-meet-input"
               type="url"
@@ -279,7 +293,9 @@ export default function AdminSettingsTab() {
           </div>
 
           <div>
-            <label htmlFor="settings-whatsapp-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>ID Grupo WhatsApp (Bot)</label>
+            <label htmlFor="settings-whatsapp-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', marginBottom: '8px' }}>
+              <MessageCircle size={16} /> ID Grupo WhatsApp (Bot)
+            </label>
             <input 
               id="settings-whatsapp-input"
               type="text"
@@ -390,6 +406,69 @@ export default function AdminSettingsTab() {
           </div>
         </form>
       </div>
+
+      {showDeleteModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '2rem', borderRadius: '8px', maxWidth: '450px', width: '90%', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={24} /> Confirmar Eliminación
+              </h3>
+              <button onClick={() => setShowDeleteModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.5 }}>
+              Estás a punto de eliminar permanentemente este programa. Esta acción <strong>no se puede deshacer</strong> y borrará en cascada:
+            </p>
+            <ul style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', paddingLeft: '1.5rem', lineHeight: 1.5 }}>
+              <li>Todas las inscripciones de estudiantes.</li>
+              <li>Todos los módulos, temas y clases en vivo.</li>
+              <li>Todas las tareas y cuestionarios asociados.</li>
+            </ul>
+            
+            <p style={{ color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>
+              Por favor, escribe <strong>{title}</strong> para confirmar:
+            </p>
+            
+            <input 
+              type="text" 
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)', marginBottom: '1.5rem' }}
+              placeholder={title}
+            />
+            
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setShowDeleteModal(false)}
+                style={{ padding: '8px 16px', border: '1px solid var(--border-color)', background: 'white', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDeleteProgram}
+                disabled={deleteConfirmText !== title}
+                style={{ 
+                  padding: '8px 16px', 
+                  border: 'none', 
+                  background: deleteConfirmText === title ? '#dc2626' : '#fca5a5', 
+                  color: 'white', 
+                  borderRadius: '4px', 
+                  cursor: deleteConfirmText === title ? 'pointer' : 'not-allowed', 
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Trash2 size={16} /> Eliminar Definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
