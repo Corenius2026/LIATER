@@ -193,7 +193,7 @@ function ClassCreateModal({ isOpen, onClose, onRefresh, programId, initialSessio
         class_date: parseLocalDatetime(classDate),
         duration: duration ? parseInt(duration) : null,
         order_index: parseInt(orderIndex) || 1, program_id: programId,
-        session_id: sessionId, subtopic_id: sessionId
+        subtopic_id: sessionId
       };
       const { error: err } = await supabase.from('class_sessions').insert([payload]);
       if (err) throw err;
@@ -314,7 +314,7 @@ function ClassEditDrawer({ isOpen, onClose, onRefresh, programId, classData, ses
         video_url: videoUrl || null, presentation_url: presentationUrl || null,
         drive_folder_id: driveFolderId.trim() || null,
         order_index: parseInt(orderIndex) || 1, program_id: programId,
-        session_id: sessionId, subtopic_id: sessionId
+        subtopic_id: sessionId
       };
       const { error: err } = await supabase.from('class_sessions').update(payload).eq('id', classData.id);
       if (err) throw err;
