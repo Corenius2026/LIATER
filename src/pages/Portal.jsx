@@ -1641,6 +1641,10 @@ function TeacherPortal({ getDiplomadoLink }) {
               const programName = ann.diploma_programs?.title || 'Anuncio Global';
               const programLink = ann.program_id ? getDiplomadoLink(ann.program_id) : '#';
 
+              let tagStyle = { color: '#14213D', bg: '#EEF2F8', icon: '📢', label: 'General' };
+              if (ann.tag === 'urgent') tagStyle = { color: '#991b1b', bg: '#fee2e2', icon: '🔴', label: 'Urgente' };
+              else if (ann.tag === 'info') tagStyle = { color: '#1d4ed8', bg: '#dbeafe', icon: '📌', label: 'Informativo' };
+
               return (
                 <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--white)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1649,8 +1653,8 @@ function TeacherPortal({ getDiplomadoLink }) {
                         {scopeLabel}
                       </span>
                       {ann.tag && (
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: '#f1f5f9', color: '#64748b', textTransform: 'capitalize' }}>
-                          {ann.tag}
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {tagStyle.icon} {tagStyle.label}
                         </span>
                       )}
                     </div>
