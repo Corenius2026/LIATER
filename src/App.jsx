@@ -20,7 +20,7 @@ import Teachers from './pages/Teachers';
 import TeacherResources from './pages/TeacherResources';
 import ClassesManagement from './pages/ClassesManagement';
 import UserManagement from './pages/UserManagement';
-import AdminSettings from './pages/AdminSettings';
+import Communications from './pages/Communications';
 import AdminPanel from './pages/AdminPanel';
 import TeacherPanel from './pages/TeacherPanel';
 import Portal from './pages/Portal';
@@ -76,7 +76,7 @@ function App() {
             <Route path="/resources/:programId" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherResources /></ProtectedRoute>} />
             <Route path="/classes/:programId" element={<ProtectedRoute allowedRoles={['teacher', 'admin']}><ClassesManagement /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
-            <Route path="/settings/:programId" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+            <Route path="/communications" element={<ProtectedRoute allowedRoles={['admin']}><Communications /></ProtectedRoute>} />
           </Route>
           {/* Ruta por defecto si la URL no coincide (evita pantallas blancas) */}
           <Route path="*" element={<Navigate to="/portal" replace />} />

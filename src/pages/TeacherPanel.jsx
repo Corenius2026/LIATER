@@ -1556,259 +1556,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
 /* ─────────────────────────────────────────
    TAB — Anuncios (Premium Rewrite)
 ───────────────────────────────────────── */
-function AnunciosTab() {
-  const { id: teacherId, programId, currentProgram } = useTeacherContext();
-  const [announcements, setAnnouncements] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [filterTag, setFilterTag] = useState('todos');
 
-  const TAG_CONFIG = {
-    general: { label: 'General',     emoji: '📢', color: '#14213D', bg: '#EEF2F8', border: '#C7D2E7' },
-    info:    { label: 'Informativo', emoji: '📌', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
-    urgent:  { label: 'Urgente',     emoji: '🔴', color: '#991b1b', bg: '#fee2e2', border: '#fca5a5' },
-  };
-
-  const fetchAnnouncements = async () => {
-    if (!teacherId || !programId) return;
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('program_id', programId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setAnnouncements(data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchAnnouncements(); }, [teacherId, programId]);
-
-  const handleEdit = (a) => { setSelectedAnnouncement(a); setShowModal(true); };
-  const handleCreate = () => { setSelectedAnnouncement(null); setShowModal(true); };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio? Esta acción es irreversible.')) return;
-    setDeletingId(id);
-    try {
-      const { error } = await supabase.from('announcements').delete().eq('id', id).eq('teacher_id', teacherId);
-      if (error) throw error;
-      setAnnouncements(prev => prev.filter(a => a.id !== id));
-    } catch (err) {
-      alert('Error al eliminar: ' + err.message);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const filtered = filterTag === 'todos'
-    ? announcements
-    : announcements.filter(a => a.tag === filterTag);
-
-  const formatDate = (d) => {
-    if (!d) return '';
-    const date = new Date(d);
-    return date.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-
-      {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Megaphone size={20} color="var(--gold-dark)" /> Tablero de Anuncios
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: '4px 0 0 0' }}>
-            Comunícate con los estudiantes de <strong>{currentProgram?.title}</strong>. Los anuncios son visibles en el portal del estudiante.
-          </p>
-        </div>
-        <button
-          onClick={handleCreate}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.65rem 1.25rem', borderRadius: '10px', border: 'none',
-            background: 'linear-gradient(135deg, var(--navy) 0%, #1e3a5f 100%)',
-            color: 'var(--white)', fontWeight: 700, fontSize: '0.88rem',
-            cursor: 'pointer', boxShadow: '0 4px 14px rgba(14,21,50,0.2)',
-            transition: 'transform 0.15s, box-shadow 0.15s'
-          }}
-          onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(14,21,50,0.28)'; }}
-          onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(14,21,50,0.2)'; }}
-        >
-          <Plus size={16} /> Nuevo Anuncio
-        </button>
-      </div>
-
-      {/* STATS RÁPIDAS + FILTRO */}
-      <div style={{
-        background: 'var(--white)', borderRadius: '14px',
-        border: '1px solid var(--border-color)',
-        padding: '1rem 1.5rem',
-        display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center'
-      }}>
-        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filtrar:</span>
-        {[{ value: 'todos', label: `Todos (${announcements.length})` }, ...Object.entries(TAG_CONFIG).map(([k, v]) => ({
-          value: k,
-          label: `${v.emoji} ${v.label} (${announcements.filter(a => a.tag === k).length})`
-        }))].map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => setFilterTag(opt.value)}
-            style={{
-              padding: '0.35rem 0.85rem', borderRadius: '999px',
-              border: filterTag === opt.value ? '2px solid var(--navy)' : '1.5px solid #E2E8F0',
-              background: filterTag === opt.value ? '#EEF2F8' : 'transparent',
-              color: filterTag === opt.value ? 'var(--navy)' : 'var(--text-muted)',
-              fontWeight: filterTag === opt.value ? 700 : 500,
-              fontSize: '0.78rem', cursor: 'pointer', transition: 'all 0.15s'
-            }}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* CONTENIDO */}
-      {loading ? (
-        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-          <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
-          Cargando anuncios...
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={{
-          padding: '4rem 2rem', textAlign: 'center',
-          background: 'var(--white)', borderRadius: '14px',
-          border: '2px dashed #E2E8F0'
-        }}>
-          <div style={{
-            width: '64px', height: '64px', borderRadius: '50%',
-            background: 'linear-gradient(135deg, #EEF2F8, #dbeafe)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 1.25rem'
-          }}>
-            <Megaphone size={28} color="#94a3b8" />
-          </div>
-          <h3 style={{ color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>
-            {filterTag === 'todos' ? 'No hay anuncios publicados aún' : `Sin anuncios de categoría "${TAG_CONFIG[filterTag]?.label}"`}
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '360px', margin: '0 auto 1.5rem' }}>
-            {filterTag === 'todos'
-              ? 'Publica tu primer anuncio para comunicarte directamente con los estudiantes del programa.'
-              : 'No hay anuncios con esta categoría. Cambia el filtro o crea uno nuevo.'}
-          </p>
-          {filterTag === 'todos' && (
-            <button onClick={handleCreate} style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-              padding: '0.65rem 1.5rem', borderRadius: '10px', border: 'none',
-              background: 'var(--navy)', color: 'var(--white)',
-              fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer'
-            }}>
-              <Plus size={16} /> Publicar primer anuncio
-            </button>
-          )}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {filtered.map(a => {
-            const cfg = TAG_CONFIG[a.tag] || TAG_CONFIG.general;
-            return (
-              <div
-                key={a.id}
-                style={{
-                  background: 'var(--white)', borderRadius: '14px',
-                  border: '1px solid var(--border-color)',
-                  borderLeft: `4px solid ${cfg.border}`,
-                  padding: '1.25rem 1.5rem',
-                  display: 'flex', flexDirection: 'column', gap: '0.65rem',
-                  transition: 'box-shadow 0.2s, transform 0.15s',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
-                }}
-                onMouseOver={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(14,21,50,0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                onMouseOut={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-              >
-                {/* TOP ROW */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                      padding: '0.25rem 0.7rem', borderRadius: '999px',
-                      background: cfg.bg, color: cfg.color,
-                      fontSize: '0.72rem', fontWeight: 700
-                    }}>
-                      {cfg.emoji} {cfg.label}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <Calendar size={12} /> {formatDate(a.created_at)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={() => handleEdit(a)} style={{
-                      display: 'flex', alignItems: 'center', gap: '0.3rem',
-                      padding: '0.35rem 0.7rem', borderRadius: '7px',
-                      border: '1.5px solid #E2E8F0', background: 'var(--white)',
-                      color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600,
-                      cursor: 'pointer', transition: 'all 0.15s'
-                    }}
-                      onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.color = 'var(--navy)'; }}
-                      onMouseOut={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                    >
-                      <Pencil size={13} /> Editar
-                    </button>
-                    <button onClick={() => handleDelete(a.id)} disabled={deletingId === a.id} style={{
-                      display: 'flex', alignItems: 'center', gap: '0.3rem',
-                      padding: '0.35rem 0.7rem', borderRadius: '7px',
-                      border: '1.5px solid #fca5a5', background: 'var(--white)',
-                      color: '#dc2626', fontSize: '0.75rem', fontWeight: 600,
-                      cursor: deletingId === a.id ? 'not-allowed' : 'pointer',
-                      opacity: deletingId === a.id ? 0.6 : 1, transition: 'all 0.15s'
-                    }}
-                      onMouseOver={e => { if (deletingId !== a.id) e.currentTarget.style.background = '#fee2e2'; }}
-                      onMouseOut={e => { e.currentTarget.style.background = 'var(--white)'; }}
-                    >
-                      <Trash2 size={13} /> {deletingId === a.id ? 'Eliminando...' : 'Eliminar'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* TÍTULO */}
-                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--navy)', lineHeight: 1.4 }}>
-                  {a.title}
-                </div>
-
-                {/* CUERPO */}
-                <div style={{
-                  fontSize: '0.88rem', color: '#475569', lineHeight: 1.7,
-                  paddingTop: '0.25rem', borderTop: '1px solid #F1F5F9',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {a.body}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {showModal && (
-        <AnnouncementModal
-          announcement={selectedAnnouncement}
-          onClose={() => setShowModal(false)}
-          onRefresh={fetchAnnouncements}
-        />
-      )}
-    </div>
-  );
-}
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    TAB 7 — Perfil
@@ -2048,8 +1796,16 @@ function ResumenTab({ onChangeTab }) {
         .eq('class_sessions.teacher_id', teacherProfileId)
         .eq('is_published', true);
 
-      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts, resDrafts, resMissingRec, resActivities] = await Promise.all([
-        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts, pPendingDrafts, pMissingRecordings, pActivities
+      // Query D: Anuncios institucionales para profesores
+      const pAdminAnnouncements = supabase
+        .from('announcements')
+        .select('*')
+        .is('program_id', null)
+        .in('target_role', ['teacher', 'all'])
+        .order('created_at', { ascending: false });
+
+      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts, resDrafts, resMissingRec, resActivities, resAdminAnnouncements] = await Promise.all([
+        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts, pPendingDrafts, pMissingRecordings, pActivities, pAdminAnnouncements
       ]);
       
       const classes = resClasses.data || [];
@@ -2107,6 +1863,8 @@ function ResumenTab({ onChangeTab }) {
         pendingDrafts: (resDrafts.data || []).length,
         missingRecordings: (resMissingRec.data || []).length,
         activeActivities: (resActivities.data || []).length,
+        pendingEvaluations: 0, // Placeholder
+        adminAnnouncements: resAdminAnnouncements.data || [],
       });
     } catch (err) {
       console.error('Error fetching teacher stats:', err);
@@ -5796,6 +5554,172 @@ function ReforzamientoIATab({ onChangeTab }) {
             setSelectedActivityForModal(null);
             if (onChangeTab) onChangeTab('clases');
           }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   TAB — Anuncios (Premium Rewrite)
+───────────────────────────────────────── */
+function AnunciosTab() {
+  const { id: teacherId, programId } = useTeacherContext();
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+
+  const fetchAnnouncements = async () => {
+    if (!programId) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('program_id', programId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setAnnouncements(data || []);
+    } catch (err) {
+      console.error('Error fetching announcements:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnnouncements();
+  }, [programId]);
+
+  const handleDelete = async (ann) => {
+    if (!window.confirm('¿Eliminar anuncio?')) return;
+    try {
+      const { error } = await supabase.from('announcements').delete().eq('id', ann.id);
+      if (error) throw error;
+      fetchAnnouncements();
+    } catch (err) {
+      alert('Error al eliminar: ' + err.message);
+    }
+  };
+
+  const getTagStyle = (tag) => {
+    switch (tag) {
+      case 'urgent': return { color: '#991b1b', bg: '#fee2e2', icon: '🔴', label: 'Urgente' };
+      case 'info': return { color: '#1d4ed8', bg: '#dbeafe', icon: '📌', label: 'Informativo' };
+      default: return { color: '#14213D', bg: '#EEF2F8', icon: '📢', label: 'General' };
+    }
+  };
+
+  const myAnnouncements = announcements.filter(a => a.teacher_id !== null);
+  const adminAnnouncements = announcements.filter(a => a.teacher_id === null);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+      {/* SECCIÓN 1: MIS ANUNCIOS */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>Mis Anuncios</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Comunica avisos importantes a los estudiantes inscritos.</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => { setSelectedAnnouncement(null); setShowModal(true); }}>
+            <Megaphone size={16} /> Crear Anuncio
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando anuncios...</div>
+        ) : myAnnouncements.length === 0 ? (
+          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <Megaphone size={40} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '1rem' }} />
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>No hay anuncios publicados</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Haz clic en "Crear Anuncio" para enviar un mensaje a los estudiantes.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {myAnnouncements.map(ann => {
+              const tagStyle = getTagStyle(ann.tag);
+              return (
+                <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--white)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '12px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {tagStyle.icon} {tagStyle.label}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {new Date(ann.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)' }}>{ann.title}</h4>
+                      <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{ann.body}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="btn btn-outline" style={{ padding: '0.5rem' }} onClick={() => { setSelectedAnnouncement(ann); setShowModal(true); }}>
+                        <Edit3 size={16} />
+                      </button>
+                      <button className="btn btn-outline" style={{ padding: '0.5rem', color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2' }} onClick={() => handleDelete(ann)}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* SECCIÓN 2: AVISOS DE ADMINISTRACIÓN */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>Avisos de Administración</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Comunicados institucionales específicos para este programa.</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando avisos...</div>
+        ) : adminAnnouncements.length === 0 ? (
+          <div className="card" style={{ padding: '2.5rem 2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-muted)', margin: 0 }}>No hay avisos recientes de administración</h3>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {adminAnnouncements.map(ann => {
+              const tagStyle = getTagStyle(ann.tag);
+              return (
+                <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: tagStyle.color }}></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', paddingLeft: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '12px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {tagStyle.icon} Institucional - {tagStyle.label}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {new Date(ann.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)' }}>{ann.title}</h4>
+                      <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{ann.body}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <AnnouncementModal
+          announcement={selectedAnnouncement}
+          onClose={() => setShowModal(false)}
+          onRefresh={fetchAnnouncements}
         />
       )}
     </div>

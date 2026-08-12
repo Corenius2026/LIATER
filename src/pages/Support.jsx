@@ -2,40 +2,71 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { HelpCircle, MessageSquare, ChevronDown } from 'lucide-react';
 import { supportConfig } from '../config/supportConfig';
+import { useAuth } from '../context/AuthContext';
 
 export default function Support() {
   const [openIndex, setOpenIndex] = useState(null);
+  const { currentUser } = useAuth();
 
   const toggleFaq = (index) => {
     setOpenIndex(openIndex === index ? null : index);
   };
 
-  const faqs = [
+  const teacherFaqs = [
     {
-      question: '¿Cómo puedo recuperar mi contraseña?',
-      answer: 'En la pantalla de inicio de sesión selecciona ‘¿Olvidaste tu contraseña?’. Recibirás un enlace de recuperación en el correo asociado a tu cuenta. Si no recibes el mensaje, revisa la carpeta de correo no deseado o comunícate con soporte.'
+      question: '¿Cómo enlazo una clase grabada de YouTube a mi sesión?',
+      answer: 'Dirígete a la pestaña "Agenda", selecciona una clase pasada y haz clic en "Enlazar grabación". Pega el enlace de YouTube y define los minutos exactos de inicio y fin. La grabación estará disponible inmediatamente para tus estudiantes.'
+    },
+    {
+      question: '¿Cómo se calcula el Score Promedio de mis estudiantes?',
+      answer: 'El promedio se calcula considerando los cuestionarios realizados y los vencidos no realizados. Si un estudiante realiza varios intentos en una misma actividad, el sistema siempre toma en cuenta su puntaje más alto para no penalizar la práctica.'
+    },
+    {
+      question: '¿Por qué algunos estudiantes aparecen "En riesgo" en la analítica?',
+      answer: 'El estado "En riesgo" se activa automáticamente si un estudiante ha completado menos del 50% de las actividades publicadas hasta la fecha, o si su promedio de calificaciones actual es inferior al 60%.'
+    },
+    {
+      question: '¿Cómo respondo a las dudas enviadas durante mis clases?',
+      answer: 'Todas las consultas académicas enviadas por los estudiantes desde el aula virtual se recopilan en tu pestaña "Consultas". Desde allí puedes filtrar por programa y marcar las dudas como resueltas a medida que las atiendas.'
+    },
+    {
+      question: '¿Cómo habilito un cuestionario de reforzamiento en una clase?',
+      answer: 'En tu panel de "Clases y Actividades", busca la clase deseada y haz clic en "Nueva Actividad". Podrás redactar o cargar preguntas, establecer límites de tiempo e intentos, y marcar la actividad como obligatoria para el avance.'
     },
     {
       question: '¿Qué hago si una clase asignada no aparece en mi panel?',
-      answer: 'Verifica primero el programa y la fecha de la clase. Si continúa sin aparecer, comunícate con la administración de LIATER, ya que la asignación de programas y clases es gestionada por el equipo administrador.'
-    },
-    {
-      question: '¿Qué hago si no puedo abrir un programa o una clase?',
-      answer: 'Actualiza la página e intenta ingresar nuevamente. Si el problema continúa, reporta el nombre del programa, la clase afectada y una captura del error al equipo de soporte.'
-    },
-    {
-      question: '¿Por qué no aparecen dudas de estudiantes?',
-      answer: 'Las dudas solo aparecerán cuando un estudiante las envíe desde una clase asignada al profesor. También verifica que estés consultando el programa y la clase correctos.'
-    },
-    {
-      question: '¿Qué hago si un anuncio no se publica?',
-      answer: 'Comprueba que el título y el contenido estén completos. Si la plataforma muestra un error o el anuncio no aparece después de guardar, contacta a soporte indicando el programa afectado.'
-    },
-    {
-      question: '¿Cómo reporto un problema con una grabación o material?',
-      answer: 'Indica el nombre del programa, módulo, clase y recurso afectado. Incluye una captura o una breve descripción del problema para facilitar la revisión.'
+      answer: 'Verifica primero tener seleccionado el programa académico correcto en el selector de la parte superior (Mis Programas). Si el problema continúa, comunícate con la administración para revisar tu carga docente.'
     }
   ];
+
+  const studentFaqs = [
+    {
+      question: '¿Qué son las actividades de reforzamiento?',
+      answer: 'Son cuestionarios o ejercicios habilitados por tu profesor para comprobar tu entendimiento sobre el tema de una clase reciente. Suelen ser obligatorios para tu avance académico.'
+    },
+    {
+      question: '¿Por qué tengo una actividad pendiente que ya hice?',
+      answer: 'Si una actividad permite múltiples intentos, seguirá apareciendo en tu panel hasta que envíes todos los intentos disponibles o hasta que cierre su fecha límite. ¡Pero no te preocupes! El sistema guarda tu intento más alto.'
+    },
+    {
+      question: '¿Cómo sé cuál es mi calificación y en qué fallé?',
+      answer: 'Puedes revisar tus puntajes en la sección "Mis Resultados". Si el profesor habilitó la revisión, también podrás ver el detalle de en qué preguntas acertaste o te equivocaste haciendo clic en el detalle.'
+    },
+    {
+      question: '¿Cómo funciona la racha de estudio?',
+      answer: 'Mantén un avance continuo enviando al menos una actividad o entregable cada semana para aumentar tu racha. Si dejas pasar una semana sin entregar nada, la racha se reiniciará a cero.'
+    },
+    {
+      question: '¿Dónde puedo resolver dudas académicas de una clase?',
+      answer: 'Dentro de la página donde ves la grabación o los detalles de cada clase, encontrarás un área de comentarios en la parte inferior. Si envías tu duda allí, le llegará directamente al profesor de esa sesión.'
+    },
+    {
+      question: 'No me aparece un programa o diplomado al que me inscribí',
+      answer: 'En la parte superior, revisa el selector "Mis Programas". Si no lo ves allí, asegúrate de que estás ingresando con el correo con el que te registraste, y de lo contrario comunícate con soporte.'
+    }
+  ];
+
+  const faqs = currentUser?.role === 'teacher' || currentUser?.role === 'admin' ? teacherFaqs : studentFaqs;
 
   return (
     <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto', animation: 'fadeSlideUp 0.35s ease-out' }}>
@@ -46,7 +77,9 @@ export default function Support() {
           Soporte técnico
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1rem', maxWidth: '640px', margin: '0 auto', lineHeight: 1.5 }}>
-          Encuentra ayuda para resolver problemas de acceso, funcionamiento y gestión de tus clases dentro del portal.
+          {currentUser?.role === 'teacher' || currentUser?.role === 'admin' 
+            ? 'Encuentra ayuda para resolver problemas de acceso, funcionamiento y gestión de tus clases dentro del portal.'
+            : 'Encuentra ayuda para resolver problemas de acceso, funcionamiento y dudas sobre tus clases dentro del portal.'}
         </p>
       </div>
       
@@ -135,50 +168,6 @@ export default function Support() {
 
         </div>
 
-        {/* NOTA DISCRETA: DIFERENCIACIÓN CON BANDEJA DE CONSULTAS */}
-        <div 
-          style={{ 
-            background: 'var(--white)', 
-            border: '1px solid var(--border-color)', 
-            borderLeft: '4px solid var(--gold)', 
-            borderRadius: '8px', 
-            padding: '1rem 1.25rem', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justify: 'space-between', 
-            gap: '1rem',
-            flexWrap: 'wrap'
-          }}
-        >
-          <div>
-            <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--navy)' }}>
-              ¿Buscas las preguntas de tus estudiantes?
-            </h4>
-            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              Las dudas académicas enviadas desde las clases se encuentran en la sección Bandeja de consultas.
-            </p>
-          </div>
-          <Link 
-            to="/portal?tab=consultas" 
-            style={{ 
-              fontSize: '0.82rem', 
-              fontWeight: 700, 
-              color: 'var(--navy)', 
-              textDecoration: 'none', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '0.35rem',
-              whiteSpace: 'nowrap',
-              background: 'rgba(20, 33, 61, 0.06)',
-              padding: '0.4rem 0.85rem',
-              borderRadius: '6px',
-              transition: 'all 0.2s'
-            }}
-          >
-            <MessageSquare size={14} />
-            Ver Bandeja de consultas
-          </Link>
-        </div>
 
         {/* FAQ - PREGUNTAS FRECUENTES ACORDEÓN */}
         <div className="card" style={{ padding: '2rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)' }}>

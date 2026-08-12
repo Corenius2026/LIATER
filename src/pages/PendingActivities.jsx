@@ -27,15 +27,7 @@ export default function PendingActivities() {
     if (err) {
       setError(err);
     } else {
-      const combined = [...(data || [])];
-      if (annData && annData.length > 0) {
-        annData.forEach(ann => {
-          if (!combined.some(c => c.id === ann.id)) {
-            combined.push(ann);
-          }
-        });
-      }
-      setActivities(combined);
+      setActivities([...(data || [])]);
     }
     setLoading(false);
   }, [currentUser?.id]);
@@ -61,7 +53,6 @@ export default function PendingActivities() {
     if (filterType === 'Entregas') return act.type === 'Entrega';
     if (filterType === 'Cuestionarios') return act.type === 'Cuestionario' || act.type === 'Actividad de Reforzamiento' || act.type === 'Reforzamiento';
     if (filterType === 'Clases') return act.type === 'Sesión en vivo' || act.type === 'Clase hoy';
-    if (filterType === 'Anuncios') return act.type === 'Anuncio' || act.type === 'Anuncio importante';
     return true;
   });
 
@@ -78,17 +69,7 @@ export default function PendingActivities() {
     }
   };
 
-  const getAnnouncementTagConfig = (tag) => {
-    switch (tag) {
-      case 'urgent':
-        return { emoji: '🔴', label: 'Urgente', color: '#991b1b', bg: '#fee2e2', borderColor: '#ef4444' };
-      case 'info':
-        return { emoji: '📌', label: 'Informativo', color: '#1d4ed8', bg: '#dbeafe', borderColor: '#3b82f6' };
-      case 'general':
-      default:
-        return { emoji: '📢', label: 'General', color: 'var(--navy)', bg: '#EEF2F8', borderColor: 'var(--navy)' };
-    }
-  };
+
 
   const renderIcon = (type) => {
     switch (type) {
@@ -116,7 +97,7 @@ export default function PendingActivities() {
 
       {/* FILTROS TIPO PASTILLA */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.75rem', overflowX: 'auto' }} className="hide-scrollbar">
-        {['Todos', 'Cuestionarios', 'Clases', 'Anuncios'].map(type => (
+        {['Todos', 'Cuestionarios', 'Clases'].map(type => (
           <button
             key={type}
             onClick={() => setFilterType(type)}
@@ -178,9 +159,6 @@ export default function PendingActivities() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {filteredActivities.map((item) => {
             const urgencyStyle = getUrgencyStyles(item.urgency);
-            const isAnnouncement = item.type === 'Anuncio' || item.type === 'Anuncio importante';
-            const tagConfig = isAnnouncement ? getAnnouncementTagConfig(item.tag) : null;
-
             return (
               <Link
                 key={item.id}
@@ -198,7 +176,7 @@ export default function PendingActivities() {
                   alignItems: 'flex-start',
                   padding: '1.25rem',
                   background: '#ffffff',
-                  borderLeft: `5px solid ${isAnnouncement ? tagConfig.borderColor : urgencyStyle.borderColor}`,
+                  borderLeft: `5px solid ${urgencyStyle.borderColor}`,
                   borderTop: '1px solid var(--border-color)',
                   borderRight: '1px solid var(--border-color)',
                   borderBottom: '1px solid var(--border-color)',
@@ -210,17 +188,12 @@ export default function PendingActivities() {
                 onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
                 onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
               >
-                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: isAnnouncement ? tagConfig.bg : '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-color)', marginTop: '0.2rem' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-color)', marginTop: '0.2rem' }}>
                   {renderIcon(item.type)}
                 </div>
 
                 <div style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    {isAnnouncement ? (
-                      <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '999px', background: tagConfig.bg, color: tagConfig.color }}>
-                        {tagConfig.emoji} {tagConfig.label}
-                      </span>
-                    ) : (
                       <>
                         <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                           {item.type}
@@ -229,7 +202,6 @@ export default function PendingActivities() {
                           {item.statusLabel || urgencyStyle.label}
                         </span>
                       </>
-                    )}
 
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--navy)', background: 'rgba(20,33,61,0.06)', padding: '0.15rem 0.5rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <BookOpen size={12} /> {item.programTitle}
@@ -240,11 +212,7 @@ export default function PendingActivities() {
                     {item.title}
                   </h3>
 
-                  {isAnnouncement && item.body && (
-                    <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0.35rem 0', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {item.body}
-                    </p>
-                  )}
+
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap', marginTop: '0.2rem' }}>
                     {item.teacherName && (

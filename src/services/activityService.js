@@ -59,28 +59,45 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
     }
 
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    // Obtener la fecha local usando el offset de la zona horaria
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const todayStr = new Date(now.getTime() - tzOffset).toISOString().split('T')[0];
 
     // -------------------------------------------------------------
     // 1.5 RECOPILAR ACTIVIDADES Y CLASES YA COMPLETADAS/REALIZADAS
     // -------------------------------------------------------------
     const completedActivityIds = new Set();
+    const completedActivityCounts = new Map();
     let totalStudentAttempts = 0;
+
+    const addCompleted = (id) => {
+      if (!id) return;
+      const strId = String(id).toLowerCase();
+      completedActivityIds.add(strId);
+      completedActivityCounts.set(strId, (completedActivityCounts.get(strId) || 0) + 1);
+    };
 
     try {
       // A. Intentos completados en activity_attempts
       const { data: attempts } = await supabase
         .from('activity_attempts')
-        .select('activity_id, student_id')
+        .select('activity_id, student_id, score')
         .eq('student_id', studentId);
+      
+      const activityBestScores = new Map();
+
       if (attempts) {
         totalStudentAttempts += attempts.length;
         attempts.forEach(att => {
-          if (att.activity_id) completedActivityIds.add(String(att.activity_id).toLowerCase());
+          if (att.activity_id) {
+            addCompleted(att.activity_id);
+            const strId = String(att.activity_id).toLowerCase();
+            const currentBest = activityBestScores.get(strId) || 0;
+            if (att.score && att.score > currentBest) {
+              activityBestScores.set(strId, att.score);
+            }
+          }
         });
       }
 
@@ -92,7 +109,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
       if (subAss) {
         totalStudentAttempts += subAss.length;
         subAss.forEach(s => {
-          if (s.assignment_id) completedActivityIds.add(String(s.assignment_id).toLowerCase());
+          if (s.assignment_id) addCompleted(s.assignment_id);
         });
       }
 
@@ -104,7 +121,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
       if (qSubs) {
         totalStudentAttempts += qSubs.length;
         qSubs.forEach(q => {
-          if (q.quiz_id) completedActivityIds.add(String(q.quiz_id).toLowerCase());
+          if (q.quiz_id) addCompleted(q.quiz_id);
         });
       }
 
@@ -112,7 +129,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (!k) continue;
-        if (k.startsWith('completed_activities') || k.startsWith('completed_classes')) {
+        if (k.startsWith('completed_activities_') || k.startsWith('completed_classes_')) {
           const val = localStorage.getItem(k);
           if (val) {
             try {
@@ -120,7 +137,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               if (Array.isArray(parsed)) {
                 parsed.forEach(idVal => {
                   if (idVal) {
-                    completedActivityIds.add(String(idVal).toLowerCase());
+                    addCompleted(idVal);
                     totalStudentAttempts++;
                   }
                 });
@@ -133,11 +150,11 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
           if (lastUnderscore !== -1) {
             const actId = rest.slice(0, lastUnderscore);
             if (actId) {
-              completedActivityIds.add(actId.toLowerCase());
+              addCompleted(actId);
               totalStudentAttempts++;
             }
           } else {
-            completedActivityIds.add(rest.toLowerCase());
+            addCompleted(rest);
             totalStudentAttempts++;
           }
         }
@@ -164,7 +181,8 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle)) return; // Omitir entregadas/realizadas
 
             const dueDate = new Date(ass.due_date);
-            const dueDateStr = dueDate.toISOString().split('T')[0];
+            const tzOffsetAss = dueDate.getTimezoneOffset() * 60000;
+            const dueDateStr = new Date(dueDate.getTime() - tzOffsetAss).toISOString().split('T')[0];
 
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
@@ -172,9 +190,6 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             if (dueDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
-            } else if (dueDateStr === tomorrowStr) {
-              urgency = 'tomorrow';
-              statusLabel = 'Mañana';
             } else if (dueDate < now) {
               return; // No mostrar entregas vencidas en los pendientes activos
             }
@@ -230,7 +245,8 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             if (completedActivityIds.has(strId) || completedActivityIds.has(strTitle) || completedQuizIds.has(qz.id)) return; // Omitir completados
 
             const dueDate = new Date(qz.due_date);
-            const dueDateStr = dueDate.toISOString().split('T')[0];
+            const tzOffsetQz = dueDate.getTimezoneOffset() * 60000;
+            const dueDateStr = new Date(dueDate.getTime() - tzOffsetQz).toISOString().split('T')[0];
 
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
@@ -238,9 +254,6 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             if (dueDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
-            } else if (dueDateStr === tomorrowStr) {
-              urgency = 'tomorrow';
-              statusLabel = 'Mañana';
             } else if (dueDate < now) {
               return; // No mostrar cuestionarios vencidos en los pendientes activos
             }
@@ -307,7 +320,8 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             if (clsDate < now) return; // Solo mostramos clases futuras en pendientes
 
             const programTitle = programMap[cls.program_id] || 'Programa Inscrito';
-            const clsDateStr = clsDate.toISOString().split('T')[0];
+            const tzOffset = clsDate.getTimezoneOffset() * 60000;
+            const clsDateStr = new Date(clsDate.getTime() - tzOffset).toISOString().split('T')[0];
 
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
@@ -315,9 +329,6 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             if (clsDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
-            } else if (clsDateStr === tomorrowStr) {
-              urgency = 'tomorrow';
-              statusLabel = 'Mañana';
             }
 
             pendingActivities.push({
@@ -348,7 +359,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
 
         const { data: classActs, error: actErr } = await supabase
           .from('class_activities')
-          .select('id, class_id, title, description, due_date, class_sessions!inner(id, program_id, title, video_url, class_date, teacher_id)')
+          .select('id, class_id, title, description, due_date, max_attempts, class_sessions!inner(id, program_id, title, video_url, class_date, teacher_id)')
           .eq('is_published', true);
 
         if (classActs) {
@@ -363,7 +374,13 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               const strTitle = String(ca.title || '').toLowerCase();
               const strClassId = String(ca.class_id || '').toLowerCase();
 
-              const isCompleted = completedActivityIds.has(strId) || 
+              const bestScore = activityBestScores.get(strId) || 0;
+              const attemptsCount = completedActivityCounts.get(strId) || 0;
+              const maxAttempts = ca.max_attempts || 1;
+              const hasReachedMaxAttempts = maxAttempts > 0 && attemptsCount >= maxAttempts;
+              const isPerfectScore = bestScore >= 100;
+              
+              const isCompleted = hasReachedMaxAttempts || isPerfectScore ||
                                   completedActivityIds.has(strTitle) || 
                                   completedActivityIds.has(strClassId) ||
                                   completedActivityIds.has(`reforzamiento-${pId}`) ||
@@ -402,7 +419,8 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
                 return;
               }
 
-              const dueDateStr = dueDate.toISOString().split('T')[0];
+              const tzOffsetActivity = dueDate.getTimezoneOffset() * 60000;
+              const dueDateStr = new Date(dueDate.getTime() - tzOffsetActivity).toISOString().split('T')[0];
 
               let urgency = 'upcoming';
               let statusLabel = 'Sin realizar';
@@ -410,9 +428,6 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               if (dueDateStr === todayStr) {
                 urgency = 'today';
                 statusLabel = 'Hoy';
-              } else if (dueDateStr === tomorrowStr) {
-                urgency = 'tomorrow';
-                statusLabel = 'Mañana';
               }
 
               pendingActivities.push({
@@ -466,16 +481,14 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             // Si no hay clase futura o la fecha ya venció, no mostrar
             if (!defaultDate || defaultDate < now) return;
 
-            const defDateStr = defaultDate.toISOString().split('T')[0];
+            const tzOffsetFallback = defaultDate.getTimezoneOffset() * 60000;
+            const defDateStr = new Date(defaultDate.getTime() - tzOffsetFallback).toISOString().split('T')[0];
             let urgency = 'upcoming';
             let statusLabel = 'Sin realizar';
             
             if (defDateStr === todayStr) {
               urgency = 'today';
               statusLabel = 'Hoy';
-            } else if (defDateStr === tomorrowStr) {
-              urgency = 'tomorrow';
-              statusLabel = 'Mañana';
             }
 
             pendingActivities.push({
@@ -554,6 +567,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               programId: ann.program_id,
               programTitle: progTitle,
               teacherName: teacherName,
+              isAdmin: !ann.teacher_id,
               date: ann.created_at,
               urgency,
               statusLabel,
@@ -572,7 +586,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
           });
         }
       } catch (err) {
-        console.info('Información sobre anuncios:', err);
+        console.info('Información sobre announcements:', err);
       }
     }
 
@@ -613,6 +627,7 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
             programId: null,
             programTitle: 'Aviso Institucional',
             teacherName: teacherName,
+            isAdmin: !ann.teacher_id,
             date: ann.created_at,
             urgency,
             statusLabel,
@@ -644,5 +659,74 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
   } catch (err) {
     console.error('Error al procesar pendientes:', err);
     return { activities: [], announcements: [], error: null };
+  }
+}
+
+/**
+ * Obtiene la racha de semanas activas de un estudiante.
+ * Una semana es activa si el estudiante ha completado al menos una Actividad de Reforzamiento (Opción 2).
+ * 
+ * @param {string} studentId - ID del estudiante
+ * @returns {Promise<{ streak: number, error: string|null }>}
+ */
+export async function fetchStudentStreak(studentId) {
+  if (!studentId) return { streak: 0, error: null };
+
+  try {
+    const dates = [];
+
+    // 1. Obtener fechas de intentos (activity_attempts) - Opción 2: Solo Actividades de Reforzamiento
+    const { data: attempts, error: attErr } = await supabase
+      .from('activity_attempts')
+      .select('completed_at')
+      .eq('student_id', studentId);
+      
+    if (attErr) console.error("Error al obtener activity_attempts en racha:", attErr);
+      
+    if (attempts) {
+      attempts.forEach(a => {
+        if (a.completed_at) dates.push(new Date(a.completed_at));
+      });
+    }
+
+    if (dates.length === 0) {
+      return { streak: 0, error: null };
+    }
+
+    // Función para obtener un índice de semana desde un Lunes de referencia
+    const EPOCH_MONDAY = new Date('2020-01-06T00:00:00Z').getTime();
+    const getWeekIndex = (dateObj) => {
+      // Ajuste básico de timezone
+      const tzOffset = dateObj.getTimezoneOffset() * 60000;
+      const localTime = dateObj.getTime() - tzOffset;
+      return Math.floor((localTime - EPOCH_MONDAY) / (7 * 86400000));
+    };
+
+    // Convertir fechas a índices de semana y crear un Set
+    const activeWeeks = new Set(dates.map(getWeekIndex));
+    
+    const now = new Date();
+    const currentWeekIndex = getWeekIndex(now);
+
+    let streak = 0;
+    
+    // Si no está activa la semana actual, revisamos si estuvo activo la semana anterior
+    // Si no estuvo activo ni la actual ni la anterior, la racha se perdió (es 0).
+    let weekToCheck = currentWeekIndex;
+    
+    if (!activeWeeks.has(weekToCheck)) {
+      weekToCheck--;
+    }
+
+    // Contar semanas consecutivas hacia atrás
+    while (activeWeeks.has(weekToCheck)) {
+      streak++;
+      weekToCheck--;
+    }
+
+    return { streak, error: null };
+  } catch (error) {
+    console.error('Error calculando racha:', error);
+    return { streak: 0, error: error.message };
   }
 }

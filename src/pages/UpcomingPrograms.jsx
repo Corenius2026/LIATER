@@ -39,7 +39,7 @@ export default function UpcomingPrograms() {
           <ArrowLeft size={16} /> Volver a Mis Programas
         </Link>
         <h1 style={{ color: 'var(--navy)', fontSize: '2rem', fontWeight: 700, margin: 0 }}>
-          Próximos Programas
+          Próxima Oferta Académica
         </h1>
         <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.95rem' }}>
           Explora la oferta académica de diplomados, cursos y talleres con inscripciones abiertas o fechas de inicio cercanas.
@@ -72,7 +72,7 @@ export default function UpcomingPrograms() {
         /* ESTADO VACÍO */
         <div className="card" style={{ textAlign: 'center', padding: '4rem 1.5rem', background: '#ffffff', border: '1px dashed var(--border-color)' }}>
           <Calendar size={48} color="var(--navy)" style={{ opacity: 0.4, marginBottom: '1rem' }} />
-          <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>No hay próximos programas programados</h3>
+          <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 700, marginBottom: '0.5rem' }}>No hay próxima oferta académica</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '450px', margin: '0 auto 1.5rem auto' }}>
             En este momento no hay nuevos diplomados ni cursos pendientes de apertura. Por favor regresa más adelante.
           </p>

@@ -1,12 +1,15 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { fetchStudentStreak } from '../services/activityService';
 
 import liaterLogoDark from '../assets/liater-logo-dark.png';
 
 export default function Header() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const [streak, setStreak] = useState(0);
 
   const handleLogout = () => {
     logout();
@@ -24,6 +27,26 @@ export default function Header() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  useEffect(() => {
+    const loadStreak = async () => {
+      if (currentUser && currentUser.role === 'student') {
+        const result = await fetchStudentStreak(currentUser.id);
+        if (!result.error) {
+          setStreak(result.streak);
+        }
+      }
+    };
+    
+    loadStreak();
+
+    // Actualizar racha si el estudiante completa una actividad en esta sesión
+    const handleActivityCompleted = () => {
+      loadStreak();
+    };
+    window.addEventListener('activityCompleted', handleActivityCompleted);
+    return () => window.removeEventListener('activityCompleted', handleActivityCompleted);
+  }, [currentUser]);
+
   return (
     <header className="app-header">
       <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '1.125rem' }}>
@@ -40,7 +63,30 @@ export default function Header() {
       </div>
 
       {currentUser && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          
+          {/* Racha (Gamificación) */}
+          {(currentUser.role === 'student') && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.35rem', 
+              background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+              padding: '0.35rem 0.75rem', 
+              borderRadius: '999px',
+              border: '1px solid #fde68a',
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.15)',
+              color: '#d97706',
+              fontWeight: 800,
+              fontSize: '0.85rem'
+            }}
+            title={streak > 0 ? `¡Sigue así! Has estudiado ${streak} semana(s) seguida(s).` : "¡Completa una actividad para iniciar tu racha!"}
+            >
+              <span style={{ fontSize: '1rem', filter: streak === 0 ? 'grayscale(100%) opacity(0.5)' : 'none' }}>🔥</span>
+              <span>{streak > 0 ? `${streak} semana${streak > 1 ? 's' : ''}` : '¡Inicia tu racha!'}</span>
+            </div>
+          )}
+
           <div className="header-profile">
             <div className="profile-info">
               <span className="profile-name">{currentUser.name || currentUser.email}</span>

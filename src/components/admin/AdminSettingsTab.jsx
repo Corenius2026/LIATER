@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Save, AlertCircle, CheckCircle, Upload, Trash2, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabaseClient';
-import { uploadProgramCover } from '../services/programService';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
+import { uploadProgramCover } from '../../services/programService';
 
-export default function AdminSettings() {
+export default function AdminSettingsTab() {
   const { currentUser } = useAuth();
   const { programId } = useParams();
   const navigate = useNavigate();

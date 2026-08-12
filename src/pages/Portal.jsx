@@ -2,13 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Sparkles, Zap, AlertTriangle, Clock, CalendarPlus, Settings, Filter } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Sparkles, Zap, AlertTriangle, Clock, CalendarPlus, Settings, Filter, Megaphone } from 'lucide-react';
 import { formatShortDate, isClassLiveOrSoon } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
-import PendingActivitiesCard from '../components/PendingActivitiesCard';
-
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+import PendingActivitiesCard from '../components/PendingActivitiesCard';/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
    SUB-COMPONENTE: Portal de Estudiante
 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 function StudentPortal({ getDiplomadoLink }) {
@@ -134,6 +132,9 @@ function StudentPortal({ getDiplomadoLink }) {
   const todayLabel = now.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   const programWithClassToday = activeDiplomas.find(d => d.liveUrl);
 
+  // Lógica para "Retoma tu aprendizaje"
+  const resumeProgram = activeDiplomas.find(d => d.progress > 0 && d.progress < 100) || activeDiplomas[0];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
@@ -197,6 +198,68 @@ function StudentPortal({ getDiplomadoLink }) {
 
         {/* 2. COLUMNA PRINCIPAL CON FILTROS Y REJILLA */}
         <div className="portal-main mobile-order-main">
+        
+        {/* ACCESO RÁPIDO: RETOMA TU APRENDIZAJE */}
+        {resumeProgram && activeFilter === 'Todos' && !loading && (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 'var(--radius-lg)',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.5rem',
+            boxShadow: '0 4px 12px rgba(20,33,61,0.06)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+            overflow: 'hidden',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '4px', background: 'var(--gold)' }} />
+            
+            <div style={{ flexShrink: 0, width: '100px', height: '65px', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {resumeProgram.image_url ? (
+                <img src={resumeProgram.image_url} alt="Portada" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <BookOpen size={24} color="var(--gold)" />
+              )}
+            </div>
+
+            <div style={{ flexGrow: 1, minWidth: '200px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Retoma tu aprendizaje
+                </span>
+              </div>
+              <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', color: 'var(--navy)', fontWeight: 800, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {resumeProgram.title}
+              </h3>
+              
+              {/* Barra de progreso rápida */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%', maxWidth: '300px' }}>
+                <div style={{ flexGrow: 1, height: '6px', background: 'rgba(0,0,0,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{ width: `${resumeProgram.progress || 0}%`, height: '100%', background: 'var(--navy)', borderRadius: '999px' }} />
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy)' }}>{resumeProgram.progress || 0}%</span>
+              </div>
+            </div>
+
+            <div style={{ flexShrink: 0, marginLeft: 'auto' }}>
+              <Link 
+                to={getContinueLink(resumeProgram)}
+                onClick={() => { 
+                  localStorage.setItem('activeProgramId', resumeProgram.id); 
+                  localStorage.setItem('activeProgramType', resumeProgram.program_type); 
+                }}
+                className="btn btn-primary"
+                style={{ padding: '0.6rem 1.25rem', borderRadius: '999px', fontSize: '0.85rem' }}
+              >
+                Continuar →
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* FILTROS TIPO PASTILLA */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '0.3rem', background: 'rgba(255,255,255,0.4)', padding: '0.35rem', borderRadius: '9999px', backdropFilter: 'blur(10px)', width: 'fit-content', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
           {filters.map(filter => {
@@ -473,7 +536,7 @@ function StudentPortal({ getDiplomadoLink }) {
         <div className="mobile-order-upcoming desktop-sidebar-upcoming">
         <div className="card static-card" style={{ padding: '1.35rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
-            <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Próximos programas</h3>
+            <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>Próxima oferta académica</h3>
             <Link to="/proximos-programas" style={{ fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
               Ver todos
             </Link>
@@ -511,13 +574,13 @@ function StudentPortal({ getDiplomadoLink }) {
                 <CalendarDays size={20} color="var(--text-muted)" style={{ opacity: 0.6 }} />
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
-                No hay nuevos programas próximos por el momento.
+                No hay nueva oferta académica por el momento.
               </p>
             </div>
           ) : (
             /* LISTADO COMPACTO HASTA 3 ELEMENTOS */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {upcomingPrograms.map(prog => {
+              {upcomingPrograms.slice(0, 3).map(prog => {
                 const isOpen = prog.enrollment_start_date || prog.status === 'published';
                 const isCourse = prog.program_type === 'curso';
 
@@ -814,6 +877,30 @@ function TeacherPortal({ getDiplomadoLink }) {
         pendingActivities: pendingActivitiesList.length,
         activePrograms: activeProgramsCount
       });
+
+      // Fetch admin announcements (Global or for teacher's programs)
+      try {
+        let adminQuery = supabase
+          .from('announcements')
+          .select('*, diploma_programs(title)')
+          .is('teacher_id', null)
+          .in('target_role', ['all', 'teacher'])
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (teacherProgramIds.length > 0) {
+          adminQuery = adminQuery.or(`program_id.is.null,program_id.in.(${teacherProgramIds.join(',')})`);
+        } else {
+          adminQuery = adminQuery.is('program_id', null);
+        }
+
+        const { data: adminData, error: adminErr } = await adminQuery;
+        if (!adminErr && adminData) {
+          setAdminAnnouncements(adminData);
+        }
+      } catch (e) {
+        console.error('Error fetching admin announcements:', e);
+      }
     } catch (err) {
       console.error('Error fetching teacher portal data', err);
     } finally {
@@ -974,7 +1061,7 @@ function TeacherPortal({ getDiplomadoLink }) {
                     background: program.image_url ? `url(${program.image_url}) center/cover` : 'linear-gradient(135deg, #14213d 0%, #1e2e52 100%)', 
                     display: 'flex', 
                     alignItems: 'center', 
-                    justify: 'center', 
+                    justifyContent: 'center', 
                     position: 'relative' 
                   }}>
                     {!program.image_url && (
@@ -2193,7 +2280,52 @@ function TeacherPortal({ getDiplomadoLink }) {
         </Link>
       </div>
 
-      {/* BLOQUE ÚNICO: PRÓXIMA CLASE */}
+      {/* AVISOS INSTITUCIONALES PARA PROFESORES */}
+      <div style={{ marginBottom: '2.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+          <Megaphone size={18} color="var(--navy)" />
+          <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)' }}>Avisos de Administración</h3>
+        </div>
+        {loading ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando avisos...</div>
+        ) : adminAnnouncements.length === 0 ? (
+          <div className="card" style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>No hay comunicados recientes.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            {adminAnnouncements.map(ann => {
+              const isUrgent = ann.tag === 'urgent' || ann.tag === 'urgente';
+              return (
+                <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: isUrgent ? '#dc2626' : 'var(--gold)' }}></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', paddingLeft: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: isUrgent ? '#fee2e2' : '#f1f5f9', color: isUrgent ? '#991b1b' : '#475569' }}>
+                          {ann.program_id ? ann.diploma_programs?.title : 'Institucional'}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {new Date(ann.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)' }}>{ann.title}</h4>
+                      <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{ann.body}</p>
+                    </div>
+                    {ann.program_id && (
+                      <Link to={`/dashboard/profesor/${ann.program_id}?tab=anuncios`} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>
+                        Ver en curso
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* CLASE MÁS PRÓXIMA (DESTACADA) */}
       <div style={{ marginTop: '0.5rem' }}>
         <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>
           Próxima clase
@@ -3208,14 +3340,6 @@ export default function Portal() {
       {role === 'teacher' && <TeacherPortal getDiplomadoLink={getDiplomadoLink} />}
       {role === 'student' && <StudentPortal getDiplomadoLink={getDiplomadoLink} />}
       {/* Fallback por seguridad si no hay rol */}
-      {!role && <StudentPortal getDiplomadoLink={getDiplomadoLink} />}
-    </div>
+      {!role && <StudentPortal getDiplomadoLink={getDiplomadoLink} />}    </div>
   );
 }
-
-
-
-
-
-
-

@@ -62,12 +62,11 @@ export default function PendingActivitiesCard({ studentId }) {
           label: 'Vencida'
         };
       case 'today':
-      case 'tomorrow':
         return {
           badgeBg: '#fffbe6',
           badgeColor: '#d97706',
           borderColor: '#fca311',
-          label: urgency === 'today' ? 'Hoy' : 'Mañana'
+          label: 'Hoy'
         };
       case 'upcoming':
       default:
@@ -389,7 +388,7 @@ export default function PendingActivitiesCard({ studentId }) {
                     {/* PROFESOR QUE LO SUBIÓ */}
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600, color: 'var(--navy)' }}>
                       <User size={12} color="var(--gold-dark)" />
-                      <span>Prof. {ann.teacherName}</span>
+                      <span>{ann.isAdmin ? ann.teacherName : `Prof. ${ann.teacherName}`}</span>
                     </span>
 
                     {/* FECHA DE PUBLICACIÓN */}
@@ -497,10 +496,35 @@ export default function PendingActivitiesCard({ studentId }) {
                       <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {item.programTitle}
                       </span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        {item.type === 'Sesión en vivo' || item.type === 'Clase hoy' ? 'Próxima clase: ' : 'Cierra: '}
-                        {formatShortDate(item.date)}
-                      </span>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.3rem',
+                        fontSize: '0.72rem', 
+                        color: (item.urgency === 'today' || item.urgency === 'overdue') ? urgencyStyle.borderColor : 'var(--text-muted)',
+                        fontWeight: (item.urgency === 'today' || item.urgency === 'overdue') ? 700 : 500
+                      }}>
+                        <span>
+                          {item.type === 'Sesión en vivo' || item.type === 'Clase hoy' ? 'Próxima clase: ' : 'Cierra: '}
+                          {formatShortDate(item.date)}
+                        </span>
+                        {(item.urgency === 'today' || item.urgency === 'overdue') && (
+                          <span style={{ 
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            background: urgencyStyle.badgeBg,
+                            color: urgencyStyle.badgeColor,
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '4px',
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            border: `1px solid ${urgencyStyle.borderColor}`,
+                            textTransform: 'uppercase'
+                          }}>
+                            {item.urgency === 'today' ? '🔥 ¡Hoy!' : '⚠️ Vencida'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
