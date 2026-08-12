@@ -434,6 +434,28 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
     } finally { setActionLoading(null); }
   };
 
+  const handleSaveDraftEdits = async () => {
+    if (!draft) return;
+    setActionLoading('saving');
+    setActivityMsg('');
+    try {
+      const updatedDraftData = { ...draft.draft_data, questions: localQuestions };
+      const { error } = await supabase
+        .from('activity_drafts')
+        .update({ draft_data: updatedDraftData })
+        .eq('id', draft.id);
+      if (error) throw error;
+      setActivityMsg('✓ Cambios en el borrador guardados correctamente.');
+      setEditingQuestions(false);
+      await fetchDraftAndStats();
+      if (onClassUpdated) onClassUpdated();
+    } catch (err) {
+      setActivityMsg('Error al guardar: ' + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const presentations = materials.filter(m => m.resource_type === 'presentation');
   const complementary = materials.filter(m => m.resource_type !== 'presentation');
 
@@ -835,7 +857,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
                   {/* Lista de preguntas — modo visualización */}
                   {!editingQuestions && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                       {localQuestions.map((q, qi) => (
                         <div key={q._key ?? qi} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E5E5E5' }}>
                           <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem', marginBottom: '0.6rem' }}>
@@ -849,6 +871,41 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                               </div>
                             ))}
                           </div>
+
+                          {/* RETROALIMENTACIÓN / ACLARACIÓN PEDAGÓGICA (BOMBILLO) */}
+                          {(() => {
+                            const exp = (q.explanation || '').trim();
+                            const src = (q.source_basis || '').trim();
+                            const correctOpt = (q.options || []).find(o => o.is_correct);
+                            const defaultFeedback = correctOpt 
+                              ? `La opción correcta es "${correctOpt.text}". Revisa los contenidos de esta sesión para afianzar la explicación con tus estudiantes.`
+                              : 'Fundamentado en los contenidos clave explicados durante esta sesión.';
+                            const feedbackText = exp || src || defaultFeedback;
+
+                            return (
+                              <div style={{
+                                marginTop: '0.75rem',
+                                padding: '0.65rem 0.85rem',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '8px',
+                                fontSize: '0.82rem',
+                                color: '#1e40af',
+                                lineHeight: 1.45,
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '0.5rem'
+                              }}>
+                                <span style={{ fontSize: '1rem', flexShrink: 0 }}>💡</span>
+                                <div style={{ flex: 1 }}>
+                                  <strong style={{ display: 'block', color: '#1d4ed8', marginBottom: '2px', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                    Retroalimentación Pedagógica
+                                  </strong>
+                                  <span>{feedbackText}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
@@ -868,6 +925,8 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                           </div>
                           <textarea value={q.text} onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, text: e.target.value } : item))}
                             rows={2} style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem', marginBottom: '0.6rem', resize: 'vertical' }} />
+                          
+                          {/* Opciones */}
                           {(q.options || []).map((opt, oi) => (
                             <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
                               <input type="radio" name={`correct-${qi}`} checked={!!opt.is_correct}
@@ -877,12 +936,48 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                                 style={{ flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.83rem' }} />
                             </div>
                           ))}
+
+                          {/* CAMPO DE EDICIÓN DE RETROALIMENTACIÓN / EXPLICACIÓN CON BOMBILLO */}
+                          <div style={{ marginTop: '0.75rem', padding: '0.65rem 0.85rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                              <span style={{ fontSize: '0.95rem' }}>💡</span>
+                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Retroalimentación Pedagógica / Explicación
+                              </label>
+                            </div>
+                            <textarea 
+                              value={q.explanation || ''} 
+                              onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, explanation: e.target.value } : item))}
+                              placeholder="Escribe la aclaración o explicación pedagógica de por qué esta respuesta es la correcta..."
+                              rows={2} 
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', border: '1px solid #93c5fd', borderRadius: '5px', fontSize: '0.82rem', resize: 'vertical', background: '#ffffff', color: '#1e3a8a' }} 
+                            />
+                          </div>
                         </div>
                       ))}
-                      <button onClick={() => setLocalQuestions(prev => [...prev, { _key: Date.now(), text: '', question_type: 'single_choice', options: [{ text: '', is_correct: true }, { text: '', is_correct: false }, { text: '', is_correct: false }] }])}
-                        style={{ background: '#FFFFFF', border: '1px dashed #FCA311', borderRadius: '7px', padding: '0.6rem', color: '#FCA311', fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-                        <PlusCircle size={15} /> Agregar pregunta
-                      </button>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginTop: '0.5rem' }}>
+                        <button onClick={() => setLocalQuestions(prev => [...prev, { _key: Date.now(), text: '', explanation: '', question_type: 'single_choice', options: [{ text: '', is_correct: true }, { text: '', is_correct: false }, { text: '', is_correct: false }, { text: '', is_correct: false }] }])}
+                          style={{ background: '#FFFFFF', border: '1px dashed #FCA311', borderRadius: '7px', padding: '0.55rem 1rem', color: '#FCA311', fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <PlusCircle size={15} /> Agregar pregunta
+                        </button>
+                        
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            onClick={() => setEditingQuestions(false)}
+                            style={{ background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.5rem 1rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Cerrar
+                          </button>
+                          <button 
+                            onClick={handleSaveDraftEdits} 
+                            disabled={actionLoading === 'saving'}
+                            style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.5rem 1.1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                          >
+                            <Save size={13} /> {actionLoading === 'saving' ? 'Guardando...' : 'Guardar Cambios'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>

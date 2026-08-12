@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
+import LiaterHeroAnimation from '../components/LiaterHeroAnimation';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -49,46 +50,57 @@ export default function Home() {
       {/* --- HERO SECTION --- */}
       <section style={{
         position: 'relative',
-        minHeight: '90vh',
+        minHeight: '92vh',
         display: 'flex',
         alignItems: 'center',
-        padding: '8rem 2rem 4rem',
+        padding: '7.5rem 2rem 4.5rem',
         background: 'linear-gradient(135deg, var(--navy) 0%, #0a1122 100%)',
         color: 'var(--white)',
         overflow: 'hidden'
       }}>
-        {/* Decorative elements */}
+        {/* Decorative ambient gradients */}
         <div style={{
           position: 'absolute', width: '600px', height: '600px', borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(252,163,17,0.15) 0%, transparent 60%)',
-          top: '-200px', right: '-150px', pointerEvents: 'none'
+          top: '-150px', right: '-100px', pointerEvents: 'none'
         }} />
         <div style={{
-          position: 'absolute', width: '400px', height: '400px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(20,33,61,0.5) 0%, transparent 60%)',
+          position: 'absolute', width: '450px', height: '450px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(56,189,248,0.12) 0%, transparent 60%)',
           bottom: '-100px', left: '-100px', pointerEvents: 'none'
         }} />
 
-        <div className="container" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px', margin: '0' }}>
+        <div className="container" style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          alignItems: 'center',
+          gap: '3.5rem',
+          maxWidth: '1240px',
+          width: '100%',
+          margin: '0 auto'
+        }}>
+          {/* Columna Izquierda: Textos y Acciones */}
           <div style={{ animation: 'fadeSlideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) both' }}>
-            <span className="badge badge-gold" style={{ marginBottom: '1.5rem', padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
+            <span className="badge badge-gold" style={{ marginBottom: '1.25rem', padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
               Plataforma Educativa Oficial
             </span>
             <h1 style={{ 
-              fontSize: 'clamp(2.5rem, 5vw, 4rem)', 
+              fontSize: 'clamp(2.4rem, 4.5vw, 3.8rem)', 
               fontWeight: 800, 
-              lineHeight: 1.1, 
+              lineHeight: 1.12, 
               letterSpacing: '-0.03em',
-              marginBottom: '1.5rem'
+              marginBottom: '1.35rem'
             }}>
               Transforma tu futuro con el <span style={{ color: 'var(--gold)' }}>Laboratorio LIATER</span>
             </h1>
             <p style={{ 
-              fontSize: 'clamp(1rem, 2vw, 1.25rem)', 
-              color: 'rgba(255, 255, 255, 0.8)', 
-              lineHeight: 1.6,
-              maxWidth: '650px',
-              marginBottom: '2.5rem'
+              fontSize: 'clamp(1rem, 1.8vw, 1.15rem)', 
+              color: 'rgba(255, 255, 255, 0.82)', 
+              lineHeight: 1.65,
+              maxWidth: '560px',
+              marginBottom: '2.25rem'
             }}>
               Accede a formación tecnológica de alto nivel, desarrolla habilidades prácticas y avanza en tu carrera con nuestros diplomados y cursos especializados.
             </p>
@@ -97,7 +109,7 @@ export default function Home() {
               <button 
                 onClick={() => navigate('/login')}
                 className="btn btn-gold"
-                style={{ padding: '0.8rem 2rem', fontSize: '1.05rem', boxShadow: '0 8px 24px rgba(252, 163, 17, 0.3)' }}
+                style={{ padding: '0.85rem 2rem', fontSize: '1.02rem', boxShadow: '0 8px 24px rgba(252, 163, 17, 0.35)' }}
               >
                 Iniciar Sesión
               </button>
@@ -105,19 +117,24 @@ export default function Home() {
                 href="#programas"
                 className="btn"
                 style={{ 
-                  padding: '0.8rem 2rem', 
-                  fontSize: '1.05rem',
+                  padding: '0.85rem 2rem', 
+                  fontSize: '1.02rem',
                   background: 'rgba(255, 255, 255, 0.1)',
                   color: 'var(--white)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
                   backdropFilter: 'blur(10px)'
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; }}
+                onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)'; }}
                 onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; }}
               >
                 Explorar Programas
               </a>
             </div>
+          </div>
+
+          {/* Columna Derecha: Animación Tecnológica Interactiva LIATER */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', animation: 'fadeIn 0.9s ease both' }}>
+            <LiaterHeroAnimation />
           </div>
         </div>
       </section>

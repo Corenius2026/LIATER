@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import liaterLogo from '../assets/liater-logo.png';
+import liaterLogoWhite from '../assets/liater-logo-white.png';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 import unalPillNavyLogo from '../assets/unal-pill-navy-logo.png';
 
@@ -39,7 +40,7 @@ export default function PublicNavbar() {
             src={isScrolled ? unalPillNavyLogo : unalPillLogo} 
             alt="Universidad Nacional de Colombia" 
             style={{ 
-              height: isScrolled ? '65px' : '60px', 
+              height: isScrolled ? '72px' : '78px', 
               objectFit: 'contain',
               transition: 'all 0.3s ease' 
             }} 
@@ -48,38 +49,31 @@ export default function PublicNavbar() {
         
         <div style={{ 
           width: '1px', 
-          height: '50px', 
+          height: '54px', 
           background: isScrolled ? 'rgba(20, 33, 61, 0.2)' : 'rgba(255, 255, 255, 0.3)',
           transition: 'background 0.3s ease'
         }}></div>
 
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
-          <div style={{
-            background: isScrolled ? 'transparent' : 'rgba(255, 255, 255, 0.95)',
-            padding: isScrolled ? '0' : '0.25rem 0.75rem',
-            borderRadius: '0.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            transition: 'all 0.3s ease'
-          }}>
-            <img 
-              src={liaterLogo} 
-              alt="LIATER" 
-              style={{ 
-                height: isScrolled ? '50px' : '45px', 
-                objectFit: 'contain',
-                transition: 'all 0.3s ease' 
-              }} 
-            />
-          </div>
-          <span style={{ 
-            color: isScrolled ? 'var(--navy)' : 'var(--white)', 
-            fontWeight: 800, 
-            fontSize: '1.35rem',
-            letterSpacing: '-0.02em',
-            transition: 'color 0.3s ease'
-          }}>
-            LIATER
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '1rem', textDecoration: 'none' }}>
+          <img
+            src={isScrolled ? liaterLogo : liaterLogoWhite}
+            alt="LIATER"
+            style={{
+              height: isScrolled ? '54px' : '62px',
+              objectFit: 'contain',
+              transition: 'all 0.3s ease'
+            }}
+          />
+          <span
+            className={isScrolled ? 'liater-electric-text-scrolled' : 'liater-electric-text'}
+            style={{
+              fontSize: isScrolled ? '0.82rem' : '1rem',
+              maxWidth: '480px',
+              whiteSpace: 'normal',
+              transition: 'font-size 0.3s ease',
+            }}
+          >
+            Laboratorio de Investigación en Alta Tensión<br />y Energías Renovables
           </span>
         </Link>
       </div>

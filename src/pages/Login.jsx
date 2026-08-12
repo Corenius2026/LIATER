@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import liaterLogo from '../assets/liater-logo.png';
 import unalPillLogo from '../assets/unal-pill-logo.png';
+import coreniusLogoWhite from '../assets/Corenius_Logo_Blanco.svg';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -180,6 +181,38 @@ export default function Login() {
           © {new Date().getFullYear()} Laboratorio LIATER
         </span>
       </div>
+
+      {/* Firma de Corenius discreta y elegante en la esquina inferior derecha con enlace */}
+      <a 
+        href="https://www.corenius.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Corenius | Transformación Digital"
+        style={{
+          position: 'absolute',
+          bottom: '1.25rem',
+          right: '1.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.45rem',
+          zIndex: 10,
+          opacity: 0.75,
+          textDecoration: 'none',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+        onMouseOut={(e) => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.transform = 'translateY(0)'; }}
+      >
+        <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.68rem', fontWeight: 500 }}>
+          Desarrollo por
+        </span>
+        <img
+          src={coreniusLogoWhite}
+          alt="Corenius - Transformación Digital"
+          style={{ height: '18px', objectFit: 'contain' }}
+        />
+      </a>
     </div>
   );
 }

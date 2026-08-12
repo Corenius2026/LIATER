@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { Plus, Trash2, Edit2, CheckCircle2, AlertTriangle, PlayCircle, GripVertical, Save, FileText, Check } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle2, AlertTriangle, PlayCircle, GripVertical, Save, FileText, Check, Sparkles, RefreshCw } from 'lucide-react';
 
 export default function AdminClassReinforcement({ classId }) {
   const { currentUser } = useAuth();
@@ -9,6 +9,7 @@ export default function AdminClassReinforcement({ classId }) {
 
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState(null);
+  const [draft, setDraft] = useState(null);
   const [questions, setQuestions] = useState([]);
   
   const [saving, setSaving] = useState(false);
@@ -133,11 +134,29 @@ export default function AdminClassReinforcement({ classId }) {
     }
   }, [classId]);
 
+  // Realtime subscription para sincronizar drafts creados por la IA en vivo
+  useEffect(() => {
+    if (!classId) return;
+    const channel = supabase
+      .channel('admin_class_activity_sync_' + classId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_activities', filter: `class_id=eq.${classId}` }, () => {
+        loadActivityData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_drafts', filter: `class_id=eq.${classId}` }, () => {
+        loadActivityData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [classId]);
+
   const loadActivityData = async () => {
     setLoading(true);
     setError('');
     try {
-      // 1. Obtener la actividad de la clase
+      // 1. Obtener la actividad publicada de la clase
       const { data: actData, error: actError } = await supabase
         .from('class_activities')
         .select('*')
@@ -145,6 +164,18 @@ export default function AdminClassReinforcement({ classId }) {
         .maybeSingle();
 
       if (actError) throw actError;
+
+      // 2. Obtener borrador de IA (activity_drafts)
+      const { data: draftData } = await supabase
+        .from('activity_drafts')
+        .select('*')
+        .eq('class_id', classId)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setDraft(draftData || null);
 
       if (actData) {
         setActivity(actData);
@@ -155,7 +186,7 @@ export default function AdminClassReinforcement({ classId }) {
           max_attempts: actData.max_attempts
         });
 
-        // 2. Obtener preguntas, opciones y correctas
+        // 3. Obtener preguntas, opciones y correctas
         const { data: qData, error: qError } = await supabase
           .from('activity_questions')
           .select(`
@@ -169,7 +200,7 @@ export default function AdminClassReinforcement({ classId }) {
         if (qError) throw qError;
 
         // Normalizar los datos
-        const normalizedQuestions = (qData || []).map(q => {
+        let normalizedQuestions = (qData || []).map(q => {
           const sortedOptions = (q.question_options || []).sort((a, b) => a.order_num - b.order_num);
           let correctOption = null;
 
@@ -188,14 +219,121 @@ export default function AdminClassReinforcement({ classId }) {
           };
         });
 
+        // Si la actividad en DB no tiene preguntas pero existe un borrador de IA, cargarlas automáticamente
+        if (normalizedQuestions.length === 0 && draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
+          const isOptionCorrect = (o, oIndex, q) => {
+            if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
+            if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
+            if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
+            if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
+            if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
+            return false;
+          };
+
+          normalizedQuestions = draftData.draft_data.questions.map((q, qIndex) => {
+            const qId = `temp-draft-q-${qIndex}`;
+            let correctOptId = null;
+
+            const newOptions = (q.options || []).map((o, oIndex) => {
+              const oId = `temp-draft-o-${qIndex}-${oIndex}`;
+              if (isOptionCorrect(o, oIndex, q)) {
+                correctOptId = oId;
+              }
+              return {
+                id: oId,
+                question_id: qId,
+                text: o.text || `Opción ${oIndex + 1}`,
+                order_num: oIndex
+              };
+            });
+
+            if (!correctOptId && newOptions.length > 0) {
+              correctOptId = newOptions[0].id;
+            }
+
+            return {
+              id: qId,
+              activity_id: actData.id,
+              text: q.text || 'Sin enunciado',
+              question_type: q.question_type || 'single_choice',
+              explanation: q.explanation || '',
+              source_basis: q.source_basis || '',
+              order_num: qIndex,
+              options: newOptions,
+              correctOptionId: correctOptId
+            };
+          });
+        }
+
         setQuestions(normalizedQuestions);
+      } else if (draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
+        // Cargar automáticamente las preguntas del borrador de IA
+        setLocalActivity({
+          title: draftData.draft_data.activity_title || 'Actividad de Reforzamiento',
+          description: draftData.draft_data.activity_description || '',
+          is_mandatory: false,
+          max_attempts: 1
+        });
+
+        const isOptionCorrect = (o, oIndex, q) => {
+          if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
+          if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
+          if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
+          if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
+          if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
+          return false;
+        };
+
+        const draftQs = draftData.draft_data.questions.map((q, qIndex) => {
+          const qId = `temp-draft-q-${qIndex}`;
+          let correctOptId = null;
+
+          const newOptions = (q.options || []).map((o, oIndex) => {
+            const oId = `temp-draft-o-${qIndex}-${oIndex}`;
+            if (isOptionCorrect(o, oIndex, q)) {
+              correctOptId = oId;
+            }
+            return {
+              id: oId,
+              question_id: qId,
+              text: o.text || `Opción ${oIndex + 1}`,
+              order_num: oIndex
+            };
+          });
+
+          if (!correctOptId && newOptions.length > 0) {
+            correctOptId = newOptions[0].id;
+          }
+
+          return {
+            id: qId,
+            activity_id: 'draft-temp',
+            text: q.text || 'Sin enunciado',
+            question_type: q.question_type || 'single_choice',
+            explanation: q.explanation || '',
+            source_basis: q.source_basis || '',
+            order_num: qIndex,
+            options: newOptions,
+            correctOptionId: correctOptId
+          };
+        });
+
+        setQuestions(draftQs);
+        setActivity({
+          id: 'draft-temp',
+          class_id: classId,
+          title: draftData.draft_data.activity_title || 'Actividad de Reforzamiento',
+          description: draftData.draft_data.activity_description || '',
+          is_published: false,
+          is_draft: true
+        });
       } else {
         setActivity(null);
         setQuestions([]);
       }
     } catch (err) {
       console.error('Error cargando actividad:', err);
-      setError('No se pudo cargar la actividad. Verifica que hayas ejecutado la migración SQL en Supabase.');
+      setError('No se pudo cargar la actividad.');
     } finally {
       setLoading(false);
     }
@@ -234,6 +372,27 @@ export default function AdminClassReinforcement({ classId }) {
   const persistQuestionsToDatabase = async (activityId, currentQuestions) => {
     if (!activityId || !currentQuestions) return [];
 
+    // Si es una actividad temporal de borrador, primero crear la actividad en class_activities
+    let targetActId = activityId;
+    if (activityId === 'draft-temp' || String(activityId).startsWith('temp-')) {
+      const { data: newAct, error: actErr } = await supabase
+        .from('class_activities')
+        .insert([{
+          class_id: classId,
+          title: localActivity.title || 'Actividad de Reforzamiento',
+          description: localActivity.description || '',
+          is_mandatory: localActivity.is_mandatory || false,
+          max_attempts: localActivity.max_attempts || 1,
+          is_published: false
+        }])
+        .select()
+        .single();
+
+      if (actErr) throw actErr;
+      targetActId = newAct.id;
+      setActivity(newAct);
+    }
+
     const normalizeQType = (t) => {
       if (!t) return 'single_choice';
       const str = String(t).toLowerCase();
@@ -269,30 +428,55 @@ export default function AdminClassReinforcement({ classId }) {
 
       // 1. Crear o actualizar la pregunta en DB
       if (String(q.id).startsWith('temp-')) {
-        const { data: insertedQ, error: qErr } = await supabase
+        const qPayload = {
+          activity_id: targetActId,
+          text: q.text || 'Sin enunciado',
+          question_type: validQType,
+          order_num: qIndex
+        };
+        if (q.explanation) qPayload.explanation = q.explanation;
+        if (q.source_basis) qPayload.source_basis = q.source_basis;
+
+        let { data: insertedQ, error: qErr } = await supabase
           .from('activity_questions')
-          .insert([{
-            activity_id: activityId,
-            text: q.text || 'Sin enunciado',
-            question_type: validQType,
-            explanation: q.explanation || null,
-            order_num: qIndex
-          }])
+          .insert([qPayload])
           .select()
           .single();
+
+        if (qErr && (qErr.message?.includes('explanation') || qErr.message?.includes('source_basis') || qErr.code === 'PGRST204')) {
+          delete qPayload.explanation;
+          delete qPayload.source_basis;
+          const retryRes = await supabase
+            .from('activity_questions')
+            .insert([qPayload])
+            .select()
+            .single();
+          insertedQ = retryRes.data;
+          qErr = retryRes.error;
+        }
 
         if (qErr) throw qErr;
         realQId = insertedQ.id;
       } else {
-        await supabase
+        const updatePayload = {
+          text: q.text,
+          question_type: validQType,
+          order_num: qIndex
+        };
+        if (q.explanation !== undefined) updatePayload.explanation = q.explanation || null;
+
+        let { error: updateQErr } = await supabase
           .from('activity_questions')
-          .update({
-            text: q.text,
-            question_type: validQType,
-            explanation: q.explanation || null,
-            order_num: qIndex
-          })
+          .update(updatePayload)
           .eq('id', q.id);
+
+        if (updateQErr && (updateQErr.message?.includes('explanation') || updateQErr.code === 'PGRST204')) {
+          delete updatePayload.explanation;
+          await supabase
+            .from('activity_questions')
+            .update(updatePayload)
+            .eq('id', q.id);
+        }
       }
 
       // Eliminar de DB opciones huérfanas de esta pregunta
@@ -508,8 +692,11 @@ export default function AdminClassReinforcement({ classId }) {
     setQuestions(questions.map(q => q.id === id ? { ...q, explanation } : q));
     if (!String(id).startsWith('temp-')) {
       try {
-        await supabase.from('activity_questions').update({ explanation }).eq('id', id);
-      } catch (err) { console.error(err); }
+        const { error } = await supabase.from('activity_questions').update({ explanation }).eq('id', id);
+        if (error && error.message?.includes('explanation')) {
+          // Ignorar si la columna no existe en schema cache
+        }
+      } catch (err) { console.warn('Nota: no se pudo guardar explanation en DB:', err); }
     }
   };
 
@@ -795,6 +982,47 @@ export default function AdminClassReinforcement({ classId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      {/* BANNER INFORMATIVO SI HAY BORRADOR DE IA */}
+      {draft && !activity?.is_published && (
+        <div style={{ 
+          padding: '1.25rem 1.5rem', 
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)', 
+          border: '1.5px solid #86efac', 
+          borderRadius: '10px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          flexWrap: 'wrap', 
+          gap: '1rem',
+          boxShadow: '0 2px 8px rgba(22, 163, 74, 0.08)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: '#166534', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Borrador generado por IA (Google Gemini)
+                <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
+                  Pendiente de Revisión
+                </span>
+              </div>
+              <div style={{ fontSize: '0.84rem', color: '#15803d', marginTop: '2px' }}>
+                Las preguntas fueron generadas automáticamente a partir de la transcripción de la clase. Puedes revisarlas, editarlas y publicarlas a continuación.
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={togglePublish} 
+            disabled={saving} 
+            className="btn btn-primary" 
+            style={{ background: '#16a34a', borderColor: '#16a34a', padding: '0.6rem 1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            <Check size={16} /> Aprobar y Publicar Actividad
+          </button>
+        </div>
+      )}
+
       {/* 1. CONFIGURACIÓN GENERAL */}
       <div className="card" style={{ padding: '1.5rem', background: 'white', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>

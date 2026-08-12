@@ -315,15 +315,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     auth: { persistSession: false },
   });
 
-  // ── Buscar la clase inteligentemente ─────────────────────────────────────
+  // ── Buscar la clase estrictamente por drive_folder_id asignado en la web ──
   let session: { id: string; title: string; video_url?: string | null; drive_folder_id?: string | null } | null = null;
 
-  // 1. Intento por coincidencia directa de drive_folder_id o links
   try {
     const { data: directMatch } = await supabaseAdmin
       .from("class_sessions")
-      .select("id, title, video_url, drive_folder_id")
-      .or(`drive_folder_id.eq.${folderId},drive_folder_id.ilike.%${folderId}%,presentation_url.ilike.%${folderId}%,video_url.ilike.%${folderId}%`)
+      .select("id, title, video_url, drive_folder_id, order_index")
+      .or(`drive_folder_id.eq.${folderId},drive_folder_id.ilike.%${folderId}%`)
       .limit(1)
       .maybeSingle();
 
@@ -331,77 +330,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
       session = directMatch;
     }
   } catch (err) {
-    console.warn("Búsqueda directa por drive_folder_id falló:", err);
+    console.warn("Búsqueda por drive_folder_id falló:", err);
   }
 
-  // 2. Si no se encontró, extraer número de sesión de la nomenclatura
-  if (!session) {
-    const combinedName = `${folderName} ${docName}`;
-    let sessionNumber: number | null = null;
-
-    const sMatch =
-      combinedName.match(/_S0*(\d+)_/i) ||
-      combinedName.match(/_S0*(\d+)/i) ||
-      combinedName.match(/sesi[oó]n[_\s-]*0*(\d+)/i) ||
-      combinedName.match(/clase[_\s-]*0*(\d+)/i) ||
-      combinedName.match(/\bS0*(\d+)\b/i);
-
-    if (sMatch) {
-      sessionNumber = parseInt(sMatch[1], 10);
-    }
-
-    if (sessionNumber !== null) {
-      const { data: byOrder } = await supabaseAdmin
-        .from("class_sessions")
-        .select("id, title, video_url, drive_folder_id")
-        .eq("order_index", sessionNumber)
-        .limit(1)
-        .maybeSingle();
-
-      if (byOrder) {
-        session = byOrder;
-      } else {
-        const { data: byTitle } = await supabaseAdmin
-          .from("class_sessions")
-          .select("id, title, video_url, drive_folder_id")
-          .or(`title.ilike.%Sesión ${sessionNumber}%,title.ilike.%Sesion ${sessionNumber}%,title.ilike.%Clase ${sessionNumber}%`)
-          .limit(1)
-          .maybeSingle();
-
-        if (byTitle) {
-          session = byTitle;
-        }
-      }
-    }
-  }
-
-  // 3. Fallback: Si hay una sola clase en el sistema
-  if (!session) {
-    const { data: allClasses } = await supabaseAdmin
-      .from("class_sessions")
-      .select("id, title, video_url, drive_folder_id")
-      .order("created_at", { ascending: true })
-      .limit(2);
-
-    if (allClasses && allClasses.length === 1) {
-      session = allClasses[0];
-    }
-  }
-
+  // Si la carpeta de Google Drive NO está asignada a ninguna clase en la base de datos
   if (!session) {
     const { data: sampleClasses } = await supabaseAdmin
       .from("class_sessions")
-      .select("id, title, order_index")
-      .limit(5);
+      .select("id, title, order_index, drive_folder_id")
+      .order("order_index", { ascending: true })
+      .limit(10);
 
     const disponibles = (sampleClasses || [])
-      .map((c: { title: string; order_index: number }) => `[#${c.order_index || '?'}] ${c.title}`)
+      .map((c: { title: string; order_index: number; drive_folder_id: string | null }) => 
+        `[#${c.order_index || '?'}] ${c.title} (${c.drive_folder_id ? '✓ Carpeta vinculada' : '⚠️ Sin carpeta'})`
+      )
       .join(", ");
 
     return jsonResponse(
       {
         ok: false,
-        error: `No se pudo asociar el archivo '${docName || folderName}' a ninguna clase de LIATER. Clases disponibles: ${disponibles || 'Ninguna registrada'}.`,
+        error: `La carpeta de Google Drive '${folderName}' (ID: ${folderId}) NO está asignada a ninguna clase en la plataforma LIATER. Por favor crea o edita la clase en el Panel de Administración y pégale este enlace de carpeta para poder procesar sus videos y preguntas. Clases registradas: ${disponibles || 'Ninguna'}.`,
         drive_folder_id: folderId,
         doc_name: docName,
         folder_name: folderName,
