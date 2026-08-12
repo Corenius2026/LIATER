@@ -1904,11 +1904,11 @@ function ResumenTab({ onChangeTab }) {
       ]);
       
       const classes = resClasses.data || [];
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const getEndTime = (c) => new Date(new Date(c.class_date).getTime() + (c.duration || 120) * 60000);
 
-      const completed = classes.filter(c => new Date(c.class_date) < startOfToday).length;
-      const upcomingList = classes.filter(c => new Date(c.class_date) >= startOfToday);
+      const completed = classes.filter(c => getEndTime(c) < now).length;
+      const upcomingList = classes.filter(c => getEndTime(c) >= now);
       
       setUpcomingClasses(upcomingList.slice(0, 1));
       setPendingDoubts(resTopDoubts.data || []);
