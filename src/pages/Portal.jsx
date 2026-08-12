@@ -578,6 +578,7 @@ function TeacherPortal({ getDiplomadoLink }) {
   const [counts, setCounts] = useState({ doubts: 0, upcomingClasses: 0, activePrograms: 0 });
   const [loading, setLoading] = useState(true);
   const [adminAnnouncements, setAdminAnnouncements] = useState([]);
+  const [showAllAdminAnn, setShowAllAdminAnn] = useState(false);
 
   // Estados para filtro en "Mis programas" y "Bandeja de consultas"
   const [activeFilter, setActiveFilter] = useState('Todos');
@@ -734,15 +735,26 @@ function TeacherPortal({ getDiplomadoLink }) {
         setQuestions(doubtsData);
 
         try {
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+          
           const { data: annData, error: annErr } = await supabase
             .from('announcements')
             .select('*, diploma_programs(id, title), teacher_profiles(id, name)')
-            .or('is_global.eq.true,program_id.is.null,teacher_id.is.null')
-            .order('created_at', { ascending: false })
-            .limit(5);
+            .is('teacher_id', null)
+            .gte('created_at', oneWeekAgo.toISOString())
+            .order('created_at', { ascending: false });
             
           if (!annErr && annData) {
-            setAdminAnnouncements(annData);
+            const filtered = annData.filter(ann => {
+              if (ann.is_global || !ann.program_id) return true; // Global
+              // Si es de un programa, validar que el profesor pertenezca a el y el rol destino
+              if (teacherProgramIds.includes(ann.program_id)) {
+                return ann.target_role === 'teacher' || ann.target_role === 'all';
+              }
+              return false;
+            });
+            setAdminAnnouncements(filtered);
           }
         } catch (e) {
           console.error('Error fetching admin announcements', e);
@@ -1590,9 +1602,19 @@ function TeacherPortal({ getDiplomadoLink }) {
 
       {/* BLOQUE: AVISOS DE ADMINISTRACIÓN */}
       <div style={{ marginTop: '0.5rem', marginBottom: '2.5rem' }}>
-        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>
-          Avisos de Administración
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+            Avisos de Administración
+          </h2>
+          {adminAnnouncements.length > 3 && (
+            <button 
+              onClick={() => setShowAllAdminAnn(!showAllAdminAnn)}
+              style={{ color: 'var(--gold-dark)', fontSize: '0.9rem', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              {showAllAdminAnn ? 'Ver menos' : 'Ver todos'} <ChevronRight size={14} style={{ transform: showAllAdminAnn ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Cargando avisos...</p>
@@ -1602,7 +1624,7 @@ function TeacherPortal({ getDiplomadoLink }) {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
-            {adminAnnouncements.map(ann => {
+            {(showAllAdminAnn ? adminAnnouncements : adminAnnouncements.slice(0, 3)).map(ann => {
               const dateObj = new Date(ann.created_at);
               const isGlobal = ann.is_global || (!ann.program_id && !ann.teacher_id);
               
