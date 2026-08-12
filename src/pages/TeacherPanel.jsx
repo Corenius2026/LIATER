@@ -467,8 +467,8 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
   ];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,33,61,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(6px)' }}>
-      <div style={{ width: '100%', maxWidth: '860px', maxHeight: '92vh', overflow: 'hidden', background: '#FFFFFF', borderRadius: '14px', boxShadow: '0 24px 60px rgba(20,33,61,0.3)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,33,61,0.8)', display: 'flex', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(6px)', overflowY: 'auto' }}>
+      <div style={{ margin: 'auto', width: '100%', maxWidth: '860px', maxHeight: 'calc(100vh - 2rem)', overflow: 'hidden', background: '#FFFFFF', borderRadius: '14px', boxShadow: '0 24px 60px rgba(20,33,61,0.3)', display: 'flex', flexDirection: 'column' }}>
         {/* HEADER DEL MODAL */}
         <div style={{ padding: '1.75rem 2rem 0', borderBottom: '1px solid #E5E5E5', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
