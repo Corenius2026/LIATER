@@ -468,9 +468,9 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,33,61,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(6px)' }}>
-      <div style={{ width: '100%', maxWidth: '860px', maxHeight: '92vh', overflowY: 'auto', background: '#FFFFFF', borderRadius: '14px', boxShadow: '0 24px 60px rgba(20,33,61,0.3)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: '100%', maxWidth: '860px', maxHeight: '92vh', overflow: 'hidden', background: '#FFFFFF', borderRadius: '14px', boxShadow: '0 24px 60px rgba(20,33,61,0.3)', display: 'flex', flexDirection: 'column' }}>
         {/* HEADER DEL MODAL */}
-        <div style={{ padding: '1.75rem 2rem 0', borderBottom: '1px solid #E5E5E5' }}>
+        <div style={{ padding: '1.75rem 2rem 0', borderBottom: '1px solid #E5E5E5', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
@@ -529,7 +529,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
         </div>
 
         {/* CONTENIDO DE SECCIÓN */}
-        <div style={{ padding: '1.75rem 2rem', flex: 1, overflowY: 'auto' }}>
+        <div style={{ padding: '1.75rem 2rem', flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {/* ════ SECCIÓN: PRE-CLASE ════ */}
           {activeSection === 'preclass' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
