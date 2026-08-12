@@ -5795,6 +5795,9 @@ function AnunciosTab() {
                         <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '12px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
                           {tagStyle.icon} Institucional - {tagStyle.label}
                         </span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.6rem', borderRadius: '12px', background: '#f1f5f9', color: '#64748b' }}>
+                          Para: {ann.target_role === 'student' ? 'Estudiantes' : ann.target_role === 'teacher' ? 'Profesores' : 'Todos'}
+                        </span>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {new Date(ann.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
