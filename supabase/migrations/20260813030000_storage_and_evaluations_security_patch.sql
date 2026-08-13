@@ -109,7 +109,7 @@ WITH CHECK (
   AND student_id = public.get_auth_profile_id()
 );
 
--- 3.2 El estudiante solo puede insertar respuestas si el intento está 'in_progress'
+-- 3.2 El estudiante solo puede insertar respuestas si el intento le pertenece y está en curso o completado
 CREATE POLICY "attempt_answers_student_insert_own"
 ON public.attempt_answers FOR INSERT
 TO authenticated
@@ -118,7 +118,7 @@ WITH CHECK (
     SELECT 1 FROM public.activity_attempts aa
     WHERE aa.id = attempt_answers.attempt_id
       AND aa.student_id = public.get_auth_profile_id()
-      AND aa.status = 'in_progress'
+      AND (aa.status = 'in_progress' OR aa.status = 'completed')
   )
 );
 

@@ -287,80 +287,68 @@ export default function ClassDetail() {
   };
 
   const handleFinishAttempt = async () => {
-    if (!activityConfig || !activityConfig.questions) return;
+    if (!activityConfig || !activityConfig.questions || !currentUser?.id) return;
 
-    let correctCount = 0;
-    activityConfig.questions.forEach(q => {
-      if (userAnswers[q.id] && q.correctOptionId && String(userAnswers[q.id]) === String(q.correctOptionId)) {
-        correctCount++;
-      }
-    });
-
-    const totalCount = activityConfig.questions.length;
-    const scorePct = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const newAttempt = {
-      id: `attempt_${Date.now()}`,
-      activity_id: activityConfig.id,
-      student_id: currentUser?.id,
-      status: 'completed',
-      score: scorePct,
-      completed_at: new Date().toISOString()
-    };
-
-    const updatedAttempts = [newAttempt, ...userAttempts];
-    setUserAttempts(updatedAttempts);
-
-    const completedList = updatedAttempts.filter(a => a.status === 'completed');
-    const bestScore = completedList.reduce((max, a) => Math.max(max, a.score ?? 0), scorePct);
-    const currentAttemptsCount = completedList.length;
-
-    const result = {
-      correctCount,
-      bestCorrectCount: Math.round((bestScore / 100) * totalCount),
-      totalCount,
-      scorePct,
-      bestScore,
-      attemptsCount: currentAttemptsCount,
-      completedAt: formattedDate
-    };
-
-    setCompletedResult(result);
-    setActivityState('completada');
     setShowConfirmFinishModal(false);
-    setViewingResultsMode(true);
+    setLoading(true);
 
-    // Guardar intento en Supabase sin bloquear la UI
-    if (currentUser?.id && activityConfig.id) {
-      try {
-        const studentIdToUse = currentUser.id;
-        const { data: insertedAttempt, error: insertErr } = await supabase
+    try {
+      const studentIdToUse = currentUser.id;
+      const qIds = activityConfig.questions.map(q => q.id);
+
+      // 1. Guardar intento inicial como completado en Supabase
+      const { data: insertedAttempt, error: insertErr } = await supabase
+        .from('activity_attempts')
+        .insert([{
+          activity_id: activityConfig.id,
+          student_id: studentIdToUse,
+          status: 'completed',
+          score: 0,
+          completed_at: new Date().toISOString()
+        }])
+        .select('id')
+        .maybeSingle();
+
+      if (insertErr) console.error('Error insertando intento inicial:', insertErr);
+
+      // 2. Obtener las respuestas correctas de Supabase (ahora permitidas por RLS al existir el intento completado)
+      const { data: correctRes } = await supabase
+        .from('question_correct_answers')
+        .select('question_id, correct_option_id')
+        .in('question_id', qIds);
+
+      const correctMap = {};
+      if (correctRes && correctRes.length > 0) {
+        correctRes.forEach(ca => {
+          correctMap[ca.question_id] = ca.correct_option_id;
+        });
+      }
+
+      // 3. Calcular aciertos y porcentaje real con las claves de respuesta obtenidas
+      let correctCount = 0;
+      activityConfig.questions.forEach(q => {
+        const correctOptId = correctMap[q.id] || q.correctOptionId;
+        if (userAnswers[q.id] && correctOptId && String(userAnswers[q.id]) === String(correctOptId)) {
+          correctCount++;
+        }
+      });
+
+      const totalCount = activityConfig.questions.length;
+      const scorePct = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+
+      // 4. Actualizar el intento en Supabase con el puntaje definitivo
+      if (insertedAttempt?.id) {
+        await supabase
           .from('activity_attempts')
-          .insert([{
-            activity_id: activityConfig.id,
-            student_id: studentIdToUse,
-            status: 'completed',
-            score: scorePct,
-            completed_at: new Date().toISOString()
-          }])
-          .select('id')
-          .maybeSingle();
+          .update({ score: scorePct })
+          .eq('id', insertedAttempt.id);
 
-        if (insertErr) console.error('Error guardando intento:', insertErr);
-        if (insertedAttempt?.id && Object.keys(userAnswers).length > 0) {
+        // 5. Insertar respuestas detalladas del estudiante
+        if (Object.keys(userAnswers).length > 0) {
           try {
             const attemptAnswersToInsert = Object.entries(userAnswers).map(([qId, optId]) => {
-              const q = activityConfig.questions.find(item => item.id === qId);
-              const isCorr = q && q.correctOptionId && String(q.correctOptionId) === String(optId);
+              const correctOptId = correctMap[qId] || activityConfig.questions.find(item => item.id === qId)?.correctOptionId;
+              const isCorr = correctOptId && String(correctOptId) === String(optId);
               return {
                 attempt_id: insertedAttempt.id,
                 question_id: qId,
@@ -374,43 +362,97 @@ export default function ClassDetail() {
             console.error('Error procesando attempt_answers:', ansErr);
           }
         }
-        // Guardar intento en localStorage de respaldo inmediato de forma segura
-        const key = `completed_activities_${studentIdToUse}`;
-        const currentList = safeJsonParse(key, []);
-        const idsToAdd = [
-          activityConfig.id, 
-          id, 
-          classData?.program_id, 
-          classData?.program_id ? `reforzamiento-${classData.program_id}` : null
-        ].filter(Boolean);
-
-        idsToAdd.forEach(item => {
-          if (!currentList.includes(item)) {
-            currentList.push(item);
-          }
-        });
-        safeSetItem(key, currentList);
-
-        // Guardar clase completada
-        const classKey = `completed_classes_${studentIdToUse}`;
-        const classList = safeJsonParse(classKey, []);
-        if (id && !classList.includes(id)) {
-          classList.push(id);
-          safeSetItem(classKey, classList);
-        }
-
-        // Disparar eventos globales para sincronizar tarjetas de pendientes inmediatamente
-        window.dispatchEvent(new CustomEvent('activityCompleted', { 
-          detail: { 
-            activityId: activityConfig.id, 
-            classId: id, 
-            programId: classData?.program_id 
-          } 
-        }));
-        window.dispatchEvent(new Event('storage'));
-      } catch (err) {
-        console.error('Error guardando intento:', err);
       }
+
+      // 6. Actualizar activityConfig local con las respuestas correctas para que la vista de resultados las pinte en verde
+      setActivityConfig(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          questions: prev.questions.map(q => ({
+            ...q,
+            correctOptionId: correctMap[q.id] || q.correctOptionId
+          }))
+        };
+      });
+
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const newAttempt = {
+        id: insertedAttempt?.id || `attempt_${Date.now()}`,
+        activity_id: activityConfig.id,
+        student_id: studentIdToUse,
+        status: 'completed',
+        score: scorePct,
+        completed_at: new Date().toISOString()
+      };
+
+      const updatedAttempts = [newAttempt, ...userAttempts];
+      setUserAttempts(updatedAttempts);
+
+      const completedList = updatedAttempts.filter(a => a.status === 'completed');
+      const bestScore = completedList.reduce((max, a) => Math.max(max, a.score ?? 0), scorePct);
+      const currentAttemptsCount = completedList.length;
+
+      const result = {
+        correctCount,
+        bestCorrectCount: Math.round((bestScore / 100) * totalCount),
+        totalCount,
+        scorePct,
+        bestScore,
+        attemptsCount: currentAttemptsCount,
+        completedAt: formattedDate
+      };
+
+      setCompletedResult(result);
+      setActivityState('completada');
+      setViewingResultsMode(true);
+
+      // Guardar intento en localStorage de respaldo
+      const key = `completed_activities_${studentIdToUse}`;
+      const currentList = safeJsonParse(key, []);
+      const idsToAdd = [
+        activityConfig.id, 
+        id, 
+        classData?.program_id, 
+        classData?.program_id ? `reforzamiento-${classData.program_id}` : null
+      ].filter(Boolean);
+
+      idsToAdd.forEach(item => {
+        if (!currentList.includes(item)) {
+          currentList.push(item);
+        }
+      });
+      safeSetItem(key, currentList);
+
+      // Guardar clase completada
+      const classKey = `completed_classes_${studentIdToUse}`;
+      const classList = safeJsonParse(classKey, []);
+      if (id && !classList.includes(id)) {
+        classList.push(id);
+        safeSetItem(classKey, classList);
+      }
+
+      // Disparar eventos globales para sincronizar tarjetas de pendientes inmediatamente
+      window.dispatchEvent(new CustomEvent('activityCompleted', { 
+        detail: { 
+          activityId: activityConfig.id, 
+          classId: id, 
+          programId: classData?.program_id 
+        } 
+      }));
+      window.dispatchEvent(new Event('storage'));
+    } catch (err) {
+      console.error('Error completando intento:', err);
+    } finally {
+      setLoading(false);
     }
 
     // Actualización visual del progreso
