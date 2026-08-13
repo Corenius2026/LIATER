@@ -17,17 +17,22 @@ serve(async (req) => {
   const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
   try {
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceRoleKey) {
+      return new Response(JSON.stringify({ error: "Falta configurar el secreto SUPABASE_SERVICE_ROLE_KEY en el proyecto." }), { status: 200, headers: jsonHeaders });
+    }
+
     // ── 1. Cliente Admin (service_role) ──────────────────────────────
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      serviceRoleKey,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
     // ── 2. Verificar autenticación del solicitante ────────────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No autenticado." }), { status: 401, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "No autenticado." }), { status: 200, headers: jsonHeaders });
     }
 
     const supabaseUser = createClient(
@@ -38,7 +43,7 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "No autenticado." }), { status: 401, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "Token de sesion invalido o expirado." }), { status: 200, headers: jsonHeaders });
     }
 
     // ── 3. Verificar que el solicitante es admin ──────────────────────
@@ -49,9 +54,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (callerProfile?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Solo administradores pueden invitar usuarios." }), {
-        status: 403, headers: jsonHeaders
-      });
+      return new Response(JSON.stringify({ error: "Solo administradores pueden invitar usuarios." }), { status: 200, headers: jsonHeaders });
     }
 
     // ── 4. Validar y normalizar payload ──────────────────────────────
@@ -59,9 +62,7 @@ serve(async (req) => {
     const { email, full_name, role, area, bio } = body;
 
     if (!email || !full_name || !role) {
-      return new Response(JSON.stringify({ error: "email, full_name y role son obligatorios." }), {
-        status: 400, headers: jsonHeaders
-      });
+      return new Response(JSON.stringify({ error: "email, full_name y role son obligatorios." }), { status: 200, headers: jsonHeaders });
     }
 
     const emailNorm = String(email).trim().toLowerCase();
@@ -70,15 +71,11 @@ serve(async (req) => {
 
     // Validar rol contra lista cerrada
     if (!ALLOWED_ROLES.includes(roleNorm)) {
-      return new Response(JSON.stringify({ error: "Rol no permitido. Solo se puede invitar a 'student' o 'teacher'." }), {
-        status: 400, headers: jsonHeaders
-      });
+      return new Response(JSON.stringify({ error: "Rol no permitido. Solo se puede invitar a 'student' o 'teacher'." }), { status: 200, headers: jsonHeaders });
     }
 
     if (nameNorm.length < 2 || nameNorm.length > 120) {
-      return new Response(JSON.stringify({ error: "El nombre debe tener entre 2 y 120 caracteres." }), {
-        status: 400, headers: jsonHeaders
-      });
+      return new Response(JSON.stringify({ error: "El nombre debe tener entre 2 y 120 caracteres." }), { status: 200, headers: jsonHeaders });
     }
 
     const siteUrl = Deno.env.get("SITE_URL") ?? "https://liater.vercel.app";
@@ -96,7 +93,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({
           error: "Este correo ya corresponde a un usuario activo en la plataforma.",
           code: "USER_ALREADY_ACTIVE",
-        }), { status: 409, headers: jsonHeaders });
+        }), { status: 200, headers: jsonHeaders });
       }
 
       // Usuario invitado pero no activado: reenviar invitación
@@ -160,19 +157,19 @@ serve(async (req) => {
       resent: false,
       message: `Invitacion enviada a ${emailNorm}. El usuario debe revisar su correo para crear su contrasena.`,
       user_id: newProfile.id,
-    }), { headers: jsonHeaders });
+    }), { status: 200, headers: jsonHeaders });
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // Mensajes seguros: no exponer detalles internos de Supabase Admin
+    // Mensajes seguros
     const safeMessage = message.includes("already registered")
       ? "Este correo ya esta registrado en el sistema."
       : message.includes("Unable to validate email address")
       ? "El formato del correo no es valido."
-      : "Error al procesar la invitacion. Intenta nuevamente.";
+      : "Error interno: " + message;
 
     return new Response(JSON.stringify({ error: safeMessage }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      status: 200, headers: jsonHeaders
     });
   }
 });

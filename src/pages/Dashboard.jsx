@@ -15,7 +15,8 @@ import {
 ───────────────────────────────────────────────────── */
 function ClassRow({ cls, activityInfo }) {
   const hasRecording = !!cls.video_url;
-  const actStatus = activityInfo?.completed ? 'completada' : activityInfo?.has ? 'pendiente' : null;
+  const isFinalizada = hasRecording && activityInfo?.completed;
+  const actStatus = isFinalizada ? 'completada' : 'pendiente';
 
   return (
     <Link
@@ -76,7 +77,7 @@ function ClassRow({ cls, activityInfo }) {
             color: actStatus === 'completada' ? 'var(--green-600)' : 'var(--gold-dark)',
             border: `1px solid ${actStatus === 'completada' ? 'var(--green-400)' : 'var(--gold-light)'}`
           }}>
-            {actStatus === 'completada' ? '✓ Hecho' : '● Pendiente'}
+            {actStatus === 'completada' ? '✓ Finalizada' : '● Pendiente'}
           </span>
         )}
 

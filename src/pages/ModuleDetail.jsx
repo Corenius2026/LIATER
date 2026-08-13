@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft } from 'lucide-react';
+import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function ModuleDetail() {
   const { id } = useParams();
+  const { currentUser } = useAuth();
   
   const [moduleData, setModuleData] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [completedActivities, setCompletedActivities] = useState(new Set());
 
   const [programType, setProgramType] = useState(null);
 
@@ -68,13 +71,13 @@ export default function ModuleDetail() {
             let classesData = [];
             const { data: cData, error: cError } = await supabase
               .from('class_sessions')
-              .select('*, teacher_profiles(name)')
+              .select('*, teacher_profiles(name), class_activities(id, is_published)')
               .or(`session_id.in.(${formattedIds}),subtopic_id.in.(${formattedIds})`);
 
             if (cError) {
               const { data: fallbackData } = await supabase
                 .from('class_sessions')
-                .select('*, teacher_profiles(name)')
+                .select('*, teacher_profiles(name), class_activities(id, is_published)')
                 .in('subtopic_id', sessionIds);
               classesData = fallbackData || [];
             } else {
@@ -86,6 +89,33 @@ export default function ModuleDetail() {
               ...session,
               classes: (classesData || []).filter(c => (c.session_id === session.id || c.subtopic_id === session.id))
             }));
+
+            // Fetch completados
+            if (currentUser?.id && classesData.length > 0) {
+              const activityIds = [];
+              classesData.forEach(c => {
+                if (c.class_activities) {
+                  const activities = Array.isArray(c.class_activities) ? c.class_activities : [c.class_activities];
+                  activities.forEach(a => {
+                    if (a && a.id) activityIds.push(a.id);
+                  });
+                }
+              });
+
+              if (activityIds.length > 0) {
+                const { data: attemptsData } = await supabase
+                  .from('activity_attempts')
+                  .select('activity_id')
+                  .eq('student_id', currentUser.id)
+                  .eq('status', 'completed')
+                  .in('activity_id', activityIds);
+                  
+                if (attemptsData) {
+                  const completedSet = new Set(attemptsData.map(a => a.activity_id));
+                  setCompletedActivities(completedSet);
+                }
+              }
+            }
           }
 
           setSessions(sessionsWithClasses);
@@ -191,7 +221,31 @@ export default function ModuleDetail() {
                     No hay clases programadas en esta sesión.
                   </p>
                 ) : (
-                  session.classes.map(cls => (
+                  session.classes.map(cls => {
+                    const hasVideo = !!cls.video_url;
+                    
+                    const activitiesArr = Array.isArray(cls.class_activities) ? cls.class_activities : (cls.class_activities ? [cls.class_activities] : []);
+                    const publishedActivities = activitiesArr.filter(a => a.is_published);
+                    const isActivityPublished = !!cls.has_published_activity || publishedActivities.length > 0;
+                    
+                    const hasCompletedActivity = publishedActivities.some(a => completedActivities.has(a.id));
+
+                    const isPast = cls.class_date ? new Date(cls.class_date) < new Date() : false;
+
+                    let activityStatusText = 'Actividad no disponible';
+                    let activityStatusColor = '#9ca3af'; // gray
+
+                    if (isActivityPublished) {
+                      if (hasCompletedActivity) {
+                        activityStatusText = 'Actividad OK';
+                        activityStatusColor = '#16a34a'; // green
+                      } else {
+                        activityStatusText = 'Actividad pendiente';
+                        activityStatusColor = '#f97316'; // orange
+                      }
+                    }
+
+                    return (
                     <div key={cls.id} style={{
                       padding: '0.85rem 1rem',
                       border: '1px solid var(--border-color)',
@@ -216,6 +270,19 @@ export default function ModuleDetail() {
                               <User size={12} /> Prof. {cls.teacher_profiles.name}
                             </span>
                           )}
+                          {isPast && (
+                            <>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: hasVideo ? '#16a34a' : '#f97316', fontWeight: 600 }}>
+                                {hasVideo ? <><CheckCircle2 size={12} /> Grabación OK</> : <><AlertCircle size={12} /> Grabación pendiente</>}
+                              </span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: activityStatusColor, fontWeight: 600 }}>
+                                {activityStatusText === 'Actividad OK' && <CheckCircle2 size={12} />}
+                                {activityStatusText === 'Actividad pendiente' && <AlertCircle size={12} />}
+                                {activityStatusText === 'Actividad no disponible' && <AlertCircle size={12} />}
+                                {activityStatusText}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -223,7 +290,7 @@ export default function ModuleDetail() {
                         <PlayCircle size={14} /> Ver Clase
                       </Link>
                     </div>
-                  ))
+                  )})
                 )}
               </div>
             </div>

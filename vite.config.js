@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     watch: {
-      ignored: ['**/whatsapp-bot/**']
+      ignored: ['**/whatsapp-bot/**', '**/supabase/**', '**/.supabase/**']
     }
   }
 })
