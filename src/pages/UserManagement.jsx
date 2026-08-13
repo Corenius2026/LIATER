@@ -9,6 +9,10 @@ import {
 import "./AdminPanel.css";
 
 // ─── Helpers ────────────────────────────────────────────────
+// status: "active" | "pending" | "inactive"
+// Se determina por is_active e invited_at del perfil:
+//   is_active=true  → active
+//   is_active=false → pending (invitado, no activado)
 function AuthStatusBadge({ status }) {
   const map = {
     active:   { bg: "#d1fae5", color: "#065f46", label: "Activo" },
@@ -216,13 +220,26 @@ function StudentDrawer({ isOpen, onClose, student, onRefresh }) {
     finally { setSubmitting(false); }
   };
 
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+
   const handleResendInvite = async () => {
+    if (!window.confirm(`¿Reenviar la invitación a ${student.email}? El enlace anterior quedará inválido.`)) return;
+    setResending(true);
+    setResendMsg("");
     try {
-      await supabase.functions.invoke("invite-user", {
+      const { data, error: fnErr } = await supabase.functions.invoke("invite-user", {
         body: { email: student.email, full_name: student.full_name, role: student.role }
       });
-      alert("Invitacion reenviada a " + student.email);
-    } catch (err) { alert("Error: " + err.message); }
+      if (fnErr) throw fnErr;
+      if (data?.error) throw new Error(data.error);
+      setResendMsg(data?.resent ? "Invitacion reenviada con exito." : "Nueva invitacion enviada.");
+      setTimeout(() => setResendMsg(""), 3500);
+    } catch (err) {
+      setResendMsg("Error: " + (err.message || "No se pudo reenviar."));
+    } finally {
+      setResending(false);
+    }
   };
 
   if (!isOpen || !student) return null;
@@ -254,12 +271,23 @@ function StudentDrawer({ isOpen, onClose, student, onRefresh }) {
             </div>
             <button onClick={onClose} style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}><X size={22} /></button>
           </div>
-          <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <AuthStatusBadge status={student.is_active ? "active" : "inactive"} />
-            {!student.is_active && (
-              <button onClick={handleResendInvite} style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", padding: "0.2rem 0.6rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                <RefreshCw size={10} /> Reenviar invitacion
-              </button>
+          <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <AuthStatusBadge status={student.is_active ? "active" : "pending"} />
+              {!student.is_active && (
+                <button
+                  onClick={handleResendInvite}
+                  disabled={resending}
+                  style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", padding: "0.2rem 0.6rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem" }}
+                >
+                  <RefreshCw size={10} /> {resending ? "Reenviando..." : "Reenviar invitacion"}
+                </button>
+              )}
+            </div>
+            {resendMsg && (
+              <span style={{ fontSize: "0.72rem", color: resendMsg.startsWith("Error") ? "#fca5a5" : "#86efac", fontWeight: 600 }}>
+                {resendMsg}
+              </span>
             )}
           </div>
         </div>
@@ -666,7 +694,7 @@ export default function UserManagement() {
                     </div>
                   </td>
                   {viewRole === "teacher" && <td><span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{u.area || "—"}</span></td>}
-                  <td><AuthStatusBadge status={u.is_active !== false ? "active" : "inactive"} /></td>
+                  <td><AuthStatusBadge status={u.is_active ? "active" : "pending"} /></td>
                   <td style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{new Date(u.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}</td>
                   <td>
                     <div style={{ display: "flex", gap: "0.4rem", justifyContent: "center", alignItems: "center" }}>

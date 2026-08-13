@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -6,97 +6,172 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Lista cerrada de roles invitables. "admin" queda excluido deliberadamente.
+const ALLOWED_ROLES = ["student", "teacher"];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
   try {
-    // Admin client con service_role
+    // ── 1. Cliente Admin (service_role) ──────────────────────────────
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Verificar que el solicitante es admin
+    // ── 2. Verificar autenticación del solicitante ────────────────────
     const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "No autenticado." }), { status: 401, headers: jsonHeaders });
+    }
+
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader ?? "" } } }
+      { global: { headers: { Authorization: authHeader } } }
     );
+
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "No autenticado" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
+      return new Response(JSON.stringify({ error: "No autenticado." }), { status: 401, headers: jsonHeaders });
     }
 
-    const { data: profile } = await supabaseAdmin
+    // ── 3. Verificar que el solicitante es admin ──────────────────────
+    const { data: callerProfile } = await supabaseAdmin
       .from("users_profile")
       .select("role")
       .eq("auth_user_id", user.id)
       .maybeSingle();
 
-    if (profile?.role !== "admin") {
+    if (callerProfile?.role !== "admin") {
       return new Response(JSON.stringify({ error: "Solo administradores pueden invitar usuarios." }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        status: 403, headers: jsonHeaders
       });
     }
 
-    const { email, full_name, role, area, bio } = await req.json();
+    // ── 4. Validar y normalizar payload ──────────────────────────────
+    const body = await req.json();
+    const { email, full_name, role, area, bio } = body;
 
     if (!email || !full_name || !role) {
       return new Response(JSON.stringify({ error: "email, full_name y role son obligatorios." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        status: 400, headers: jsonHeaders
       });
     }
 
-    // PASO 1: Invitar usuario via Supabase Auth (envia email con link de set-password)
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name, role },
-      redirectTo: `${Deno.env.get("SITE_URL") ?? "https://liater.com"}/update-password`,
+    const emailNorm = String(email).trim().toLowerCase();
+    const nameNorm  = String(full_name).trim();
+    const roleNorm  = String(role).trim().toLowerCase();
+
+    // Validar rol contra lista cerrada
+    if (!ALLOWED_ROLES.includes(roleNorm)) {
+      return new Response(JSON.stringify({ error: "Rol no permitido. Solo se puede invitar a 'student' o 'teacher'." }), {
+        status: 400, headers: jsonHeaders
+      });
+    }
+
+    if (nameNorm.length < 2 || nameNorm.length > 120) {
+      return new Response(JSON.stringify({ error: "El nombre debe tener entre 2 y 120 caracteres." }), {
+        status: 400, headers: jsonHeaders
+      });
+    }
+
+    const siteUrl = Deno.env.get("SITE_URL") ?? "https://liater.vercel.app";
+
+    // ── 5. Verificar si ya existe un perfil con ese correo ────────────
+    const { data: existingProfile } = await supabaseAdmin
+      .from("users_profile")
+      .select("id, is_active, role, invited_at")
+      .eq("email", emailNorm)
+      .maybeSingle();
+
+    if (existingProfile) {
+      // Usuario ya activo: informar al admin sin sobrescribir nada
+      if (existingProfile.is_active) {
+        return new Response(JSON.stringify({
+          error: "Este correo ya corresponde a un usuario activo en la plataforma.",
+          code: "USER_ALREADY_ACTIVE",
+        }), { status: 409, headers: jsonHeaders });
+      }
+
+      // Usuario invitado pero no activado: reenviar invitación
+      const { error: resendError } = await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
+        data: { full_name: nameNorm, role: roleNorm },
+        redirectTo: `${siteUrl}/update-password`,
+      });
+      if (resendError) throw resendError;
+
+      // Registrar la fecha del reenvío
+      await supabaseAdmin
+        .from("users_profile")
+        .update({ invited_at: new Date().toISOString(), full_name: nameNorm })
+        .eq("id", existingProfile.id);
+
+      return new Response(JSON.stringify({
+        success: true,
+        resent: true,
+        message: `Invitacion reenviada a ${emailNorm}. El usuario debe revisar su correo.`,
+      }), { headers: jsonHeaders });
+    }
+
+    // ── 6. Invitar usuario nuevo via Supabase Auth ────────────────────
+    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
+      data: { full_name: nameNorm, role: roleNorm },
+      redirectTo: `${siteUrl}/update-password`,
     });
 
     if (inviteError) throw inviteError;
     if (!inviteData.user) throw new Error("No se pudo crear la cuenta.");
 
-    // PASO 2: Crear users_profile
+    // ── 7. Crear users_profile en estado pendiente ────────────────────
+    // is_active: false — se activa en UpdatePassword tras definir contraseña
     const { data: newProfile, error: profileError } = await supabaseAdmin
       .from("users_profile")
       .insert([{
         auth_user_id: inviteData.user.id,
-        full_name,
-        email,
-        role,
-        is_active: true,
+        full_name: nameNorm,
+        email: emailNorm,
+        role: roleNorm,
+        is_active: false,
+        invited_at: new Date().toISOString(),
       }])
       .select()
       .single();
 
     if (profileError) throw profileError;
 
-    // PASO 3: Si es profesor, crear teacher_profile
-    if (role === "teacher" && newProfile) {
+    // ── 8. Si es profesor, crear teacher_profile ──────────────────────
+    if (roleNorm === "teacher" && newProfile) {
       await supabaseAdmin.from("teacher_profiles").insert([{
         user_id: newProfile.id,
-        name: full_name,
-        area: area ?? null,
-        bio: bio ?? null,
+        name: nameNorm,
+        area: area ? String(area).trim() : null,
+        bio:  bio  ? String(bio).trim()  : null,
       }]);
     }
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Invitacion enviada a ${email}. El usuario debera revisar su correo para crear su contrasena.`,
+      resent: false,
+      message: `Invitacion enviada a ${emailNorm}. El usuario debe revisar su correo para crear su contrasena.`,
       user_id: newProfile.id,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
+    }), { headers: jsonHeaders });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message ?? String(err) }), {
+    const message = err instanceof Error ? err.message : String(err);
+    // Mensajes seguros: no exponer detalles internos de Supabase Admin
+    const safeMessage = message.includes("already registered")
+      ? "Este correo ya esta registrado en el sistema."
+      : message.includes("Unable to validate email address")
+      ? "El formato del correo no es valido."
+      : "Error al procesar la invitacion. Intenta nuevamente.";
+
+    return new Response(JSON.stringify({ error: safeMessage }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
