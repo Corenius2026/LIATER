@@ -122,7 +122,14 @@ ${transcript}
 `;
 
   const ai = new GoogleGenAI({ apiKey });
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const modelsToTry = [
+    "gemini-3.7-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+  ];
   let lastError: Error | null = null;
 
   for (const modelName of modelsToTry) {
@@ -285,12 +292,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── Gemini ──────────────────────────────────────────────────────────────
-  const apiKey = Deno.env.get("Gemini_KEY_preguntas");
+  const apiKey = Deno.env.get("Gemini_KEY_preguntas") || Deno.env.get("GEMINI_API_KEY");
 
   if (!apiKey) {
-    console.error("No se encontró el secreto Gemini_KEY_preguntas");
+    console.error("No se encontró el secreto Gemini_KEY_preguntas ni GEMINI_API_KEY");
     return jsonResponse(
-      { ok: false, error: "La función de inteligencia artificial no está configurada" },
+      { ok: false, error: "La función de inteligencia artificial no está configurada (falta Gemini_KEY_preguntas o GEMINI_API_KEY en Supabase Secrets)" },
       500,
     );
   }
