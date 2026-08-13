@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { createDoubt, fetchStudentDoubtsForClass } from '../services/doubtService';
 import { calculateProgramProgressDetails } from '../services/programService';
 import { isClassLiveOrSoon } from '../utils/dateUtils';
+import { safeJsonParse, safeSetItem, safeRemoveItem } from '../utils/storageUtils';
 import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
@@ -236,9 +237,7 @@ export default function ClassDetail() {
         [questionId]: optionId
       };
       if (activityConfig?.id && currentUser?.id) {
-        try {
-          localStorage.setItem(`liater_answers_${activityConfig.id}_${currentUser.id}`, JSON.stringify(updated));
-        } catch (_) {}
+        safeSetItem(`liater_answers_${activityConfig.id}_${currentUser.id}`, updated);
       }
       return updated;
     });
@@ -261,9 +260,7 @@ export default function ClassDetail() {
   const handleRetakeActivity = () => {
     setUserAnswers({});
     if (activityConfig?.id && currentUser?.id) {
-      try {
-        localStorage.removeItem(`liater_answers_${activityConfig.id}_${currentUser.id}`);
-      } catch (_) {}
+      safeRemoveItem(`liater_answers_${activityConfig.id}_${currentUser.id}`);
     }
     setCurrentQuestionIdx(0);
     setViewingResultsMode(false);
@@ -377,32 +374,30 @@ export default function ClassDetail() {
             console.error('Error procesando attempt_answers:', ansErr);
           }
         }
-        // Guardar intento en localStorage de respaldo inmediato
-        try {
-          const key = `completed_activities_${studentIdToUse}`;
-          const currentList = JSON.parse(localStorage.getItem(key) || '[]');
-          const idsToAdd = [
-            activityConfig.id, 
-            id, 
-            classData?.program_id, 
-            classData?.program_id ? `reforzamiento-${classData.program_id}` : null
-          ].filter(Boolean);
+        // Guardar intento en localStorage de respaldo inmediato de forma segura
+        const key = `completed_activities_${studentIdToUse}`;
+        const currentList = safeJsonParse(key, []);
+        const idsToAdd = [
+          activityConfig.id, 
+          id, 
+          classData?.program_id, 
+          classData?.program_id ? `reforzamiento-${classData.program_id}` : null
+        ].filter(Boolean);
 
-          idsToAdd.forEach(item => {
-            if (!currentList.includes(item)) {
-              currentList.push(item);
-            }
-          });
-          localStorage.setItem(key, JSON.stringify(currentList));
-
-          // Guardar clase completada
-          const classKey = `completed_classes_${studentIdToUse}`;
-          const classList = JSON.parse(localStorage.getItem(classKey) || '[]');
-          if (id && !classList.includes(id)) {
-            classList.push(id);
-            localStorage.setItem(classKey, JSON.stringify(classList));
+        idsToAdd.forEach(item => {
+          if (!currentList.includes(item)) {
+            currentList.push(item);
           }
-        } catch (_) {}
+        });
+        safeSetItem(key, currentList);
+
+        // Guardar clase completada
+        const classKey = `completed_classes_${studentIdToUse}`;
+        const classList = safeJsonParse(classKey, []);
+        if (id && !classList.includes(id)) {
+          classList.push(id);
+          safeSetItem(classKey, classList);
+        }
 
         // Disparar eventos globales para sincronizar tarjetas de pendientes inmediatamente
         window.dispatchEvent(new CustomEvent('activityCompleted', { 
@@ -632,18 +627,13 @@ export default function ClassDetail() {
                 });
 
                 if (studentIdToUse && actData.id) {
-                  let initialAnswers = {};
-                  const savedAnswers = localStorage.getItem(`liater_answers_${actData.id}_${studentIdToUse}`);
-                  if (savedAnswers) {
-                    try { initialAnswers = JSON.parse(savedAnswers); } catch (_) {}
-                  }
-
+                  let initialAnswers = safeJsonParse(`liater_answers_${actData.id}_${studentIdToUse}`, {});
                   let stateToSet = 'no_iniciada';
                   
                   const attempts = attemptsRes.data || [];
                   setUserAttempts(attempts);
                   const completedAttempts = attempts.filter(a => a.status === 'completed');
-                  const localCompleted = JSON.parse(localStorage.getItem(`completed_activities_${studentIdToUse}`) || '[]');
+                  const localCompleted = safeJsonParse(`completed_activities_${studentIdToUse}`, []);
                   const isLocallyCompleted = actData.id ? localCompleted.includes(actData.id) : false;
                   const hasDbCompletedAttempt = completedAttempts.length > 0;
 
@@ -700,13 +690,11 @@ export default function ClassDetail() {
                     });
                   } else {
                     // Si no hay intento guardado en BD, limpiar cualquier registro local
-                    try {
-                      localStorage.removeItem(`liater_answers_${actData.id}_${studentIdToUse}`);
-                      const key = `completed_activities_${studentIdToUse}`;
-                      const localList = JSON.parse(localStorage.getItem(key) || '[]');
-                      const filtered = localList.filter(id => id !== actData.id);
-                      localStorage.setItem(key, JSON.stringify(filtered));
-                    } catch (_) {}
+                    safeRemoveItem(`liater_answers_${actData.id}_${studentIdToUse}`);
+                    const key = `completed_activities_${studentIdToUse}`;
+                    const localList = safeJsonParse(key, []);
+                    const filtered = localList.filter(id => id !== actData.id);
+                    safeSetItem(key, filtered);
 
                     setUserAnswers({});
                     setCompletedResult(null);

@@ -59,6 +59,7 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError(""); setSuccess("");
     if (!fullName.trim() || !email.trim()) { setError("El nombre y el correo son obligatorios."); return; }
     setSubmitting(true);

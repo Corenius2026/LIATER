@@ -103,11 +103,10 @@ export async function linkYouTubeVideoToClass(classId, videoInput) {
     const { data, error } = await supabase
       .from('class_sessions')
       .update({
-        video_url: finalUrl,
-        status: 'completed'
+        video_url: finalUrl
       })
       .eq('id', classId)
-      .select('id, title, video_url, status')
+      .select('id, title, video_url')
       .single();
 
     if (error) {

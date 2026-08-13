@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { safeJsonParse } from '../utils/storageUtils';
 
 /**
  * Servicio: activityService
@@ -130,19 +131,14 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
         const k = localStorage.key(i);
         if (!k) continue;
         if (k.startsWith('completed_activities_') || k.startsWith('completed_classes_')) {
-          const val = localStorage.getItem(k);
-          if (val) {
-            try {
-              const parsed = JSON.parse(val);
-              if (Array.isArray(parsed)) {
-                parsed.forEach(idVal => {
-                  if (idVal) {
-                    addCompleted(idVal);
-                    totalStudentAttempts++;
-                  }
-                });
+          const parsed = safeJsonParse(k, null);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(idVal => {
+              if (idVal) {
+                addCompleted(idVal);
+                totalStudentAttempts++;
               }
-            } catch (_) {}
+            });
           }
         } else if (k.startsWith('liater_answers_')) {
           const rest = k.slice('liater_answers_'.length);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { safeJsonParse, safeSetItem } from '../utils/storageUtils';
 import {
   User, Mail, Phone, Globe, Camera, Shield, Save,
   BookOpen, Lock, CheckCircle2, Award, Briefcase,
@@ -193,11 +194,7 @@ export default function Profile() {
         }
 
         // Cargar extensión de perfil guardada localmente si existe
-        let extendedLocal = {};
-        try {
-          const saved = localStorage.getItem(`user_extended_profile_${currentUser?.id}`);
-          if (saved) extendedLocal = JSON.parse(saved);
-        } catch (e) {}
+        const extendedLocal = safeJsonParse(`user_extended_profile_${currentUser?.id}`, {});
 
         // Cargar estadísticas si es estudiante
         if (!isTeacher && currentUser?.id) {
@@ -275,15 +272,13 @@ export default function Profile() {
       };
 
       // Guardar respaldado localmente para garantía inmediata
-      try {
-        localStorage.setItem(`user_extended_profile_${currentUser.id}`, JSON.stringify({
-          phone: personalData.phone,
-          country: personalData.country,
-          profession: personalData.profession,
-          institution: personalData.institution,
-          bio: personalData.bio
-        }));
-      } catch (e) {}
+      safeSetItem(`user_extended_profile_${currentUser.id}`, {
+        phone: personalData.phone,
+        country: personalData.country,
+        profession: personalData.profession,
+        institution: personalData.institution,
+        bio: personalData.bio
+      });
 
       let { error: uErr } = await supabase
         .from('users_profile')
@@ -329,7 +324,9 @@ export default function Profile() {
             if (parsed && typeof parsed === 'object') {
               bioObj = { ...parsed, phone: personalData.phone, country: personalData.country };
             }
-          } catch (e) {}
+          } catch (jsonErr) {
+            console.warn('[Profile] Bio no es JSON estructurado válido, conservando texto plano:', jsonErr);
+          }
         }
 
         const bioPayload = JSON.stringify(bioObj);

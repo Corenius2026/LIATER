@@ -223,7 +223,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("users_profile")
     .select("role, is_active")
-    .eq("id", user.id)
+    .eq("auth_user_id", user.id)
     .maybeSingle();
 
   if (profileError) {

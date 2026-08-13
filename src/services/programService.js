@@ -129,18 +129,18 @@ export async function calculateProgramProgressDetails(programId, studentId) {
       .eq('program_id', programId);
       
     if (classError || !classes || classes.length === 0) {
-      // Fallback para diplomados antiguos donde class_sessions.program_id es null
+      // Fallback para diplomados antiguos donde class_sessions.program_id pudiera ser null
       const { data: modules } = await supabase.from('modules').select('id').eq('program_id', programId);
       if (modules && modules.length > 0) {
         const modIds = modules.map(m => m.id);
-        const { data: sessions } = await supabase.from('sessions').select('id').in('module_id', modIds);
-        const sessIds = (sessions || []).map(s => s.id);
+        const { data: subtopicsData } = await supabase.from('subtopics').select('id').in('module_id', modIds);
+        const subtopicIds = (subtopicsData || []).map(s => s.id);
         
-        if (sessIds.length > 0) {
+        if (subtopicIds.length > 0) {
           const { data: fallbackClasses } = await supabase
             .from('class_sessions')
             .select('id, video_url')
-            .or(`session_id.in.(${sessIds.join(',')}),subtopic_id.in.(${sessIds.join(',')})`);
+            .in('subtopic_id', subtopicIds);
           classes = fallbackClasses || [];
         }
       }

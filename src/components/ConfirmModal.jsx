@@ -1,20 +1,10 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Trash2, X, Info } from 'lucide-react';
 
 /**
  * ConfirmModal: Modal de confirmación estilizado para sustituir alert() / window.confirm()
- * 
- * Props:
- * - isOpen: boolean
- * - onClose: function
- * - onConfirm: function
- * - title: string
- * - message: string | ReactNode
- * - note: string (opcional)
- * - confirmText: string (ej: "Eliminar", "Eliminar 3 Módulos")
- * - cancelText: string (ej: "Cancelar")
- * - isDanger: boolean (default true)
- * - loading: boolean
+ * Renderizado en document.body mediante React Portal.
  */
 export default function ConfirmModal({
   isOpen,
@@ -28,9 +18,9 @@ export default function ConfirmModal({
   isDanger = true,
   loading = false
 }) {
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
       style={{
         position: 'fixed',
@@ -40,7 +30,7 @@ export default function ConfirmModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 2000,
+        zIndex: 9999,
         animation: 'fadeIn 0.2s ease-out',
         padding: '1rem'
       }}
@@ -174,6 +164,8 @@ export default function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
+

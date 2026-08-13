@@ -1,15 +1,15 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 // Lista cerrada de roles invitables. "admin" queda excluido deliberadamente.
 const ALLOWED_ROLES = ["student", "teacher"];
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -19,7 +19,7 @@ serve(async (req) => {
   try {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!serviceRoleKey) {
-      return new Response(JSON.stringify({ error: "Falta configurar el secreto SUPABASE_SERVICE_ROLE_KEY en el proyecto." }), { status: 200, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "Falta configurar el secreto SUPABASE_SERVICE_ROLE_KEY en el proyecto." }), { status: 500, headers: jsonHeaders });
     }
 
     // ── 1. Cliente Admin (service_role) ──────────────────────────────
@@ -32,7 +32,7 @@ serve(async (req) => {
     // ── 2. Verificar autenticación del solicitante ────────────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No autenticado." }), { status: 200, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "No autenticado." }), { status: 401, headers: jsonHeaders });
     }
 
     const supabaseUser = createClient(
@@ -43,7 +43,7 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Token de sesion invalido o expirado." }), { status: 200, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "Token de sesion invalido o expirado." }), { status: 401, headers: jsonHeaders });
     }
 
     // ── 3. Verificar que el solicitante es admin ──────────────────────
@@ -54,7 +54,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (callerProfile?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Solo administradores pueden invitar usuarios." }), { status: 200, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "Solo administradores pueden invitar usuarios." }), { status: 403, headers: jsonHeaders });
     }
 
     // ── 4. Validar y normalizar payload ──────────────────────────────
@@ -62,7 +62,7 @@ serve(async (req) => {
     const { email, full_name, role, area, bio } = body;
 
     if (!email || !full_name || !role) {
-      return new Response(JSON.stringify({ error: "email, full_name y role son obligatorios." }), { status: 200, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "email, full_name y role son obligatorios." }), { status: 400, headers: jsonHeaders });
     }
 
     const emailNorm = String(email).trim().toLowerCase();
@@ -71,11 +71,11 @@ serve(async (req) => {
 
     // Validar rol contra lista cerrada
     if (!ALLOWED_ROLES.includes(roleNorm)) {
-      return new Response(JSON.stringify({ error: "Rol no permitido. Solo se puede invitar a 'student' o 'teacher'." }), { status: 200, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "Rol no permitido. Solo se puede invitar a 'student' o 'teacher'." }), { status: 400, headers: jsonHeaders });
     }
 
     if (nameNorm.length < 2 || nameNorm.length > 120) {
-      return new Response(JSON.stringify({ error: "El nombre debe tener entre 2 y 120 caracteres." }), { status: 200, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "El nombre debe tener entre 2 y 120 caracteres." }), { status: 400, headers: jsonHeaders });
     }
 
     const siteUrl = Deno.env.get("SITE_URL") ?? "https://liater.vercel.app";
@@ -93,7 +93,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({
           error: "Este correo ya corresponde a un usuario activo en la plataforma.",
           code: "USER_ALREADY_ACTIVE",
-        }), { status: 200, headers: jsonHeaders });
+        }), { status: 409, headers: jsonHeaders });
       }
 
       // Usuario invitado pero no activado: reenviar invitación
@@ -113,7 +113,7 @@ serve(async (req) => {
         success: true,
         resent: true,
         message: `Invitacion reenviada a ${emailNorm}. El usuario debe revisar su correo.`,
-      }), { headers: jsonHeaders });
+      }), { status: 200, headers: jsonHeaders });
     }
 
     // ── 6. Invitar usuario nuevo via Supabase Auth ────────────────────
@@ -169,7 +169,7 @@ serve(async (req) => {
       : "Error interno: " + message;
 
     return new Response(JSON.stringify({ error: safeMessage }), {
-      status: 200, headers: jsonHeaders
+      status: 500, headers: jsonHeaders
     });
   }
 });

@@ -35,7 +35,9 @@ export default function Home() {
         try {
           const fallback = await supabase.from('diploma_programs').select('*').limit(3);
           if (fallback.data) setFeaturedModules(fallback.data);
-        } catch(e) {}
+        } catch (fallbackErr) {
+          console.warn('Fallback de programas destacados también falló:', fallbackErr);
+        }
       } finally {
         setLoadingModules(false);
       }
