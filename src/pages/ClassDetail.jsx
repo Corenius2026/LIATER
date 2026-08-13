@@ -681,10 +681,6 @@ export default function ClassDetail() {
 
                   if (hasDbCompletedAttempt || isLocallyCompleted) {
                     const lastAttempt = completedAttempts.length > 0 ? completedAttempts[0] : null;
-                    const bestScore = completedAttempts.length > 0
-                      ? Math.max(...completedAttempts.map(a => a.score ?? 0))
-                      : (lastAttempt?.score ?? 0);
-                    const finalScore = lastAttempt?.score ?? bestScore;
                     const effectiveAttemptsCount = completedAttempts.length || (isLocallyCompleted ? 1 : 0);
 
                     stateToSet = 'completada';
@@ -716,10 +712,32 @@ export default function ClassDetail() {
                       }
                     });
 
-                    // Si realCorrectCount = 0 por falta de datos, intentar calcular de score
-                    const finalCorrect = realCorrectCount > 0 
+                    const calculatedScorePct = formattedQuestions.length > 0
+                      ? Math.round((realCorrectCount / formattedQuestions.length) * 100)
+                      : 0;
+
+                    // Si se calcularon aciertos o hay respuestas, usar el porcentaje real calculado
+                    const finalScore = (realCorrectCount > 0 || Object.keys(initialAnswers).length > 0)
+                      ? calculatedScorePct
+                      : (lastAttempt?.score ?? 0);
+
+                    const finalCorrect = (realCorrectCount > 0 || Object.keys(initialAnswers).length > 0)
                       ? realCorrectCount 
                       : Math.round((finalScore / 100) * formattedQuestions.length);
+
+                    const bestScore = Math.max(
+                      ...completedAttempts.map(a => a.score ?? 0),
+                      finalScore
+                    );
+
+                    // Reparar en base de datos si el intento anterior quedó grabado con score 0 por el bug previo
+                    if (lastAttempt?.id && lastAttempt.score !== finalScore && finalScore > 0) {
+                      supabase
+                        .from('activity_attempts')
+                        .update({ score: finalScore })
+                        .eq('id', lastAttempt.id)
+                        .then(() => {});
+                    }
 
                     setCompletedResult({
                       correctCount: finalCorrect,
@@ -1357,7 +1375,7 @@ export default function ClassDetail() {
                       </span>
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: '4px' }}>
-                      Puntaje: <strong>{completedResult.scorePct}%</strong> ({completedResult.correctCount}/{completedResult.totalCount})
+                      Puntaje: <strong>{completedResult.totalCount > 0 ? Math.round(((completedResult.correctCount ?? 0) / completedResult.totalCount) * 100) : (completedResult.scorePct || 0)}%</strong> ({completedResult.correctCount}/{completedResult.totalCount})
                       {completedResult.bestScore !== undefined && completedResult.bestScore !== completedResult.scorePct && (
                         <span> • Mejor: <strong>{completedResult.bestScore}%</strong></span>
                       )}
@@ -1870,7 +1888,7 @@ export default function ClassDetail() {
                       <div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Puntaje Obtenido</div>
                         <div style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1.2, marginTop: '4px' }}>
-                          {completedResult?.scorePct ?? 0}%
+                          {completedResult?.totalCount > 0 ? Math.round(((completedResult.correctCount ?? 0) / completedResult.totalCount) * 100) : (completedResult?.scorePct ?? 0)}%
                         </div>
                         {completedResult?.bestScore !== undefined && completedResult.bestScore !== completedResult.scorePct && (
                           <div style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 700, marginTop: '2px' }}>
