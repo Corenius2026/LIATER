@@ -1956,7 +1956,7 @@ function ResumenTab({ onChangeTab }) {
       setStats({
         totalClasses: classes.length,
         completed,
-        upcoming: upcomingList.length || classes.length,
+        upcoming: upcomingList.length,
         announcements: resAnn.count || 0,
         students: resStudents.count || 0,
         pendingDoubts: resUnreviewed.count || 0,

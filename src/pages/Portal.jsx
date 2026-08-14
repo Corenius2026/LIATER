@@ -760,9 +760,11 @@ function TeacherPortal({ getDiplomadoLink }) {
           console.error('Error fetching admin announcements', e);
         }
 
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        const upcomingCount = teacherClasses.filter(c => new Date(c.class_date) >= startOfToday).length || teacherClasses.length;
+        const nowTime = new Date();
+        const upcomingCount = teacherClasses.filter(c => {
+          const classEndTime = new Date(new Date(c.class_date).getTime() + (parseInt(c.duration) || 120) * 60000);
+          return classEndTime >= nowTime;
+        }).length;
         const activeProgramsCount = teacherDiplomas.filter(p => p.is_published !== false && p.status !== 'draft' && p.status !== 'disabled').length;
 
         setCounts({
