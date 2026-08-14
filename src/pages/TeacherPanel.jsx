@@ -2538,405 +2538,419 @@ function DudasTab() {
 
   const countByStatus = (st) => doubts.filter(d => d.status === st).length;
 
+  const activeDoubt = selectedDoubt && doubts.some(d => d.id === selectedDoubt.id)
+    ? (doubts.find(d => d.id === selectedDoubt.id) || selectedDoubt)
+    : (filteredDoubts.length > 0 ? filteredDoubts[0] : null);
+
   if (loading) {
-    return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando dudas de estudiantes...</div>;
+    return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando consultas de estudiantes...</div>;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       
-      {/* ENCABEZADO Y RESUMEN DE ESTADOS */}
-      <div className="card" style={{ padding: '1.5rem', background: 'var(--white)', borderRadius: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MessageSquare size={20} color="var(--gold-dark)" /> Bandeja de Consultas e Inquietudes
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: '4px 0 0 0' }}>
-              Revisa y gestiona las dudas enviadas por los estudiantes del programa <strong>{currentProgram?.title}</strong> para atenderlas durante las sesiones de clase.
-            </p>
-          </div>
-          <button onClick={fetchDoubtsAndClasses} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <RefreshCw size={14} /> Actualizar
-          </button>
-        </div>
-
-        {/* CONTADORES RÁPIDOS POR ESTADO */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
-          <div
-            onClick={() => setStatusFilter('todos')}
-            style={{
-              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-              background: statusFilter === 'todos' ? '#f1f5f9' : 'transparent',
-              border: statusFilter === 'todos' ? '1px solid var(--navy)' : '1px solid var(--border-color)',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>{doubts.length}</div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Todas</div>
-          </div>
-
-          <div
-            onClick={() => setStatusFilter('enviada')}
-            style={{
-              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-              background: statusFilter === 'enviada' ? '#dbeafe' : 'transparent',
-              border: statusFilter === 'enviada' ? '1px solid #1e40af' : '1px solid var(--border-color)',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e40af' }}>{countByStatus('enviada')}</div>
-            <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Enviadas</div>
-          </div>
-
-          <div
-            onClick={() => setStatusFilter('revisada')}
-            style={{
-              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-              background: statusFilter === 'revisada' ? '#fef3c7' : 'transparent',
-              border: statusFilter === 'revisada' ? '1px solid #92400e' : '1px solid var(--border-color)',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#92400e' }}>{countByStatus('revisada')}</div>
-            <div style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 600 }}>Revisadas</div>
-          </div>
-
-          <div
-            onClick={() => setStatusFilter('atendida')}
-            style={{
-              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-              background: statusFilter === 'atendida' ? '#dcfce7' : 'transparent',
-              border: statusFilter === 'atendida' ? '1px solid #166534' : '1px solid var(--border-color)',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#166534' }}>{countByStatus('atendida')}</div>
-            <div style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 600 }}>Atendidas</div>
-          </div>
-
-          <div
-            onClick={() => setStatusFilter('archivada')}
-            style={{
-              padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer',
-              background: statusFilter === 'archivada' ? '#f1f5f9' : 'transparent',
-              border: statusFilter === 'archivada' ? '1px solid #475569' : '1px solid var(--border-color)',
-              textAlign: 'center',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#475569' }}>{countByStatus('archivada')}</div>
-            <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 600 }}>Archivadas</div>
-          </div>
-        </div>
-      </div>
-
-      {/* BARRA DE BÚSQUEDA Y FILTROS */}
-      <div className="card" style={{ padding: '1rem 1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', background: 'var(--white)', borderRadius: '10px' }}>
-        
-        {/* BUSCADOR */}
-        <div style={{ flex: '1 1 250px', position: 'relative' }}>
-          <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
-          <input
-            type="text"
-            placeholder="Buscar por asunto, contenido o estudiante..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem 0.75rem 0.5rem 2.2rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.84rem' }}
-          />
-        </div>
-
-        {/* FILTRO POR CLASE */}
-        <div style={{ flex: '0 1 220px' }}>
-          <select
-            value={classFilter}
-            onChange={(e) => setClassFilter(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.84rem', background: '#fff' }}
-          >
-            <option value="todos">Todas las clases</option>
-            {classes.map(c => {
-              const info = hierarchyMap[c.id];
-              const displayLabel = info ? `${info.sessionName} › ${c.title}` : c.title;
-              return <option key={c.id} value={c.id}>{displayLabel}</option>;
-            })}
-          </select>
-        </div>
-
-        {/* ORDEN POR FECHA */}
-        <div style={{ flex: '0 1 150px' }}>
-          <select
-            value={dateOrder}
-            onChange={(e) => setDateOrder(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.84rem', background: '#fff' }}
-          >
-            <option value="desc">Más recientes primero</option>
-            <option value="asc">Más antiguas primero</option>
-          </select>
-        </div>
-
-      </div>
-
-      {/* LISTADO DE DUDAS */}
-      {filteredDoubts.length === 0 ? (
-        <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
-          <MessageSquare size={44} color="var(--gold)" style={{ opacity: 0.7, marginBottom: '0.75rem' }} />
-          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.4rem 0' }}>
-            No se encontraron inquietudes
-          </h4>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-            {searchTerm || statusFilter !== 'todos' || classFilter !== 'todos'
-              ? 'No hay dudas que coincidan con los filtros seleccionados.'
-              : 'Los estudiantes aún no han registrado consultas para este programa.'}
+      {/* ENCABEZADO DE SECCIÓN */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <MessageSquare size={24} color="var(--gold-dark)" /> Bandeja de Consultas
+          </h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
+            Revisa y gestiona las dudas enviadas por los estudiantes del programa <strong>{currentProgram?.title}</strong> para atenderlas durante las sesiones de clase.
           </p>
         </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
-          {filteredDoubts.map(doubt => {
-            const { moduleName, sessionName, className } = getHierarchy(doubt);
-            return (
-              <div
-                key={doubt.id}
-                className="card"
+        <button 
+          onClick={fetchDoubtsAndClasses} 
+          className="btn btn-outline" 
+          style={{ fontSize: '0.82rem', padding: '0.45rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+        >
+          <RefreshCw size={14} /> Actualizar
+        </button>
+      </div>
+
+      {/* 3 STATS KPI CARDS ESTILO STITCH */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+        
+        {/* CARD 1: PENDIENTES */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === 'todos' ? 'enviada' : 'todos')}
+          style={{
+            background: 'var(--white)',
+            border: (statusFilter === 'todos' || statusFilter === 'enviada' || statusFilter === 'revisada') ? '1.5px solid rgba(224, 145, 69, 0.4)' : '1px solid var(--border-color)',
+            borderRadius: '16px',
+            padding: '1.25rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+            cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ position: 'absolute', top: 0, right: 0, width: '80px', height: '80px', background: 'rgba(239, 68, 68, 0.08)', borderBottomLeftRadius: '100%', pointerEvents: 'none' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#fee2e2', color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertCircle size={20} />
+            </div>
+            <span style={{ display: 'inline-flex', width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', position: 'relative' }}>
+              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#ef4444', animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite', opacity: 0.75 }} />
+            </span>
+          </div>
+          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Pendientes</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>
+            {countByStatus('enviada') + countByStatus('revisada')}
+          </div>
+        </div>
+
+        {/* CARD 2: NUEVAS (HOY) */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === 'enviada' ? 'todos' : 'enviada')}
+          style={{
+            background: 'var(--white)',
+            border: statusFilter === 'enviada' ? '1.5px solid #fca311' : '1px solid var(--border-color)',
+            borderRadius: '16px',
+            padding: '1.25rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+            cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ position: 'absolute', top: 0, right: 0, width: '80px', height: '80px', background: 'rgba(252, 163, 17, 0.12)', borderBottomLeftRadius: '100%', pointerEvents: 'none' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#fef3c7', color: '#92400e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={20} />
+            </div>
+          </div>
+          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Nuevas (Sin revisar)</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>
+            {countByStatus('enviada')}
+          </div>
+        </div>
+
+        {/* CARD 3: REVISADAS */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === 'revisada' ? 'todos' : 'revisada')}
+          style={{
+            background: 'var(--white)',
+            border: statusFilter === 'revisada' ? '1.5px solid #16a34a' : '1px solid var(--border-color)',
+            borderRadius: '16px',
+            padding: '1.25rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+            cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ position: 'absolute', top: 0, right: 0, width: '80px', height: '80px', background: 'rgba(22, 163, 74, 0.1)', borderBottomLeftRadius: '100%', pointerEvents: 'none' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#dcfce7', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={20} />
+            </div>
+          </div>
+          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Revisadas</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy)', lineHeight: 1 }}>
+            {countByStatus('revisada')}
+          </div>
+        </div>
+
+      </div>
+
+      {/* SPLIT LAYOUT: LISTA DE CONSULTAS (IZQUIERDA) Y DETALLE COMPLETO (DERECHA) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 380px) 1fr', gap: '1.25rem', alignItems: 'stretch' }}>
+        
+        {/* PANEL IZQUIERDO: BUSCADOR, FILTROS Y LISTA DE CONSULTAS */}
+        <div style={{ background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '700px', overflow: 'hidden' }}>
+          
+          {/* BUSCADOR */}
+          <div style={{ position: 'relative' }}>
+            <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Buscar consultas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem 0.5rem 2.2rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                fontSize: '0.84rem',
+                background: 'var(--bg-canvas, #f8fafc)',
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* FILTRO POR PESTAÑAS (PILLS) */}
+          <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '2px' }}>
+            {[
+              { id: 'todos', label: 'Todas', count: doubts.length },
+              { id: 'enviada', label: 'Nuevas', count: countByStatus('enviada') },
+              { id: 'revisada', label: 'Revisadas', count: countByStatus('revisada') },
+              { id: 'atendida', label: 'Atendidas', count: countByStatus('atendida') },
+              { id: 'archivada', label: 'Archivadas', count: countByStatus('archivada') },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
                 style={{
-                  padding: '1.25rem',
-                  borderRadius: '12px',
-                  background: 'var(--white)',
-                  border: '1px solid var(--border-color)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                  cursor: 'pointer'
-                }}
-                onClick={() => setSelectedDoubt(doubt)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
+                  padding: '0.25rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  background: statusFilter === tab.id ? 'var(--navy)' : 'rgba(20, 33, 61, 0.05)',
+                  color: statusFilter === tab.id ? 'var(--white)' : 'var(--navy)',
+                  transition: 'all 0.15s ease'
                 }}
               >
-                {/* TOP: ESTADO Y FECHA */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                    <StatusChip status={doubt.status} />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Calendar size={12} />
-                      {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                    </span>
-                  </div>
+                {tab.label} {tab.count > 0 ? `(${tab.count})` : ''}
+              </button>
+            ))}
+          </div>
 
-                  {/* ASUNTO */}
-                  <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.4rem 0', lineHeight: 1.3 }}>
-                    {doubt.subject}
-                  </h4>
+          {/* SELECTOR DE CLASE Y ORDEN */}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              style={{ flex: 1, padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.75rem', background: '#fff' }}
+            >
+              <option value="todos">Todas las clases</option>
+              {classes.map(c => {
+                const info = hierarchyMap[c.id];
+                const displayLabel = info ? `${info.sessionName} › ${c.title}` : c.title;
+                return <option key={c.id} value={c.id}>{displayLabel}</option>;
+              })}
+            </select>
 
-                  {/* EXTRACTO DESCRIPCIÓN */}
-                  <p style={{
-                    fontSize: '0.82rem', color: '#475569', margin: '0 0 0.85rem 0', lineHeight: 1.4,
-                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
-                  }}>
-                    {doubt.description}
-                  </p>
-                </div>
+            <select
+              value={dateOrder}
+              onChange={(e) => setDateOrder(e.target.value)}
+              style={{ flex: '0 0 auto', padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.75rem', background: '#fff' }}
+            >
+              <option value="desc">Recientes</option>
+              <option value="asc">Antiguas</option>
+            </select>
+          </div>
 
-                {/* BOTTOM: JERARQUÍA Y ESTUDIANTE */}
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
-                  
-                  {/* JERARQUÍA */}
-                  <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--gold-dark)' }}>{moduleName}</span>
-                    <span>›</span>
-                    <span>{sessionName}</span>
-                    <span>›</span>
-                    <strong style={{ color: 'var(--navy)' }}>{className}</strong>
-                  </div>
+          {/* LISTA CON SCROLL DE CONSULTAS */}
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingRight: '4px' }}>
+            {filteredDoubts.length === 0 ? (
+              <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <MessageSquare size={32} style={{ opacity: 0.4, margin: '0 auto 0.5rem auto' }} />
+                <p style={{ fontSize: '0.82rem', margin: 0 }}>No hay consultas con los filtros actuales.</p>
+              </div>
+            ) : (
+              filteredDoubts.map(doubt => {
+                const isSelected = activeDoubt?.id === doubt.id;
+                const { moduleName, className } = getHierarchy(doubt);
+                const isNew = doubt.status === 'enviada';
+                const isRevised = doubt.status === 'revisada';
 
-                  {/* ESTUDIANTE Y ACCIÓN */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, color: 'var(--navy)' }}>
-                        {doubt.users_profile?.full_name?.charAt(0) || 'E'}
+                return (
+                  <div
+                    key={doubt.id}
+                    onClick={() => setSelectedDoubt(doubt)}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      background: isSelected ? 'rgba(252, 163, 17, 0.08)' : 'var(--white)',
+                      border: isSelected ? '1px solid rgba(252, 163, 17, 0.4)' : '1px solid var(--border-color)',
+                      borderLeft: isSelected ? '4px solid #fca311' : '1px solid var(--border-color)',
+                      boxShadow: isSelected ? '0 2px 6px rgba(252, 163, 17, 0.1)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        {isNew && (
+                          <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', background: '#fee2e2', color: '#b91c1c', textTransform: 'uppercase' }}>
+                            Nueva
+                          </span>
+                        )}
+                        {isRevised && (
+                          <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', background: '#fef3c7', color: '#92400e', textTransform: 'uppercase' }}>
+                            Revisada
+                          </span>
+                        )}
+                        {!isNew && !isRevised && (
+                          <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: '#f1f5f9', color: '#475569', textTransform: 'uppercase' }}>
+                            {doubt.status}
+                          </span>
+                        )}
                       </div>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy)' }}>
-                        {doubt.users_profile?.full_name || 'Estudiante'}
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                       </span>
                     </div>
 
-                    <span style={{ fontSize: '0.76rem', color: 'var(--gold-dark)', fontWeight: 600 }}>
-                      Ver detalle →
-                    </span>
-                  </div>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.25rem 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {doubt.users_profile?.full_name || 'Estudiante'}
+                    </h4>
 
+                    <p style={{
+                      fontSize: '0.78rem', color: '#475569', margin: '0 0 0.5rem 0', lineHeight: 1.35,
+                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                    }}>
+                      {doubt.subject ? `${doubt.subject}: ` : ''}{doubt.description}
+                    </p>
+
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.68rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(20, 33, 61, 0.04)', padding: '2px 6px', borderRadius: '4px' }}>
+                      <span>⚡ {className || moduleName}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+        </div>
+
+        {/* PANEL DERECHO: DETALLE COMPLETO Y GESTIÓN ACTIVA (CANVAS STITCH) */}
+        <div style={{ background: 'var(--white)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '700px', overflowY: 'auto' }}>
+          {activeDoubt ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* HEADER DEL DETALLE */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--navy)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: 800, boxShadow: '0 2px 4px rgba(20,33,61,0.15)' }}>
+                    {activeDoubt.users_profile?.full_name?.charAt(0) || 'E'}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
+                      {activeDoubt.users_profile?.full_name || 'Estudiante'}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.2rem', fontSize: '0.78rem' }}>
+                      <span style={{ background: '#dcfce7', color: '#166534', padding: '1px 8px', borderRadius: '9999px', fontWeight: 700, fontSize: '0.7rem' }}>
+                        Estudiante
+                      </span>
+                      <span style={{ color: 'var(--text-muted)' }}>•</span>
+                      <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Clock size={12} /> {new Date(activeDoubt.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <StatusChip status={activeDoubt.status} />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* MODAL DE DETALLE COMPLETO DE LA DUDA */}
-      {selectedDoubt && (
-        <div
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 2000, padding: '1rem'
-          }}
-          onClick={() => setSelectedDoubt(null)}
-        >
-          <div
-            className="card"
-            style={{
-              width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto',
-              background: '#ffffff', borderRadius: '16px', padding: '1.75rem',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* CERRAR */}
-            <button
-              type="button"
-              onClick={() => setSelectedDoubt(null)}
-              style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
-            >
-              <X size={20} />
-            </button>
-
-            {/* HEADER DEL MODAL */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <MessageSquare size={22} color="var(--gold-dark)" />
-              </div>
-              <div>
-                <StatusChip status={selectedDoubt.status} />
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)' }}>
-                  {selectedDoubt.subject}
-                </h3>
-              </div>
-            </div>
-
-            {/* METADATOS Y JERARQUÍA */}
-            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', fontSize: '0.82rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', border: '1px solid var(--border-color)' }}>
-              <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Estudiante:</span>
-                <strong style={{ color: 'var(--navy)' }}>{selectedDoubt.users_profile?.full_name || 'Estudiante'}</strong>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{selectedDoubt.users_profile?.email || 'Sin correo'}</div>
-              </div>
-
-              <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Fecha de envío:</span>
-                <strong style={{ color: 'var(--navy)' }}>
-                  {new Date(selectedDoubt.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </strong>
-              </div>
-
-              <div style={{ gridColumn: 'span 2', paddingTop: '0.4rem', borderTop: '1px dashed var(--border-color)' }}>
-                <span style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Jerarquía académica:</span>
+              {/* JERARQUÍA ACADÉMICA / CLASE */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--navy)', fontWeight: 600 }}>
+                  <BookOpen size={14} color="var(--gold-dark)" /> {currentProgram?.title || 'Programa'}
+                </div>
                 {(() => {
-                  const h = getHierarchy(selectedDoubt);
+                  const h = getHierarchy(activeDoubt);
                   return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontWeight: 600 }}>
-                      <span style={{ background: '#e2e8f0', color: 'var(--navy)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.74rem' }}>
-                        {h.moduleName}
-                      </span>
-                      <span style={{ color: 'var(--text-muted)' }}>›</span>
-                      <span style={{ color: '#475569' }}>
-                        {h.sessionName}
-                      </span>
-                      <span style={{ color: 'var(--text-muted)' }}>›</span>
-                      <span style={{ color: 'var(--navy)' }}>
-                        {h.className}
-                      </span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
+                      <span>🎓 {h.moduleName} › {h.sessionName} › <strong style={{ color: 'var(--navy)' }}>{h.className}</strong></span>
                     </div>
                   );
                 })()}
               </div>
-            </div>
 
-            {/* CONTENIDO DE LA CONSULTA */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
-                Descripción de la duda:
-              </label>
-              <div style={{ background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem', fontSize: '0.88rem', color: 'var(--navy)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                {selectedDoubt.description}
+              {/* ASUNTO Y CONTENIDO DE LA CONSULTA */}
+              <div>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 0.4rem 0' }}>
+                  Consulta del Estudiante
+                </h4>
+                <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.25rem', fontSize: '0.92rem', color: 'var(--navy)', lineHeight: 1.6, whiteSpace: 'pre-wrap', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}>
+                  {activeDoubt.subject && (
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--navy)', marginBottom: '0.6rem' }}>
+                      {activeDoubt.subject}
+                    </div>
+                  )}
+                  {activeDoubt.description}
+                </div>
               </div>
+
+              {/* ORIENTACIÓN DOCENTE */}
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '0.75rem 1rem', fontSize: '0.8rem', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Info size={16} color="#2563eb" style={{ flexShrink: 0 }} />
+                <span>Esta duda será atendida por el docente durante la sesión de clase o espacio académico correspondiente.</span>
+              </div>
+
+              {/* ACCIONES DE ESTADO (FOOTER) */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', marginTop: 'auto' }}>
+                {activeDoubt.status === 'enviada' && (
+                  <>
+                    <button
+                      onClick={() => handleStatusUpdate(activeDoubt.id, 'revisada')}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                    >
+                      <Eye size={15} /> Marcar como Revisada
+                    </button>
+                    <button
+                      onClick={() => handleStatusUpdate(activeDoubt.id, 'atendida')}
+                      className="btn"
+                      style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', background: '#fca311', color: '#14213d', fontWeight: 800, border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                    >
+                      <CheckCircle2 size={15} /> Preparar Respuesta para Clase en Vivo
+                    </button>
+                  </>
+                )}
+
+                {activeDoubt.status === 'revisada' && (
+                  <button
+                    onClick={() => handleStatusUpdate(activeDoubt.id, 'atendida')}
+                    className="btn"
+                    style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', background: '#166534', color: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                  >
+                    <CheckCircle2 size={15} /> Atendida en clase
+                  </button>
+                )}
+
+                {activeDoubt.status === 'atendida' && (
+                  <button
+                    onClick={() => handleStatusUpdate(activeDoubt.id, 'archivada')}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', color: '#475569', borderColor: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                  >
+                    <Layers size={15} /> Archivar consulta
+                  </button>
+                )}
+
+                {activeDoubt.status === 'archivada' && (
+                  <button
+                    onClick={() => handleStatusUpdate(activeDoubt.id, 'enviada')}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', color: '#1e40af', borderColor: '#bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                  >
+                    <RefreshCw size={15} /> Reactivar consulta
+                  </button>
+                )}
+              </div>
+
             </div>
-
-            {/* AVISO EXPLICATIVO DOCENTE */}
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.82rem', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Info size={16} color="#2563eb" style={{ flexShrink: 0 }} />
-              <span>Esta duda será atendida por el docente durante la sesión de clase o espacio académico correspondiente.</span>
+          ) : (
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <MessageSquare size={48} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
+              <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)', margin: '0 0 0.35rem 0' }}>
+                Ninguna consulta seleccionada
+              </h4>
+              <p style={{ fontSize: '0.85rem', maxWidth: '340px', margin: 0 }}>
+                Selecciona una consulta de la lista lateral para ver su detalle completo y gestionarla.
+              </p>
             </div>
-
-            {/* ACCIONES RÁPIDAS DE ESTADO */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', flexWrap: 'wrap', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-              {selectedDoubt.status === 'enviada' && (
-                <button
-                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'revisada')}
-                  className="btn btn-outline"
-                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                >
-                  <Eye size={14} /> Marcar para clase
-                </button>
-              )}
-
-              {selectedDoubt.status === 'revisada' && (
-                <button
-                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'atendida')}
-                  className="btn"
-                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', background: '#166534', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                >
-                  <CheckCircle2 size={14} /> Atendida en clase
-                </button>
-              )}
-
-              {selectedDoubt.status === 'atendida' && (
-                <button
-                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'archivada')}
-                  className="btn btn-outline"
-                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#475569', borderColor: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                >
-                  <Layers size={14} /> Archivar
-                </button>
-              )}
-
-              {selectedDoubt.status === 'archivada' && (
-                <button
-                  onClick={() => handleStatusUpdate(selectedDoubt.id, 'enviada')}
-                  className="btn btn-outline"
-                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem', color: '#1e40af', borderColor: '#bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                >
-                  <RefreshCw size={14} /> Reactivar
-                </button>
-              )}
-
-              <button
-                onClick={() => setSelectedDoubt(null)}
-                className="btn btn-outline"
-                style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem' }}
-              >
-                Cerrar
-              </button>
-            </div>
-
-          </div>
+          )}
         </div>
-      )}
+
+      </div>
 
     </div>
   );
 }
-
 
 /* ─────────────────────────────────────────
    TAB: Estudiantes
