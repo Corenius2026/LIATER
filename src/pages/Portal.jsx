@@ -139,7 +139,7 @@ function StudentPortal({ getDiplomadoLink }) {
             {todayLabel}
           </p>
           <h1 style={{ color: '#ffffff', fontSize: '1.75rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-            {greeting}, {firstName} 👋
+            {greeting}, {firstName}
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.88rem', margin: '0.4rem 0 0 0' }}>
             {diplomas.length > 0
@@ -2179,8 +2179,8 @@ function TeacherPortal({ getDiplomadoLink }) {
             </span>
           </div>
 
-          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
-            Hola, {teacherName || 'Profesor'} 👋
+          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25, textTransform: 'capitalize' }}>
+            Hola, {teacherName || 'Profesor'}
           </h1>
           <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
             Centro de mando docente: Consulta tus sesiones, atiende las consultas de tus estudiantes y gestiona tus diplomados asignados.
@@ -3118,7 +3118,7 @@ function AdminPortal({ getDiplomadoLink }) {
             Panel de Control LIATER
           </h1>
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.82)', lineHeight: 1.4 }}>
-            ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! 👋 Bienvenido a tu centro de supervisión de programas, profesores y estudiantes.
+            ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! Bienvenido a tu centro de supervisión de programas, profesores y estudiantes.
           </p>
         </div>
       </div>
