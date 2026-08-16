@@ -543,14 +543,33 @@ export default function UserManagement() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: uProfiles } = await supabase.from("users_profile").select("*").order("created_at", { ascending: false });
-      const { data: tProfiles } = await supabase.from("teacher_profiles").select("*");
+      const [
+        { data: uProfiles },
+        { data: tProfiles },
+        { data: allEnrollments }
+      ] = await Promise.all([
+        supabase.from("users_profile").select("*").order("created_at", { ascending: false }),
+        supabase.from("teacher_profiles").select("*"),
+        supabase.from("enrollments").select("student_id, program_id, diploma_programs(id, title, program_type)")
+      ]);
 
       const teacherMap = new Map();
       if (tProfiles) tProfiles.forEach(tp => { if (tp.user_id) teacherMap.set(String(tp.user_id), tp); });
 
+      const userProgramsMap = new Map();
+      if (allEnrollments) {
+        allEnrollments.forEach(enr => {
+          if (enr.student_id && enr.diploma_programs) {
+            const sid = String(enr.student_id);
+            if (!userProgramsMap.has(sid)) userProgramsMap.set(sid, []);
+            userProgramsMap.get(sid).push(enr.diploma_programs);
+          }
+        });
+      }
+
       const enriched = (uProfiles || []).map(u => {
         const tp = teacherMap.get(String(u.id)) || teacherMap.get(String(u.auth_user_id));
+        const programs = userProgramsMap.get(String(u.id)) || [];
         return {
           ...u,
           area: tp?.area || "",
@@ -559,6 +578,7 @@ export default function UserManagement() {
           teacher_profile_id: tp?.id || null,
           phone: u.phone || "—",
           country: u.country || "",
+          assigned_programs: programs,
         };
       });
       setUsers(enriched);
@@ -580,7 +600,8 @@ export default function UserManagement() {
     if (u.role !== viewRole) return false;
     if (!searchTerm) return true;
     const t = searchTerm.toLowerCase();
-    return u.full_name?.toLowerCase().includes(t) || u.email?.toLowerCase().includes(t) || u.area?.toLowerCase().includes(t);
+    const matchesProgram = (u.assigned_programs || []).some(p => p.title?.toLowerCase().includes(t));
+    return u.full_name?.toLowerCase().includes(t) || u.email?.toLowerCase().includes(t) || u.area?.toLowerCase().includes(t) || matchesProgram;
   });
 
   const openDrawer = (user) => { setDrawerUser(user); setDrawerOpen(true); };
@@ -667,8 +688,9 @@ export default function UserManagement() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Usuario</th>
+                <th>{viewRole === "teacher" ? "Profesor" : "Estudiante"}</th>
                 {viewRole === "teacher" && <th>Area</th>}
+                <th>{viewRole === "teacher" ? "Programas Asignados" : "Programas Inscritos"}</th>
                 <th>Estado</th>
                 <th>Registro</th>
                 <th style={{ textAlign: "center" }}>Acciones</th>
@@ -676,9 +698,9 @@ export default function UserManagement() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2.5rem" }}>Cargando usuarios...</td></tr>
+                <tr><td colSpan={viewRole === "teacher" ? 6 : 5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2.5rem" }}>Cargando usuarios...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2.5rem" }}>No se encontraron {viewRole === "student" ? "estudiantes" : "profesores"}.</td></tr>
+                <tr><td colSpan={viewRole === "teacher" ? 6 : 5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2.5rem" }}>No se encontraron {viewRole === "student" ? "estudiantes" : "profesores"}.</td></tr>
               ) : filtered.map(u => (
                 <tr key={u.id} style={{ transition: "background 0.15s" }}>
                   <td>
@@ -695,6 +717,37 @@ export default function UserManagement() {
                     </div>
                   </td>
                   {viewRole === "teacher" && <td><span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{u.area || "—"}</span></td>}
+                  <td>
+                    {u.assigned_programs && u.assigned_programs.length > 0 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", maxWidth: "260px" }}>
+                        {u.assigned_programs.map(p => (
+                          <span
+                            key={p.id}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.3rem",
+                              padding: "0.2rem 0.55rem",
+                              borderRadius: "6px",
+                              fontSize: "0.72rem",
+                              fontWeight: 600,
+                              background: "rgba(20, 33, 61, 0.06)",
+                              color: "var(--navy)",
+                              border: "1px solid rgba(20, 33, 61, 0.12)",
+                              lineHeight: 1.2
+                            }}
+                          >
+                            <GraduationCap size={12} color="var(--gold-dark)" style={{ flexShrink: 0 }} />
+                            <span>{p.title}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "0.76rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                        Sin programas
+                      </span>
+                    )}
+                  </td>
                   <td><AuthStatusBadge status={u.is_active ? "active" : "pending"} /></td>
                   <td style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{new Date(u.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}</td>
                   <td>

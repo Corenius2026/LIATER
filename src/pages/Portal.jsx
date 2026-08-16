@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Clock, Sparkles, Layers, Bell, ExternalLink, ShieldCheck, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { formatShortDate, isClassLiveOrSoon } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
@@ -584,6 +584,7 @@ function TeacherPortal({ getDiplomadoLink }) {
   const [activeFilter, setActiveFilter] = useState('Todos');
   const filters = ['Todos', 'Diplomados', 'Cursos Cortos', 'Talleres'];
   const [doubtStatusFilter, setDoubtStatusFilter] = useState('todos');
+  const [agendaFilter, setAgendaFilter] = useState('todas');
 
   const handleStatusChange = async (doubtId, newStatus) => {
     setQuestions(prev => {
@@ -617,31 +618,46 @@ function TeacherPortal({ getDiplomadoLink }) {
           .eq('student_id', currentUser.id)
           .order('created_at', { ascending: false });
           
-        if (enrollData) {
-          const fetchedDiplomas = enrollData.map(enr => enr.diploma_programs).filter(Boolean);
-          
-          if (fetchedDiplomas.length > 0) {
-            const now = new Date();
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-            const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+        let fetchedDiplomas = (enrollData || []).map(enr => enr.diploma_programs).filter(Boolean);
 
-            const { data: todayClasses } = await supabase
-              .from('class_sessions')
-              .select('program_id, meet_url, class_date, duration')
-              .in('program_id', fetchedDiplomas.map(d => d.id))
-              .gte('class_date', todayStart)
-              .lt('class_date', todayEnd);
+        // Incluir programas donde el profesor tiene clases asignadas directamente
+        if (profileData?.id) {
+          const { data: classRows } = await supabase
+            .from('class_sessions')
+            .select('program_id, diploma_programs(*)')
+            .eq('teacher_id', profileData.id);
 
-            teacherDiplomas = fetchedDiplomas.map(dip => {
-              const liveClass = todayClasses?.find(c => c.program_id === dip.id && isClassLiveOrSoon(c, 10));
-              const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
-              return { ...dip, liveUrl };
-            });
-          } else {
-            teacherDiplomas = [];
-          }
-          setDiplomas(teacherDiplomas);
+          const classDiplomas = (classRows || []).map(r => r.diploma_programs).filter(Boolean);
+          const seenProgIds = new Set(fetchedDiplomas.map(d => d.id));
+          classDiplomas.forEach(cd => {
+            if (!seenProgIds.has(cd.id)) {
+              seenProgIds.add(cd.id);
+              fetchedDiplomas.push(cd);
+            }
+          });
         }
+
+        if (fetchedDiplomas.length > 0) {
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+          const { data: todayClasses } = await supabase
+            .from('class_sessions')
+            .select('program_id, meet_url, class_date, duration')
+            .in('program_id', fetchedDiplomas.map(d => d.id))
+            .gte('class_date', todayStart)
+            .lt('class_date', todayEnd);
+
+          teacherDiplomas = fetchedDiplomas.map(dip => {
+            const liveClass = todayClasses?.find(c => c.program_id === dip.id && isClassLiveOrSoon(c, 10));
+            const liveUrl = liveClass ? (liveClass.meet_url || dip.meet_url) : null;
+            return { ...dip, liveUrl };
+          });
+        } else {
+          teacherDiplomas = [];
+        }
+        setDiplomas(teacherDiplomas);
 
         let teacherClasses = [];
         let doubtsCount = 0;
@@ -819,58 +835,190 @@ function TeacherPortal({ getDiplomadoLink }) {
   });
 
   // -------------------------------------------------------------------
-  // VISTA 2: MIS PROGRAMAS (tab=programas)
+  // -------------------------------------------------------------------
+  // VISTA 2: MIS PROGRAMAS (tab=programas) - Rediseñado de Alta Fidelidad
   // -------------------------------------------------------------------
   if (activeTab === 'programas') {
+    const countDiplomados = diplomas.filter(p => p.program_type !== 'curso' && p.program_type !== 'taller').length;
+    const countCursos = diplomas.filter(p => p.program_type === 'curso').length;
+    const countTalleres = diplomas.filter(p => p.program_type === 'taller').length;
+    const filterCounts = {
+      'Todos': diplomas.length,
+      'Diplomados': countDiplomados,
+      'Cursos Cortos': countCursos,
+      'Talleres': countTalleres
+    };
+
     return (
-      <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
-        <div style={{ marginBottom: '1rem' }}>
-          <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-            Mis Programas
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-            Continúa tu formación y revisa tus próximos compromisos.
-          </p>
-        </div>
+      <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+        
+        {/* ── HERO BANNER INSTITUCIONAL ── */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '1.75rem 2rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1.25rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
+              <span style={{
+                background: '#F1F5F9',
+                color: 'var(--navy, #14213D)',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                padding: '3px 10px',
+                borderRadius: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em'
+              }}>
+                🏛️ GESTIÓN ACADÉMICA · PORTAL DOCENTE UNAL
+              </span>
+              <span style={{
+                background: '#DCFCE7',
+                color: '#007A2E',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '10px'
+              }}>
+                ● Asignaciones Activas
+              </span>
+            </div>
 
-        {/* FILTROS POR CATEGORÍA */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-          {filters.map(filter => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              style={{
-                padding: '0.5rem 1.25rem',
-                borderRadius: '9999px',
-                border: 'none',
-                background: activeFilter === filter ? 'var(--navy)' : 'var(--bg-light)',
-                color: activeFilter === filter ? 'var(--white)' : 'var(--text-muted)',
-                fontWeight: 600,
-                fontSize: '0.88rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
-
-        {/* GRILLA DE PROGRAMAS ASIGNADOS */}
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando programas...</p>
-        ) : filteredDiplomas.length === 0 ? (
-          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-            <BookOpen size={40} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '1rem' }} />
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
-              No tienes programas en esta categoría
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-              Cuando tengas un programa asignado, aparecerá aquí.
+            <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+              Mis Programas Asignados
+            </h1>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+              Administra tus diplomados, prepara tus sesiones de clase y acompaña el progreso académico de tus estudiantes.
             </p>
           </div>
+
+          <div style={{
+            background: '#F8FAFC',
+            padding: '0.75rem 1.15rem',
+            borderRadius: '12px',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.85rem'
+          }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: 'rgba(20,33,61,0.06)',
+              color: 'var(--navy, #14213D)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <BookOpen size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Total Asignados
+              </div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                {diplomas.length} {diplomas.length === 1 ? 'Programa' : 'Programas'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FILTROS POR CATEGORÍA CON CONTEOS DINÁMICOS ── */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {filters.map(filter => {
+            const count = filterCounts[filter] || 0;
+            const isActive = activeFilter === filter;
+
+            return (
+              <button
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                style={{
+                  padding: '0.5rem 1.1rem',
+                  borderRadius: '9999px',
+                  border: isActive ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
+                  background: isActive ? 'var(--navy, #14213D)' : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : 'var(--navy, #14213D)',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  boxShadow: isActive ? '0 3px 10px rgba(20,33,61,0.15)' : 'none',
+                  transition: 'all 0.18s ease'
+                }}
+                onMouseOver={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseOut={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = '#E2E8F0';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                <span>{filter}</span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  padding: '1px 6px',
+                  borderRadius: '8px',
+                  background: isActive ? 'rgba(255,255,255,0.2)' : '#F1F5F9',
+                  color: isActive ? '#FFFFFF' : 'var(--text-muted, #64748B)'
+                }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── GRILLA DE PROGRAMAS ASIGNADOS ── */}
+        {loading ? (
+          <div style={{ padding: '3rem 2rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <p style={{ color: 'var(--text-muted, #64748B)', margin: 0 }}>Cargando programas académicos...</p>
+          </div>
+        ) : filteredDiplomas.length === 0 ? (
+          <div style={{ padding: '3.5rem 2rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '16px', border: '1px dashed #CBD5E1' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <BookOpen size={28} color="var(--navy, #14213D)" style={{ opacity: 0.4 }} />
+            </div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: '0 0 0.35rem 0' }}>
+              No tienes programas en esta categoría
+            </h3>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: '0 0 1rem 0' }}>
+              Cuando la coordinación académica te asigne un programa de este tipo, aparecerá aquí.
+            </p>
+            <button
+              onClick={() => setActiveFilter('Todos')}
+              style={{
+                background: 'var(--navy, #14213D)',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '0.5rem 1.15rem',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              Ver todos los programas ({diplomas.length})
+            </button>
+          </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
             {filteredDiplomas.map(program => {
               // Métricas reales para este programa
               const progClasses = classes.filter(c => 
@@ -883,170 +1031,615 @@ function TeacherPortal({ getDiplomadoLink }) {
               
               const startOfToday = new Date();
               startOfToday.setHours(0, 0, 0, 0);
-              const progUpcomingClass = progClasses.find(c => new Date(c.class_date) >= startOfToday);
-              const progNextClassStr = progUpcomingClass 
-                ? new Date(progUpcomingClass.class_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) 
-                : (progClassCount > 0 ? 'Programadas' : 'Pendiente');
+              const progUpcomingClass = progClasses
+                .filter(c => new Date(c.class_date) >= startOfToday)
+                .sort((a, b) => new Date(a.class_date) - new Date(b.class_date))[0];
+
+              let progNextClassStr = 'Pendiente asignar';
+              if (progUpcomingClass) {
+                const d = new Date(progUpcomingClass.class_date);
+                const day = d.getDate();
+                const month = d.toLocaleString('es-ES', { month: 'short' });
+                const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                progNextClassStr = `${day} ${month} · ${time} hrs`;
+              } else if (progClassCount > 0) {
+                progNextClassStr = '✓ Clases concluidas';
+              }
+
+              const coverImg = program.cover_image_url || program.image_url;
+              const link = getDiplomadoLink(program.id);
+              const isDisabled = program.is_published === false || program.status === 'draft' || program.status === 'disabled';
 
               return (
                 <div 
                   key={program.id} 
-                  className="card teacher-summary-card" 
                   style={{ 
                     display: 'flex', 
                     flexDirection: 'column', 
                     padding: 0, 
                     overflow: 'hidden', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: 'var(--radius-lg)',
-                    background: 'var(--white)',
-                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
-                    transition: 'all 200ms ease-in-out'
+                    border: '1px solid #E2E8F0', 
+                    borderRadius: '16px',
+                    background: '#FFFFFF',
+                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+                    transition: 'all 220ms cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.transform = 'translateY(-3px)';
+                    e.currentTarget.style.boxShadow = '0 10px 28px rgba(20, 33, 61, 0.09)';
+                    e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
                   }}
                 >
-                  {/* Portada visual superior compacta (110px) */}
+                  {/* Portada visual superior estilizada (125px) */}
                   <div style={{ 
-                    height: '110px', 
-                    background: program.image_url ? `url(${program.image_url}) center/cover` : 'linear-gradient(135deg, #14213d 0%, #1e2e52 100%)', 
+                    height: '125px', 
+                    background: coverImg 
+                      ? `linear-gradient(to bottom, rgba(20,33,61,0.25), rgba(20,33,61,0.85)), url(${coverImg}) center/cover no-repeat` 
+                      : 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)', 
+                    padding: '0.9rem 1.1rem',
                     display: 'flex', 
-                    alignItems: 'center', 
-                    justify: 'center', 
+                    alignItems: 'flex-start', 
+                    justifyContent: 'space-between', 
                     position: 'relative' 
                   }}>
-                    {!program.image_url && (
-                      <div style={{ textAlign: 'center', color: 'var(--gold)' }}>
-                        <BookOpen size={30} />
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, marginTop: '0.2rem', letterSpacing: '0.05em' }}>LIATER UNAL</div>
-                      </div>
+                    <span style={{ 
+                      background: 'rgba(252,163,17,0.95)', 
+                      color: 'var(--navy, #14213D)', 
+                      padding: '3px 9px', 
+                      borderRadius: '8px', 
+                      fontSize: '0.7rem', 
+                      fontWeight: 800, 
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+                    }}>
+                      {program.program_type === 'curso' ? '📘 Curso Corto' : (program.program_type === 'taller' ? '🛠️ Taller' : '🏛️ Diplomado UNAL')}
+                    </span>
+                    
+                    {isDisabled ? (
+                      <span style={{ 
+                        background: '#FEE2E2', 
+                        color: '#DC2626', 
+                        padding: '3px 8px', 
+                        borderRadius: '8px', 
+                        fontSize: '0.68rem', 
+                        fontWeight: 800,
+                        textTransform: 'uppercase' 
+                      }}>
+                        Inhabilitado
+                      </span>
+                    ) : (
+                      <span style={{ 
+                        background: '#DCFCE7', 
+                        color: '#007A2E', 
+                        padding: '3px 8px', 
+                        borderRadius: '8px', 
+                        fontSize: '0.68rem', 
+                        fontWeight: 800,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.12)'
+                      }}>
+                        ● Asignado
+                      </span>
                     )}
                   </div>
                   
-                  <div style={{ padding: '1.25rem 1.5rem 1.5rem 1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-                    {/* Chips de tipo y estado */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-                      <span style={{ 
-                        background: program.program_type === 'curso' ? '#e8f5ee' : 'var(--bg-light)', 
-                        color: program.program_type === 'curso' ? 'var(--green-700)' : 'var(--navy)', 
-                        padding: '0.25rem 0.65rem', 
-                        borderRadius: '9999px', 
-                        fontSize: '0.68rem', 
-                        fontWeight: 700, 
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                      }}>
-                        {program.program_type === 'curso' ? 'Curso Corto' : (program.program_type === 'taller' ? 'Taller' : 'Diplomado')}
-                      </span>
-                      {(program.is_published === false || program.status === 'draft' || program.status === 'disabled') ? (
-                        <span style={{ 
-                          background: '#fee2e2', 
-                          color: '#dc2626', 
-                          padding: '0.25rem 0.65rem', 
-                          borderRadius: '9999px', 
-                          fontSize: '0.68rem', 
-                          fontWeight: 700,
-                          textTransform: 'uppercase' 
-                        }}>
-                          INHABILITADO
-                        </span>
-                      ) : (
-                        <span style={{ 
-                          background: 'rgba(20, 33, 61, 0.05)', 
-                          color: 'var(--navy)', 
-                          padding: '0.25rem 0.65rem', 
-                          borderRadius: '9999px', 
-                          fontSize: '0.68rem', 
-                          fontWeight: 700 
-                        }}>
-                          Asignado
-                        </span>
-                      )}
+                  {/* Cuerpo de la tarjeta */}
+                  <div style={{ padding: '1.4rem', display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between', gap: '1.1rem' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.12rem', color: 'var(--navy, #14213D)', fontWeight: 800, margin: '0 0 0.45rem 0', lineHeight: 1.35 }}>
+                        {program.title}
+                      </h3>
+                      <p style={{ margin: 0, color: 'var(--text-muted, #64748B)', fontSize: '0.82rem', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {program.description || 'Programa de formación académica especializada del Laboratorio LIATER.'}
+                      </p>
                     </div>
-
-                    {/* Título del programa (Sin descripción larga) */}
-                    <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 800, margin: '0 0 1rem 0', lineHeight: 1.3 }}>
-                      {program.title}
-                    </h3>
 
                     {/* Métricas docentes compactas */}
                     <div style={{ 
                       display: 'grid', 
                       gridTemplateColumns: 'repeat(2, 1fr)', 
                       gap: '0.75rem', 
-                      background: 'rgba(20, 33, 61, 0.03)', 
-                      border: '1px solid rgba(20, 33, 61, 0.06)', 
-                      borderRadius: '8px', 
-                      padding: '0.75rem 1rem', 
-                      marginBottom: '1.25rem',
-                      marginTop: 'auto'
+                      background: '#F8FAFC', 
+                      border: '1px solid #E2E8F0', 
+                      borderRadius: '10px', 
+                      padding: '0.8rem 1rem'
                     }}>
                       <div>
-                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Clases asignadas
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Clases Asignadas
                         </div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)' }}>
+                        <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy, #14213D)', marginTop: '2px' }}>
                           {progClassCount}
                         </div>
                       </div>
 
                       <div>
-                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Próxima clase
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Próxima Sesión
                         </div>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--navy)', textTransform: 'capitalize' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: progUpcomingClass ? 'var(--navy, #14213D)' : 'var(--text-muted, #64748B)', marginTop: '4px' }}>
                           {progNextClassStr}
                         </div>
                       </div>
                     </div>
 
-                    {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
-                    {program.liveUrl && (
+                    {/* ACCIONES Y BOTONES */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
+                      {program.liveUrl && (
+                        <a 
+                          href={program.liveUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            gap: '0.45rem',
+                            width: '100%', 
+                            padding: '0.55rem 1rem', 
+                            fontWeight: 800, 
+                            fontSize: '0.84rem',
+                            borderRadius: '8px',
+                            background: 'var(--gold, #FCA311)',
+                            color: 'var(--navy, #14213D)',
+                            textDecoration: 'none',
+                            boxShadow: '0 3px 10px rgba(252,163,17,0.3)'
+                          }}
+                        >
+                          <Video size={16} /> Entrar a Sesión en Vivo
+                        </a>
+                      )}
+
+                      {/* Botón de Acción Principal */}
+                      <Link 
+                        to={link} 
+                        style={{ 
+                          background: 'var(--navy, #14213D)', 
+                          color: '#FFFFFF', 
+                          border: 'none', 
+                          textAlign: 'center', 
+                          width: '100%', 
+                          padding: '0.65rem 1rem', 
+                          fontWeight: 700, 
+                          fontSize: '0.86rem', 
+                          borderRadius: '8px', 
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.45rem',
+                          textDecoration: 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                        onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+                      >
+                        <span>Entrar al Panel del Curso</span>
+                        <ArrowRight size={14} color="var(--gold, #FCA311)" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // -------------------------------------------------------------------
+  // -------------------------------------------------------------------
+  // VISTA 3: AGENDA (tab=agenda) - Rediseñado de Alta Fidelidad
+  // -------------------------------------------------------------------
+  if (activeTab === 'agenda') {
+    const now = new Date();
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const classesThisWeek = upcomingClasses.filter(c => new Date(c.class_date) <= in7Days);
+    const classesThisMonth = upcomingClasses.filter(c => new Date(c.class_date) <= in30Days);
+
+    let displayAgendaClasses = upcomingClasses;
+    if (agendaFilter === 'semana') displayAgendaClasses = classesThisWeek;
+    if (agendaFilter === 'mes') displayAgendaClasses = classesThisMonth;
+
+    return (
+      <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+        
+        {/* ── HERO BANNER INSTITUCIONAL ── */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '1.75rem 2rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1.25rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
+              <span style={{
+                background: '#F1F5F9',
+                color: 'var(--navy, #14213D)',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                padding: '3px 10px',
+                borderRadius: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em'
+              }}>
+                🏛️ CRONOGRAMA ACADÉMICO · PORTAL DOCENTE UNAL
+              </span>
+              <span style={{
+                background: upcomingClasses.length > 0 ? '#DCFCE7' : '#F1F5F9',
+                color: upcomingClasses.length > 0 ? '#007A2E' : '#64748B',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '10px'
+              }}>
+                {upcomingClasses.length > 0 ? `● ${upcomingClasses.length} Sesiones Programadas` : '● Sin Clases Pendientes'}
+              </span>
+            </div>
+
+            <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+              Agenda de Clases y Sesiones
+            </h1>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+              Consulta tu programación sincrónica, conéctate a las aulas virtuales y gestiona el material pedagógico.
+            </p>
+          </div>
+
+          <div style={{
+            background: '#F8FAFC',
+            padding: '0.75rem 1.15rem',
+            borderRadius: '12px',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.85rem'
+          }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: 'rgba(20,33,61,0.06)',
+              color: 'var(--navy, #14213D)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <CalendarClock size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Próximos 7 Días
+              </div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                {classesThisWeek.length} {classesThisWeek.length === 1 ? 'Clase' : 'Clases'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FILTROS TEMPORALES TIPO PÍLDORA ── */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {[
+            { id: 'todas', label: 'Todas las Próximas', count: upcomingClasses.length },
+            { id: 'semana', label: '⏱️ Próximos 7 Días', count: classesThisWeek.length },
+            { id: 'mes', label: '🗓️ Próximos 30 Días', count: classesThisMonth.length },
+          ].map(f => {
+            const isActive = agendaFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setAgendaFilter(f.id)}
+                style={{
+                  padding: '0.5rem 1.1rem',
+                  borderRadius: '9999px',
+                  border: isActive ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
+                  background: isActive ? 'var(--navy, #14213D)' : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : 'var(--navy, #14213D)',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  boxShadow: isActive ? '0 3px 10px rgba(20,33,61,0.15)' : 'none',
+                  transition: 'all 0.18s ease'
+                }}
+                onMouseOver={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseOut={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.borderColor = '#E2E8F0';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                <span>{f.label}</span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  padding: '1px 6px',
+                  borderRadius: '8px',
+                  background: isActive ? 'rgba(255,255,255,0.2)' : '#F1F5F9',
+                  color: isActive ? '#FFFFFF' : 'var(--text-muted, #64748B)'
+                }}>
+                  {f.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── LISTADO DE SESIONES O ESTADO VACÍO ── */}
+        {loading ? (
+          <div style={{ padding: '3rem 2rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <p style={{ color: 'var(--text-muted, #64748B)', margin: 0 }}>Cargando agenda académica...</p>
+          </div>
+        ) : displayAgendaClasses.length === 0 ? (
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E2E8F0',
+            padding: '3.5rem 2rem',
+            textAlign: 'center',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+          }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: '#F8FAFC',
+              color: 'var(--navy, #14213D)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              border: '1px solid #E2E8F0'
+            }}>
+              <CalendarClock size={30} style={{ opacity: 0.5 }} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: '0 0 0.4rem 0' }}>
+              No tienes clases programadas en este período
+            </h3>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', maxWidth: '500px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
+              Las nuevas sesiones que te asigne la coordinación académica aparecerán aquí organizadas cronológicamente.
+            </p>
+            <Link 
+              to="/portal?tab=programas" 
+              style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '0.45rem', 
+                background: 'var(--navy, #14213D)', 
+                color: '#FFFFFF', 
+                padding: '0.55rem 1.2rem', 
+                borderRadius: '8px', 
+                fontSize: '0.84rem', 
+                fontWeight: 700, 
+                textDecoration: 'none',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = '#000000'}
+              onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+            >
+              <BookOpen size={15} /> Ver mis programas
+            </Link>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {displayAgendaClasses.map(cls => {
+              const d = new Date(cls.class_date);
+              const day = d.getDate();
+              const month = d.toLocaleString('es-ES', { month: 'short' });
+              const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+              const progTitle = cls.diploma_programs?.title || cls.sessions?.modules?.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
+              const progId = cls.diploma_programs?.id || cls.sessions?.modules?.diploma_programs?.id || cls.subtopics?.modules?.diploma_programs?.id || cls.program_id;
+              
+              const isLive = isClassLiveOrSoon(cls, 10);
+              const isToday = new Date().toDateString() === d.toDateString();
+              const meetUrl = cls.meet_url || cls.diploma_programs?.meet_url;
+
+              return (
+                <div 
+                  key={cls.id} 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '1.4rem 1.6rem', 
+                    background: '#FFFFFF', 
+                    borderRadius: '16px', 
+                    border: isLive ? '1.5px solid var(--gold, #FCA311)' : '1px solid #E2E8F0',
+                    boxShadow: isLive ? '0 4px 16px rgba(252,163,17,0.15)' : '0 1px 3px rgba(20, 33, 61, 0.03)',
+                    gap: '1.5rem', 
+                    flexWrap: 'wrap',
+                    transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(20, 33, 61, 0.07)';
+                    if (!isLive) e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = isLive ? '0 4px 16px rgba(252,163,17,0.15)' : '0 1px 3px rgba(20, 33, 61, 0.03)';
+                    if (!isLive) e.currentTarget.style.borderColor = '#E2E8F0';
+                  }}
+                >
+                  {/* CALENDARIO MINIATURA ESTILIZADO */}
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '12px',
+                    background: isLive ? 'var(--gold, #FCA311)' : 'var(--navy, #14213D)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 8px rgba(20, 33, 61, 0.12)'
+                  }}>
+                    <span style={{
+                      fontSize: '0.68rem',
+                      color: isLive ? 'var(--navy, #14213D)' : 'var(--gold, #FCA311)',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      {month}
+                    </span>
+                    <span style={{
+                      fontSize: '1.45rem',
+                      color: isLive ? 'var(--navy, #14213D)' : '#FFFFFF',
+                      fontWeight: 800,
+                      lineHeight: 1
+                    }}>
+                      {day}
+                    </span>
+                  </div>
+
+                  {/* INFORMACIÓN CENTRAL DE LA CLASE */}
+                  <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: '0.74rem',
+                        color: 'var(--gold-dark, #b45309)',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}>
+                        🏛️ {progTitle}
+                      </span>
+                      {isLive ? (
+                        <span style={{
+                          background: '#FEE2E2',
+                          color: '#DC2626',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#DC2626' }}></span>
+                          EN VIVO AHORA
+                        </span>
+                      ) : isToday ? (
+                        <span style={{
+                          background: '#DCFCE7',
+                          color: '#007A2E',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          padding: '2px 7px',
+                          borderRadius: '6px'
+                        }}>
+                          ● HOY
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <h3 style={{ margin: 0, color: 'var(--navy, #14213D)', fontSize: '1.15rem', fontWeight: 800, lineHeight: 1.3 }}>
+                      {cls.title}
+                    </h3>
+
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.85rem',
+                      color: 'var(--text-muted, #64748B)',
+                      fontSize: '0.82rem',
+                      flexWrap: 'wrap',
+                      marginTop: '2px'
+                    }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                        <Clock size={13} color="var(--gold, #FCA311)" /> {timeStr} hrs
+                      </span>
+                      <span>•</span>
+                      <span>⏱️ Duración: {cls.duration || 90} min</span>
+                      {meetUrl && (
+                        <>
+                          <span>•</span>
+                          <span style={{ color: '#007A2E', fontWeight: 700 }}>🌐 Aula Virtual Google Meet</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ACCIONES DIRECTAS */}
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* BOTÓN EN VIVO DIRECTO (Si aplica o tiene meetUrl) */}
+                    {(isLive || meetUrl) && (
                       <a 
-                        href={program.liveUrl} 
+                        href={meetUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          gap: '0.4rem',
-                          width: '100%', 
-                          padding: '0.45rem 1rem', 
-                          fontWeight: 700, 
-                          fontSize: '0.85rem',
-                          borderRadius: '6px',
-                          background: '#FCA311',
-                          color: '#14213D',
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          background: isLive ? 'var(--gold, #FCA311)' : '#F1F5F9',
+                          color: 'var(--navy, #14213D)',
+                          fontWeight: 800,
+                          fontSize: '0.82rem',
+                          padding: '0.55rem 1rem',
+                          borderRadius: '8px',
                           textDecoration: 'none',
-                          marginBottom: '0.75rem',
-                          boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
-                          transition: 'all 0.2s ease'
+                          boxShadow: isLive ? '0 3px 10px rgba(252,163,17,0.3)' : 'none',
+                          transition: 'all 0.15s ease'
                         }}
-                        onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                        onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                        onMouseOver={e => {
+                          if (!isLive) e.currentTarget.style.background = '#E2E8F0';
+                        }}
+                        onMouseOut={e => {
+                          if (!isLive) e.currentTarget.style.background = '#F1F5F9';
+                        }}
                       >
-                        <Video size={16} /> Unirse a la sesión en vivo
+                        <Video size={15} />
+                        <span>{isLive ? 'Unirse a Clase' : 'Abrir Meet'}</span>
                       </a>
                     )}
 
-                    {/* Botón de Acción Principal */}
+                    {/* BOTÓN GESTIÓN EN PROGRAMA */}
                     <Link 
-                      to={getDiplomadoLink(program.id)} 
-                      className="btn" 
+                      to={getDiplomadoLink(progId)} 
                       style={{ 
-                        background: 'var(--navy)', 
-                        color: 'white', 
-                        border: 'none', 
-                        textAlign: 'center', 
-                        width: '100%', 
-                        padding: '0.65rem', 
+                        background: 'var(--navy, #14213D)', 
+                        color: '#FFFFFF', 
                         fontWeight: 700, 
-                        fontSize: '0.9rem',
-                        borderRadius: '8px',
-                        display: 'block',
-                        textDecoration: 'none'
+                        fontSize: '0.82rem', 
+                        padding: '0.55rem 1.1rem', 
+                        borderRadius: '8px', 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        textDecoration: 'none',
+                        transition: 'all 0.15s ease',
+                        whiteSpace: 'nowrap'
                       }}
+                      onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                      onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
                     >
-                      Entrar al programa
+                      <span>Gestionar Clase</span>
+                      <ArrowRight size={13} color="var(--gold, #FCA311)" />
                     </Link>
                   </div>
                 </div>
@@ -1059,87 +1652,14 @@ function TeacherPortal({ getDiplomadoLink }) {
   }
 
   // -------------------------------------------------------------------
-  // VISTA 3: AGENDA (tab=agenda)
   // -------------------------------------------------------------------
-  if (activeTab === 'agenda') {
-    return (
-      <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-            Agenda
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-            Revisa tus próximas clases en vivo y prepara tus sesiones de clase.
-          </p>
-        </div>
-
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando agenda de clases...</p>
-        ) : upcomingClasses.length === 0 ? (
-          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px' }}>
-            <CalendarClock size={40} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '1rem' }} />
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
-              No tienes clases próximas en tu agenda
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-              Las clases en vivo que te sean asignadas aparecerán aquí ordenadas por fecha.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {upcomingClasses.map(cls => {
-              const d = new Date(cls.class_date);
-              const day = d.getDate();
-              const month = d.toLocaleString('es-ES', { month: 'short' });
-              const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-              const progTitle = cls.diploma_programs?.title || cls.sessions?.modules?.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
-              const progId = cls.diploma_programs?.id || cls.sessions?.modules?.diploma_programs?.id || cls.subtopics?.modules?.diploma_programs?.id || cls.program_id;
-
-              return (
-                <div key={cls.id} className="card" style={{ display: 'flex', alignItems: 'center', padding: '1.25rem 1.5rem', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', gap: '1.25rem', flexWrap: 'wrap' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(20, 33, 61, 0.1)' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--gold-dark)', fontWeight: 800, textTransform: 'uppercase' }}>{month}</span>
-                    <span style={{ fontSize: '1.35rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>{day}</span>
-                  </div>
-
-                  <div style={{ flex: '1 1 250px' }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--gold-dark)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.2rem' }}>
-                      {progTitle}
-                    </div>
-                    <h3 style={{ margin: 0, color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 700 }}>
-                      {cls.title}
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.4rem', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
-                      <span>🕒 {timeStr} hrs</span>
-                      <span>•</span>
-                      <span>⏱️ Duración: {cls.duration || 120} min</span>
-                    </div>
-                  </div>
-
-                  <Link 
-                    to={getDiplomadoLink(progId)} 
-                    className="btn btn-outline" 
-                    style={{ fontSize: '0.85rem', padding: '0.6rem 1.2rem', fontWeight: 600, whiteSpace: 'nowrap' }}
-                  >
-                    Ir al Programa →
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------------------
-  // VISTA 4: BANDEJA DE CONSULTAS (tab=consultas)
+  // VISTA 4: BANDEJA DE CONSULTAS (tab=consultas) - Rediseñado de Alta Fidelidad
   // -------------------------------------------------------------------
   if (activeTab === 'consultas') {
-    // 1. Filtrar solo dudas PENDIENTES ('enviada' o 'revisada') (Requisito 1)
+    // 1. Filtrar solo dudas PENDIENTES ('enviada' o 'revisada')
     const pendingQuestions = questions.filter(q => q.status === 'enviada' || q.status === 'revisada');
 
-    // 2. Contadores (Requisito 2)
+    // 2. Contadores
     const countTotalPending = pendingQuestions.length;
     const countNew = pendingQuestions.filter(q => q.status === 'enviada').length;
     const countRevised = pendingQuestions.filter(q => q.status === 'revisada').length;
@@ -1151,7 +1671,7 @@ function TeacherPortal({ getDiplomadoLink }) {
       return true;
     });
 
-    // 4. Ordenar: Primero dudas nuevas ('enviada'), luego revisadas ('revisada') (Requisito 7)
+    // 4. Ordenar: Primero dudas nuevas ('enviada'), luego revisadas ('revisada')
     displayQuestions.sort((a, b) => {
       if (a.status === 'enviada' && b.status !== 'enviada') return -1;
       if (a.status !== 'enviada' && b.status === 'enviada') return 1;
@@ -1162,147 +1682,308 @@ function TeacherPortal({ getDiplomadoLink }) {
     });
 
     return (
-      <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <div>
-          <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-            Bandeja de consultas
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-            Revisa las dudas pendientes enviadas por los estudiantes y prepáralas para ser atendidas en sus clases correspondientes.
-          </p>
+      <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+        
+        {/* ── HERO BANNER INSTITUCIONAL ── */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '1.75rem 2rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1.25rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
+              <span style={{
+                background: '#F1F5F9',
+                color: 'var(--navy, #14213D)',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                padding: '3px 10px',
+                borderRadius: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em'
+              }}>
+                🏛️ BANDEJA DE CONSULTAS · PORTAL DOCENTE UNAL
+              </span>
+              <span style={{
+                background: countTotalPending === 0 ? '#DCFCE7' : '#FEF3C7',
+                color: countTotalPending === 0 ? '#007A2E' : '#92400E',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '10px'
+              }}>
+                {countTotalPending === 0 ? '● Al Día' : `● ${countTotalPending} Pendientes`}
+              </span>
+            </div>
+
+            <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+              Bandeja de Consultas Académicas
+            </h1>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+              Atiende y gestiona las dudas formuladas por los estudiantes en tus diplomados y clases asignadas.
+            </p>
+          </div>
+
+          <div style={{
+            background: '#F8FAFC',
+            padding: '0.75rem 1.15rem',
+            borderRadius: '12px',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.85rem'
+          }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: countNew > 0 ? '#FEF3C7' : 'rgba(20,33,61,0.06)',
+              color: countNew > 0 ? '#92400E' : 'var(--navy, #14213D)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <MessageSquareText size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Nuevas Consultas
+              </div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                {countNew} {countNew === 1 ? 'Nueva' : 'Nuevas'}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* 3 INDICADORES COMPACTOS (Requisito 2) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+        {/* ── 3 INDICADORES / FILTROS MODULARES (KPIs) ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
           
           {/* INDICADOR 1: PENDIENTES */}
           <div
             onClick={() => setDoubtStatusFilter('pendientes')}
             style={{
-              padding: '0.65rem 1rem',
-              borderRadius: '8px',
+              padding: '1.2rem 1.35rem',
+              borderRadius: '14px',
               cursor: 'pointer',
-              background: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'var(--navy)' : 'var(--white)',
-              color: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'var(--white)' : 'var(--navy)',
-              border: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'none' : '1px solid var(--border-color)',
-              boxShadow: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'inset 0 -3px 0 var(--gold)' : '0 1px 2px rgba(20, 33, 61, 0.03)',
+              background: '#FFFFFF',
+              border: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? '2px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
+              boxShadow: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? '0 4px 14px rgba(20,33,61,0.1)' : '0 1px 3px rgba(20, 33, 61, 0.03)',
               display: 'flex',
               alignItems: 'center',
-              justify: 'space-between',
-              transition: 'all 0.2s ease'
+              justifyContent: 'space-between',
+              transition: 'all 0.18s ease'
+            }}
+            onMouseOver={e => {
+              if (doubtStatusFilter !== 'pendientes' && doubtStatusFilter !== 'todos') {
+                e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }
+            }}
+            onMouseOut={e => {
+              if (doubtStatusFilter !== 'pendientes' && doubtStatusFilter !== 'todos') {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }
             }}
           >
-            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Pendientes</span>
-            <span style={{ 
-              fontSize: '1.1rem', 
-              fontWeight: 800, 
-              color: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'var(--gold)' : 'var(--navy)',
-              background: (doubtStatusFilter === 'pendientes' || doubtStatusFilter === 'todos') ? 'rgba(255,255,255,0.12)' : 'rgba(20,33,61,0.06)',
-              padding: '2px 9px',
-              borderRadius: '9999px'
+            <div>
+              <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Todas las Pendientes
+              </div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1.1, marginTop: '4px' }}>
+                {countTotalPending}
+              </div>
+            </div>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: 'rgba(20,33,61,0.06)', color: 'var(--navy, #14213D)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              {countTotalPending}
-            </span>
+              <MessageSquare size={18} />
+            </div>
           </div>
 
           {/* INDICADOR 2: NUEVAS */}
           <div
             onClick={() => setDoubtStatusFilter('enviada')}
             style={{
-              padding: '0.65rem 1rem',
-              borderRadius: '8px',
+              padding: '1.2rem 1.35rem',
+              borderRadius: '14px',
               cursor: 'pointer',
-              background: doubtStatusFilter === 'enviada' ? 'var(--navy)' : 'var(--white)',
-              color: doubtStatusFilter === 'enviada' ? 'var(--white)' : 'var(--navy)',
-              border: doubtStatusFilter === 'enviada' ? 'none' : '1px solid var(--border-color)',
-              boxShadow: doubtStatusFilter === 'enviada' ? 'inset 0 -3px 0 var(--gold)' : '0 1px 2px rgba(20, 33, 61, 0.03)',
+              background: '#FFFFFF',
+              border: doubtStatusFilter === 'enviada' ? '2px solid var(--gold, #FCA311)' : '1px solid #E2E8F0',
+              boxShadow: doubtStatusFilter === 'enviada' ? '0 4px 14px rgba(252,163,17,0.2)' : '0 1px 3px rgba(20, 33, 61, 0.03)',
               display: 'flex',
               alignItems: 'center',
-              justify: 'space-between',
-              transition: 'all 0.2s ease'
+              justifyContent: 'space-between',
+              transition: 'all 0.18s ease'
+            }}
+            onMouseOver={e => {
+              if (doubtStatusFilter !== 'enviada') {
+                e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }
+            }}
+            onMouseOut={e => {
+              if (doubtStatusFilter !== 'enviada') {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }
             }}
           >
-            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Nuevas</span>
-            <span style={{ 
-              fontSize: '1.1rem', 
-              fontWeight: 800, 
-              color: doubtStatusFilter === 'enviada' ? 'var(--gold)' : 'var(--navy)',
-              background: doubtStatusFilter === 'enviada' ? 'rgba(255,255,255,0.12)' : 'rgba(20,33,61,0.06)',
-              padding: '2px 9px',
-              borderRadius: '9999px'
+            <div>
+              <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Nuevas sin Atender
+              </div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: countNew > 0 ? '#92400E' : 'var(--navy, #14213D)', lineHeight: 1.1, marginTop: '4px' }}>
+                {countNew}
+              </div>
+            </div>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: countNew > 0 ? '#FEF3C7' : '#F1F5F9', color: countNew > 0 ? '#92400E' : 'var(--text-muted, #64748B)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              {countNew}
-            </span>
+              <Sparkles size={18} />
+            </div>
           </div>
 
           {/* INDICADOR 3: REVISADAS */}
           <div
             onClick={() => setDoubtStatusFilter('revisada')}
             style={{
-              padding: '0.65rem 1rem',
-              borderRadius: '8px',
+              padding: '1.2rem 1.35rem',
+              borderRadius: '14px',
               cursor: 'pointer',
-              background: doubtStatusFilter === 'revisada' ? 'var(--navy)' : 'var(--white)',
-              color: doubtStatusFilter === 'revisada' ? 'var(--white)' : 'var(--navy)',
-              border: doubtStatusFilter === 'revisada' ? 'none' : '1px solid var(--border-color)',
-              boxShadow: doubtStatusFilter === 'revisada' ? 'inset 0 -3px 0 var(--gold)' : '0 1px 2px rgba(20, 33, 61, 0.03)',
+              background: '#FFFFFF',
+              border: doubtStatusFilter === 'revisada' ? '2px solid #007A2E' : '1px solid #E2E8F0',
+              boxShadow: doubtStatusFilter === 'revisada' ? '0 4px 14px rgba(0,122,46,0.15)' : '0 1px 3px rgba(20, 33, 61, 0.03)',
               display: 'flex',
               alignItems: 'center',
-              justify: 'space-between',
-              transition: 'all 0.2s ease'
+              justifyContent: 'space-between',
+              transition: 'all 0.18s ease'
+            }}
+            onMouseOver={e => {
+              if (doubtStatusFilter !== 'revisada') {
+                e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }
+            }}
+            onMouseOut={e => {
+              if (doubtStatusFilter !== 'revisada') {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }
             }}
           >
-            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Revisadas</span>
-            <span style={{ 
-              fontSize: '1.1rem', 
-              fontWeight: 800, 
-              color: doubtStatusFilter === 'revisada' ? 'var(--gold)' : 'var(--navy)',
-              background: doubtStatusFilter === 'revisada' ? 'rgba(255,255,255,0.12)' : 'rgba(20,33,61,0.06)',
-              padding: '2px 9px',
-              borderRadius: '9999px'
+            <div>
+              <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                En Proceso / Revisadas
+              </div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1.1, marginTop: '4px' }}>
+                {countRevised}
+              </div>
+            </div>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: '#DCFCE7', color: '#007A2E',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              {countRevised}
-            </span>
+              <CheckCircle2 size={18} />
+            </div>
           </div>
 
         </div>
 
-        {/* LISTADO DE DUDAS O ESTADO VACÍO */}
+        {/* ── LISTADO DE DUDAS O ESTADO VACÍO DE ÉXITO ── */}
         {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando consultas pendientes...</p>
+          <div style={{ padding: '3rem 2rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <p style={{ color: 'var(--text-muted, #64748B)', margin: 0 }}>Cargando consultas de estudiantes...</p>
+          </div>
         ) : displayQuestions.length === 0 ? (
-          /* ESTADO VACÍO (Requisito 8) */
-          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(20, 33, 61, 0.05)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto' }}>
-              <MessageSquareText size={32} />
+          /* ESTADO POSITIVO DE ÉXITO (AL DÍA) */
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E2E8F0',
+            padding: '3.5rem 2rem',
+            textAlign: 'center',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+          }}>
+            <div style={{
+              width: '68px',
+              height: '68px',
+              borderRadius: '50%',
+              background: '#DCFCE7',
+              color: '#007A2E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              boxShadow: '0 4px 12px rgba(0, 122, 46, 0.12)'
+            }}>
+              <ShieldCheck size={34} />
             </div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>
-              No hay dudas pendientes
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: '0 0 0.4rem 0' }}>
+              ¡Todo al día con tus estudiantes!
             </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '520px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
-              Las nuevas dudas enviadas por los estudiantes aparecerán aquí, organizadas por programa y clase.
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', maxWidth: '520px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
+              No tienes dudas pendientes por responder en esta sección. Las nuevas consultas que formulen los alumnos en tus diplomados se sincronizarán aquí automáticamente.
             </p>
-            <Link 
-              to="/portal?tab=programas" 
-              className="btn" 
-              style={{ 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                gap: '0.5rem', 
-                background: 'var(--navy)', 
-                color: 'var(--white)', 
-                padding: '0.65rem 1.25rem', 
-                borderRadius: '8px', 
-                fontSize: '0.88rem', 
-                fontWeight: 700, 
-                textDecoration: 'none' 
-              }}
-            >
-              Ver mis programas
-            </Link>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Link 
+                to="/portal?tab=programas" 
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '0.45rem', 
+                  background: 'var(--navy, #14213D)', 
+                  color: '#FFFFFF', 
+                  padding: '0.55rem 1.2rem', 
+                  borderRadius: '8px', 
+                  fontSize: '0.84rem', 
+                  fontWeight: 700, 
+                  textDecoration: 'none',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+              >
+                <BookOpen size={15} /> Ver mis programas
+              </Link>
+              <Link 
+                to="/portal?tab=agenda" 
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '0.45rem', 
+                  background: '#F8FAFC', 
+                  color: 'var(--navy, #14213D)', 
+                  border: '1px solid #E2E8F0',
+                  padding: '0.55rem 1.2rem', 
+                  borderRadius: '8px', 
+                  fontSize: '0.84rem', 
+                  fontWeight: 700, 
+                  textDecoration: 'none',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#F1F5F9'}
+                onMouseOut={e => e.currentTarget.style.background = '#F8FAFC'}
+              >
+                <CalendarDays size={15} color="var(--gold, #FCA311)" /> Ver agenda de clases
+              </Link>
+            </div>
           </div>
         ) : (
-          /* FILAS DE DUDAS PENDIENTES (Requisitos 3, 4, 5, 6, 9) */
+          /* FILAS DE DUDAS PENDIENTES */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {displayQuestions.map(q => {
               const isNueva = q.status === 'enviada';
@@ -1312,128 +1993,128 @@ function TeacherPortal({ getDiplomadoLink }) {
               return (
                 <div 
                   key={q.id} 
-                  className="card teacher-summary-card" 
                   style={{ 
-                    padding: '1.35rem 1.5rem', 
-                    background: 'var(--white)', 
-                    borderRadius: 'var(--radius-lg)', 
-                    border: '1px solid var(--border-color)',
-                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
-                    transition: 'all 0.2s ease',
+                    padding: '1.4rem 1.6rem', 
+                    background: '#FFFFFF', 
+                    borderRadius: '16px', 
+                    border: '1px solid #E2E8F0',
+                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+                    transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.75rem'
+                    gap: '0.9rem'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(20, 33, 61, 0.07)';
+                    e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
                   }}
                 >
-                  {/* PRIMERO: ESTADO Y TÍTULO (Requisitos 3, 4) */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {/* CABECERA DE LA DUDA */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                       <span 
                         style={{ 
                           fontSize: '0.72rem', 
                           fontWeight: 800, 
                           padding: '3px 10px', 
-                          borderRadius: '9999px', 
-                          background: isNueva ? 'rgba(252, 163, 17, 0.12)' : '#e0f2fe', 
-                          color: isNueva ? '#b45309' : 'var(--navy)', 
-                          border: isNueva ? '1px solid #fde68a' : '1px solid #bae6fd', 
+                          borderRadius: '8px', 
+                          background: isNueva ? '#FEF3C7' : '#EFF6FF', 
+                          color: isNueva ? '#92400E' : '#1D4ED8', 
+                          border: isNueva ? '1px solid #FDE68A' : '1px solid #BFDBFE', 
                           whiteSpace: 'nowrap' 
                         }}
                       >
-                        {isNueva ? 'Nueva' : 'Revisada'}
+                        {isNueva ? '🔴 Nueva Consulta' : '⏳ En Proceso'}
                       </span>
-                      <h3 style={{ margin: 0, fontWeight: 800, color: 'var(--navy)', fontSize: '1.05rem', lineHeight: 1.3 }}>
+                      <h3 style={{ margin: 0, fontWeight: 800, color: 'var(--navy, #14213D)', fontSize: '1.05rem', lineHeight: 1.35 }}>
                         {q.subject || 'Consulta de estudiante'}
                       </h3>
                     </div>
+
+                    {q.created_at && (
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 600 }}>
+                        {new Date(q.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
                   </div>
 
-                  {/* DESPUÉS: FRAGMENTO DE LA DUDA (MÁX 2 LÍNEAS) (Requisito 4) */}
-                  <p 
-                    style={{ 
-                      color: 'var(--text-secondary)', 
-                      fontSize: '0.9rem', 
+                  {/* CUERPO / MENSAJE DEL ESTUDIANTE */}
+                  <div style={{
+                    background: '#F8FAFC',
+                    padding: '0.85rem 1.1rem',
+                    borderRadius: '10px',
+                    border: '1px solid #F1F5F9'
+                  }}>
+                    <p style={{ 
+                      color: '#334155', 
+                      fontSize: '0.88rem', 
                       margin: 0, 
                       lineHeight: 1.5,
                       display: '-webkit-box',
-                      WebkitLineClamp: 2,
+                      WebkitLineClamp: 3,
                       WebkitBoxOrient: 'vertical',
                       overflow: 'hidden'
-                    }}
-                  >
-                    {q.description}
-                  </p>
+                    }}>
+                      "{q.description}"
+                    </p>
+                  </div>
 
-                  {/* FINALMENTE: CONTEXTO (CLASE PROTAGONISTA, PROGRAMA, ESTUDIANTE, FECHA) Y BOTÓN (Requisitos 4, 5, 6) */}
+                  {/* PIE DE METADATOS Y ACCIONES */}
                   <div 
                     style={{ 
                       display: 'flex', 
-                      justify: 'space-between', 
+                      justifyContent: 'space-between', 
                       alignItems: 'center', 
                       flexWrap: 'wrap', 
                       gap: '0.75rem', 
-                      paddingTop: '0.75rem', 
-                      borderTop: '1px solid var(--border-color)', 
-                      fontSize: '0.82rem', 
-                      color: 'var(--text-muted)' 
+                      paddingTop: '0.5rem', 
+                      borderTop: '1px solid #F1F5F9', 
+                      fontSize: '0.8rem', 
+                      color: 'var(--text-muted, #64748B)' 
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {/* CLASE CON MAYOR PROTAGONISMO */}
-                      <span style={{ fontWeight: 800, color: 'var(--navy)', fontSize: '0.88rem' }}>
-                        {q.class_sessions?.title || 'Clase asignada'}
+                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                        📖 {q.class_sessions?.title || 'Clase asignada'}
                       </span>
                       <span>•</span>
-                      {/* PROGRAMA */}
-                      <span style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>
-                        {q.diploma_programs?.title || 'Programa'}
+                      <span style={{ color: 'var(--gold-dark, #d4a017)', fontWeight: 700 }}>
+                        🏛️ {q.diploma_programs?.title || 'Programa'}
                       </span>
                       <span>•</span>
-                      {/* ESTUDIANTE */}
                       <span>
-                        Estudiante: <strong style={{ color: 'var(--navy)' }}>{q.users_profile?.full_name || 'Estudiante'}</strong>
+                        Estudiante: <strong style={{ color: 'var(--navy, #14213D)' }}>{q.users_profile?.full_name || 'Estudiante'}</strong>
                       </span>
-                      {/* FECHA */}
-                      {q.created_at && (
-                        <>
-                          <span>•</span>
-                          <span>
-                            {new Date(q.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </>
-                      )}
                     </div>
 
-                    {/* BOTÓN PRINCIPAL "VER EN EL PROGRAMA" (Requisitos 5, 6) */}
+                    {/* BOTÓN RESPONDER */}
                     <Link
                       to={programLink}
-                      className="btn"
                       style={{
-                        background: 'var(--white)',
-                        border: '1px solid var(--navy)',
-                        color: 'var(--navy)',
+                        background: 'var(--navy, #14213D)',
+                        color: '#FFFFFF',
                         fontWeight: 700,
                         fontSize: '0.82rem',
-                        padding: '0.45rem 0.95rem',
+                        padding: '0.45rem 1rem',
                         borderRadius: '8px',
                         textDecoration: 'none',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.4rem',
-                        transition: 'all 0.2s ease',
+                        transition: 'all 0.15s ease',
                         whiteSpace: 'nowrap'
                       }}
-                      onMouseOver={e => {
-                        e.currentTarget.style.background = 'var(--navy)';
-                        e.currentTarget.style.color = 'var(--white)';
-                      }}
-                      onMouseOut={e => {
-                        e.currentTarget.style.background = 'var(--white)';
-                        e.currentTarget.style.color = 'var(--navy)';
-                      }}
+                      onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                      onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
                     >
-                      <ArrowRight size={14} />
-                      Ver en el programa
+                      <span>Atender en el Aula</span>
+                      <ArrowRight size={13} color="var(--gold, #FCA311)" />
                     </Link>
                   </div>
                 </div>
@@ -1446,30 +2127,89 @@ function TeacherPortal({ getDiplomadoLink }) {
   }
 
   // -------------------------------------------------------------------
-  // VISTA 1: INICIO DOCENTE (default / tab=inicio)
   // -------------------------------------------------------------------
+  // VISTA 1: INICIO DOCENTE (default / tab=inicio) - Rediseñado de Alta Fidelidad
+  // -------------------------------------------------------------------
+  const todayFormatted = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
   return (
-    <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+    <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
-      {/* BLOQUE SUPERIOR DE INICIO DOCENTE */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ color: 'var(--navy)', fontSize: '2.25rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
-          Inicio docente
-        </h1>
-        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 600, margin: '0.4rem 0 0 0' }}>
-          Hola, {teacherName || 'Profesor'}
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0.35rem 0 0 0', fontWeight: 400 }}>
-          Consulta lo más importante de tus programas y prepara tus próximas clases.
-        </p>
+      {/* ── BLOQUE 1: HERO BANNER INSTITUCIONAL ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.75rem 2rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1.25rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.74rem',
+              fontWeight: 800,
+              padding: '3px 10px',
+              borderRadius: '12px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em'
+            }}>
+              🏛️ Portal Docente LIATER · UNAL
+            </span>
+            <span style={{
+              background: '#DCFCE7',
+              color: '#007A2E',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '10px'
+            }}>
+              ● Modo Activo
+            </span>
+          </div>
+
+          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+            Hola, {teacherName || 'Profesor'} 👋
+          </h1>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+            Centro de mando docente: Consulta tus sesiones, atiende las consultas de tus estudiantes y gestiona tus diplomados asignados.
+          </p>
+        </div>
+
+        <div style={{
+          background: '#F8FAFC',
+          padding: '0.65rem 1rem',
+          borderRadius: '10px',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          color: 'var(--navy, #14213D)',
+          fontSize: '0.82rem',
+          fontWeight: 600,
+          textTransform: 'capitalize'
+        }}>
+          <CalendarDays size={15} color="var(--gold, #FCA311)" />
+          <span>{todayFormatted}</span>
+        </div>
       </div>
 
-      {/* TRES TARJETAS DE RESUMEN OPERATIVO */}
+      {/* ── BLOQUE 2: TRES TARJETAS DE KPIS OPERATIVOS ── */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '1.25rem',
-        marginBottom: '2.5rem'
+        gap: '1.25rem'
       }}>
         {/* TARJETA 1: DUDAS POR REVISAR */}
         <Link
@@ -1478,41 +2218,67 @@ function TeacherPortal({ getDiplomadoLink }) {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            justify: 'space-between',
-            background: 'var(--white, #ffffff)',
-            border: '1px solid var(--border-color, #e2e8f0)',
-            borderTop: '3px solid var(--gold, #fca311)',
-            borderRadius: 'var(--radius-lg, 0.75rem)',
-            padding: '1.5rem',
-            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+            justifyContent: 'space-between',
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '14px',
+            padding: '1.4rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
             textDecoration: 'none',
             color: 'inherit',
-            transition: 'all 200ms ease-in-out',
+            transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
             minHeight: '160px',
             cursor: 'pointer'
           }}
+          onMouseOver={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(20, 33, 61, 0.08)';
+            e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+          }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Dudas por revisar
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Dudas de Alumnos
               </span>
-              <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213d)' }}>
-                <MessageSquareText size={22} />
+              <div style={{
+                width: '38px', height: '38px', borderRadius: '10px',
+                background: counts.doubts > 0 ? '#FEF3C7' : '#EFF6FF',
+                color: counts.doubts > 0 ? '#92400E' : '#1D4ED8',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <MessageSquareText size={18} />
               </div>
             </div>
             {loading ? (
-              <div style={{ width: '48px', height: '36px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+              <div style={{ width: '48px', height: '36px', background: '#F1F5F9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
             ) : (
-              <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy, #14213d)', lineHeight: 1.1 }}>
-                {counts.doubts}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.65rem' }}>
+                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1 }}>
+                  {counts.doubts}
+                </div>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  background: counts.doubts === 0 ? '#DCFCE7' : '#FEF3C7',
+                  color: counts.doubts === 0 ? '#007A2E' : '#92400E'
+                }}>
+                  {counts.doubts === 0 ? '✓ Al día' : '⚠️ Requieren atención'}
+                </span>
               </div>
             )}
           </div>
           
-          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold-dark, #d4a017)' }}>
-            <span>Revisar dudas</span>
-            <ChevronRight size={16} />
+          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy, #14213D)', borderTop: '1px solid #F1F5F9', paddingTop: '0.75rem' }}>
+            <span>Revisar bandeja de dudas</span>
+            <ChevronRight size={16} color="var(--gold, #FCA311)" />
           </div>
         </Link>
 
@@ -1523,41 +2289,67 @@ function TeacherPortal({ getDiplomadoLink }) {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            justify: 'space-between',
-            background: 'var(--white, #ffffff)',
-            border: '1px solid var(--border-color, #e2e8f0)',
-            borderTop: '3px solid var(--gold, #fca311)',
-            borderRadius: 'var(--radius-lg, 0.75rem)',
-            padding: '1.5rem',
-            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+            justifyContent: 'space-between',
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '14px',
+            padding: '1.4rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
             textDecoration: 'none',
             color: 'inherit',
-            transition: 'all 200ms ease-in-out',
+            transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
             minHeight: '160px',
             cursor: 'pointer'
           }}
+          onMouseOver={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(20, 33, 61, 0.08)';
+            e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+          }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Clases próximas
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Próximas Sesiones
               </span>
-              <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213d)' }}>
-                <CalendarClock size={22} />
+              <div style={{
+                width: '38px', height: '38px', borderRadius: '10px',
+                background: 'rgba(252,163,17,0.14)',
+                color: 'var(--gold, #FCA311)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <CalendarClock size={18} />
               </div>
             </div>
             {loading ? (
-              <div style={{ width: '48px', height: '36px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+              <div style={{ width: '48px', height: '36px', background: '#F1F5F9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
             ) : (
-              <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy, #14213d)', lineHeight: 1.1 }}>
-                {counts.upcomingClasses}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.65rem' }}>
+                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1 }}>
+                  {counts.upcomingClasses}
+                </div>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  background: '#F1F5F9',
+                  color: 'var(--navy, #14213D)'
+                }}>
+                  Próximos 7 días
+                </span>
               </div>
             )}
           </div>
           
-          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold-dark, #d4a017)' }}>
-            <span>Ver agenda</span>
-            <ChevronRight size={16} />
+          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy, #14213D)', borderTop: '1px solid #F1F5F9', paddingTop: '0.75rem' }}>
+            <span>Ver agenda y calendario</span>
+            <ChevronRight size={16} color="var(--gold, #FCA311)" />
           </div>
         </Link>
 
@@ -1568,69 +2360,421 @@ function TeacherPortal({ getDiplomadoLink }) {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            justify: 'space-between',
-            background: 'var(--white, #ffffff)',
-            border: '1px solid var(--border-color, #e2e8f0)',
-            borderTop: '3px solid var(--gold, #fca311)',
-            borderRadius: 'var(--radius-lg, 0.75rem)',
-            padding: '1.5rem',
-            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
+            justifyContent: 'space-between',
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '14px',
+            padding: '1.4rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
             textDecoration: 'none',
             color: 'inherit',
-            transition: 'all 200ms ease-in-out',
+            transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
             minHeight: '160px',
             cursor: 'pointer'
           }}
+          onMouseOver={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(20, 33, 61, 0.08)';
+            e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+          }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Programas activos
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Programas Asignados
               </span>
-              <div style={{ padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213d)' }}>
-                <BookOpen size={22} />
+              <div style={{
+                width: '38px', height: '38px', borderRadius: '10px',
+                background: 'rgba(20,33,61,0.06)',
+                color: 'var(--navy, #14213D)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <BookOpen size={18} />
               </div>
             </div>
             {loading ? (
-              <div style={{ width: '48px', height: '36px', background: '#f1f5f9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+              <div style={{ width: '48px', height: '36px', background: '#F1F5F9', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
             ) : (
-              <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--navy, #14213d)', lineHeight: 1.1 }}>
-                {counts.activePrograms}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.65rem' }}>
+                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1 }}>
+                  {counts.activePrograms}
+                </div>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  background: '#DCFCE7',
+                  color: '#007A2E'
+                }}>
+                  Diplomados activos
+                </span>
               </div>
             )}
           </div>
           
-          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold-dark, #d4a017)' }}>
-            <span>Ver programas</span>
-            <ChevronRight size={16} />
+          <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy, #14213D)', borderTop: '1px solid #F1F5F9', paddingTop: '0.75rem' }}>
+            <span>Gestionar mis programas</span>
+            <ChevronRight size={16} color="var(--gold, #FCA311)" />
           </div>
         </Link>
       </div>
 
-      {/* BLOQUE: AVISOS DE ADMINISTRACIÓN */}
-      <div style={{ marginTop: '0.5rem', marginBottom: '2.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
-            Avisos de Administración
+      {/* ── BLOQUE 3: SESIÓN DESTACADA / PRÓXIMA CLASE ── */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+          <h2 style={{ color: 'var(--navy, #14213D)', fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Video size={18} color="var(--gold, #FCA311)" /> Tu Próxima Sesión
+          </h2>
+          {nextClass && (
+            <Link to="/portal?tab=agenda" style={{ color: 'var(--gold-dark, #d4a017)', fontSize: '0.82rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              Ver agenda completa <ChevronRight size={14} />
+            </Link>
+          )}
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '2rem', background: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', textAlign: 'center', color: 'var(--text-muted, #64748B)' }}>
+            Cargando próxima sesión...
+          </div>
+        ) : !nextClass ? (
+          /* ESTADO SIN CLASES */
+          <div style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '16px',
+            padding: '2.5rem 2rem',
+            textAlign: 'center',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+          }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <CalendarDays size={28} color="var(--navy, #14213D)" style={{ opacity: 0.4 }} />
+            </div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: '0 0 0.35rem 0' }}>
+              No tienes sesiones próximas agendadas
+            </h3>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: '0 0 1.25rem 0', maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
+              Cuando la coordinación académica programe una nueva clase en tus diplomados, aparecerá aquí con acceso directo.
+            </p>
+            <Link
+              to="/portal?tab=programas"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                background: 'var(--navy, #14213D)',
+                color: '#FFFFFF',
+                padding: '0.55rem 1.25rem',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                borderRadius: '8px',
+                textDecoration: 'none',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = '#000000'}
+              onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+            >
+              <BookOpen size={15} /> Explorar mis programas
+            </Link>
+          </div>
+        ) : (
+          /* TARJETA DE PRÓXIMA CLASE */
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #E2E8F0',
+              borderRadius: '16px',
+              padding: '1.5rem 1.75rem',
+              boxShadow: '0 2px 8px rgba(20, 33, 61, 0.04)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1.5rem',
+              flexWrap: 'wrap',
+              transition: 'all 200ms ease'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flex: '1 1 300px' }}>
+              {/* BLOQUE DE FECHA TIPO CALENDARIO */}
+              <div style={{
+                width: '68px',
+                height: '68px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 4px 10px rgba(20, 33, 61, 0.15)'
+              }}>
+                <span style={{ fontSize: '0.68rem', color: 'var(--gold, #FCA311)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {nextClassMonth}
+                </span>
+                <span style={{ fontSize: '1.6rem', color: '#FFFFFF', fontWeight: 800, lineHeight: 1 }}>
+                  {nextClassDay}
+                </span>
+              </div>
+
+              {/* INFORMACIÓN DE LA CLASE */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    color: 'var(--gold, #FCA311)',
+                    background: 'rgba(252,163,17,0.12)',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    textTransform: 'uppercase'
+                  }}>
+                    {nextClassProgTitle}
+                  </span>
+                  {nextClassModuleName && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748B)', fontWeight: 600 }}>
+                      › {nextClassModuleName}
+                    </span>
+                  )}
+                  {isClassLiveOrSoon(nextClass, 10) && (
+                    <span style={{
+                      background: '#FEE2E2', color: '#DC2626',
+                      fontSize: '0.7rem', fontWeight: 800, padding: '1px 6px',
+                      borderRadius: '10px', border: '1px solid rgba(220,38,38,0.3)'
+                    }}>
+                      🔴 EN VIVO
+                    </span>
+                  )}
+                </div>
+
+                <h3 style={{ margin: '0 0 0.4rem 0', color: 'var(--navy, #14213D)', fontSize: '1.15rem', fontWeight: 800, lineHeight: 1.3 }}>
+                  {nextClass.title}
+                </h3>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-muted, #64748B)', fontSize: '0.82rem', flexWrap: 'wrap' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={13} color="var(--navy, #14213D)" />
+                    {nextClassTimeStr} hrs
+                  </span>
+                  {nextClass.duration && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <CalendarClock size={13} color="var(--navy, #14213D)" />
+                      {nextClass.duration} min
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ACCIONES A LA DERECHA */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap' }}>
+              {isClassLiveOrSoon(nextClass, 10) && (nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url) ? (
+                <a
+                  href={nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+                    background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)',
+                    padding: '0.6rem 1.25rem', borderRadius: '8px', fontWeight: 800,
+                    fontSize: '0.86rem', textDecoration: 'none',
+                    boxShadow: '0 4px 14px rgba(252,163,17,0.35)'
+                  }}
+                >
+                  <Video size={16} /> Entrar a Clase en Vivo
+                </a>
+              ) : (
+                <Link
+                  to={getDiplomadoLink(nextClassProgId)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+                    background: 'var(--navy, #14213D)', color: '#FFFFFF',
+                    padding: '0.6rem 1.25rem', borderRadius: '8px', fontWeight: 700,
+                    fontSize: '0.84rem', textDecoration: 'none', transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                  onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+                >
+                  <Eye size={15} /> Preparar y Gestionar Clase
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── BLOQUE 4 (NUEVA FUNCIONALIDAD): MIS PROGRAMAS ASIGNADOS (Acceso Directo 1-Clic) ── */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h2 style={{ color: 'var(--navy, #14213D)', fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Layers size={18} color="var(--gold, #FCA311)" /> Mis Programas Asignados
+            </h2>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.82rem', margin: '3px 0 0 0' }}>
+              Acceso directo de 1 clic al panel de gestión y contenidos de tus diplomados.
+            </p>
+          </div>
+          {diplomas.length > 0 && (
+            <Link to="/portal?tab=programas" style={{ color: 'var(--gold-dark, #d4a017)', fontSize: '0.82rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              Ver todos ({diplomas.length}) <ChevronRight size={14} />
+            </Link>
+          )}
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted, #64748B)' }}>
+            Cargando diplomados...
+          </div>
+        ) : diplomas.length === 0 ? (
+          <div style={{ padding: '2rem', background: '#FFFFFF', borderRadius: '14px', border: '1px dashed #CBD5E1', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: 0 }}>
+              No tienes programas asignados actualmente.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+            {diplomas.map(program => {
+              const progClasses = classes.filter(c => 
+                (c.diploma_programs?.id === program.id) || 
+                (c.sessions?.modules?.diploma_programs?.id === program.id) || 
+                (c.subtopics?.modules?.diploma_programs?.id === program.id) || 
+                (c.program_id === program.id)
+              );
+              const link = getDiplomadoLink(program.id);
+
+              return (
+                <div
+                  key={program.id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+                    transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(20, 33, 61, 0.08)';
+                    e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
+                  }}
+                >
+                  {/* CABECERA CON BANNER O GRADIENTE */}
+                  <div style={{
+                    background: program.cover_image_url
+                      ? `linear-gradient(to bottom, rgba(20,33,61,0.3), rgba(20,33,61,0.85)), url(${program.cover_image_url}) center/cover no-repeat`
+                      : 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
+                    height: '90px',
+                    padding: '0.85rem 1.1rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between'
+                  }}>
+                    <span style={{
+                      background: 'rgba(252,163,17,0.9)',
+                      color: 'var(--navy, #14213D)',
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '8px',
+                      textTransform: 'uppercase'
+                    }}>
+                      {program.program_type === 'curso' ? '📘 Curso Corto' : '🏛️ Diplomado UNAL'}
+                    </span>
+                    <span style={{
+                      background: 'rgba(255,255,255,0.2)',
+                      color: '#FFFFFF',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '8px',
+                      backdropFilter: 'blur(4px)'
+                    }}>
+                      {progClasses.length} {progClasses.length === 1 ? 'Clase' : 'Clases'}
+                    </span>
+                  </div>
+
+                  {/* CUERPO DE LA TARJETA */}
+                  <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '1rem' }}>
+                    <div>
+                      <h3 style={{ margin: '0 0 0.4rem 0', color: 'var(--navy, #14213D)', fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.35 }}>
+                        {program.title}
+                      </h3>
+                      <p style={{ margin: 0, color: 'var(--text-muted, #64748B)', fontSize: '0.82rem', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {program.description || 'Programa de formación académica especializada del Laboratorio LIATER.'}
+                      </p>
+                    </div>
+
+                    {/* BOTON DIRECTO DE ENTRADA */}
+                    <Link
+                      to={link}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        background: 'var(--navy, #14213D)',
+                        color: '#FFFFFF',
+                        padding: '0.55rem 1rem',
+                        borderRadius: '8px',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        textDecoration: 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                      onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+                    >
+                      <span>Entrar al Panel del Curso</span>
+                      <ArrowRight size={14} color="var(--gold, #FCA311)" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── BLOQUE 5: AVISOS DE ADMINISTRACIÓN ── */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+          <h2 style={{ color: 'var(--navy, #14213D)', fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Bell size={18} color="var(--gold, #FCA311)" /> Avisos de Administración
           </h2>
           {adminAnnouncements.length > 3 && (
             <button 
               onClick={() => setShowAllAdminAnn(!showAllAdminAnn)}
-              style={{ color: 'var(--gold-dark)', fontSize: '0.9rem', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ color: 'var(--gold-dark, #d4a017)', fontSize: '0.82rem', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
-              {showAllAdminAnn ? 'Ver menos' : 'Ver todos'} <ChevronRight size={14} style={{ transform: showAllAdminAnn ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
+              {showAllAdminAnn ? 'Ver menos' : `Ver todos (${adminAnnouncements.length})`}
+              <ChevronRight size={14} style={{ transform: showAllAdminAnn ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
             </button>
           )}
         </div>
 
         {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando avisos...</p>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem' }}>Cargando avisos...</p>
         ) : adminAnnouncements.length === 0 ? (
-          <div className="card" style={{ padding: '2rem 1.5rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-muted)', margin: 0 }}>No hay avisos recientes de administración</h3>
+          <div style={{ padding: '2rem 1.5rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '14px', border: '1px dashed #CBD5E1' }}>
+            <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-muted, #64748B)', margin: 0 }}>
+              No hay avisos recientes de la administración académica.
+            </p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
             {(showAllAdminAnn ? adminAnnouncements : adminAnnouncements.slice(0, 3)).map(ann => {
               const dateObj = new Date(ann.created_at);
               const isGlobal = ann.is_global || (!ann.program_id && !ann.teacher_id);
@@ -1648,47 +2792,63 @@ function TeacherPortal({ getDiplomadoLink }) {
               const programName = ann.diploma_programs?.title || 'Anuncio Global';
               const programLink = ann.program_id ? getDiplomadoLink(ann.program_id) : '#';
 
-              let tagStyle = { color: '#14213D', bg: '#EEF2F8', icon: '📢', label: 'General' };
-              if (ann.tag === 'urgent') tagStyle = { color: '#991b1b', bg: '#fee2e2', icon: '🔴', label: 'Urgente' };
-              else if (ann.tag === 'info') tagStyle = { color: '#1d4ed8', bg: '#dbeafe', icon: '📌', label: 'Informativo' };
+              let tagStyle = { color: 'var(--navy, #14213D)', bg: '#F1F5F9', icon: '📢', label: 'General' };
+              if (ann.tag === 'urgent') tagStyle = { color: '#991B1B', bg: '#FEE2E2', icon: '🔴', label: 'Urgente' };
+              else if (ann.tag === 'info') tagStyle = { color: '#1D4ED8', bg: '#DBEAFE', icon: '📌', label: 'Informativo' };
 
               return (
-                <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--white)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: isGlobal ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: isGlobal ? '#ef4444' : '#d97706', textTransform: 'uppercase' }}>
+                <div
+                  key={ann.id}
+                  style={{
+                    padding: '1.35rem',
+                    borderRadius: '14px',
+                    border: '1px solid #E2E8F0',
+                    background: '#FFFFFF',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.85rem',
+                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: '0.7rem', fontWeight: 700, padding: '2px 7px', borderRadius: '6px',
+                        background: isGlobal ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.12)',
+                        color: isGlobal ? '#DC2626' : '#D97706', textTransform: 'uppercase'
+                      }}>
                         {scopeLabel}
                       </span>
                       {ann.tag && (
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
                           {tagStyle.icon} {tagStyle.label}
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)' }}>
                       {dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
                     </span>
                   </div>
                   
                   <div>
-                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)' }}>{ann.title}</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ann.body}</p>
+                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                      {ann.title}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {ann.body}
+                    </p>
                   </div>
                   
-                  <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                      Publicado por: <strong style={{ color: 'var(--navy)' }}>Administración Académica</strong>
+                  <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem' }}>
+                    <span style={{ color: 'var(--text-muted, #64748B)', fontWeight: 600, maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {programName}
                     </span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {programName}
-                      </span>
-                      {ann.program_id && (
-                        <Link to={`${programLink}?tab=anuncios`} style={{ fontSize: '0.75rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          Ver <ArrowRight size={12} />
-                        </Link>
-                      )}
-                    </div>
+                    {ann.program_id && (
+                      <Link to={`${programLink}?tab=anuncios`} style={{ color: 'var(--gold-dark, #d4a017)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        Ver <ArrowRight size={12} />
+                      </Link>
+                    )}
                   </div>
                 </div>
               );
@@ -1697,185 +2857,10 @@ function TeacherPortal({ getDiplomadoLink }) {
         )}
       </div>
 
-      {/* BLOQUE ÚNICO: PRÓXIMA CLASE */}
-      <div style={{ marginTop: '0.5rem' }}>
-        <h2 style={{ color: 'var(--navy)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>
-          Próxima clase
-        </h2>
-
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Cargando próxima clase...</p>
-        ) : !nextClass ? (
-          /* ESTADO SIN CLASES */
-          <div className="card" style={{ 
-            background: 'var(--white)', 
-            border: '1px solid var(--border-color)', 
-            borderLeft: '4px solid var(--gold)',
-            borderRadius: 'var(--radius-lg)', 
-            padding: '2.5rem 2rem', 
-            textAlign: 'center',
-            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)'
-          }}>
-            <CalendarDays size={38} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '0.75rem' }} />
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.35rem' }}>
-              No tienes clases próximas
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.25rem 0' }}>
-              Cuando el administrador te asigne una nueva clase, aparecerá aquí.
-            </p>
-            <Link 
-              to="/portal?tab=programas" 
-              className="btn" 
-              style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '0.55rem 1.25rem', fontWeight: 600, fontSize: '0.88rem', borderRadius: '8px', textDecoration: 'none' }}
-            >
-              Ver mis programas
-            </Link>
-          </div>
-        ) : (
-          /* TARJETA DE PRÓXIMA CLASE */
-          <div 
-            className="teacher-summary-card" 
-            style={{ 
-              background: 'var(--white)', 
-              border: '1px solid var(--border-color)', 
-              borderTop: '3px solid var(--gold)', 
-              borderRadius: 'var(--radius-lg)', 
-              padding: '1.5rem', 
-              boxShadow: '0 1px 3px rgba(20, 33, 61, 0.05)',
-              display: 'flex',
-              alignItems: 'center',
-              justify: 'space-between',
-              gap: '1.5rem',
-              flexWrap: 'wrap',
-              transition: 'all 200ms ease-in-out'
-            }}
-          >
-            {/* BLOQUE DE FECHA A LA IZQUIERDA */}
-            <div style={{ 
-              width: '64px', 
-              height: '64px', 
-              borderRadius: '10px', 
-              background: 'rgba(20, 33, 61, 0.04)', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justify: 'center', 
-              flexShrink: 0, 
-              border: '1px solid rgba(20, 33, 61, 0.08)' 
-            }}>
-              <span style={{ fontSize: '0.72rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {nextClassMonth}
-              </span>
-              <span style={{ fontSize: '1.5rem', color: 'var(--navy)', fontWeight: 800, lineHeight: 1 }}>
-                {nextClassDay}
-              </span>
-            </div>
-
-            {/* INFORMACIÓN DE LA CLASE EN EL CENTRO */}
-            <div style={{ flex: '1 1 280px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--gold-dark, #d4a017)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {nextClassProgTitle}
-                </span>
-                {nextClassModuleName && (
-                  <>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>•</span>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                      {nextClassModuleName}
-                    </span>
-                  </>
-                )}
-                {nextClass.status && (
-                  <span style={{ 
-                    background: 'rgba(20, 33, 61, 0.06)', 
-                    color: 'var(--navy)', 
-                    padding: '0.15rem 0.5rem', 
-                    borderRadius: '4px', 
-                    fontSize: '0.7rem', 
-                    fontWeight: 700 
-                  }}>
-                    {nextClass.status}
-                  </span>
-                )}
-              </div>
-
-              <h3 style={{ margin: '0 0 0.35rem 0', color: 'var(--navy)', fontSize: '1.2rem', fontWeight: 800, lineHeight: 1.3 }}>
-                {nextClass.title}
-              </h3>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
-                <span>🕒 {nextClassTimeStr} hrs</span>
-                {nextClass.duration && (
-                  <>
-                    <span>•</span>
-                    <span>⏱️ {nextClass.duration} min</span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* ACCIONES A LA DERECHA */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexShrink: 0, flexWrap: 'wrap' }}>
-              {isClassLiveOrSoon(nextClass, 10) && (nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url) ? (
-                <a 
-                  href={nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url} 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  style={{ 
-                    display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                    background: '#14213D', color: '#FFFFFF', textDecoration: 'none',
-                    padding: '0.5rem 1.1rem', borderRadius: '7px', fontWeight: 700,
-                    fontSize: '0.83rem', transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap'
-                  }}
-                  onMouseOver={e => e.currentTarget.style.background = '#000000'}
-                  onMouseOut={e => e.currentTarget.style.background = '#14213D'}
-                >
-                  <Video size={15} /> Unirse a la sesión en vivo
-                </a>
-              ) : (
-                <Link 
-                  to={getDiplomadoLink(nextClassProgId)} 
-                  className="btn" 
-                  style={{ 
-                    background: 'var(--navy)', 
-                    color: 'var(--white)', 
-                    border: 'none', 
-                    padding: '0.65rem 1.25rem', 
-                    fontWeight: 700, 
-                    fontSize: '0.88rem', 
-                    borderRadius: '8px', 
-                    textDecoration: 'none',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Preparar clase
-                </Link>
-              )}
-
-              <Link 
-                to="/portal?tab=agenda" 
-                style={{ 
-                  color: 'var(--gold-dark, #d4a017)', 
-                  fontSize: '0.88rem', 
-                  fontWeight: 700, 
-                  textDecoration: 'none', 
-                  whiteSpace: 'nowrap',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.2rem'
-                }}
-              >
-                Ver agenda →
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-
     </div>
   );
 }
+
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SUB-COMPONENTE: Portal de Administrador

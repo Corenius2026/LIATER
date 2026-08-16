@@ -537,45 +537,191 @@ export default function Profile() {
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto' }}>
-      <h1 style={{ color: 'var(--navy)', fontSize: '2rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>
-        Mi Perfil
-      </h1>
+    <div style={{ padding: '1.5rem 2rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeSlideUp 0.35s ease-out' }}>
+      
+      {/* ── HERO BANNER INSTITUCIONAL ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.75rem 2rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1.25rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+        marginBottom: '1.75rem'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.74rem',
+              fontWeight: 800,
+              padding: '3px 10px',
+              borderRadius: '12px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em'
+            }}>
+              🏛️ CONFIGURACIÓN DE CUENTA · PORTAL DOCENTE UNAL
+            </span>
+            <span style={{
+              background: isEmailVerified ? '#DCFCE7' : '#FEF3C7',
+              color: isEmailVerified ? '#007A2E' : '#92400E',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '10px'
+            }}>
+              {isEmailVerified ? '● Cuenta Verificada' : '● Verificación Pendiente'}
+            </span>
+          </div>
+
+          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+            Mi Perfil Docente
+          </h1>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+            Actualiza tus datos de contacto, personaliza tu presentación pública y administra la seguridad de tu cuenta.
+          </p>
+        </div>
+
+        <div style={{
+          background: '#F8FAFC',
+          padding: '0.75rem 1.15rem',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.85rem'
+        }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            background: 'rgba(20,33,61,0.06)',
+            color: 'var(--navy, #14213D)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Shield size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Rol en el Portal
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+              {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Docente Titular' : 'Estudiante'}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {msg.text && (
         <div style={{
           padding: '0.85rem 1.25rem',
-          borderRadius: '8px',
+          borderRadius: '10px',
           marginBottom: '1.5rem',
-          fontSize: '0.9rem',
-          fontWeight: 600,
-          background: msg.type === 'error' ? '#fef2f2' : '#f0fdf4',
-          color: msg.type === 'error' ? '#dc2626' : '#16a34a',
-          border: `1px solid ${msg.type === 'error' ? '#fca5a5' : '#bbf7d0'}`
+          fontSize: '0.88rem',
+          fontWeight: 700,
+          background: msg.type === 'error' ? '#FEF2F2' : '#F0FDF4',
+          color: msg.type === 'error' ? '#DC2626' : '#16A34A',
+          border: `1px solid ${msg.type === 'error' ? '#FCA5A5' : '#BBF7D0'}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
         }}>
           {msg.text}
         </div>
       )}
 
-      {/* CABECERA RESUMIDA DEL USUARIO (SOLO PARA PROFESORES) */}
+      {/* ── TARJETA PRINCIPAL DE IDENTIDAD DOCENTE (SOLO PROFESORES) ── */}
       {isTeacher && (
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '2rem', padding: '2rem', marginBottom: '2rem', background: 'var(--white)' }}>
-          <div style={{ position: 'relative' }}>
-            <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '2.5rem', flexShrink: 0 }}>
-              {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'U'}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '1.5rem 1.75rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1.5rem',
+          flexWrap: 'wrap',
+          marginBottom: '1.75rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+            <div style={{
+              width: '76px',
+              height: '76px',
+              borderRadius: '50%',
+              background: 'var(--navy, #14213D)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--gold, #FCA311)',
+              fontWeight: 800,
+              fontSize: '2rem',
+              border: '3px solid #FFFFFF',
+              boxShadow: '0 4px 14px rgba(20, 33, 61, 0.15)',
+              flexShrink: 0
+            }}>
+              {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'P'}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0 }}>
+                  {personalData.full_name || 'Profesor LIATER'}
+                </h2>
+                <span style={{
+                  background: '#DCFCE7',
+                  color: '#007A2E',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  padding: '3px 9px',
+                  borderRadius: '9999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#007A2E' }}></span>
+                  Docente UNAL Activo
+                </span>
+              </div>
+              <p style={{ color: 'var(--text-muted, #64748B)', display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '4px 0 0 0', fontSize: '0.86rem' }}>
+                <Mail size={14} /> {personalData.email}
+              </p>
+              {academicData.title_role && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--gold-dark, #b45309)', fontWeight: 700, marginTop: '4px' }}>
+                  🏛️ {academicData.title_role} {academicData.area ? `· ${academicData.area}` : ''}
+                </div>
+              )}
             </div>
           </div>
-          <div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--navy)', marginBottom: '0.25rem' }}>
-              {personalData.full_name || 'Usuario LIATER'}
-            </h2>
-            <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-              <Mail size={16} /> {personalData.email}
-            </p>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(20, 33, 61, 0.08)', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy)' }}>
-              <Shield size={14} color="var(--navy)" /> 
-              {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Profesor' : 'Estudiante'}
-            </span>
+
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('academic')}
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                color: 'var(--navy, #14213D)',
+                padding: '0.45rem 0.95rem',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={e => e.currentTarget.style.borderColor = 'var(--gold, #FCA311)'}
+              onMouseOut={e => e.currentTarget.style.borderColor = '#E2E8F0'}
+            >
+              <Eye size={14} /> Vista Pública
+            </button>
           </div>
         </div>
       )}
@@ -584,115 +730,108 @@ export default function Profile() {
       {isTeacher ? (
         <div>
           {/* BOTONES DE PESTAÑAS DEL PERFIL */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-            <button
-              onClick={() => handleTabChange('personal')}
-              style={{
-                padding: '0.6rem 1.25rem',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                background: activeTab === 'personal' ? 'var(--navy)' : 'transparent',
-                color: activeTab === 'personal' ? 'var(--white)' : 'var(--text-muted)',
-                transition: 'all 0.2s'
-              }}
-            >
-              <User size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-              Perfil personal
-            </button>
-
-            <button
-              onClick={() => handleTabChange('academic')}
-              style={{
-                padding: '0.6rem 1.25rem',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                background: activeTab === 'academic' ? 'var(--navy)' : 'transparent',
-                color: activeTab === 'academic' ? 'var(--white)' : 'var(--text-muted)',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Award size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-              Perfil académico público
-            </button>
-
-            <button
-              onClick={() => handleTabChange('security')}
-              style={{
-                padding: '0.6rem 1.25rem',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                background: activeTab === 'security' ? 'var(--navy)' : 'transparent',
-                color: activeTab === 'security' ? 'var(--white)' : 'var(--text-muted)',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Lock size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-              Seguridad de la cuenta
-            </button>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'personal', label: 'Perfil Personal', icon: User },
+              { id: 'academic', label: 'Perfil Académico Público', icon: GraduationCap },
+              { id: 'security', label: 'Seguridad de la Cuenta', icon: LockKeyhole }
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              const IconComp = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '9999px',
+                    border: isActive ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
+                    background: isActive ? 'var(--navy, #14213D)' : '#FFFFFF',
+                    color: isActive ? '#FFFFFF' : 'var(--navy, #14213D)',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    boxShadow: isActive ? '0 3px 10px rgba(20,33,61,0.15)' : 'none',
+                    transition: 'all 0.18s ease'
+                  }}
+                  onMouseOver={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }
+                  }}
+                  onMouseOut={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.borderColor = '#E2E8F0';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }
+                  }}
+                >
+                  <IconComp size={15} color={isActive ? 'var(--gold, #FCA311)' : 'currentColor'} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* CONTENIDO DE PESTAÑA: PERFIL PERSONAL */}
           {activeTab === 'personal' && (
             <form 
               onSubmit={handleSavePersonal} 
-              className="card" 
               style={{ 
                 padding: '2rem', 
-                background: 'var(--white)', 
-                border: '1px solid var(--border-color)', 
-                borderTop: '3px solid var(--gold)',
-                borderRadius: 'var(--radius-lg)',
+                background: '#FFFFFF', 
+                border: '1px solid #E2E8F0', 
+                borderRadius: '16px',
                 display: 'flex', 
                 flexDirection: 'column', 
                 gap: '1.5rem',
-                boxShadow: '0 4px 14px rgba(20, 33, 61, 0.04)'
+                boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
               }}
             >
               {/* ENCABEZADO DE LA TARJETA */}
-              <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
-                  Perfil personal
+              <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.85rem' }}>
+                <h3 style={{ fontSize: '1.2rem', color: 'var(--navy, #14213D)', fontWeight: 800, margin: 0 }}>
+                  Datos Personales y de Contacto
                 </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.3rem 0 0 0' }}>
-                  Administra tus datos básicos y de contacto.
+                <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem', margin: '0.3rem 0 0 0' }}>
+                  Administra tu información básica y preferencias de ubicación.
                 </p>
               </div>
               
-              {/* CUADRÍCULA EQUILIBRADA DE 2 COLUMNAS (2X2) */}
+              {/* CUADRÍCULA DE 2 COLUMNAS (2X2) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
                 
                 {/* FILA 1, COLUMNA 1: NOMBRE COMPLETO */}
                 <div>
-                  <label htmlFor="fullNameInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
+                  <label htmlFor="fullNameInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
                     Nombre completo
                   </label>
-                  <input 
-                    id="fullNameInput"
-                    type="text" 
-                    value={personalData.full_name} 
-                    onChange={e => setPersonalData({ ...personalData, full_name: e.target.value })} 
-                    placeholder="Tu nombre completo"
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--white)', fontSize: '0.9rem' }} 
-                    required 
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      id="fullNameInput"
+                      type="text" 
+                      value={personalData.full_name} 
+                      onChange={e => setPersonalData({ ...personalData, full_name: e.target.value })} 
+                      placeholder="Tu nombre completo"
+                      style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.4rem', borderRadius: '10px', border: '1px solid #E2E8F0', background: '#FFFFFF', fontSize: '0.9rem' }} 
+                      required 
+                    />
+                    <User size={16} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+                  </div>
                 </div>
 
                 {/* FILA 1, COLUMNA 2: CORREO ELECTRÓNICO (READONLY) */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
-                    <label htmlFor="emailInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
-                      Correo electrónico
+                    <label htmlFor="emailInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                      Correo institucional
                     </label>
-                    <Lock size={13} color="var(--text-muted)" title="Campo de solo lectura" />
+                    <Lock size={12} color="#94A3B8" title="Campo protegido" />
                   </div>
                   <div style={{ position: 'relative' }}>
                     <input 
@@ -703,83 +842,94 @@ export default function Profile() {
                       style={{ 
                         width: '100%', 
                         padding: '0.75rem 0.75rem 0.75rem 2.4rem', 
-                        borderRadius: '8px', 
-                        border: '1px solid #e2e8f0', 
-                        background: '#f8fafc', 
-                        color: '#64748b', 
+                        borderRadius: '10px', 
+                        border: '1px solid #E2E8F0', 
+                        background: '#F8FAFC', 
+                        color: '#64748B', 
                         cursor: 'not-allowed',
                         fontSize: '0.9rem',
                         userSelect: 'all'
                       }} 
                     />
-                    <Lock size={16} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    <Lock size={15} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
                   </div>
-                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                    El correo está asociado a tu cuenta y no puede modificarse desde esta sección.
+                  <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', marginTop: '0.35rem' }}>
+                    El correo está asociado a tu autenticación institucional UNAL.
                   </span>
                 </div>
 
-                {/* FILA 2, COLUMNA 1: TELÉFONO (OPCIONAL) */}
+                {/* FILA 2, COLUMNA 1: TELÉFONO */}
                 <div>
-                  <label htmlFor="phoneInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
-                    Teléfono (opcional)
+                  <label htmlFor="phoneInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                    Teléfono de contacto (opcional)
                   </label>
-                  <input 
-                    id="phoneInput"
-                    type="tel" 
-                    value={personalData.phone} 
-                    onChange={e => setPersonalData({ ...personalData, phone: e.target.value })} 
-                    placeholder="+57 300 000 0000" 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--white)', fontSize: '0.9rem' }} 
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      id="phoneInput"
+                      type="tel" 
+                      value={personalData.phone} 
+                      onChange={e => setPersonalData({ ...personalData, phone: e.target.value })} 
+                      placeholder="+57 300 000 0000" 
+                      style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.4rem', borderRadius: '10px', border: '1px solid #E2E8F0', background: '#FFFFFF', fontSize: '0.9rem' }} 
+                    />
+                    <Phone size={15} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+                  </div>
                 </div>
 
                 {/* FILA 2, COLUMNA 2: PAÍS */}
                 <div>
-                  <label htmlFor="countrySelect" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.4rem' }}>
-                    País
+                  <label htmlFor="countrySelect" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                    País de residencia
                   </label>
-                  <select 
-                    id="countrySelect"
-                    value={personalData.country} 
-                    onChange={e => setPersonalData({ ...personalData, country: e.target.value })} 
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--white)', fontSize: '0.9rem' }}
-                  >
-                    <option value="Colombia">Colombia</option>
-                    <option value="México">México</option>
-                    <option value="Perú">Perú</option>
-                    <option value="Chile">Chile</option>
-                    <option value="Argentina">Argentina</option>
-                    <option value="España">España</option>
-                    <option value="Otro">Otro</option>
-                  </select>
+                  <div style={{ position: 'relative' }}>
+                    <select 
+                      id="countrySelect"
+                      value={personalData.country} 
+                      onChange={e => setPersonalData({ ...personalData, country: e.target.value })} 
+                      style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.4rem', borderRadius: '10px', border: '1px solid #E2E8F0', background: '#FFFFFF', fontSize: '0.9rem' }}
+                    >
+                      <option value="Colombia">Colombia</option>
+                      <option value="México">México</option>
+                      <option value="Perú">Perú</option>
+                      <option value="Chile">Chile</option>
+                      <option value="Argentina">Argentina</option>
+                      <option value="España">España</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                    <Globe size={15} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+                  </div>
                 </div>
 
               </div>
 
-              {/* FOOTER INTERNO DEL FORMULARIO CON ACCIÓN DE GUARDADO INTEGRADOR */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+              {/* FOOTER DE GUARDADO */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #F1F5F9', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
                 <button 
                   type="submit" 
                   disabled={saving || !hasUnsavedPersonalChanges} 
-                  className="btn" 
                   style={{ 
-                    background: (saving || !hasUnsavedPersonalChanges) ? '#cbd5e1' : 'var(--navy)', 
-                    color: 'white', 
+                    background: (saving || !hasUnsavedPersonalChanges) ? '#CBD5E1' : 'var(--navy, #14213D)', 
+                    color: '#FFFFFF', 
                     border: 'none', 
                     display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '0.5rem', 
-                    padding: '0.75rem 1.5rem', 
+                    padding: '0.65rem 1.5rem', 
                     fontWeight: 700,
                     borderRadius: '8px',
-                    fontSize: '0.9rem',
+                    fontSize: '0.88rem',
                     cursor: (saving || !hasUnsavedPersonalChanges) ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: (saving || !hasUnsavedPersonalChanges) ? 'none' : '0 2px 6px rgba(20, 33, 61, 0.15)'
+                    transition: 'all 0.18s ease',
+                    boxShadow: (saving || !hasUnsavedPersonalChanges) ? 'none' : '0 2px 8px rgba(20, 33, 61, 0.15)'
+                  }}
+                  onMouseOver={e => {
+                    if (!saving && hasUnsavedPersonalChanges) e.currentTarget.style.background = '#000000';
+                  }}
+                  onMouseOut={e => {
+                    if (!saving && hasUnsavedPersonalChanges) e.currentTarget.style.background = 'var(--navy, #14213D)';
                   }}
                 >
-                  <Save size={18} /> 
+                  <Save size={16} /> 
                   {saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
@@ -793,17 +943,16 @@ export default function Profile() {
               {/* ALINEACIÓN EN DOS COLUMNAS (EDICIÓN 60% + VISTA PREVIA 40%) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
                 
-                {/* COLUMNA IZQUIERDA: FORMULARIO DE EDICIÓN (~60%) */}
+                {/* COLUMNA IZQUIERDA: FORMULARIO DE EDICIÓN */}
                 <form 
                   onSubmit={handleSaveAcademic} 
-                  className="card" 
-                  style={{ padding: '2rem', background: 'var(--white)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                  style={{ padding: '2rem', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)' }}
                 >
-                  <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                    <h3 style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
+                  <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '1.2rem', color: 'var(--navy, #14213D)', fontWeight: 800, margin: 0 }}>
                       Editar Perfil Académico
                     </h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
+                    <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
                       Completa tu información profesional para presentar tu trayectoria a los estudiantes.
                     </p>
                   </div>
@@ -812,10 +961,10 @@ export default function Profile() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <label htmlFor="areaInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
+                        <label htmlFor="areaInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
                           Especialidad o área
                         </label>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)' }}>
                           {academicData.area.length}/100
                         </span>
                       </div>
@@ -825,20 +974,20 @@ export default function Profile() {
                         maxLength={100}
                         value={academicData.area} 
                         onChange={e => setAcademicData({ ...academicData, area: e.target.value })} 
-                        placeholder="Ej. Inteligencia Artificial, Redes de Datos" 
-                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }} 
+                        placeholder="Ej. Iluminación y Eficiencia Energética" 
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '0.9rem' }} 
                       />
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                        Área principal de conocimiento o experiencia profesional.
+                      <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', marginTop: '0.3rem' }}>
+                        Área principal de conocimiento o experiencia.
                       </span>
                     </div>
 
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <label htmlFor="roleInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
-                          Cargo
+                        <label htmlFor="roleInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                          Cargo institucional
                         </label>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)' }}>
                           {academicData.title_role.length}/80
                         </span>
                       </div>
@@ -848,11 +997,11 @@ export default function Profile() {
                         maxLength={80}
                         value={academicData.title_role} 
                         onChange={e => setAcademicData({ ...academicData, title_role: e.target.value })} 
-                        placeholder="Ej. Profesor Titular, Docente Investigador" 
-                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }} 
+                        placeholder="Ej. Profesor Titular / Investigador" 
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '0.9rem' }} 
                       />
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                        Cargo académico o profesional que será visible para los estudiantes.
+                      <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', marginTop: '0.3rem' }}>
+                        Cargo visible en el aula virtual para los estudiantes.
                       </span>
                     </div>
                   </div>
@@ -860,10 +1009,10 @@ export default function Profile() {
                   {/* SEGUNDA SECCIÓN: BIOGRAFÍA CORTA */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                      <label htmlFor="bioInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
-                        Biografía corta
+                      <label htmlFor="bioInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                        Biografía profesional
                       </label>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)' }}>
                         {academicData.bio.length}/400
                       </span>
                     </div>
@@ -873,21 +1022,21 @@ export default function Profile() {
                       maxLength={400}
                       value={academicData.bio} 
                       onChange={e => setAcademicData({ ...academicData, bio: e.target.value })} 
-                      placeholder="Resumen profesional de tu trayectoria académica para la comunidad..." 
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', resize: 'vertical' }} 
+                      placeholder="Resumen profesional de tu trayectoria académica..." 
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '0.9rem', resize: 'vertical' }} 
                     />
-                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                      Presentación breve sobre tu experiencia y enfoque docente.
+                    <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', marginTop: '0.3rem' }}>
+                      Presentación breve sobre tu experiencia docente.
                     </span>
                   </div>
 
                   {/* TERCERA SECCIÓN: FORMACIÓN O EXPERIENCIA */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                      <label htmlFor="expInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy)' }}>
-                        Formación o experiencia
+                      <label htmlFor="expInput" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                        Formación académica y trayectoria
                       </label>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)' }}>
                         {academicData.experience.length}/800
                       </span>
                     </div>
@@ -897,176 +1046,185 @@ export default function Profile() {
                       maxLength={800}
                       value={academicData.experience} 
                       onChange={e => setAcademicData({ ...academicData, experience: e.target.value })} 
-                      placeholder="Detalles sobre títulos universitarios, reconocimientos y experiencia docente..." 
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', resize: 'vertical' }} 
+                      placeholder="Detalles sobre títulos universitarios, proyectos e investigaciones..." 
+                      style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '0.9rem', resize: 'vertical' }} 
                     />
-                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                      Estudios, experiencia profesional o trayectoria relacionada con los programas.
+                    <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', marginTop: '0.3rem' }}>
+                      Estudios de posgrado, distinciones y certificaciones.
                     </span>
                   </div>
 
-                  {/* BOTÓN DE GUARDADO INTEGRADOR AL FINAL DEL FORMULARIO */}
+                  {/* BOTÓN DE GUARDADO */}
                   <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '0.5rem' }}>
                     <button 
                       type="submit" 
                       disabled={saving || !hasUnsavedAcademicChanges} 
-                      className="btn" 
                       style={{ 
-                        background: (saving || !hasUnsavedAcademicChanges) ? '#cbd5e1' : 'var(--navy)', 
-                        color: 'white', 
+                        background: (saving || !hasUnsavedAcademicChanges) ? '#CBD5E1' : 'var(--navy, #14213D)', 
+                        color: '#FFFFFF', 
                         border: 'none', 
                         display: 'inline-flex', 
                         alignItems: 'center', 
                         gap: '0.5rem', 
-                        padding: '0.75rem 1.5rem', 
+                        padding: '0.65rem 1.5rem', 
                         fontWeight: 700,
                         borderRadius: '8px',
-                        fontSize: '0.9rem',
+                        fontSize: '0.88rem',
                         cursor: (saving || !hasUnsavedAcademicChanges) ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.18s ease'
+                      }}
+                      onMouseOver={e => {
+                        if (!saving && hasUnsavedAcademicChanges) e.currentTarget.style.background = '#000000';
+                      }}
+                      onMouseOut={e => {
+                        if (!saving && hasUnsavedAcademicChanges) e.currentTarget.style.background = 'var(--navy, #14213D)';
                       }}
                     >
-                      <Save size={18} /> 
+                      <Save size={16} /> 
                       {saving ? 'Guardando...' : 'Guardar perfil académico'}
                     </button>
                   </div>
                 </form>
 
-                {/* COLUMNA DERECHA: VISTA PREVIA PÚBLICA (~40%) */}
+                {/* COLUMNA DERECHA: VISTA PREVIA PÚBLICA */}
                 <div 
                   role="region" 
                   aria-label="Vista previa pública del perfil" 
-                  className="card" 
                   style={{ 
-                    padding: '1.75rem', 
-                    background: '#f8fafc', 
-                    border: '1px solid #e2e8f0', 
-                    borderTop: '3px solid var(--navy)',
+                    padding: 0, 
+                    background: '#FFFFFF', 
+                    border: '1px solid #E2E8F0', 
+                    borderRadius: '16px',
+                    overflow: 'hidden',
                     display: 'flex', 
                     flexDirection: 'column', 
-                    gap: '1.25rem',
                     position: 'sticky',
-                    top: '1rem'
+                    top: '1rem',
+                    boxShadow: '0 4px 14px rgba(20, 33, 61, 0.05)'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-                    <h3 style={{ fontSize: '1.05rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
-                      Así verán tu perfil los estudiantes
-                    </h3>
-                    <span style={{ background: 'rgba(20, 33, 61, 0.08)', color: 'var(--navy)', padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Vista previa
+                  {/* HEADER VISUAL DE VISTA PREVIA */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
+                    padding: '1.25rem 1.5rem',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 800 }}>Así verán tu perfil los estudiantes</span>
+                    <span style={{
+                      background: 'rgba(252,163,17,0.2)',
+                      color: 'var(--gold, #FCA311)',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      textTransform: 'uppercase'
+                    }}>
+                      Vista Previa
                     </span>
                   </div>
 
-                  {/* CABECERA VISTA PREVIA */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '1.5rem', flexShrink: 0, border: '2px solid var(--gold)' }}>
-                      {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'P'}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {personalData.full_name || 'Profesor'}
-                      </h4>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '0.15rem' }}>
-                        {academicData.title_role.trim() || <em style={{ opacity: 0.6, fontStyle: 'italic' }}>Cargo académico no especificado</em>}
+                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        background: 'var(--navy, #14213D)',
+                        color: 'var(--gold, #FCA311)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: '1.4rem',
+                        boxShadow: '0 2px 8px rgba(20,33,61,0.15)',
+                        flexShrink: 0
+                      }}>
+                        {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'P'}
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                          {personalData.full_name || 'Profesor'}
+                        </h4>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted, #64748B)', fontWeight: 600, marginTop: '2px' }}>
+                          {academicData.title_role || 'Docente Titular'}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* ESPECIALIDAD BADGE */}
-                  <div>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-                      Especialidad
-                    </div>
-                    {academicData.area.trim() ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#e0f2fe', color: '#0369a1', padding: '0.3rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: 700 }}>
-                        <Award size={14} />
-                        {academicData.area}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.7 }}>
-                        Especialidad no especificada
-                      </span>
+                    {academicData.area && (
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          Especialidad
+                        </div>
+                        <span style={{
+                          background: '#EFF6FF',
+                          color: '#1D4ED8',
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          display: 'inline-block'
+                        }}>
+                          🎯 {academicData.area}
+                        </span>
+                      </div>
+                    )}
+
+                    {academicData.bio && (
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          Biografía
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#475569', lineHeight: 1.45, fontStyle: 'italic' }}>
+                          "{academicData.bio}"
+                        </p>
+                      </div>
+                    )}
+
+                    {academicData.experience && (
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          Formación y Trayectoria
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#475569', lineHeight: 1.45 }}>
+                          {academicData.experience}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* PROGRAMAS EN LOS QUE PARTICIPA */}
+                    {myPrograms.length > 0 && (
+                      <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: '0.85rem' }}>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '6px' }}>
+                          Programas Asignados ({myPrograms.length})
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          {myPrograms.map(prog => (
+                            <div key={prog.id} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.45rem 0.65rem',
+                              borderRadius: '8px',
+                              background: '#F8FAFC',
+                              border: '1px solid #F1F5F9'
+                            }}>
+                              <BookOpen size={14} color="var(--gold-dark, #b45309)" />
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy, #14213D)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {prog.title}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-
-                  {/* BIOGRAFÍA VISTA PREVIA */}
-                  <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem' }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-                      Biografía
-                    </div>
-                    <p style={{ fontSize: '0.85rem', color: academicData.bio.trim() ? 'var(--navy)' : 'var(--text-muted)', margin: 0, lineHeight: 1.5, fontStyle: academicData.bio.trim() ? 'normal' : 'italic' }}>
-                      {academicData.bio.trim() || 'Añade una breve presentación para que los estudiantes conozcan tu perfil.'}
-                    </p>
-                  </div>
-
-                  {/* FORMACIÓN VISTA PREVIA */}
-                  <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '1rem' }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-                      Formación y Trayectoria
-                    </div>
-                    <p style={{ fontSize: '0.85rem', color: academicData.experience.trim() ? 'var(--navy)' : 'var(--text-muted)', margin: 0, lineHeight: 1.5, fontStyle: academicData.experience.trim() ? 'normal' : 'italic', whiteSpace: 'pre-line' }}>
-                      {academicData.experience.trim() || 'Detalles sobre formación y trayectoria académica.'}
-                    </p>
-                  </div>
                 </div>
 
               </div>
-
-              {/* SECCIÓN INFERIOR: PROGRAMAS ASIGNADOS (READ-ONLY) */}
-              <div className="card" style={{ padding: '2rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderTop: '3px solid var(--gold)' }}>
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <h3 style={{ fontSize: '1.15rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
-                    Programas asignados
-                  </h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
-                    Estos programas son asignados por la administración de LIATER.
-                  </p>
-                </div>
-
-                {myPrograms.length === 0 ? (
-                  <div style={{ padding: '2rem 1rem', textAlign: 'center', background: 'var(--bg-light)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                    <BookOpen size={36} style={{ color: 'var(--navy)', opacity: 0.3, marginBottom: '0.75rem' }} />
-                    <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.35rem' }}>
-                      No tienes programas asignados
-                    </h4>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-                      Cuando la administración te asigne un programa, aparecerá aquí.
-                    </p>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
-                    {myPrograms.map(prog => (
-                      <div 
-                        key={prog.id} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '0.85rem', 
-                          padding: '1rem 1.15rem', 
-                          background: 'var(--white)', 
-                          borderRadius: '10px', 
-                          border: '1px solid var(--border-color)',
-                          boxShadow: '0 1px 2px rgba(20, 33, 61, 0.04)'
-                        }}
-                      >
-                        <div style={{ padding: '0.6rem', borderRadius: '8px', background: 'rgba(20, 33, 61, 0.05)', color: 'var(--navy)', flexShrink: 0 }}>
-                          {prog.program_type === 'curso' ? <BookOpen size={20} /> : <GraduationCap size={20} />}
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {prog.title}
-                          </div>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            {prog.program_type === 'curso' ? 'Curso Corto' : (prog.program_type === 'taller' ? 'Taller' : 'Diplomado')}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
             </div>
           )}
 
@@ -1074,29 +1232,29 @@ export default function Profile() {
           {activeTab === 'security' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {/* TARJETA DE RESUMEN DE SEGURIDAD */}
-              <div className="card" style={{ padding: '2rem', background: 'var(--white)', border: '1px solid var(--border-color)', borderTop: '3px solid var(--gold)' }}>
-                <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                  <h3 style={{ fontSize: '1.2rem', color: 'var(--navy)', fontWeight: 800, margin: 0 }}>
-                    Acceso y seguridad
+              <div style={{ padding: '2rem', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)' }}>
+                <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', color: 'var(--navy, #14213D)', fontWeight: 800, margin: 0 }}>
+                    Acceso y Seguridad de la Cuenta
                   </h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0.25rem 0 0 0' }}>
-                    Administra la contraseña y protege el acceso a tu cuenta.
+                  <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: '0.25rem 0 0 0' }}>
+                    Administra la contraseña y protege el acceso institucional a tu plataforma.
                   </p>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {/* FILA 1: CONTRASEÑA */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', paddingBottom: '1.25rem', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', paddingBottom: '1.25rem', borderBottom: '1px solid #F1F5F9' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flex: '1 1 280px' }}>
-                      <div style={{ padding: '0.65rem', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy)', flexShrink: 0 }}>
+                      <div style={{ padding: '0.65rem', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213D)', flexShrink: 0 }}>
                         <LockKeyhole size={22} />
                       </div>
                       <div>
-                        <h4 style={{ fontSize: '1rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>
-                          Contraseña
+                        <h4 style={{ fontSize: '1rem', color: 'var(--navy, #14213D)', fontWeight: 700, margin: 0 }}>
+                          Contraseña de acceso
                         </h4>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                          Utiliza una contraseña segura y diferente a la de otros servicios.
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748B)', margin: '0.2rem 0 0 0' }}>
+                          Utiliza una contraseña robusta para proteger la integridad de tus calificaciones y contenidos.
                         </p>
                       </div>
                     </div>
@@ -1104,21 +1262,20 @@ export default function Profile() {
                     <button 
                       type="button" 
                       onClick={handleOpenPasswordModal}
-                      className="btn" 
                       style={{ 
                         background: 'transparent', 
-                        color: 'var(--navy)', 
-                        border: '1.5px solid var(--navy)', 
+                        color: 'var(--navy, #14213D)', 
+                        border: '1.5px solid var(--navy, #14213D)', 
                         padding: '0.55rem 1.25rem', 
                         fontWeight: 700, 
-                        fontSize: '0.88rem', 
+                        fontSize: '0.85rem', 
                         borderRadius: '8px',
                         whiteSpace: 'nowrap',
                         cursor: 'pointer',
-                        transition: 'all 200ms ease'
+                        transition: 'all 0.15s ease'
                       }}
-                      onMouseOver={e => { e.currentTarget.style.background = 'var(--navy)'; e.currentTarget.style.color = 'var(--white)'; }}
-                      onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--navy)'; }}
+                      onMouseOver={e => { e.currentTarget.style.background = 'var(--navy, #14213D)'; e.currentTarget.style.color = '#FFFFFF'; }}
+                      onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--navy, #14213D)'; }}
                     >
                       Cambiar contraseña
                     </button>
@@ -1127,14 +1284,14 @@ export default function Profile() {
                   {/* FILA 2: CORREO DE RECUPERACIÓN */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flex: '1 1 280px' }}>
-                      <div style={{ padding: '0.65rem', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy)', flexShrink: 0 }}>
+                      <div style={{ padding: '0.65rem', borderRadius: '10px', background: 'rgba(20, 33, 61, 0.04)', color: 'var(--navy, #14213D)', flexShrink: 0 }}>
                         <MailCheck size={22} />
                       </div>
                       <div>
-                        <h4 style={{ fontSize: '1rem', color: 'var(--navy)', fontWeight: 700, margin: 0 }}>
-                          Correo de recuperación
+                        <h4 style={{ fontSize: '1rem', color: 'var(--navy, #14213D)', fontWeight: 700, margin: 0 }}>
+                          Correo institucional vinculado
                         </h4>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748B)', margin: '0.2rem 0 0 0' }}>
                           {currentUser?.email || 'Correo no registrado'}
                         </p>
                       </div>
@@ -1142,8 +1299,8 @@ export default function Profile() {
 
                     <div>
                       <span style={{ 
-                        background: isEmailVerified ? '#e8f5ee' : '#fff7ed', 
-                        color: isEmailVerified ? 'var(--green-700)' : '#c2410c', 
+                        background: isEmailVerified ? '#DCFCE7' : '#FEF3C7', 
+                        color: isEmailVerified ? '#007A2E' : '#92400E', 
                         padding: '0.35rem 0.85rem', 
                         borderRadius: '9999px', 
                         fontSize: '0.75rem', 
@@ -1158,15 +1315,14 @@ export default function Profile() {
 
               {/* NOTA PEQUEÑA AL FINAL */}
               <div style={{ textAlign: 'center', padding: '0.5rem 1rem' }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                  Los roles y permisos institucionales son administrados por LIATER.
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748B)', margin: 0 }}>
+                  🏛️ Los roles y permisos institucionales son administrados por el Laboratorio LIATER - Universidad Nacional de Colombia.
                 </p>
               </div>
             </div>
           )}
         </div>
       ) : (
-        /* VISTA INTEGRADA Y SIN REDUNDANCIAS PARA ESTUDIANTES */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
           {/* 1. HERO BANNER DE IDENTIDAD Y ROL */}

@@ -7,7 +7,7 @@ import { extractYouTubeId, formatYouTubeUrls, linkYouTubeVideoToClass } from '..
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   BookOpen, Video, FileText, Megaphone, Presentation,
-  Play, Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
+  Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
   CalendarDays, Timer, ShieldAlert, Eye, Pencil, Trash2,
   AlertCircle, Info, Layers, X, User, MessageSquare, Users,
   Search, Filter, Check, Archive, RefreshCw, FileCheck,
@@ -16,7 +16,7 @@ import {
   ChevronLeft, ChevronRight, Award, GraduationCap, Percent,
   Calendar, FileSpreadsheet, Folder, Brain, BarChart3,
   TrendingUp, Target, Lightbulb, Activity, HelpCircle,
-  AlertTriangle, Star
+  AlertTriangle, Star, Mail, Copy
 } from 'lucide-react';
 
 import './TeacherPanel.css';
@@ -26,7 +26,7 @@ const TeacherContext = React.createContext(null);
 const useTeacherContext = () => React.useContext(TeacherContext);
 
 /* ─────────────────────────────────────────
-   MODAL DE DETALLE DE CLASE — CICLO 360°
+   MODAL: DETALLE Y GESTIÓN DE CLASE
    Fases: PRE-CLASE | GRABACIÓN | ACTIVIDAD IA
 ───────────────────────────────────────── */
 function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, initialSection = 'preclass' }) {
@@ -128,10 +128,10 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
   })();
 
   const STATUS_LABELS = {
-    upcoming:  { label: 'Programada',  bg: 'rgba(20,33,61,0.08)',   color: '#14213D' },
-    live:      { label: '🔴 EN VIVO',  bg: 'rgba(220,38,38,0.1)',   color: '#dc2626' },
-    completed: { label: 'Finalizada',  bg: 'rgba(22,163,74,0.1)',   color: '#16a34a' },
-    pending:   { label: 'Pendiente',   bg: 'rgba(252,163,17,0.1)',  color: '#b45309' },
+    upcoming:  { label: 'Programada',  bg: 'rgba(255,255,255,0.15)', color: '#FFFFFF', border: 'rgba(255,255,255,0.3)' },
+    live:      { label: '🔴 EN VIVO',  bg: '#FEE2E2',                color: '#DC2626', border: 'rgba(220,38,38,0.4)' },
+    completed: { label: 'Finalizada',  bg: '#DCFCE7',                color: '#007A2E', border: 'rgba(0,122,46,0.3)' },
+    pending:   { label: 'Pendiente',   bg: '#FEF3C7',                color: '#92400E', border: 'rgba(245,158,11,0.4)' },
   };
   const statusInfo = STATUS_LABELS[classStatus];
 
@@ -299,28 +299,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
   // ── ACTIVIDAD IA: Publicar / Despublicar ──
   const syncAndPublish = async (draftData, classId) => {
-    // Calcular dueDate: 5 min antes de la siguiente clase del MISMO PROFESOR
-    let calculatedDueDate = null;
-    if (allClasses && allClasses.length > 0) {
-      const currentTeacherId = selectedClass?.teacher_id;
-      const nextClass = allClasses
-        .filter(c => {
-          const isAfter = new Date(c.class_date) > new Date(selectedClass.class_date);
-          // Si la clase tiene teacher_id, filtramos por el mismo profe; si no, aceptamos cualquiera
-          const sameTeacher = !currentTeacherId || !c.teacher_id || c.teacher_id === currentTeacherId;
-          return isAfter && sameTeacher;
-        })
-        .sort((a, b) => new Date(a.class_date) - new Date(b.class_date))[0];
-      
-      if (nextClass) {
-        calculatedDueDate = new Date(new Date(nextClass.class_date).getTime() - 300000).toISOString();
-      } else {
-        // Última clase del programa, por defecto 7 días
-        calculatedDueDate = new Date(new Date(selectedClass.class_date).getTime() + 7*24*60*60*1000).toISOString();
-      }
-    }
-
-    // Buscar actividad existente (ordenar por created_at para resolver duplicados)
+    // Buscar actividad existente
     const { data: existing } = await supabase
       .from('class_activities')
       .select('id')
@@ -336,7 +315,6 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
         is_published: true, 
         max_attempts: maxAttempts 
       };
-      // due_date no existe en class_activities — no se incluye en el payload
       
       const { data: updated, error } = await supabase.from('class_activities').update(updatePayload).eq('id', existing.id).select('id').single();
       if (error) throw error;
@@ -351,7 +329,6 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
         max_attempts: maxAttempts, 
         is_mandatory: false 
       };
-      // due_date no existe en class_activities — no se incluye en el payload
       
       const { data: newAct, error } = await supabase.from('class_activities').insert(insertPayload).select('id').single();
       if (error) throw error;
@@ -462,66 +439,151 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
   const SECTIONS = [
     { id: 'preclass',   label: 'Pre-Clase',    icon: <Presentation size={15} /> },
-    { id: 'recording',  label: 'Grabación',    icon: <Video size={15} /> },
+    { id: 'recording',  label: 'Grabación',    icon: <Video size={15} />,
+      badge: selectedClass?.video_url ? 'OK' : null },
     { id: 'activity',   label: 'Actividad IA', icon: <Sparkles size={15} />,
-      badge: draft && draft.status === 'pending' ? '!' : null },
+      badge: draft && draft.status === 'pending' ? '!' : (activityStats?.isPublished ? 'OK' : null) },
   ];
 
+  const moduleName = selectedClass?.sessions?.modules?.title || selectedClass?.subtopics?.modules?.title || 'Módulo';
+  const sessionName = selectedClass?.sessions?.title || selectedClass?.subtopics?.title || 'Sesión';
+
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,33,61,0.8)', display: 'flex', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(6px)', overflowY: 'auto' }}>
-      <div style={{ margin: 'auto', width: '100%', maxWidth: '860px', maxHeight: 'calc(100vh - 2rem)', overflow: 'hidden', background: '#FFFFFF', borderRadius: '14px', boxShadow: '0 24px 60px rgba(20,33,61,0.3)', display: 'flex', flexDirection: 'column' }}>
-        {/* HEADER DEL MODAL */}
-        <div style={{ padding: '1.75rem 2rem 0', borderBottom: '1px solid #E5E5E5', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '3px 10px', borderRadius: '9999px', textTransform: 'uppercase', letterSpacing: '0.06em', background: statusInfo.bg, color: statusInfo.color }}>
+    <div style={{
+      position: 'fixed', inset: 0,
+      backgroundColor: 'rgba(14,21,50,0.65)',
+      backdropFilter: 'blur(5px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, padding: '1rem',
+      animation: 'fadeIn 0.2s ease'
+    }}>
+      <div style={{
+        width: '100%', maxWidth: '880px',
+        maxHeight: '90vh',
+        background: '#FFFFFF',
+        borderRadius: '20px',
+        boxShadow: '0 25px 60px rgba(14,21,50,0.22)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        animation: 'slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)'
+      }}>
+        {/* HEADER HERO NAVY */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
+          padding: '1.5rem 2rem 0',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+            <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
+              
+              {/* BREADCRUMB & STATUS */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                <span style={{
+                  background: 'rgba(252,163,17,0.18)',
+                  color: 'var(--gold, #FCA311)',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px'
+                }}>
+                  Gestión de Sesión
+                </span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: statusInfo.bg,
+                  color: statusInfo.color,
+                  border: `1px solid ${statusInfo.border}`
+                }}>
                   {statusInfo.label}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {(selectedClass?.sessions?.modules?.title || selectedClass?.subtopics?.modules?.title || 'Sin módulo')} → {(selectedClass?.sessions?.title || selectedClass?.subtopics?.title || 'Sin sesión')}
+                <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.76rem' }}>
+                  {moduleName} › {sessionName}
                 </span>
               </div>
-              <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.4rem', color: '#14213D' }}>{selectedClass?.title}</h2>
-              <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+
+              {/* TITULO */}
+              <h2 style={{ margin: '4px 0 0 0', fontWeight: 800, fontSize: '1.35rem', color: '#FFFFFF' }}>
+                {selectedClass?.title || 'Clase'}
+              </h2>
+
+              {/* METADATA */}
+              <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)', marginTop: '0.45rem', flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <CalendarDays size={13} />
+                  <CalendarDays size={13} color="var(--gold, #FCA311)" />
                   {new Date(selectedClass?.class_date).toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Clock size={13} />
+                  <Clock size={13} color="var(--gold, #FCA311)" />
                   {new Date(selectedClass?.class_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · {selectedClass?.duration || 0} min
                 </span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
               {isClassLiveOrSoon(selectedClass, 10) && (selectedClass?.meet_url || currentProgram?.meet_url) && (
-                <a href={selectedClass?.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer" style={{ background: '#FCA311', color: '#14213D', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 2px 4px rgba(252,163,17,0.2)', flexShrink: 0 }}>
-                  <Video size={16} /> Entrar a la reunión
+                <a href={selectedClass?.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer"
+                  style={{
+                    background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)',
+                    padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.84rem',
+                    fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.45rem',
+                    boxShadow: '0 4px 12px rgba(252,163,17,0.3)', transition: 'all 0.15s ease'
+                  }}>
+                  <Video size={15} /> Entrar a Clase
                 </a>
               )}
-              <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', flexShrink: 0 }}>
-                <X size={22} />
+              
+              <button
+                onClick={onClose}
+                style={{
+                  background: 'rgba(255,255,255,0.1)', border: 'none', cursor: 'pointer',
+                  borderRadius: '8px', padding: '0.45rem', color: 'rgba(255,255,255,0.85)',
+                  display: 'flex', transition: 'background 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              >
+                <X size={20} />
               </button>
             </div>
           </div>
 
-          {/* NAVEGACIÓN DE FASES — Todas habilitadas para clic fluido */}
-          <div style={{ display: 'flex', gap: 0, borderBottom: 'none' }}>
+          {/* TAB BAR NAVEGACIÓN */}
+          <div style={{ display: 'flex', gap: '0.5rem', borderBottom: 'none' }}>
             {SECTIONS.map(sec => {
               const isActive = activeSection === sec.id;
               return (
-                <button key={sec.id} onClick={() => setActiveSection(sec.id)}
+                <button
+                  key={sec.id}
+                  onClick={() => setActiveSection(sec.id)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.75rem 1.25rem', border: 'none', borderBottom: isActive ? '3px solid #FCA311' : '3px solid transparent',
-                    background: 'transparent', color: isActive ? '#FCA311' : '#14213D',
-                    fontWeight: isActive ? 700 : 500, fontSize: '0.85rem', cursor: 'pointer',
-                    transition: 'all 0.2s ease', position: 'relative',
-                  }}>
+                    display: 'flex', alignItems: 'center', gap: '0.45rem',
+                    padding: '0.7rem 1.25rem', border: 'none',
+                    borderBottom: isActive ? '3px solid var(--gold, #FCA311)' : '3px solid transparent',
+                    background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    borderTopLeftRadius: '8px', borderTopRightRadius: '8px',
+                    color: isActive ? 'var(--gold, #FCA311)' : 'rgba(255,255,255,0.8)',
+                    fontWeight: isActive ? 700 : 500, fontSize: '0.84rem', cursor: 'pointer',
+                    transition: 'all 0.15s ease', position: 'relative'
+                  }}
+                  onMouseOver={e => { if (!isActive) e.currentTarget.style.color = '#FFFFFF'; }}
+                  onMouseOut={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}
+                >
                   {sec.icon} {sec.label}
                   {sec.badge && (
-                    <span style={{ position: 'absolute', top: '6px', right: '6px', width: '8px', height: '8px', borderRadius: '50%', background: '#FCA311' }} />
+                    <span style={{
+                      fontSize: '0.68rem', fontWeight: 800,
+                      padding: '1px 6px', borderRadius: '10px',
+                      background: sec.badge === 'OK' ? '#DCFCE7' : 'var(--gold, #FCA311)',
+                      color: sec.badge === 'OK' ? '#007A2E' : 'var(--navy, #14213D)',
+                      marginLeft: '3px'
+                    }}>
+                      {sec.badge}
+                    </span>
                   )}
                 </button>
               );
@@ -529,355 +591,544 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
           </div>
         </div>
 
-        {/* CONTENIDO DE SECCIÓN */}
-        <div style={{ padding: '1.75rem 2rem', flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {/* MODAL BODY */}
+        <div style={{ padding: '1.75rem 2rem', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
           {/* ════ SECCIÓN: PRE-CLASE ════ */}
           {activeSection === 'preclass' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {/* Información básica + Meet URL */}
-              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
-                <h3 style={{ margin: '0 0 1rem 0', color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Info size={16} color="#FCA311" /> Información de la Sesión
-                </h3>
-                {infoMsg && <div style={{ fontSize: '0.82rem', marginBottom: '0.75rem', fontWeight: 600, color: infoMsg.startsWith('✓') ? '#16a34a' : '#dc2626', background: infoMsg.startsWith('✓') ? '#f0fdf4' : '#fef2f2', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>{infoMsg}</div>}
-                <form onSubmit={handleSaveInfo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D' }}>Título de la Clase</label>
-                    <input type="text" value={classTitle} onChange={e => setClassTitle(e.target.value)} style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem', outline: 'none' }} required />
+              
+              {/* INFORMACIÓN DE LA SESIÓN */}
+              <div style={{ background: '#F8FAFC', padding: '1.4rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ margin: 0, color: 'var(--navy, #14213D)', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Info size={16} color="var(--gold, #FCA311)" /> Información de la Sesión
+                  </h3>
+                </div>
+                
+                {infoMsg && (
+                  <div style={{
+                    fontSize: '0.82rem', marginBottom: '0.85rem', fontWeight: 600,
+                    color: infoMsg.startsWith('✓') ? '#007A2E' : '#DC2626',
+                    background: infoMsg.startsWith('✓') ? '#DCFCE7' : '#FEE2E2',
+                    padding: '0.55rem 0.85rem', borderRadius: '8px', border: `1px solid ${infoMsg.startsWith('✓') ? 'rgba(0,122,46,0.2)' : 'rgba(220,38,38,0.2)'}`
+                  }}>
+                    {infoMsg}
                   </div>
+                )}
+
+                <form onSubmit={handleSaveInfo} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.82rem', fontWeight: 600, color: '#14213D' }}>Descripción / Temas a cubrir</label>
-                    <textarea rows={2} value={classDesc} onChange={e => setClassDesc(e.target.value)} placeholder="Ej: Introducción a conceptos clave, ejercicios prácticos..." style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '0.88rem', resize: 'vertical' }} />
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy, #14213D)', textTransform: 'uppercase' }}>
+                      Título de la Clase
+                    </label>
+                    <input
+                      type="text"
+                      value={classTitle}
+                      onChange={e => setClassTitle(e.target.value)}
+                      style={{
+                        width: '100%', padding: '0.55rem 0.85rem', border: '1.5px solid #CBD5E1',
+                        borderRadius: '8px', fontSize: '0.88rem', outline: 'none', background: '#FFFFFF', boxSizing: 'border-box'
+                      }}
+                      onFocus={e => e.target.style.borderColor = 'var(--gold, #FCA311)'}
+                      onBlur={e => e.target.style.borderColor = '#CBD5E1'}
+                      required
+                    />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="submit" disabled={savingInfo} style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.55rem 1.25rem', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                      onMouseOver={e => e.currentTarget.style.background = '#000000'}
-                      onMouseOut={e => e.currentTarget.style.background = '#14213D'}>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy, #14213D)', textTransform: 'uppercase' }}>
+                      Descripción / Temas a cubrir
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={classDesc}
+                      onChange={e => setClassDesc(e.target.value)}
+                      placeholder="Ej: Introducción a conceptos clave, ejercicios prácticos, normas de eficiencia..."
+                      style={{
+                        width: '100%', padding: '0.55rem 0.85rem', border: '1.5px solid #CBD5E1',
+                        borderRadius: '8px', fontSize: '0.88rem', resize: 'vertical', outline: 'none', background: '#FFFFFF', boxSizing: 'border-box'
+                      }}
+                      onFocus={e => e.target.style.borderColor = 'var(--gold, #FCA311)'}
+                      onBlur={e => e.target.style.borderColor = '#CBD5E1'}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                    <button
+                      type="submit"
+                      disabled={savingInfo}
+                      style={{
+                        background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                        borderRadius: '8px', padding: '0.55rem 1.25rem', fontWeight: 700, fontSize: '0.84rem',
+                        cursor: savingInfo ? 'not-allowed' : 'pointer', transition: 'all 0.15s ease'
+                      }}
+                      onMouseOver={e => { if (!savingInfo) e.currentTarget.style.background = '#000000'; }}
+                      onMouseOut={e => { if (!savingInfo) e.currentTarget.style.background = 'var(--navy, #14213D)'; }}
+                    >
                       {savingInfo ? 'Guardando...' : 'Guardar Información'}
                     </button>
                   </div>
                 </form>
               </div>
 
-              {/* Presentación */}
-              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h3 style={{ margin: 0, color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Presentation size={16} color="#FCA311" /> Presentación de la Clase
+              {/* PRESENTACIÓN DE LA CLASE */}
+              <div style={{ background: '#F8FAFC', padding: '1.4rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h3 style={{ margin: 0, color: 'var(--navy, #14213D)', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Presentation size={16} color="var(--gold, #FCA311)" /> Presentación de la Clase (Diapositivas)
                   </h3>
-                  <button onClick={() => activeForm === 'presentation' && !editId ? setActiveForm(null) : (handleCancelForm(), setActiveForm('presentation'))}
-                    style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => activeForm === 'presentation' && !editId ? setActiveForm(null) : (handleCancelForm(), setActiveForm('presentation'))}
+                    style={{
+                      background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                      borderRadius: '7px', padding: '0.4rem 0.85rem', fontSize: '0.78rem',
+                      fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem'
+                    }}
+                  >
                     <Plus size={13} /> {activeForm === 'presentation' ? 'Cerrar' : 'Cargar Presentación'}
                   </button>
                 </div>
-                {matError && activeForm === 'presentation' && <div style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '0.75rem' }}>{matError}</div>}
+
+                {matError && activeForm === 'presentation' && (
+                  <div style={{ color: '#DC2626', background: '#FEE2E2', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                    {matError}
+                  </div>
+                )}
+
                 {activeForm === 'presentation' && (
-                  <form onSubmit={e => handleSubmitResource(e, 'presentation')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #E5E5E5' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                      <div><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Título</label><input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Diapositivas Módulo 1" style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
-                      <div><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Origen</label>
-                        <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }}>
+                  <form onSubmit={e => handleSubmitResource(e, 'presentation')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #CBD5E1' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Título</label>
+                        <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Diapositivas Sesión 1" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Plataforma / Origen</label>
+                        <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}>
                           <option value="drive">Google Drive / OneDrive</option>
                           <option value="external">Otro enlace externo</option>
                         </select>
                       </div>
                     </div>
-                    <div style={{ marginBottom: '0.85rem' }}><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>URL del archivo</label><input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
+                    
+                    <div style={{ marginBottom: '0.85rem' }}>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>URL del archivo</label>
+                      <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                    </div>
+
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-                      <button type="submit" disabled={submitting} style={{ background: '#FCA311', color: '#14213D', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                      <button type="submit" disabled={submitting} style={{ background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
                         {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Cargar')}
                       </button>
                     </div>
                   </form>
                 )}
-                {matLoading ? <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando...</p>
-                : presentations.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Sin presentación cargada aún.</p>
-                : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+
+                {matLoading ? (
+                  <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem' }}>Cargando...</p>
+                ) : presentations.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.84rem', margin: 0 }}>Sin presentación cargada aún para esta sesión.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {presentations.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 1rem', background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '7px' }}>
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <Presentation size={16} color="#14213D" />
-                          <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{p.title}</span>
+                          <Presentation size={16} color="var(--navy, #14213D)" />
+                          <span style={{ fontWeight: 600, fontSize: '0.86rem', color: 'var(--navy, #14213D)' }}>{p.title}</span>
                         </div>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', color: '#14213D', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
-                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
+                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', color: 'var(--navy, #14213D)', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
+                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
                           <button onClick={() => handleDeleteResource(p.id)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #fca5a5', borderRadius: '5px', fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', cursor: 'pointer' }}>Eliminar</button>
                         </div>
                       </div>
                     ))}
-                  </div>}
+                  </div>
+                )}
               </div>
 
-              {/* Material Complementario */}
-              <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '10px', border: '1px solid #E5E5E5' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h3 style={{ margin: 0, color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FileText size={16} color="#FCA311" /> Material Complementario
+              {/* MATERIAL COMPLEMENTARIO */}
+              <div style={{ background: '#F8FAFC', padding: '1.4rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h3 style={{ margin: 0, color: 'var(--navy, #14213D)', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileText size={16} color="var(--gold, #FCA311)" /> Material Complementario
                   </h3>
-                  <button onClick={() => activeForm === 'complementary' && !editId ? setActiveForm(null) : (handleCancelForm(), setActiveForm('complementary'))}
-                    style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => activeForm === 'complementary' && !editId ? setActiveForm(null) : (handleCancelForm(), setActiveForm('complementary'))}
+                    style={{
+                      background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                      borderRadius: '7px', padding: '0.4rem 0.85rem', fontSize: '0.78rem',
+                      fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem'
+                    }}
+                  >
                     <Plus size={13} /> {activeForm === 'complementary' ? 'Cerrar' : 'Agregar Material'}
                   </button>
                 </div>
-                {matError && activeForm === 'complementary' && <div style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '0.75rem' }}>{matError}</div>}
+
+                {matError && activeForm === 'complementary' && (
+                  <div style={{ color: '#DC2626', background: '#FEE2E2', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                    {matError}
+                  </div>
+                )}
+
                 {activeForm === 'complementary' && (
-                  <form onSubmit={e => handleSubmitResource(e, 'complementary')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #E5E5E5' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                      <div style={{ gridColumn: 'span 2' }}><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Título del recurso</label><input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Lectura PDF, Guía de estudio" style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
-                      <div><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>Tipo</label>
-                        <select value={matType} onChange={e => setMatType(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }}>
+                  <form onSubmit={e => handleSubmitResource(e, 'complementary')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #CBD5E1' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Título del recurso</label>
+                        <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Lectura PDF, Guía de estudio" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Tipo</label>
+                        <select value={matType} onChange={e => setMatType(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}>
                           <option value="pdf">PDF</option>
                           <option value="link">Enlace Web</option>
                           <option value="file">Archivo</option>
                         </select>
                       </div>
                     </div>
-                    <div style={{ marginBottom: '0.85rem' }}><label style={{ display: 'block', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#14213D' }}>URL</label><input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem' }} required /></div>
+                    
+                    <div style={{ marginBottom: '0.85rem' }}>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>URL</label>
+                      <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                    </div>
+
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-                      <button type="submit" disabled={submitting} style={{ background: '#FCA311', color: '#14213D', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                      <button type="submit" disabled={submitting} style={{ background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
                         {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Agregar')}
                       </button>
                     </div>
                   </form>
                 )}
-                {complementary.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Sin material complementario agregado.</p>
-                : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+
+                {complementary.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.84rem', margin: 0 }}>Sin material complementario agregado.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {complementary.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 1rem', background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '7px' }}>
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <FileText size={16} color="#14213D" />
+                          <FileText size={16} color="var(--navy, #14213D)" />
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{p.title}</div>
+                            <div style={{ fontWeight: 600, fontSize: '0.86rem', color: 'var(--navy, #14213D)' }}>{p.title}</div>
                             <TypePill type={p.resource_type} />
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', color: '#14213D', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
-                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
+                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', color: 'var(--navy, #14213D)', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
+                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
                           <button onClick={() => handleDeleteResource(p.id)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #fca5a5', borderRadius: '5px', fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', cursor: 'pointer' }}>Eliminar</button>
                         </div>
                       </div>
                     ))}
-                  </div>}
+                  </div>
+                )}
               </div>
+
             </div>
           )}
 
           {/* ════ SECCIÓN: GRABACIÓN ════ */}
           {activeSection === 'recording' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              
               {!isPastClass && !selectedClass?.video_url && (
-                <div style={{ padding: '0.85rem 1.1rem', borderRadius: '8px', background: 'rgba(20,33,61,0.04)', border: '1px solid rgba(20,33,61,0.12)', fontSize: '0.82rem', color: '#14213D', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <Info size={16} color="#FCA311" style={{ flexShrink: 0 }} />
-                  <span>Esta clase está programada para una fecha futura. Puedes vincular el video con antelación o esperar a la automatización.</span>
+                <div style={{ padding: '0.85rem 1.1rem', borderRadius: '10px', background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: '0.82rem', color: '#1E40AF', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Info size={16} color="#1D4ED8" style={{ flexShrink: 0 }} />
+                  <span>Esta clase está programada para una fecha futura. Puedes vincular el video con antelación o esperar al procesamiento automático tras la sesión.</span>
                 </div>
               )}
 
-              {/* Semáforo de estado */}
-              <div style={{ padding: '1.5rem', borderRadius: '10px', border: `2px solid ${selectedClass?.video_url ? 'rgba(22,163,74,0.3)' : 'rgba(252,163,17,0.3)'}`, background: selectedClass?.video_url ? 'rgba(22,163,74,0.05)' : 'rgba(252,163,17,0.05)', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: selectedClass?.video_url ? '#16a34a' : '#FCA311', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {selectedClass?.video_url ? <CheckCircle2 size={24} color="#FFFFFF" /> : <AlertCircle size={24} color="#FFFFFF" />}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '1rem', color: '#14213D' }}>
-                    {selectedClass?.video_url ? '✓ Grabación vinculada' : 'Grabación pendiente'}
+              {/* SEMÁFORO DE ESTADO */}
+              <div style={{
+                padding: '1.4rem 1.6rem', borderRadius: '12px',
+                border: `1.5px solid ${selectedClass?.video_url ? '#86EFAC' : '#FDE68A'}`,
+                background: selectedClass?.video_url ? '#F0FDF4' : '#FFFBEB',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: '1rem', flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{
+                    width: '46px', height: '46px', borderRadius: '50%',
+                    background: selectedClass?.video_url ? '#007A2E' : 'var(--gold, #FCA311)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                  }}>
+                    {selectedClass?.video_url ? <CheckCircle2 size={24} color="#FFFFFF" /> : <AlertCircle size={24} color="#14213D" />}
                   </div>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {selectedClass?.video_url 
-                      ? `La grabación está activa para los estudiantes (${extractYouTubeId(selectedClass.video_url) ? `ID YouTube: ${extractYouTubeId(selectedClass.video_url)}` : 'Enlace directo'})` 
-                      : 'La grabación aún no ha sido vinculada manualmente o por la automatización.'}
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--navy, #14213D)' }}>
+                      {selectedClass?.video_url ? '✓ Grabación vinculada y activa' : 'Grabación pendiente de vinculación'}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
+                      {selectedClass?.video_url 
+                        ? `Disponible para los estudiantes (${extractYouTubeId(selectedClass.video_url) ? `YouTube ID: ${extractYouTubeId(selectedClass.video_url)}` : 'Enlace directo'})` 
+                        : 'La grabación aún no ha sido vinculada manualmente ni por la automatización.'}
+                    </div>
                   </div>
                 </div>
-                {selectedClass?.video_url && (
-                  <a href={selectedClass.video_url} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', background: '#14213D', color: '#FFFFFF', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                    <Play size={13} /> Ver grabación
-                  </a>
-                )}
               </div>
 
-              {/* Formulario extractor de ID de YouTube (Solo Admins) */}
+              {/* EXTRACTOR DE YOUTUBE (ADMIN) */}
               {currentUser?.role === 'admin' && (
                 <>
-                  <div style={{ background: '#FFFFFF', border: '1px solid #E5E5E5', borderRadius: '10px', padding: '1.25rem' }}>
-                <h4 style={{ margin: '0 0 0.75rem 0', color: '#14213D', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Video size={18} color="#FCA311" /> Extractor de ID y Vinculación de YouTube
-                </h4>
-                
-                <form onSubmit={handleLinkYouTubeVideo} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#14213D', marginBottom: '4px' }}>
-                      Enlace de YouTube o ID del video
-                    </label>
-                    <input
-                      type="text"
-                      value={ytInput}
-                      onChange={e => setYtInput(e.target.value)}
-                      placeholder="Ej. https://www.youtube.com/watch?v=dQw4w9WgXcQ o dQw4w9WgXcQ"
-                      style={{ width: '100%', padding: '0.65rem 0.85rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.88rem' }}
-                    />
-                  </div>
-
-                  {/* Badge extractor en tiempo real */}
-                  {detectedYtId ? (
-                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '0.5rem 0.85rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <CheckCircle2 size={14} color="#16a34a" />
-                      <span>ID de YouTube detectado: <strong>{detectedYtId}</strong></span>
-                    </div>
-                  ) : ytInput.trim() ? (
-                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '0.5rem 0.85rem', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Info size={14} color="#FCA311" />
-                      <span>Se guardará como enlace directo.</span>
-                    </div>
-                  ) : null}
-
-                  {ytMsg && (
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: ytMsg.startsWith('✓') ? '#16a34a' : '#dc2626' }}>
-                      {ytMsg}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button
-                      type="submit"
-                      disabled={ytLinking || !ytInput.trim()}
-                      style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.55rem 1.25rem', fontSize: '0.84rem', fontWeight: 700, cursor: ytLinking ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                      {ytLinking ? 'Vinculando...' : 'Vincular y Extraer ID'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Guía desplegable de automatización Make.com / Drive */}
-              <div style={{ background: '#f8fafc', border: '1px solid #E5E5E5', borderRadius: '10px', padding: '1.25rem' }}>
-                <div
-                  onClick={() => setShowAutomationHelp(!showAutomationHelp)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <Sparkles size={18} color="#FCA311" />
-                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#14213D' }}>
-                      Automatización Google Drive → YouTube (Make.com / API)
-                    </span>
-                  </div>
-                  <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                    {showAutomationHelp ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-
-                {showAutomationHelp && (
-                  <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0', fontSize: '0.82rem', color: '#334155', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <p style={{ margin: 0, lineHeight: 1.5 }}>
-                      Al subir un video a Google Drive, la automatización (Make.com) lo publica en YouTube como <i>No listado</i>, extrae el ID de YouTube y actualiza esta clase automáticamente.
-                    </p>
-                    <div style={{ background: '#ffffff', padding: '0.85rem', borderRadius: '6px', border: '1px solid #CBD5E1' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
-                        ID Único de esta clase (para Payload Make.com):
+                  <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '1.35rem' }}>
+                    <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--navy, #14213D)', fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Video size={17} color="var(--gold, #FCA311)" /> Extractor de ID y Vinculación de YouTube
+                    </h4>
+                    
+                    <form onSubmit={handleLinkYouTubeVideo} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)', marginBottom: '4px' }}>
+                          Enlace de YouTube o ID del video
+                        </label>
+                        <input
+                          type="text"
+                          value={ytInput}
+                          onChange={e => setYtInput(e.target.value)}
+                          placeholder="Ej. https://www.youtube.com/watch?v=dQw4w9WgXcQ o dQw4w9WgXcQ"
+                          style={{ width: '100%', padding: '0.55rem 0.85rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.86rem', boxSizing: 'border-box' }}
+                        />
                       </div>
-                      <code style={{ background: '#f1f5f9', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>
-                        {selectedClass?.id}
-                      </code>
-                    </div>
+
+                      {detectedYtId ? (
+                        <div style={{ background: '#DCFCE7', border: '1px solid #86EFAC', color: '#007A2E', padding: '0.5rem 0.85rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <CheckCircle2 size={14} color="#007A2E" />
+                          <span>ID de YouTube detectado: <strong>{detectedYtId}</strong></span>
+                        </div>
+                      ) : ytInput.trim() ? (
+                        <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', padding: '0.5rem 0.85rem', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Info size={14} color="#FCA311" />
+                          <span>Se guardará como enlace directo.</span>
+                        </div>
+                      ) : null}
+
+                      {ytMsg && (
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: ytMsg.startsWith('✓') ? '#007A2E' : '#DC2626' }}>
+                          {ytMsg}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          type="submit"
+                          disabled={ytLinking || !ytInput.trim()}
+                          style={{
+                            background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                            borderRadius: '6px', padding: '0.5rem 1.2rem', fontSize: '0.82rem',
+                            fontWeight: 700, cursor: ytLinking ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '0.45rem'
+                          }}
+                        >
+                          {ytLinking ? 'Vinculando...' : 'Vincular y Extraer ID'}
+                        </button>
+                      </div>
+                    </form>
                   </div>
-                )}
-              </div>
+
+                  {/* GUIA DE AUTOMATIZACION */}
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '1.25rem' }}>
+                    <div
+                      onClick={() => setShowAutomationHelp(!showAutomationHelp)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <Sparkles size={17} color="var(--gold, #FCA311)" />
+                        <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)' }}>
+                          Automatización Google Drive → YouTube (Make.com / API)
+                        </span>
+                      </div>
+                      <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}>
+                        {showAutomationHelp ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                    </div>
+
+                    {showAutomationHelp && (
+                      <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0', fontSize: '0.82rem', color: '#334155', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <p style={{ margin: 0, lineHeight: 1.5 }}>
+                          Al subir un video a la carpeta de Google Drive del programa, la automatización procesa el archivo, lo publica en YouTube como <i>No listado</i> y vincula el ID de YouTube en esta clase automáticamente.
+                        </p>
+                        <div style={{ background: '#FFFFFF', padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid #CBD5E1' }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            ID Único de esta clase (para Payload Make.com):
+                          </div>
+                          <code style={{ background: '#F1F5F9', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                            {selectedClass?.id}
+                          </code>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
+
             </div>
           )}
 
           {/* ════ SECCIÓN: ACTIVIDAD IA ════ */}
           {activeSection === 'activity' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              
               {draftLoading ? (
-                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Cargando actividad...</p>
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted, #64748B)' }}>
+                  <div style={{ width: '32px', height: '32px', border: '3px solid #E2E8F0', borderTopColor: 'var(--gold, #FCA311)', borderRadius: '50%', animation: 'liaterSpin 0.8s linear infinite', margin: '0 auto 1rem' }} />
+                  <span>Cargando actividad de reforzamiento IA...</span>
+                </div>
               ) : !draft ? (
-                <div style={{ padding: '3rem', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #E5E5E5' }}>
-                  <Sparkles size={36} color="#FCA311" style={{ margin: '0 auto 0.75rem' }} />
-                  <h3 style={{ color: '#14213D', marginBottom: '0.5rem', fontWeight: 700 }}>
+                <div style={{ padding: '3rem', textAlign: 'center', background: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
+                  <Sparkles size={36} color="var(--gold, #FCA311)" style={{ margin: '0 auto 0.75rem' }} />
+                  <h3 style={{ color: 'var(--navy, #14213D)', marginBottom: '0.5rem', fontWeight: 700 }}>
                     {!isPastClass ? 'Actividad disponible tras realizar la clase' : 'Sin borrador IA disponible'}
                   </h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0, maxWidth: '500px', marginLeft: 'auto', marginRight: 'auto' }}>
+                  <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: 0, maxWidth: '500px', marginLeft: 'auto', marginRight: 'auto' }}>
                     {!isPastClass
-                      ? 'El borrador de preguntas generado por la IA se procesará automáticamente una vez que la clase haya finalizado.'
+                      ? 'El borrador de preguntas generado por la IA se procesará automáticamente una vez que la clase haya finalizado y se disponga de la grabación o transcripción.'
                       : 'El administrador enviará el borrador generado por IA una vez que la transcripción de la clase esté procesada.'}
                   </p>
                 </div>
               ) : (
                 <>
-                  {/* Estado de la actividad */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderRadius: '8px', background: activityStats?.isPublished ? 'rgba(22,163,74,0.08)' : 'rgba(252,163,17,0.08)', border: `1px solid ${activityStats?.isPublished ? 'rgba(22,163,74,0.25)' : 'rgba(252,163,17,0.25)'}`, flexWrap: 'wrap', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      {activityStats?.isPublished
-                        ? <CheckCircle2 size={18} color="#16a34a" />
-                        : <Sparkles size={18} color="#FCA311" />}
+                  {/* ESTADO DE PUBLICACIÓN & ACCIONES */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '1.1rem 1.35rem', borderRadius: '12px',
+                    background: activityStats?.isPublished ? '#F0FDF4' : '#FFFBEB',
+                    border: `1.5px solid ${activityStats?.isPublished ? '#86EFAC' : '#FDE68A'}`,
+                    flexWrap: 'wrap', gap: '0.85rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {activityStats?.isPublished ? (
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#007A2E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <CheckCircle2 size={20} color="#FFFFFF" />
+                        </div>
+                      ) : (
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--gold, #FCA311)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Sparkles size={20} color="var(--navy, #14213D)" />
+                        </div>
+                      )}
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#14213D' }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--navy, #14213D)' }}>
                           {activityStats?.isPublished ? 'Actividad publicada a estudiantes' : 'Borrador IA pendiente de revisión'}
                         </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
                           {draft.draft_data?.activity_title || 'Sin título'} · {(localQuestions.length)} preguntas
                           {activityStats && ` · ${activityStats.totalResponses} respuestas recibidas`}
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {activityStats?.isPublished ? (
-                        <button onClick={handleUnpublishActivity} disabled={actionLoading === 'unpublishing'}
-                          style={{ background: '#FFFFFF', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
-                          {actionLoading === 'unpublishing' ? '...' : <><EyeOff size={12} /> Despublicar</>}
+                        <button
+                          type="button"
+                          onClick={handleUnpublishActivity}
+                          disabled={actionLoading === 'unpublishing'}
+                          style={{
+                            background: '#FFFFFF', color: '#DC2626', border: '1px solid #FCA5A5',
+                            borderRadius: '8px', padding: '0.45rem 0.95rem', fontSize: '0.8rem',
+                            fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem'
+                          }}
+                        >
+                          {actionLoading === 'unpublishing' ? '...' : <><EyeOff size={13} /> Despublicar</>}
                         </button>
                       ) : (
-                        <button onClick={handlePublishActivity} disabled={actionLoading === 'publishing'}
-                          style={{ background: '#FCA311', color: '#14213D', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          {actionLoading === 'publishing' ? 'Publicando...' : <><CheckCheck size={13} /> Publicar a estudiantes</>}
+                        <button
+                          type="button"
+                          onClick={handlePublishActivity}
+                          disabled={actionLoading === 'publishing'}
+                          style={{
+                            background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none',
+                            borderRadius: '8px', padding: '0.45rem 1rem', fontSize: '0.8rem',
+                            fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem',
+                            boxShadow: '0 2px 6px rgba(252,163,17,0.3)'
+                          }}
+                        >
+                          {actionLoading === 'publishing' ? 'Publicando...' : <><CheckCheck size={14} /> Publicar a estudiantes</>}
                         </button>
                       )}
-                      <button onClick={() => setEditingQuestions(!editingQuestions)}
-                        style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Edit3 size={12} /> {editingQuestions ? 'Cerrar editor' : 'Editar preguntas'}
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestions(!editingQuestions)}
+                        style={{
+                          background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                          borderRadius: '8px', padding: '0.45rem 0.95rem', fontSize: '0.8rem',
+                          fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem'
+                        }}
+                      >
+                        <Edit3 size={13} /> {editingQuestions ? 'Cerrar editor' : 'Editar preguntas'}
                       </button>
                     </div>
                   </div>
-                  {activityMsg && <div style={{ fontSize: '0.82rem', fontWeight: 600, color: activityMsg.startsWith('✓') ? '#16a34a' : '#dc2626', background: activityMsg.startsWith('✓') ? '#f0fdf4' : '#fef2f2', padding: '0.6rem 0.85rem', borderRadius: '6px' }}>{activityMsg}</div>}
+
+                  {activityMsg && (
+                    <div style={{
+                      fontSize: '0.82rem', fontWeight: 600,
+                      color: activityMsg.startsWith('✓') ? '#007A2E' : '#DC2626',
+                      background: activityMsg.startsWith('✓') ? '#DCFCE7' : '#FEE2E2',
+                      padding: '0.6rem 0.85rem', borderRadius: '8px'
+                    }}>
+                      {activityMsg}
+                    </div>
+                  )}
 
                   {editingQuestions && (
-                    <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '1rem' }}>
-                      <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Intentos permitidos</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <div style={{ padding: '1rem', background: '#F8FAFC', borderRadius: '10px', border: '1px solid #CBD5E1' }}>
+                      <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                        Intentos permitidos para el alumno:
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <input 
                           type="number" 
                           min="0"
                           value={maxAttempts} 
                           onChange={e => setMaxAttempts(parseInt(e.target.value) || 0)}
-                          style={{ width: '100px', padding: '0.4rem', border: '1px solid var(--border-color)', borderRadius: '6px' }} 
+                          style={{ width: '90px', padding: '0.45rem 0.6rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.85rem' }} 
                         />
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(0 = Ilimitados)</span>
+                        <span style={{ fontSize: '0.78rem', color: '#64748B' }}>(0 = Intentos ilimitados)</span>
                       </div>
                     </div>
                   )}
 
-                  {/* Lista de preguntas — modo visualización */}
+                  {/* MODO VISUALIZACIÓN DE PREGUNTAS */}
                   {!editingQuestions && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       {localQuestions.map((q, qi) => (
-                        <div key={q._key ?? qi} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E5E5E5' }}>
-                          <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem', marginBottom: '0.6rem' }}>
-                            {qi + 1}. {q.text}
+                        <div key={q._key ?? qi} style={{ background: '#F8FAFC', padding: '1.35rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                            <span style={{ background: 'var(--navy, #14213D)', color: '#FFFFFF', fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px' }}>
+                              Pregunta {qi + 1}
+                            </span>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          
+                          <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', fontSize: '0.92rem', marginBottom: '0.75rem', lineHeight: 1.45 }}>
+                            {q.text}
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             {(q.options || []).map((opt, oi) => (
-                              <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.6rem', borderRadius: '5px', background: opt.is_correct ? 'rgba(22,163,74,0.08)' : 'transparent', border: opt.is_correct ? '1px solid rgba(22,163,74,0.2)' : '1px solid transparent' }}>
-                                {opt.is_correct ? <Check size={13} color="#16a34a" /> : <span style={{ width: '13px' }} />}
-                                <span style={{ fontSize: '0.84rem', color: opt.is_correct ? '#166534' : '#14213D', fontWeight: opt.is_correct ? 600 : 400 }}>{opt.text}</span>
+                              <div
+                                key={oi}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                  padding: '0.45rem 0.75rem', borderRadius: '8px',
+                                  background: opt.is_correct ? '#DCFCE7' : '#FFFFFF',
+                                  border: opt.is_correct ? '1px solid #86EFAC' : '1px solid #E2E8F0'
+                                }}
+                              >
+                                {opt.is_correct ? <Check size={14} color="#007A2E" /> : <span style={{ width: '14px' }} />}
+                                <span style={{ fontSize: '0.84rem', color: opt.is_correct ? '#007A2E' : 'var(--navy, #14213D)', fontWeight: opt.is_correct ? 700 : 400 }}>
+                                  {opt.text}
+                                </span>
                               </div>
                             ))}
                           </div>
 
-                          {/* RETROALIMENTACIÓN / ACLARACIÓN PEDAGÓGICA (BOMBILLO) */}
+                          {/* RETROALIMENTACIÓN PEDAGÓGICA */}
                           {(() => {
                             const exp = (q.explanation || '').trim();
                             const src = (q.source_basis || '').trim();
@@ -889,21 +1140,21 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
                             return (
                               <div style={{
-                                marginTop: '0.75rem',
-                                padding: '0.65rem 0.85rem',
-                                background: '#eff6ff',
-                                border: '1px solid #bfdbfe',
-                                borderRadius: '8px',
+                                marginTop: '0.85rem',
+                                padding: '0.75rem 1rem',
+                                background: '#EFF6FF',
+                                border: '1px solid #BFDBFE',
+                                borderRadius: '10px',
                                 fontSize: '0.82rem',
-                                color: '#1e40af',
+                                color: '#1E40AF',
                                 lineHeight: 1.45,
                                 display: 'flex',
                                 alignItems: 'flex-start',
-                                gap: '0.5rem'
+                                gap: '0.6rem'
                               }}>
-                                <span style={{ fontSize: '1rem', flexShrink: 0 }}>💡</span>
+                                <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>💡</span>
                                 <div style={{ flex: 1 }}>
-                                  <strong style={{ display: 'block', color: '#1d4ed8', marginBottom: '2px', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  <strong style={{ display: 'block', color: '#1D4ED8', marginBottom: '2px', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                     Retroalimentación Pedagógica
                                   </strong>
                                   <span>{feedbackText}</span>
@@ -916,70 +1167,102 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                     </div>
                   )}
 
-                  {/* Editor de preguntas — modo edición */}
+                  {/* MODO EDICIÓN DE PREGUNTAS */}
                   {editingQuestions && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
                       {localQuestions.map((q, qi) => (
-                        <div key={q._key ?? qi} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E5E5E5' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#14213D' }}>Pregunta {qi + 1}</label>
-                            <button onClick={() => setLocalQuestions(prev => prev.filter((_, i) => i !== qi))}
-                              style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '5px', padding: '0.2rem 0.5rem', cursor: 'pointer', color: '#dc2626', fontSize: '0.75rem' }}>
-                              <Trash2 size={12} />
+                        <div key={q._key ?? qi} style={{ background: '#F8FAFC', padding: '1.35rem', borderRadius: '12px', border: '1px solid #CBD5E1' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                            <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>Pregunta {qi + 1}</label>
+                            <button
+                              type="button"
+                              onClick={() => setLocalQuestions(prev => prev.filter((_, i) => i !== qi))}
+                              style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '6px', padding: '0.25rem 0.6rem', cursor: 'pointer', color: '#DC2626', fontSize: '0.75rem' }}
+                            >
+                              <Trash2 size={13} />
                             </button>
                           </div>
-                          <textarea value={q.text} onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, text: e.target.value } : item))}
-                            rows={2} style={{ width: '100%', padding: '0.5rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.85rem', marginBottom: '0.6rem', resize: 'vertical' }} />
                           
-                          {/* Opciones */}
-                          {(q.options || []).map((opt, oi) => (
-                            <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                              <input type="radio" name={`correct-${qi}`} checked={!!opt.is_correct}
-                                onChange={() => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, options: item.options.map((o, j) => ({ ...o, is_correct: j === oi })) } : item))}
-                                style={{ accentColor: '#FCA311' }} title="Marcar como correcta" />
-                              <input type="text" value={opt.text} onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, options: item.options.map((o, j) => j === oi ? { ...o, text: e.target.value } : o) } : item))}
-                                style={{ flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '0.83rem' }} />
-                            </div>
-                          ))}
+                          <textarea
+                            value={q.text}
+                            onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, text: e.target.value } : item))}
+                            rows={2}
+                            style={{ width: '100%', padding: '0.55rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '0.65rem', resize: 'vertical', boxSizing: 'border-box' }}
+                          />
+                          
+                          {/* OPCIONES */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                            {(q.options || []).map((opt, oi) => (
+                              <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input
+                                  type="radio"
+                                  name={`correct-${qi}`}
+                                  checked={!!opt.is_correct}
+                                  onChange={() => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, options: item.options.map((o, j) => ({ ...o, is_correct: j === oi })) } : item))}
+                                  style={{ accentColor: 'var(--gold, #FCA311)', cursor: 'pointer' }}
+                                  title="Marcar como opción correcta"
+                                />
+                                <input
+                                  type="text"
+                                  value={opt.text}
+                                  onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, options: item.options.map((o, j) => j === oi ? { ...o, text: e.target.value } : o) } : item))}
+                                  style={{ flex: 1, padding: '0.45rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.83rem' }}
+                                />
+                              </div>
+                            ))}
+                          </div>
 
-                          {/* CAMPO DE EDICIÓN DE RETROALIMENTACIÓN / EXPLICACIÓN CON BOMBILLO */}
-                          <div style={{ marginTop: '0.75rem', padding: '0.65rem 0.85rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
+                          {/* RETROALIMENTACIÓN */}
+                          <div style={{ padding: '0.75rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
-                              <span style={{ fontSize: '0.95rem' }}>💡</span>
-                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              <span>💡</span>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase' }}>
                                 Retroalimentación Pedagógica / Explicación
                               </label>
                             </div>
                             <textarea 
                               value={q.explanation || ''} 
                               onChange={e => setLocalQuestions(prev => prev.map((item, i) => i === qi ? { ...item, explanation: e.target.value } : item))}
-                              placeholder="Escribe la aclaración o explicación pedagógica de por qué esta respuesta es la correcta..."
+                              placeholder="Escribe la explicación de por qué esta respuesta es la correcta..."
                               rows={2} 
-                              style={{ width: '100%', padding: '0.45rem 0.6rem', border: '1px solid #93c5fd', borderRadius: '5px', fontSize: '0.82rem', resize: 'vertical', background: '#ffffff', color: '#1e3a8a' }} 
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', border: '1px solid #93C5FD', borderRadius: '6px', fontSize: '0.82rem', resize: 'vertical', background: '#FFFFFF', color: '#1E3A8A', boxSizing: 'border-box' }} 
                             />
                           </div>
                         </div>
                       ))}
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginTop: '0.5rem' }}>
-                        <button onClick={() => setLocalQuestions(prev => [...prev, { _key: Date.now(), text: '', explanation: '', question_type: 'single_choice', options: [{ text: '', is_correct: true }, { text: '', is_correct: false }, { text: '', is_correct: false }, { text: '', is_correct: false }] }])}
-                          style={{ background: '#FFFFFF', border: '1px dashed #FCA311', borderRadius: '7px', padding: '0.55rem 1rem', color: '#FCA311', fontWeight: 700, fontSize: '0.83rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setLocalQuestions(prev => [...prev, { _key: Date.now(), text: '', explanation: '', question_type: 'single_choice', options: [{ text: '', is_correct: true }, { text: '', is_correct: false }, { text: '', is_correct: false }, { text: '', is_correct: false }] }])}
+                          style={{
+                            background: '#FFFFFF', border: '1.5px dashed var(--gold, #FCA311)',
+                            borderRadius: '8px', padding: '0.55rem 1rem', color: 'var(--gold, #FCA311)',
+                            fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem'
+                          }}
+                        >
                           <PlusCircle size={15} /> Agregar pregunta
                         </button>
                         
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button 
+                            type="button"
                             onClick={() => setEditingQuestions(false)}
-                            style={{ background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.5rem 1rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                            style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '0.55rem 1.1rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
                           >
                             Cerrar
                           </button>
                           <button 
+                            type="button"
                             onClick={handleSaveDraftEdits} 
                             disabled={actionLoading === 'saving'}
-                            style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.5rem 1.1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                            style={{
+                              background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                              borderRadius: '8px', padding: '0.55rem 1.25rem', fontSize: '0.82rem',
+                              fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem'
+                            }}
                           >
-                            <Save size={13} /> {actionLoading === 'saving' ? 'Guardando...' : 'Guardar Cambios'}
+                            <Save size={14} /> {actionLoading === 'saving' ? 'Guardando...' : 'Guardar Cambios'}
                           </button>
                         </div>
                       </div>
@@ -989,16 +1272,15 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
               )}
             </div>
           )}
+
         </div>
       </div>
     </div>
   );
 }
 
-
-
 /* ─────────────────────────────────────────
-   TAB: MIS CLASES — Vista jerárquica
+   TAB: MIS CLASES (Rediseñado de Alta Fidelidad)
    Módulo → Sesión → Clase
 ───────────────────────────────────────── */
 function ClasesTab() {
@@ -1022,7 +1304,7 @@ function ClasesTab() {
         .from('class_sessions')
         .select('*, sessions(id, title, order_index, module_id, modules(id, title, program_id)), meet_url, class_activities(id, is_published)')
         .eq('program_id', programId)
-        .eq('teacher_id', teacherId)         // ← Solo clases del profesor
+        .or(`teacher_id.eq.${teacherId},teacher_id.is.null`)
         .order('class_date', { ascending: true });
 
       if (sErr) {
@@ -1030,7 +1312,7 @@ function ClasesTab() {
           .from('class_sessions')
           .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url, class_activities(id, is_published)')
           .eq('program_id', programId)
-          .eq('teacher_id', teacherId)       // ← Fallback también filtrado
+          .or(`teacher_id.eq.${teacherId},teacher_id.is.null`)
           .order('class_date', { ascending: true });
         if (oldErr) throw oldErr;
         data = oldData || [];
@@ -1127,7 +1409,7 @@ function ClasesTab() {
     }
   }, [searchParams, classes]);
 
-  // Suscripción Realtime en ClasesTab para que se actualice instantáneamente cuando admin o profesor publiquen
+  // Suscripción Realtime en ClasesTab
   useEffect(() => {
     if (!programId) return;
     const channel = supabase
@@ -1151,8 +1433,22 @@ function ClasesTab() {
   const toggleModule   = id => setExpandedModules(p => ({ ...p, [id]: !p[id] }));
   const toggleSession  = id => setExpandedSessions(p => ({ ...p, [id]: !p[id] }));
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando clases del programa...</div>;
-  if (error)   return <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>Error: {error}</div>;
+  if (loading) {
+    return (
+      <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted, #64748B)', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+        <div style={{ width: '32px', height: '32px', border: '3px solid #E2E8F0', borderTopColor: 'var(--gold, #FCA311)', borderRadius: '50%', animation: 'liaterSpin 0.8s linear infinite', margin: '0 auto 1rem' }} />
+        <span>Cargando clases del programa...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: '#DC2626', background: '#FEE2E2', borderRadius: '12px', border: '1px solid #FCA5A5' }}>
+        Error: {error}
+      </div>
+    );
+  }
 
   const now = new Date();
 
@@ -1177,7 +1473,13 @@ function ClasesTab() {
     const modId     = sesObj?.modules?.id    || 'sin-modulo';
     const modTitle  = sesObj?.modules?.title || 'Sin Módulo';
     const sesId     = cls.session_id || cls.subtopic_id || 'sin-sesion';
-    const sesTitle  = sesObj?.title          || 'Sin Sesión';
+    let sesTitle    = sesObj?.title          || 'Sin Sesión';
+    
+    // Normalizar si viene como 'Sesion -1' o similar
+    if (sesTitle.toLowerCase().includes('sesion -1') || sesTitle.toLowerCase().includes('sesión -1')) {
+      sesTitle = sesTitle.replace(/-1/g, '1');
+    }
+    
     const sesOrder  = sesObj?.order_index    ?? 999;
 
     if (!grouped[modId]) grouped[modId] = { title: modTitle, sessions: {} };
@@ -1207,143 +1509,523 @@ function ClasesTab() {
   }).length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Encabezado + Filtros */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span><strong style={{ color: '#14213D' }}>{classes.length}</strong> clases totales</span>
-          <span>·</span>
-          <span><strong style={{ color: '#FCA311' }}>{totalUpcoming}</strong> próximas</span>
-          <span>·</span>
-          <span><strong style={{ color: '#f97316' }}>{totalPending}</strong> pendientes</span>
-          <span>·</span>
-          <span><strong style={{ color: '#16a34a' }}>{totalCompleted}</strong> finalizadas</span>
-        </div>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {[
-            { id: 'all', label: 'Todas' },
-            { id: 'upcoming', label: 'Próximas' },
-            { id: 'pending', label: 'Pendientes' },
-            { id: 'completed', label: 'Finalizadas' }
-          ].map(f => (
-            <button key={f.id} onClick={() => setFilterStatus(f.id)}
-              style={{ padding: '0.35rem 0.85rem', borderRadius: '9999px', border: '1px solid', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease',
-                background: filterStatus === f.id ? '#14213D' : '#FFFFFF',
-                color:      filterStatus === f.id ? '#FFFFFF'  : '#14213D',
-                borderColor:filterStatus === f.id ? '#14213D'  : '#E5E5E5' }}>
-              {f.label}
-            </button>
-          ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      
+      {/* ── HERO HEADER DE SECCIÓN ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.5rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '12px',
+              textTransform: 'uppercase'
+            }}>
+              📚 Gestión Académica
+            </span>
+            <span style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.8rem' }}>
+              {currentProgram?.title || 'Curso'}
+            </span>
+          </div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0 }}>
+            Mis Clases y Sesiones
+          </h2>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
+            Administra los contenidos de tus clases, materiales de apoyo, grabaciones y actividades de reforzamiento IA.
+          </p>
         </div>
       </div>
 
-      {/* Sin resultados */}
-      {Object.keys(grouped).length === 0 && (
-        <div style={{ padding: '3rem', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #E5E5E5' }}>
-          <BookOpen size={40} color="#E5E5E5" style={{ margin: '0 auto 0.75rem' }} />
-          <h3 style={{ color: '#14213D', marginBottom: '0.5rem' }}>Sin clases para mostrar</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>Prueba cambiando el filtro.</p>
+      {/* ── 4 KPI CARDS SUPERIORES ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gap: '1rem'
+      }}>
+        {/* TOTAL CLASES */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(20,33,61,0.02)'
+        }}>
+          <div style={{
+            width: '46px', height: '46px', borderRadius: '12px',
+            background: 'rgba(20,33,61,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--navy, #14213D)', flexShrink: 0
+          }}>
+            <BookOpen size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>
+              Total Clases
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+              {classes.length}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+              Programadas en el curso
+            </div>
+          </div>
+        </div>
+
+        {/* PRÓXIMAS / EN VIVO */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(20,33,61,0.02)'
+        }}>
+          <div style={{
+            width: '46px', height: '46px', borderRadius: '12px',
+            background: 'rgba(252,163,17,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--gold, #FCA311)', flexShrink: 0
+          }}>
+            <Video size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>
+              Próximas Sesiones
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+              {totalUpcoming}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+              {totalUpcoming > 0 ? 'Por impartir' : 'Sin clases próximas'}
+            </div>
+          </div>
+        </div>
+
+        {/* PENDIENTES DE GESTIÓN */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(20,33,61,0.02)'
+        }}>
+          <div style={{
+            width: '46px', height: '46px', borderRadius: '12px',
+            background: totalPending > 0 ? '#FEF3C7' : '#F8FAFC',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: totalPending > 0 ? '#92400E' : '#64748B', flexShrink: 0
+          }}>
+            <AlertTriangle size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>
+              Atención Requerida
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: totalPending > 0 ? '#92400E' : 'var(--navy, #14213D)' }}>
+              {totalPending}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+              {totalPending > 0 ? 'Grabación o IA pendiente' : 'Todo al día'}
+            </div>
+          </div>
+        </div>
+
+        {/* FINALIZADAS CON ÉXITO */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(20,33,61,0.02)'
+        }}>
+          <div style={{
+            width: '46px', height: '46px', borderRadius: '12px',
+            background: '#DCFCE7',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#007A2E', flexShrink: 0
+          }}>
+            <CheckCircle2 size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>
+              Finalizadas
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#007A2E' }}>
+              {totalCompleted}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+              Video y actividad OK
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── BARRA DE FILTROS TIPO PILL ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        padding: '0.85rem 1.25rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {[
+            { id: 'all',       label: 'Todas las clases', count: classes.length,   icon: null },
+            { id: 'upcoming',  label: 'Próximas',         count: totalUpcoming,   icon: '📅' },
+            { id: 'pending',   label: 'Pendientes',       count: totalPending,    icon: '⚠️' },
+            { id: 'completed', label: 'Finalizadas',      count: totalCompleted,  icon: '✓'  }
+          ].map(f => {
+            const isSelected = filterStatus === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilterStatus(f.id)}
+                style={{
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.45rem 0.9rem',
+                  fontSize: '0.82rem',
+                  fontWeight: isSelected ? 700 : 500,
+                  background: isSelected ? 'var(--navy, #14213D)' : '#F1F5F9',
+                  color: isSelected ? '#FFFFFF' : 'var(--navy, #14213D)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {f.icon && <span>{f.icon}</span>}
+                <span>{f.label}</span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  padding: '1px 6px',
+                  borderRadius: '9999px',
+                  background: isSelected ? 'rgba(252,163,17,0.35)' : '#E2E8F0',
+                  color: isSelected ? 'var(--gold, #FCA311)' : '#64748B',
+                  fontWeight: 700
+                }}>
+                  {f.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748B)' }}>
+          Mostrando <strong>{filteredClasses.length}</strong> de {classes.length} clases
+        </span>
+      </div>
+
+      {/* ── LISTADO / ACORDEÓN JERÁRQUICO ── */}
+      {Object.keys(grouped).length === 0 ? (
+        <div style={{ padding: '3.5rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '16px', border: '1px dashed #CBD5E1' }}>
+          <BookOpen size={40} color="#CBD5E1" style={{ margin: '0 auto 0.75rem' }} />
+          <h3 style={{ color: 'var(--navy, #14213D)', marginBottom: '0.5rem', fontWeight: 700 }}>Sin clases que coincidan</h3>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: 0 }}>
+            Prueba cambiando el filtro seleccionado arriba.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {Object.entries(grouped).map(([modId, mod]) => {
+            const isModExpanded = expandedModules[modId];
+            const modClassCount = Object.values(mod.sessions).reduce((acc, s) => acc + s.classes.length, 0);
+
+            return (
+              <div key={modId} style={{
+                background: '#FFFFFF',
+                borderRadius: '16px',
+                border: '1px solid #E2E8F0',
+                overflow: 'hidden',
+                boxShadow: '0 1px 3px rgba(20,33,61,0.03)'
+              }}>
+                {/* CABECERA DE MÓDULO */}
+                <button
+                  type="button"
+                  onClick={() => toggleModule(modId)}
+                  style={{
+                    width: '100%',
+                    padding: '1rem 1.4rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#FFFFFF',
+                    textAlign: 'left',
+                    transition: 'background 0.2s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '8px',
+                      background: 'rgba(252,163,17,0.2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--gold, #FCA311)'
+                    }}>
+                      <Layers size={17} />
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#FFFFFF' }}>{mod.title}</span>
+                    </div>
+                    <span style={{
+                      fontSize: '0.74rem',
+                      background: 'rgba(255,255,255,0.15)',
+                      color: '#FFFFFF',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '12px'
+                    }}>
+                      {modClassCount} clase{modClassCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {isModExpanded ? <ChevronUp size={18} color="var(--gold, #FCA311)" /> : <ChevronDown size={18} color="var(--gold, #FCA311)" />}
+                </button>
+
+                {/* SESIONES DENTRO DEL MÓDULO */}
+                {isModExpanded && Object.entries(mod.sessions).map(([sesId, ses]) => {
+                  const isSesExpanded = expandedSessions[sesId];
+
+                  return (
+                    <div key={sesId} style={{ borderTop: '1px solid #E2E8F0' }}>
+                      
+                      {/* ENCABEZADO DE SESIÓN */}
+                      <button
+                        type="button"
+                        onClick={() => toggleSession(sesId)}
+                        style={{
+                          width: '100%',
+                          padding: '0.8rem 1.4rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: '#F8FAFC',
+                          border: 'none',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          borderBottom: isSesExpanded ? '1px solid #E2E8F0' : 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <BookOpen size={15} color="var(--gold, #FCA311)" />
+                          <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)' }}>
+                            {ses.title}
+                          </span>
+                          {ses.minDate && (
+                            <span style={{
+                              fontSize: '0.73rem',
+                              color: '#64748B',
+                              background: '#FFFFFF',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #E2E8F0'
+                            }}>
+                              {ses.minDate === ses.maxDate
+                                ? new Date(ses.minDate).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })
+                                : `${new Date(ses.minDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} – ${new Date(ses.maxDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`
+                              }
+                            </span>
+                          )}
+                          <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                            ({ses.classes.length} clase{ses.classes.length !== 1 ? 's' : ''})
+                          </span>
+                        </div>
+                        {isSesExpanded ? <ChevronUp size={15} color="#64748B" /> : <ChevronDown size={15} color="#64748B" />}
+                      </button>
+
+                      {/* CLASES DENTRO DE LA SESIÓN */}
+                      {isSesExpanded && ses.classes.map(cls => {
+                        const isPast      = new Date(cls.class_date) < now;
+                        const hasVideo    = !!cls.video_url;
+                        const hasActivity = !!cls.has_published_activity || (Array.isArray(cls.class_activities) && cls.class_activities.some(a => a.is_published)) || (Array.isArray(cls.activity_drafts) && cls.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
+                        const isCompleted = isPast && hasVideo && hasActivity;
+                        const isPending   = isPast && !isCompleted;
+                        const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();
+                        const isLive      = isClassLiveOrSoon(cls, 10);
+
+                        return (
+                          <div
+                            key={cls.id}
+                            style={{
+                              padding: '1.1rem 1.6rem',
+                              borderBottom: '1px solid #F1F5F9',
+                              background: '#FFFFFF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '1rem',
+                              flexWrap: 'wrap',
+                              transition: 'background 0.15s ease'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.background = '#FAFBFD'}
+                            onMouseOut={e => e.currentTarget.style.background = '#FFFFFF'}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.9rem', flex: 1, minWidth: 0 }}>
+                              
+                              {/* BADGE DE ESTADO CIRCULAR */}
+                              <div style={{
+                                width: '10px', height: '10px', borderRadius: '50%',
+                                marginTop: '6px', flexShrink: 0,
+                                background: isCompleted ? '#007A2E' : isPending ? '#F97316' : isToday ? 'var(--gold, #FCA311)' : '#94A3B8',
+                                boxShadow: isLive ? '0 0 0 3px rgba(220,38,38,0.2)' : 'none'
+                              }} />
+
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <div style={{ fontWeight: 800, color: 'var(--navy, #14213D)', fontSize: '0.92rem' }}>
+                                    {cls.title}
+                                  </div>
+                                  
+                                  {isLive && (
+                                    <span style={{
+                                      background: '#FEE2E2', color: '#DC2626',
+                                      fontSize: '0.7rem', fontWeight: 800, padding: '1px 6px',
+                                      borderRadius: '10px', border: '1px solid rgba(220,38,38,0.3)'
+                                    }}>
+                                      🔴 EN VIVO
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* METADATA Y CHIPS SEMÁNTICOS */}
+                                <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '0.65rem', alignItems: 'center' }}>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <CalendarDays size={13} />
+                                    {formatClassDate(cls.class_date, false)}
+                                  </span>
+                                  
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Timer size={13} />
+                                    {cls.duration || 0} min
+                                  </span>
+
+                                  {isPast && (
+                                    <>
+                                      {/* GRABACIÓN STATUS CHIP */}
+                                      <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                        background: hasVideo ? '#DCFCE7' : '#FEF3C7',
+                                        color: hasVideo ? '#007A2E' : '#92400E',
+                                        border: `1px solid ${hasVideo ? 'rgba(0,122,46,0.2)' : 'rgba(245,158,11,0.3)'}`,
+                                        padding: '2px 7px', borderRadius: '6px',
+                                        fontSize: '0.74rem', fontWeight: 700
+                                      }}>
+                                        {hasVideo ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                                        {hasVideo ? 'Grabación OK' : 'Grabación pendiente'}
+                                      </span>
+
+                                      {/* ACTIVIDAD IA STATUS CHIP */}
+                                      <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                        background: hasActivity ? '#DCFCE7' : '#FEF3C7',
+                                        color: hasActivity ? '#007A2E' : '#92400E',
+                                        border: `1px solid ${hasActivity ? 'rgba(0,122,46,0.2)' : 'rgba(245,158,11,0.3)'}`,
+                                        padding: '2px 7px', borderRadius: '6px',
+                                        fontSize: '0.74rem', fontWeight: 700
+                                      }}>
+                                        {hasActivity ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                                        {hasActivity ? 'Actividad OK' : 'Actividad pendiente'}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ACCIONES */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              {!isPast && isLive && (cls.meet_url || currentProgram?.meet_url) && (
+                                <a
+                                  href={cls.meet_url || currentProgram?.meet_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    background: 'var(--gold, #FCA311)',
+                                    color: 'var(--navy, #14213D)',
+                                    padding: '0.45rem 0.95rem',
+                                    borderRadius: '8px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    textDecoration: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    flexShrink: 0,
+                                    transition: 'all 0.15s ease',
+                                    boxShadow: '0 2px 6px rgba(252,163,17,0.3)'
+                                  }}
+                                >
+                                  <Video size={14} /> Entrar
+                                </a>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setSelectedClass(cls)}
+                                style={{
+                                  background: 'var(--navy, #14213D)',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  padding: '0.48rem 1rem',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.45rem',
+                                  flexShrink: 0,
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseOver={e => e.currentTarget.style.background = '#000000'}
+                                onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+                              >
+                                <Eye size={14} /> Gestionar clase
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
-
-      {/* Árbol jerárquico: Módulo → Sesión → Clase */}
-      {Object.entries(grouped).map(([modId, mod], modIndex) => (
-        <div key={modId} style={{ border: '1px solid #E5E5E5', borderRadius: '10px', overflow: 'hidden' }}>
-          {/* ENCABEZADO DE MÓDULO */}
-          <button onClick={() => toggleModule(modId)} style={{ width: '100%', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#14213D', border: 'none', cursor: 'pointer', color: '#FFFFFF', textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <Layers size={16} color="#FCA311" />
-              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{mod.title}</span>
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
-                {Object.values(mod.sessions).reduce((acc, s) => acc + s.classes.length, 0)} clases
-              </span>
-            </div>
-            {expandedModules[modId] ? <ChevronUp size={16} color="#FCA311" /> : <ChevronDown size={16} color="#FCA311" />}
-          </button>
-
-          {/* SESIONES */}
-          {expandedModules[modId] && Object.entries(mod.sessions).map(([sesId, ses]) => (
-            <div key={sesId} style={{ borderTop: '1px solid #E5E5E5' }}>
-              {/* Encabezado Sesión */}
-              <button onClick={() => toggleSession(sesId)} style={{ width: '100%', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid #E5E5E5' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <BookOpen size={14} color="#FCA311" />
-                  <div>
-                    <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#14213D' }}>{ses.title}</span>
-                    {ses.minDate && (
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                        {ses.minDate === ses.maxDate
-                          ? new Date(ses.minDate).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })
-                          : `${new Date(ses.minDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} – ${new Date(ses.maxDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`
-                        }
-                      </span>
-                    )}
-                  </div>
-                  <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{ses.classes.length} clase{ses.classes.length !== 1 ? 's' : ''}</span>
-                </div>
-                {expandedSessions[sesId] ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
-              </button>
-
-              {/* CLASES */}
-              {expandedSessions[sesId] && ses.classes.map(cls => {
-                const isPast      = new Date(cls.class_date) < now;
-                const hasVideo    = !!cls.video_url;
-                // class_activities is an array, check if any is published, or check has_published_activity
-                const hasActivity = !!cls.has_published_activity || (Array.isArray(cls.class_activities) && cls.class_activities.some(a => a.is_published)) || (Array.isArray(cls.activity_drafts) && cls.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-                const isCompleted = isPast && hasVideo && hasActivity;
-                const isPending   = isPast && !isCompleted;
-                const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();
-
-                return (
-                  <div key={cls.id} style={{ padding: '1rem 1.75rem', borderBottom: '1px solid #f1f5f9', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', transition: 'background 0.2s ease' }}
-                    onMouseOver={e => e.currentTarget.style.background = '#fafafa'}
-                    onMouseOut={e => e.currentTarget.style.background = '#FFFFFF'}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', flex: 1, minWidth: 0 }}>
-                      {/* Indicador de estado */}
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', marginTop: '6px', flexShrink: 0,
-                        background: isCompleted ? '#16a34a' : isPending ? '#f97316' : isToday ? '#FCA311' : '#E5E5E5' }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cls.title}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><CalendarDays size={12} />{formatClassDate(cls.class_date, false)}</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><Timer size={12} />{cls.duration || 0} min</span>
-                          {isPast && (
-                            <>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: hasVideo ? '#16a34a' : '#f97316', fontWeight: 600 }}>
-                                {hasVideo ? <><CheckCircle2 size={12} /> Grabación OK</> : <><AlertCircle size={12} /> Grabación pendiente</>}
-                              </span>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: hasActivity ? '#16a34a' : '#f97316', fontWeight: 600 }}>
-                                {hasActivity ? <><CheckCircle2 size={12} /> Actividad OK</> : <><AlertCircle size={12} /> Actividad pendiente</>}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {!isPast && isClassLiveOrSoon(cls, 10) && (cls.meet_url || currentProgram?.meet_url) && (
-                        <a href={cls.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer"
-                          style={{ background: '#FCA311', color: '#14213D', padding: '0.45rem 0.9rem', borderRadius: '7px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease', boxShadow: '0 2px 4px rgba(252,163,17,0.2)' }}
-                          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
-                          <Video size={13} /> Entrar
-                        </a>
-                      )}
-                      <button onClick={() => setSelectedClass(cls)}
-                        style={{ background: '#14213D', color: '#FFFFFF', border: 'none', borderRadius: '7px', padding: '0.45rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, transition: 'all 0.2s ease' }}
-                        onMouseOver={e => e.currentTarget.style.background = '#000000'}
-                        onMouseOut={e => e.currentTarget.style.background = '#14213D'}>
-                        <Eye size={13} /> Gestionar clase
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      ))}
 
       {/* Modal de detalle */}
       {selectedClass && (
@@ -1997,98 +2679,153 @@ function ResumenTab({ onChangeTab }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* ── ENCABEZADO DEL PROGRAMA ── */}
-      <div className="card" style={{
-        padding: '2rem',
+      {/* ── HERO BANNER DEL CURSO (Rediseño limpio 60-30-10) ── */}
+      <div className="card teacher-course-hero" style={{
+        padding: '1.75rem 2rem',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        background: 'linear-gradient(135deg, #14213D 0%, #000000 100%)',
-        border: 'none',
+        alignItems: 'center',
+        background: '#FFFFFF',
+        border: '1px solid var(--border-color, #E2E8F0)',
         borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(20, 33, 61, 0.04)',
+        flexWrap: 'wrap',
+        gap: '1.25rem'
       }}>
         <div>
-          <div style={{ fontSize: '0.72rem', color: '#FCA311', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
-            {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'} · Panel del Profesor
-          </div>
-          <h1 style={{ fontSize: '1.6rem', color: '#FFFFFF', margin: '0 0 0.5rem 0', fontWeight: 800 }}>
-            {currentProgram?.title || 'Cargando programa...'}
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem', fontSize: '0.85rem', color: '#E5E5E5' }}>
-            <span>Prof. <strong style={{ color: '#FCA311' }}>{profile.name}</strong></span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22c55e' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: '0.72rem',
+              color: 'var(--navy, #14213D)',
+              background: '#F1F5F9',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '4px',
+              textTransform: 'uppercase',
+              fontWeight: 700,
+              letterSpacing: '0.06em'
+            }}>
+              {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'} · Panel Docente
+            </span>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              background: 'rgba(0, 122, 46, 0.08)',
+              color: '#007A2E',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '9999px',
+              fontSize: '0.75rem',
+              fontWeight: 700
+            }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#007A2E' }} />
               Programa activo
             </span>
-            <span><strong style={{ color: '#FFFFFF' }}>{stats.students}</strong> estudiantes inscritos</span>
+          </div>
+
+          <h1 style={{ fontSize: '1.5rem', color: 'var(--navy, #14213D)', margin: '0 0 0.4rem 0', fontWeight: 800, letterSpacing: '-0.01em' }}>
+            {currentProgram?.title || 'Cargando programa...'}
+          </h1>
+
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem', fontSize: '0.84rem', color: 'var(--text-muted, #64748B)' }}>
+            <span>Prof. <strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{profile.name}</strong></span>
+            <span>·</span>
+            <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{stats.students}</strong> estudiantes inscritos</span>
           </div>
         </div>
+
         <button
           className="btn"
           onClick={() => onChangeTab('anuncios')}
           style={{
             display: 'flex', alignItems: 'center', gap: '0.5rem',
-            background: '#FCA311', color: '#14213D', border: 'none',
-            fontWeight: 700, fontSize: '0.85rem', padding: '0.6rem 1.2rem',
+            background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none',
+            fontWeight: 700, fontSize: '0.85rem', padding: '0.65rem 1.35rem',
             borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap',
+            boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
             transition: 'all 0.2s ease',
           }}
-          onMouseOver={e => e.currentTarget.style.background = '#e8960a'}
-          onMouseOut={e => e.currentTarget.style.background = '#FCA311'}
+          onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
         >
           <Megaphone size={16} /> Crear anuncio
         </button>
       </div>
-      {/* ── KPI CARDS (4 indicadores) ── */}
+
+      {/* ── KPI CARDS (4 indicadores limpios y estandarizados) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
         {/* KPI 1: Dudas por revisar */}
-        <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #FCA311', cursor: 'pointer', transition: 'all 0.2s ease' }}
+        <div className="card" style={{
+          padding: '1.35rem 1.5rem',
+          borderLeft: `4px solid ${stats.pendingDoubts > 0 ? 'var(--gold, #FCA311)' : '#E2E8F0'}`,
+          borderRadius: '10px',
+          background: stats.pendingDoubts > 0 ? 'rgba(252, 163, 17, 0.04)' : '#FFFFFF',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
+        }}
           onClick={() => onChangeTab('dudas')}
           onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          <span style={{ fontSize: '2.5rem', fontWeight: 800, color: '#14213D', lineHeight: 1 }}>{stats.pendingDoubts}</span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Dudas sin revisar</span>
+          <span style={{ fontSize: '2.3rem', fontWeight: 800, color: stats.pendingDoubts > 0 ? 'var(--gold-dark, #d98a00)' : 'var(--navy, #14213D)', lineHeight: 1 }}>{stats.pendingDoubts}</span>
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Dudas sin revisar</span>
         </div>
+
         {/* KPI 2: Próximas clases */}
-        <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #14213D', cursor: 'pointer', transition: 'all 0.2s ease' }}
+        <div className="card" style={{
+          padding: '1.35rem 1.5rem',
+          borderLeft: '4px solid var(--navy, #14213D)',
+          borderRadius: '10px',
+          background: '#FFFFFF',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
+        }}
           onClick={() => onChangeTab('clases')}
           onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          <span style={{ fontSize: '2.5rem', fontWeight: 800, color: '#14213D', lineHeight: 1 }}>{stats.upcoming}</span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Próximas clases</span>
+          <span style={{ fontSize: '2.3rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1 }}>{stats.upcoming}</span>
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Próximas clases</span>
         </div>
+
         {/* KPI 3: Borradores IA pendientes */}
         <div className="card" style={{
-          padding: '1.5rem',
-          borderLeft: `4px solid ${stats.pendingDrafts > 0 ? '#FCA311' : '#E5E5E5'}`,
+          padding: '1.35rem 1.5rem',
+          borderLeft: `4px solid ${stats.pendingDrafts > 0 ? 'var(--gold, #FCA311)' : '#E2E8F0'}`,
+          borderRadius: '10px',
+          background: stats.pendingDrafts > 0 ? 'rgba(252, 163, 17, 0.04)' : '#FFFFFF',
           cursor: stats.pendingDrafts > 0 ? 'pointer' : 'default',
           transition: 'all 0.2s ease',
-          background: stats.pendingDrafts > 0 ? 'rgba(252, 163, 17, 0.05)' : 'var(--white)',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
         }}
           onClick={() => stats.pendingDrafts > 0 && onChangeTab('clases')}
           onMouseOver={e => stats.pendingDrafts > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '2.5rem', fontWeight: 800, color: stats.pendingDrafts > 0 ? '#FCA311' : '#14213D', lineHeight: 1 }}>{stats.pendingDrafts}</span>
-            {stats.pendingDrafts > 0 && <Sparkles size={18} color="#FCA311" />}
+            <span style={{ fontSize: '2.3rem', fontWeight: 800, color: stats.pendingDrafts > 0 ? 'var(--gold-dark, #d98a00)' : 'var(--navy, #14213D)', lineHeight: 1 }}>{stats.pendingDrafts}</span>
+            {stats.pendingDrafts > 0 && <Sparkles size={18} color="var(--gold, #FCA311)" />}
           </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Borradores IA</span>
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Borradores IA</span>
         </div>
+
         {/* KPI 4: Clases sin grabación */}
         <div className="card" style={{
-          padding: '1.5rem',
-          borderLeft: `4px solid ${stats.missingRecordings > 0 ? '#000000' : '#E5E5E5'}`,
+          padding: '1.35rem 1.5rem',
+          borderLeft: `4px solid ${stats.missingRecordings > 0 ? '#dc2626' : '#E2E8F0'}`,
+          borderRadius: '10px',
+          background: stats.missingRecordings > 0 ? 'rgba(220, 38, 38, 0.03)' : '#FFFFFF',
           cursor: stats.missingRecordings > 0 ? 'pointer' : 'default',
           transition: 'all 0.2s ease',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
         }}
           onClick={() => stats.missingRecordings > 0 && onChangeTab('clases')}
           onMouseOver={e => stats.missingRecordings > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          <span style={{ fontSize: '2.5rem', fontWeight: 800, color: '#14213D', lineHeight: 1 }}>{stats.missingRecordings}</span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sin grabación</span>
+          <span style={{ fontSize: '2.3rem', fontWeight: 800, color: stats.missingRecordings > 0 ? '#dc2626' : 'var(--navy, #14213D)', lineHeight: 1 }}>{stats.missingRecordings}</span>
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sin grabación</span>
         </div>
       </div>
       {/* ── BANDEJA DE ACCIÓN URGENTE ── Solo visible si hay alertas */}
@@ -2953,14 +3690,607 @@ function DudasTab() {
 }
 
 /* ─────────────────────────────────────────
+   MODAL: Contactar Estudiante (Despachador Inteligente de Correo)
+───────────────────────────────────────── */
+function ContactStudentModal({ student, currentProgram, onClose }) {
+  if (!student) return null;
+
+  const email = student.profile?.email || '';
+  const studentName = student.profile?.full_name || 'Estudiante';
+  const programTitle = currentProgram?.title || 'Curso';
+
+  const [subject, setSubject] = useState(
+    `[LIATER] Seguimiento Académico - ${programTitle}`
+  );
+  const [bodyText, setBodyText] = useState(
+    `Estimado(a) ${studentName},\n\nTe contacto desde el Laboratorio LIATER con respecto a tu participación en el curso "${programTitle}".\n\nPor favor revisa tu avance en la plataforma y las actividades pendientes de Reforzamiento IA.\n\nQuedo atento a tus dudas o inquietudes.\n\nSaludos cordiales,\nProfesor.`
+  );
+  const [copied, setCopied] = useState(false);
+
+  // Opción 1: Abrir en Gmail Web
+  const handleOpenGmail = () => {
+    if (!email) return;
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Opción 2: Abrir en Correo Institucional UNAL / Outlook Web (Microsoft 365)
+  const handleOpenOutlook = () => {
+    if (!email) return;
+    const url = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Opción 3: Abrir en cliente de correo local predeterminado
+  const handleOpenMailto = () => {
+    if (!email) return;
+    const url = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+    window.open(url, '_self');
+  };
+
+  // Opción 4: Copiar correo al portapapeles
+  const handleCopy = () => {
+    if (!email) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(email).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      });
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = email;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      backgroundColor: 'rgba(14,21,50,0.65)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1100, padding: '1rem',
+      animation: 'fadeIn 0.2s ease'
+    }}>
+      <div style={{
+        width: '100%', maxWidth: '620px',
+        background: '#FFFFFF',
+        borderRadius: '20px',
+        boxShadow: '0 25px 60px rgba(14,21,50,0.22)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        animation: 'slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)'
+      }}>
+        {/* HEADER */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
+          padding: '1.25rem 1.75rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{
+              width: '42px', height: '42px', borderRadius: '50%',
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 800, fontSize: '1.1rem'
+            }}>
+              <Mail size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{
+                  background: 'rgba(252,163,17,0.2)',
+                  color: 'var(--gold, #FCA311)',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px'
+                }}>
+                  Mensaje al Alumno
+                </span>
+              </div>
+              <h3 style={{ color: '#FFFFFF', margin: '3px 0 0 0', fontSize: '1.1rem', fontWeight: 700 }}>
+                {studentName}
+              </h3>
+              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem' }}>
+                {email || 'Sin correo registrado'}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.1)', border: 'none', cursor: 'pointer',
+            borderRadius: '8px', padding: '0.45rem', color: 'rgba(255,255,255,0.8)',
+            display: 'flex', transition: 'background 0.2s'
+          }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* MODAL BODY */}
+        <div style={{ padding: '1.4rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+          
+          {/* ASUNTO */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy, #14213D)', textTransform: 'uppercase', marginBottom: '4px' }}>
+              Asunto del Correo
+            </label>
+            <input
+              type="text"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+              style={{
+                width: '100%', padding: '0.55rem 0.85rem',
+                borderRadius: '8px', border: '1.5px solid #E2E8F0',
+                fontSize: '0.85rem', color: 'var(--navy, #14213D)',
+                background: '#FAFBFD', outline: 'none', boxSizing: 'border-box'
+              }}
+              onFocus={e => { e.target.style.borderColor = 'var(--gold, #FCA311)'; }}
+              onBlur={e => { e.target.style.borderColor = '#E2E8F0'; }}
+            />
+          </div>
+
+          {/* CUERPO DEL MENSAJE */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy, #14213D)', textTransform: 'uppercase', marginBottom: '4px' }}>
+              Mensaje Preliminar
+            </label>
+            <textarea
+              rows={4}
+              value={bodyText}
+              onChange={e => setBodyText(e.target.value)}
+              style={{
+                width: '100%', padding: '0.65rem 0.85rem',
+                borderRadius: '8px', border: '1.5px solid #E2E8F0',
+                fontSize: '0.85rem', color: 'var(--navy, #14213D)',
+                background: '#FAFBFD', outline: 'none', resize: 'vertical',
+                boxSizing: 'border-box', lineHeight: 1.5
+              }}
+              onFocus={e => { e.target.style.borderColor = 'var(--gold, #FCA311)'; }}
+              onBlur={e => { e.target.style.borderColor = '#E2E8F0'; }}
+            />
+          </div>
+
+          {/* OPCIONES DE ENVÍO DIRECTO */}
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy, #14213D)', textTransform: 'uppercase', marginBottom: '8px' }}>
+              Selecciona tu plataforma de correo:
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.65rem' }}>
+              
+              {/* GMAIL WEB */}
+              <button
+                type="button"
+                onClick={handleOpenGmail}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  padding: '0.7rem 0.9rem', borderRadius: '10px',
+                  border: '1.5px solid #EA4335', background: '#FEF2F2', color: '#B91C1C',
+                  fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseOver={e => { e.currentTarget.style.background = '#EA4335'; e.currentTarget.style.color = '#FFFFFF'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#B91C1C'; }}
+              >
+                <span>🔴</span> Abrir en Gmail Web
+              </button>
+
+              {/* OUTLOOK / CORREO UNAL */}
+              <button
+                type="button"
+                onClick={handleOpenOutlook}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  padding: '0.7rem 0.9rem', borderRadius: '10px',
+                  border: '1.5px solid #0078D4', background: '#EFF6FF', color: '#1D4ED8',
+                  fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseOver={e => { e.currentTarget.style.background = '#0078D4'; e.currentTarget.style.color = '#FFFFFF'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#EFF6FF'; e.currentTarget.style.color = '#1D4ED8'; }}
+              >
+                <span>🏛️</span> Correo UNAL / Outlook
+              </button>
+
+              {/* APP DEL SISTEMA (MAILTO) */}
+              <button
+                type="button"
+                onClick={handleOpenMailto}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  padding: '0.7rem 0.9rem', borderRadius: '10px',
+                  border: '1.5px solid #CBD5E1', background: '#FFFFFF', color: 'var(--navy, #14213D)',
+                  fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseOver={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#94A3B8'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+              >
+                <span>💻</span> App de Correo Local
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* FOOTER */}
+        <div style={{
+          padding: '1rem 1.75rem',
+          borderTop: '1px solid #E2E8F0',
+          background: '#F8FAFC',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            type="button"
+            onClick={handleCopy}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              background: copied ? '#DCFCE7' : '#FFFFFF',
+              color: copied ? '#007A2E' : 'var(--navy, #14213D)',
+              border: `1px solid ${copied ? '#007A2E' : '#CBD5E1'}`,
+              borderRadius: '8px', padding: '0.5rem 0.95rem',
+              fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Copy size={14} />
+            <span>{copied ? '✓ ¡Correo Copiado!' : 'Copiar Dirección'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '0.5rem 1.25rem',
+              borderRadius: '8px',
+              border: '1px solid #CBD5E1',
+              background: '#FFFFFF',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.84rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    TAB: Estudiantes
 ───────────────────────────────────────── */
+function StudentDetailModal({ student, totalActivities, currentProgram, onOpenContact, onClose }) {
+  if (!student) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      backgroundColor: 'rgba(14,21,50,0.65)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, padding: '1rem',
+      animation: 'fadeIn 0.2s ease'
+    }}>
+      <div style={{
+        width: '100%', maxWidth: '780px',
+        maxHeight: '90vh',
+        background: '#FFFFFF',
+        borderRadius: '20px',
+        boxShadow: '0 25px 60px rgba(14,21,50,0.2)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        animation: 'slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)'
+      }}>
+        {/* HEADER */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
+          padding: '1.5rem 2rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '50%',
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 800, fontSize: '1.1rem'
+            }}>
+              {student.profile?.full_name ? student.profile.full_name.charAt(0).toUpperCase() : 'E'}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{
+                  background: 'rgba(252,163,17,0.2)',
+                  color: 'var(--gold, #FCA311)',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px'
+                }}>
+                  Ficha Académica
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem' }}>
+                  Matriculado: {student.enrolled_at ? new Date(student.enrolled_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Reciente'}
+                </span>
+              </div>
+              <h3 style={{ color: '#FFFFFF', margin: '4px 0 0 0', fontSize: '1.15rem', fontWeight: 700 }}>
+                {student.profile?.full_name || 'Estudiante'}
+              </h3>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
+                {student.profile?.email || 'Sin correo registrado'}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.1)', border: 'none', cursor: 'pointer',
+            borderRadius: '8px', padding: '0.45rem', color: 'rgba(255,255,255,0.8)',
+            display: 'flex', transition: 'background 0.2s'
+          }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* MODAL BODY CON SCROLL */}
+        <div style={{ padding: '1.5rem 2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Micro KPIs */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem'
+          }}>
+            <div style={{
+              background: '#F8FAFC',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              padding: '1rem'
+            }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>Avance de Actividades</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: '4px 0' }}>
+                {student.completionRate}%
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                {student.attemptedCount} de {totalActivities} actividades realizadas
+              </div>
+            </div>
+
+            <div style={{
+              background: '#F8FAFC',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              padding: '1rem'
+            }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>Score Promedio</div>
+              <div style={{
+                fontSize: '1.4rem',
+                fontWeight: 800,
+                color: student.avgScore >= 80 ? '#007A2E' : student.avgScore >= 60 ? 'var(--navy, #14213D)' : '#DC2626',
+                margin: '4px 0'
+              }}>
+                {student.avgScore}%
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                {student.avgScore >= 80 ? '⭐ Rendimiento Sobresaliente' : student.avgScore >= 60 ? 'Aprobado satisfactoriamente' : '⚠️ Requiere refuerzo pedagógico'}
+              </div>
+            </div>
+
+            <div style={{
+              background: '#F8FAFC',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              padding: '1rem'
+            }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>Dudas y Consultas</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: '4px 0' }}>
+                {student.doubtsCount}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                {student.doubtsCount > 0 ? 'Preguntas formuladas en el curso' : 'Sin dudas registradas'}
+              </div>
+            </div>
+          </div>
+
+          {/* TABLA DE ACTIVIDADES DE REFORZAMIENTO */}
+          <div>
+            <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+              Desglose de Actividades de Reforzamiento IA
+            </h4>
+
+            {(!student.activitiesBreakdown || student.activitiesBreakdown.length === 0) ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', background: '#F8FAFC', borderRadius: '10px', color: '#64748B', fontSize: '0.85rem' }}>
+                No hay actividades de reforzamiento publicadas en este curso.
+              </div>
+            ) : (
+              <div style={{ borderRadius: '10px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 700, color: 'var(--navy, #14213D)' }}>Actividad / Clase</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--navy, #14213D)' }}>Estado</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--navy, #14213D)' }}>Mejor Calificación</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--navy, #14213D)' }}>Fecha de Entrega</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {student.activitiesBreakdown.map(act => (
+                      <tr key={act.activityId} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '0.75rem 1rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--navy, #14213D)' }}>{act.activityTitle}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{act.classTitle}</div>
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                          {act.isAttempted ? (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '4px',
+                              background: '#DCFCE7', color: '#007A2E',
+                              padding: '2px 8px', borderRadius: '12px',
+                              fontSize: '0.74rem', fontWeight: 700
+                            }}>
+                              <CheckCircle2 size={12} /> Completada
+                            </span>
+                          ) : (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '4px',
+                              background: '#F1F5F9', color: '#64748B',
+                              padding: '2px 8px', borderRadius: '12px',
+                              fontSize: '0.74rem', fontWeight: 600
+                            }}>
+                              Sin realizar
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                          {act.isAttempted ? (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{
+                                fontWeight: 700,
+                                color: act.score >= 80 ? '#007A2E' : act.score >= 60 ? 'var(--navy, #14213D)' : '#DC2626'
+                              }}>
+                                {act.score}%
+                              </span>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94A3B8' }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: '#64748B', fontSize: '0.78rem' }}>
+                          {act.completedAt
+                            ? new Date(act.completedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* DUDAS FORMULADAS */}
+          {student.doubtsList && student.doubtsList.length > 0 && (
+            <div>
+              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                Dudas Formuladas ({student.doubtsList.length})
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {student.doubtsList.map(d => (
+                  <div key={d.id} style={{
+                    padding: '0.75rem 1rem',
+                    background: '#F8FAFC',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--navy, #14213D)', flex: 1 }}>
+                      "{d.question}"
+                    </div>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      background: d.status === 'answered' ? '#DCFCE7' : '#FEF3C7',
+                      color: d.status === 'answered' ? '#007A2E' : '#92400E'
+                    }}>
+                      {d.status === 'answered' ? 'Respondida' : 'Pendiente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER ACTIONS */}
+        <div style={{
+          padding: '1rem 2rem',
+          borderTop: '1px solid #E2E8F0',
+          background: '#F8FAFC',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            type="button"
+            onClick={() => onOpenContact && onOpenContact(student)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'var(--navy, #14213D)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '0.55rem 1.1rem',
+              fontSize: '0.84rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Mail size={15} /> Contactar por Correo ({student.profile?.email})
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '0.55rem 1.25rem',
+              borderRadius: '8px',
+              border: '1px solid #CBD5E1',
+              background: '#FFFFFF',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.84rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   TAB: Estudiantes (Premium Refactored)
+───────────────────────────────────────── */
 function EstudiantesTab() {
-  const { programId } = useTeacherContext();
+  const { programId, currentProgram } = useTeacherContext();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'risk' | 'normal' | 'excellent'
+  const [selectedStudentForModal, setSelectedStudentForModal] = useState(null);
+  const [contactingStudent, setContactingStudent] = useState(null);
+  const [totalPublishedActivities, setTotalPublishedActivities] = useState(0);
 
   useEffect(() => {
     async function fetchStudentAnalytics() {
@@ -2981,14 +4311,16 @@ function EstudiantesTab() {
 
         if (programStudents.length === 0) {
           setStudents([]);
+          setLoading(false);
           return;
         }
 
-        // 2. Obtener class_sessions del programa con class_date
+        // 2. Obtener class_sessions del programa con class_date y title
         const { data: classesData } = await supabase
           .from('class_sessions')
-          .select('id, class_date')
-          .eq('program_id', programId);
+          .select('id, title, class_date')
+          .eq('program_id', programId)
+          .order('class_date', { ascending: true });
         
         const classMap = {};
         (classesData || []).forEach(c => { classMap[c.id] = c; });
@@ -2999,11 +4331,12 @@ function EstudiantesTab() {
         if (classIds.length > 0) {
           const { data: actsData } = await supabase
             .from('class_activities')
-            .select('id, class_id')
+            .select('id, class_id, title, is_published')
             .in('class_id', classIds)
             .eq('is_published', true);
           activitiesList = actsData || [];
         }
+        setTotalPublishedActivities(activitiesList.length);
         const activityIds = activitiesList.map(a => a.id);
 
         // 4. Obtener intentos de esas actividades
@@ -3011,7 +4344,7 @@ function EstudiantesTab() {
         if (activityIds.length > 0) {
           const { data: attsData } = await supabase
             .from('activity_attempts')
-            .select('id, activity_id, student_id, score, status')
+            .select('id, activity_id, student_id, score, status, completed_at')
             .in('activity_id', activityIds);
           attemptsData = attsData || [];
         }
@@ -3019,7 +4352,7 @@ function EstudiantesTab() {
         // 5. Obtener dudas enviadas en el programa
         const { data: doubtsData } = await supabase
           .from('class_doubts')
-          .select('id, student_id')
+          .select('id, student_id, question, status, created_at')
           .eq('program_id', programId);
         const doubtsList = doubtsData || [];
 
@@ -3031,23 +4364,26 @@ function EstudiantesTab() {
           const stuId = enroll.student_id;
           const authUserId = enroll.users_profile?.auth_user_id;
           
-          // Filtrar intentos del estudiante (completados o con score registrado)
+          // Filtrar intentos del estudiante
           const stuAttempts = attemptsData.filter(a => 
             (a.student_id === stuId || (authUserId && a.student_id === authUserId)) && a.status !== 'pending'
           );
           
-          // Mapear el MEJOR intento / puntaje más alto obtenido en cada actividad
-          const bestScoreByAct = {};
+          // Mapear el MEJOR intento / puntaje más alto obtenido en cada actividad y fecha
+          const bestAttemptByAct = {};
           stuAttempts.forEach(att => {
             const actId = att.activity_id;
             const sc = typeof att.score === 'number' ? att.score : 0;
-            if (bestScoreByAct[actId] === undefined || sc > bestScoreByAct[actId]) {
-              bestScoreByAct[actId] = sc;
+            if (!bestAttemptByAct[actId] || sc > (bestAttemptByAct[actId].score || 0)) {
+              bestAttemptByAct[actId] = {
+                score: sc,
+                completedAt: att.completed_at
+              };
             }
           });
 
           // Actividades intentadas / completadas
-          const attemptedCount = Object.keys(bestScoreByAct).length;
+          const attemptedCount = Object.keys(bestAttemptByAct).length;
           const completionRate = totalActivities > 0 
             ? Math.round((attemptedCount / totalActivities) * 100) 
             : 0;
@@ -3056,32 +4392,46 @@ function EstudiantesTab() {
           let evaluatedCount = 0;
           let totalScoreSum = 0;
 
+          const activitiesBreakdown = activitiesList.map(act => {
+            const attempt = bestAttemptByAct[act.id];
+            const cls = classMap[act.class_id];
+            const isAttempted = attempt !== undefined;
+            const score = isAttempted ? attempt.score : 0;
+
+            return {
+              activityId: act.id,
+              activityTitle: act.title || 'Actividad de Reforzamiento',
+              classTitle: cls?.title || 'Clase',
+              classDate: cls?.class_date,
+              isAttempted,
+              score,
+              completedAt: attempt?.completedAt || null
+            };
+          });
+
           activitiesList.forEach(act => {
-            const hasAttempt = bestScoreByAct[act.id] !== undefined;
+            const hasAttempt = bestAttemptByAct[act.id] !== undefined;
             const cls = classMap[act.class_id];
             const isOverdue = cls?.class_date ? new Date(cls.class_date) < now : false;
 
             if (hasAttempt) {
-              // Cuestionario hecho: suma el mejor puntaje obtenido
               evaluatedCount++;
-              totalScoreSum += bestScoreByAct[act.id];
+              totalScoreSum += bestAttemptByAct[act.id].score;
             } else if (isOverdue) {
-              // Cuestionario vencido y no realizado: cuenta en el divisor con puntaje 0
               evaluatedCount++;
               totalScoreSum += 0;
             }
           });
 
-          // Score promedio del mejor intento sobre cuestionarios hechos o vencidos
           let avgScore = 0;
           if (evaluatedCount > 0) {
             avgScore = Math.round(totalScoreSum / evaluatedCount);
           }
 
-          // Conteo de dudas
-          const doubtsCount = doubtsList.filter(d => 
+          // Conteo de dudas y lista de dudas del estudiante
+          const stuDoubts = doubtsList.filter(d => 
             d.student_id === stuId || (authUserId && d.student_id === authUserId)
-          ).length;
+          );
 
           // Determinar estado de riesgo
           let riskStatus = 'normal';
@@ -3094,8 +4444,11 @@ function EstudiantesTab() {
             profile: enroll.users_profile,
             enrolled_at: enroll.created_at,
             completionRate,
+            attemptedCount,
             avgScore,
-            doubtsCount,
+            doubtsCount: stuDoubts.length,
+            doubtsList: stuDoubts,
+            activitiesBreakdown,
             riskStatus
           };
         });
@@ -3118,7 +4471,21 @@ function EstudiantesTab() {
     fetchStudentAnalytics();
   }, [programId]);
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando analítica de estudiantes...</div>;
+  if (loading) {
+    return (
+      <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted, #64748B)', background: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+        <div style={{ width: '32px', height: '32px', border: '3px solid #E2E8F0', borderTopColor: 'var(--gold, #FCA311)', borderRadius: '50%', animation: 'liaterSpin 0.8s linear infinite', margin: '0 auto 1rem' }} />
+        <span>Cargando analítica de estudiantes...</span>
+      </div>
+    );
+  }
+
+  // Métricas del grupo para KPIs superiores
+  const totalCount = students.length;
+  const riskCount = students.filter(s => s.riskStatus === 'risk').length;
+  const excellentCount = students.filter(s => s.riskStatus === 'excellent').length;
+  const normalCount = students.filter(s => s.riskStatus === 'normal').length;
+  const avgCompletion = totalCount > 0 ? Math.round(students.reduce((acc, s) => acc + s.completionRate, 0) / totalCount) : 0;
 
   // Filtrado y Búsqueda
   const filteredStudents = students.filter(s => {
@@ -3126,87 +4493,440 @@ function EstudiantesTab() {
     const term = searchTerm.toLowerCase();
     const nameMatch = (s.profile?.full_name || '').toLowerCase().includes(term);
     const emailMatch = (s.profile?.email || '').toLowerCase().includes(term);
-    if (!nameMatch && !emailMatch) return false;
+    if (term && !nameMatch && !emailMatch) return false;
 
     // Filtro estado
     if (filterStatus === 'risk' && s.riskStatus !== 'risk') return false;
     if (filterStatus === 'excellent' && s.riskStatus !== 'excellent') return false;
+    if (filterStatus === 'normal' && s.riskStatus !== 'normal') return false;
 
     return true;
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       
-      {/* HEADER Y CONTROLES */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+      {/* ── HEADER DE SECCIÓN ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.5rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+      }}>
         <div>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
-            Estudiantes Inscritos ({students.length})
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-            Monitorea el progreso, rendimiento y participación de cada estudiante.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-            <input 
-              type="text" 
-              placeholder="Buscar estudiante..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ padding: '0.5rem 1rem 0.5rem 2.2rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem', width: '220px' }}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '12px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <Users size={12} /> Gestión de Cohorte
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
+              {currentProgram?.title || 'Programa Activo'}
+            </span>
           </div>
-          
-          <select 
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem', background: 'var(--white)', color: 'var(--text-dark)', cursor: 'pointer' }}
-          >
-            <option value="all">Todos los estados</option>
-            <option value="risk">⚠️ En Riesgo (Score &lt; 60% o Participación Baja)</option>
-            <option value="excellent">⭐ Sobresalientes (Score &gt;= 80%)</option>
-          </select>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
+            Estudiantes Inscritos ({totalCount})
+          </h2>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+            Monitorea el progreso, rendimiento académico en reforzamiento IA y estado pedagógico de cada alumno.
+          </p>
         </div>
       </div>
 
-      {/* TABLA DE ESTUDIANTES */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+      {/* ── TARJETAS KPI DE RESUMEN (Patrón homogéneo a Reforzamiento IA) ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: '1rem'
+      }}>
+        {/* KPI 1: Matriculados */}
+        <div className="card" style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        }}>
+          <div style={{
+            width: '46px',
+            height: '46px',
+            borderRadius: '12px',
+            background: '#FEF3C7',
+            color: '#B45309',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Users size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted, #64748B)' }}>
+              Alumnos Matriculados
+            </div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1.2 }}>
+              {totalCount} <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted, #64748B)' }}>activos</span>
+            </div>
+            <div style={{ fontSize: '0.73rem', color: '#64748B', marginTop: '2px' }}>
+              En este programa
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 2: Participación Promedio */}
+        <div className="card" style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        }}>
+          <div style={{
+            width: '46px',
+            height: '46px',
+            borderRadius: '12px',
+            background: '#DCFCE7',
+            color: '#007A2E',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Activity size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted, #64748B)' }}>
+              Participación del Grupo
+            </div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1.2 }}>
+              {avgCompletion}% <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted, #64748B)' }}>avance medio</span>
+            </div>
+            <div style={{ fontSize: '0.73rem', color: '#64748B', marginTop: '2px' }}>
+              {totalPublishedActivities} actividades publicadas
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 3: Alumnos en Riesgo */}
+        <div className="card" style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          padding: '1.25rem 1.5rem',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        }}>
+          <div style={{
+            width: '46px',
+            height: '46px',
+            borderRadius: '12px',
+            background: '#FEE2E2',
+            color: '#DC2626',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <AlertTriangle size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted, #64748B)' }}>
+              Atención Requerida
+            </div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: riskCount > 0 ? '#DC2626' : '#007A2E', lineHeight: 1.2 }}>
+              {riskCount} <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted, #64748B)' }}>en riesgo</span>
+            </div>
+            <div style={{ fontSize: '0.73rem', color: '#64748B', marginTop: '2px' }}>
+              Score &lt; 60% o baja entrega
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── BARRA DE HERRAMIENTAS: BÚSQUEDA Y PILLS DE ESTADO ── */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        {/* Pills de Filtrado */}
+        <div style={{
+          display: 'inline-flex',
+          background: '#F1F5F9',
+          padding: '4px',
+          borderRadius: '10px',
+          gap: '4px',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            style={{
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.4rem 0.85rem',
+              fontSize: '0.82rem',
+              fontWeight: filterStatus === 'all' ? 700 : 500,
+              background: filterStatus === 'all' ? 'var(--navy, #14213D)' : 'transparent',
+              color: filterStatus === 'all' ? '#FFFFFF' : 'var(--text-muted, #64748B)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <span>Todos</span>
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              background: filterStatus === 'all' ? 'rgba(255,255,255,0.2)' : '#E2E8F0',
+              color: filterStatus === 'all' ? '#FFFFFF' : '#64748B'
+            }}>
+              {totalCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('risk')}
+            style={{
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.4rem 0.85rem',
+              fontSize: '0.82rem',
+              fontWeight: filterStatus === 'risk' ? 700 : 500,
+              background: filterStatus === 'risk' ? '#DC2626' : 'transparent',
+              color: filterStatus === 'risk' ? '#FFFFFF' : '#DC2626',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <span>⚠️ En Riesgo</span>
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              background: filterStatus === 'risk' ? 'rgba(255,255,255,0.25)' : '#FEE2E2',
+              color: filterStatus === 'risk' ? '#FFFFFF' : '#991B1B'
+            }}>
+              {riskCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('normal')}
+            style={{
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.4rem 0.85rem',
+              fontSize: '0.82rem',
+              fontWeight: filterStatus === 'normal' ? 700 : 500,
+              background: filterStatus === 'normal' ? 'var(--navy, #14213D)' : 'transparent',
+              color: filterStatus === 'normal' ? '#FFFFFF' : 'var(--text-muted, #64748B)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <span>Al Día</span>
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              background: filterStatus === 'normal' ? 'rgba(255,255,255,0.2)' : '#E2E8F0',
+              color: filterStatus === 'normal' ? '#FFFFFF' : '#64748B'
+            }}>
+              {normalCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('excellent')}
+            style={{
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.4rem 0.85rem',
+              fontSize: '0.82rem',
+              fontWeight: filterStatus === 'excellent' ? 700 : 500,
+              background: filterStatus === 'excellent' ? '#007A2E' : 'transparent',
+              color: filterStatus === 'excellent' ? '#FFFFFF' : '#007A2E',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <span>⭐ Sobresalientes</span>
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              background: filterStatus === 'excellent' ? 'rgba(255,255,255,0.25)' : '#DCFCE7',
+              color: filterStatus === 'excellent' ? '#FFFFFF' : '#007A2E'
+            }}>
+              {excellentCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Buscador */}
+        <div style={{
+          position: 'relative',
+          minWidth: '240px',
+          maxWidth: '340px',
+          flex: '1 1 auto'
+        }}>
+          <Search size={16} style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: '#94A3B8'
+          }} />
+          <input
+            type="text"
+            placeholder="Buscar por nombre o correo..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.5rem 2rem 0.5rem 2.2rem',
+              borderRadius: '8px',
+              border: '1px solid #E2E8F0',
+              background: '#FFFFFF',
+              fontSize: '0.84rem',
+              color: 'var(--navy, #14213D)',
+              outline: 'none',
+              boxSizing: 'border-box',
+              transition: 'all 0.2s ease'
+            }}
+            onFocus={e => { e.target.style.borderColor = 'var(--gold, #FCA311)'; e.target.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.15)'; }}
+            onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; }}
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              style={{
+                position: 'absolute',
+                right: '8px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── TABLA DE CALIFICACIONES Y ESTUDIANTES ── */}
+      <div className="card" style={{
+        padding: 0,
+        overflow: 'hidden',
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
+      }}>
         {filteredStudents.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-            <Users size={40} color="#E5E5E5" style={{ margin: '0 auto 1rem' }} />
-            No se encontraron estudiantes que coincidan con la búsqueda o filtro.
+          <div style={{ textAlign: 'center', padding: '3.5rem 2rem', color: 'var(--text-muted, #64748B)' }}>
+            <Users size={44} style={{ color: '#CBD5E1', margin: '0 auto 1rem' }} />
+            <h4 style={{ margin: '0 0 0.4rem 0', color: 'var(--navy, #14213D)', fontSize: '1.1rem', fontWeight: 700 }}>
+              {searchTerm ? 'No se encontraron estudiantes' : 'No hay estudiantes en este filtro'}
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.85rem' }}>
+              {searchTerm
+                ? `Ningún alumno coincide con el término "${searchTerm}".`
+                : 'No existen registros para el estado seleccionado.'}
+            </p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
               <thead>
-                <tr style={{ background: 'var(--bg-light)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '1rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, width: '30%' }}>Estudiante</th>
-                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Avance de Actividades</th>
-                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Score Promedio</th>
-                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Dudas Realizadas</th>
-                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Estado</th>
+                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', color: 'var(--navy, #14213D)', fontWeight: 700, width: '28%' }}>Estudiante</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', color: 'var(--navy, #14213D)', fontWeight: 700 }}>Avance de Actividades</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', color: 'var(--navy, #14213D)', fontWeight: 700 }}>Score Promedio</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', color: 'var(--navy, #14213D)', fontWeight: 700 }}>Dudas</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', color: 'var(--navy, #14213D)', fontWeight: 700 }}>Estado Académico</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', color: 'var(--navy, #14213D)', fontWeight: 700 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.map(item => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#F8FAFC'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                  <tr
+                    key={item.id}
+                    style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease' }}
+                    onMouseOver={e => e.currentTarget.style.background = '#F8FAFC'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  >
                     
                     {/* INFO ESTUDIANTE */}
-                    <td style={{ padding: '1rem' }}>
+                    <td style={{ padding: '1rem 1.25rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--navy)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem', flexShrink: 0 }}>
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '50%',
+                          background: 'rgba(20, 33, 61, 0.08)',
+                          color: 'var(--navy, #14213D)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          flexShrink: 0
+                        }}>
                           {item.profile?.full_name ? item.profile.full_name.charAt(0).toUpperCase() : 'E'}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 600, color: 'var(--navy)', marginBottom: '2px' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '2px', fontSize: '0.92rem' }}>
                             {item.profile?.full_name || 'Estudiante'}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted, #64748B)' }}>
                             {item.profile?.email || 'Sin correo'}
                           </div>
                         </div>
@@ -3214,22 +4934,35 @@ function EstudiantesTab() {
                     </td>
 
                     {/* AVANCE */}
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '80px', height: '6px', background: '#E5E5E5', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${item.completionRate}%`, height: '100%', background: item.completionRate === 100 ? '#16a34a' : 'var(--gold)', borderRadius: '3px' }}></div>
+                    <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ width: '80px', height: '6px', background: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${item.completionRate}%`,
+                              height: '100%',
+                              background: item.completionRate === 100 ? '#007A2E' : 'var(--gold, #FCA311)',
+                              borderRadius: '3px'
+                            }}></div>
+                          </div>
+                          <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--navy, #14213D)', minWidth: '35px' }}>
+                            {item.completionRate}%
+                          </span>
                         </div>
-                        <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-dark)', minWidth: '35px' }}>{item.completionRate}%</span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                          {item.attemptedCount} de {totalPublishedActivities} actividades
+                        </span>
                       </div>
                     </td>
 
-                    {/* SCORE */}
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                    {/* SCORE PROMEDIO */}
+                    <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                       <span style={{ 
                         fontWeight: 700, 
-                        color: item.avgScore >= 80 ? '#16a34a' : item.avgScore >= 60 ? 'var(--navy)' : '#dc2626',
-                        background: item.avgScore >= 80 ? '#dcfce7' : item.avgScore >= 60 ? '#f1f5f9' : '#fee2e2',
-                        padding: '0.2rem 0.6rem',
+                        color: item.avgScore >= 80 ? '#007A2E' : item.avgScore >= 60 ? 'var(--navy, #14213D)' : '#991B1B',
+                        background: item.avgScore >= 80 ? '#DCFCE7' : item.avgScore >= 60 ? '#F1F5F9' : '#FEE2E2',
+                        border: `1px solid ${item.avgScore >= 80 ? 'rgba(0,122,46,0.2)' : item.avgScore >= 60 ? '#E2E8F0' : 'rgba(220,38,38,0.25)'}`,
+                        padding: '0.2rem 0.65rem',
                         borderRadius: '999px',
                         fontSize: '0.82rem'
                       }}>
@@ -3238,18 +4971,114 @@ function EstudiantesTab() {
                     </td>
 
                     {/* DUDAS */}
-                    <td style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-dark)', fontWeight: 500 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
-                        <MessageSquare size={14} color="var(--text-muted)" />
-                        {item.doubtsCount}
+                    <td style={{ padding: '1rem 1.25rem', textAlign: 'center', color: 'var(--navy, #14213D)', fontWeight: 600 }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#F8FAFC', padding: '0.2rem 0.6rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                        <MessageSquare size={13} color="#64748B" />
+                        <span style={{ fontSize: '0.82rem' }}>{item.doubtsCount}</span>
                       </div>
                     </td>
 
-                    {/* ESTADO */}
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                      {item.riskStatus === 'risk' && <span style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}><AlertTriangle size={14}/> En riesgo</span>}
-                      {item.riskStatus === 'excellent' && <span style={{ color: '#16a34a', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}><Star size={14}/> Excelente</span>}
-                      {item.riskStatus === 'normal' && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 500 }}>Al día</span>}
+                    {/* ESTADO ACADÉMICO */}
+                    <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                      {item.riskStatus === 'risk' && (
+                        <span style={{
+                          color: '#991B1B',
+                          background: '#FEE2E2',
+                          border: '1px solid rgba(220,38,38,0.25)',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <AlertTriangle size={13}/> En riesgo
+                        </span>
+                      )}
+                      {item.riskStatus === 'excellent' && (
+                        <span style={{
+                          color: '#007A2E',
+                          background: '#DCFCE7',
+                          border: '1px solid rgba(0,122,46,0.25)',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <Star size={13}/> Excelente
+                        </span>
+                      )}
+                      {item.riskStatus === 'normal' && (
+                        <span style={{
+                          color: '#475569',
+                          background: '#F1F5F9',
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center'
+                        }}>
+                          Al día
+                        </span>
+                      )}
+                    </td>
+
+                    {/* ACCIONES */}
+                    <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentForModal(item)}
+                          title="Ver Ficha Académica del Alumno"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.4rem 0.75rem',
+                            borderRadius: '6px',
+                            border: '1px solid #E2E8F0',
+                            background: '#FFFFFF',
+                            color: 'var(--navy, #14213D)',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseOver={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+                        >
+                          <Eye size={14} />
+                          <span>Ficha</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setContactingStudent(item)}
+                          title={`Contactar a ${item.profile?.full_name || 'estudiante'} (${item.profile?.email || ''})`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '0.4rem',
+                            borderRadius: '6px',
+                            border: '1px solid #E2E8F0',
+                            background: '#FFFFFF',
+                            color: 'var(--navy, #14213D)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseOver={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+                        >
+                          <Mail size={14} />
+                        </button>
+                      </div>
                     </td>
 
                   </tr>
@@ -3259,6 +5088,29 @@ function EstudiantesTab() {
           </div>
         )}
       </div>
+
+      {/* Modal Ficha Académica del Alumno */}
+      {selectedStudentForModal && (
+        <StudentDetailModal
+          student={selectedStudentForModal}
+          totalActivities={totalPublishedActivities}
+          currentProgram={currentProgram}
+          onOpenContact={(stu) => {
+            setSelectedStudentForModal(null);
+            setContactingStudent(stu);
+          }}
+          onClose={() => setSelectedStudentForModal(null)}
+        />
+      )}
+
+      {/* Modal Despachador de Correo Inteligente */}
+      {contactingStudent && (
+        <ContactStudentModal
+          student={contactingStudent}
+          currentProgram={currentProgram}
+          onClose={() => setContactingStudent(null)}
+        />
+      )}
     </div>
   );
 }
@@ -5678,11 +7530,13 @@ function ReforzamientoIATab({ onChangeTab }) {
    TAB — Anuncios (Premium Rewrite)
 ───────────────────────────────────────── */
 function AnunciosTab() {
-  const { id: teacherId, programId } = useTeacherContext();
+  const { id: teacherId, profile, programId } = useTeacherContext();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'mine' | 'admin'
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchAnnouncements = async () => {
     if (!programId) return;
@@ -5708,7 +7562,7 @@ function AnunciosTab() {
   }, [programId]);
 
   const handleDelete = async (ann) => {
-    if (!window.confirm('¿Eliminar anuncio?')) return;
+    if (!window.confirm(`¿Eliminar el anuncio "${ann.title}"?`)) return;
     try {
       const { error } = await supabase.from('announcements').delete().eq('id', ann.id);
       if (error) throw error;
@@ -5718,120 +7572,539 @@ function AnunciosTab() {
     }
   };
 
-  const getTagStyle = (tag) => {
+  const getTagBadge = (tag, isInstitutional = false, targetRole = 'all') => {
+    if (isInstitutional) {
+      return {
+        bg: 'rgba(0, 122, 46, 0.08)',
+        color: '#007A2E',
+        borderColor: 'rgba(0, 122, 46, 0.25)',
+        icon: '🏛️',
+        label: 'Institucional UNAL',
+        targetLabel: targetRole === 'student' ? 'Para: Estudiantes' : targetRole === 'teacher' ? 'Para: Profesores' : 'Para: Todos'
+      };
+    }
     switch (tag) {
-      case 'urgent': return { color: '#991b1b', bg: '#fee2e2', icon: '🔴', label: 'Urgente' };
-      case 'info': return { color: '#1d4ed8', bg: '#dbeafe', icon: '📌', label: 'Informativo' };
-      default: return { color: '#14213D', bg: '#EEF2F8', icon: '📢', label: 'General' };
+      case 'urgent':
+        return {
+          bg: '#fee2e2',
+          color: '#991b1b',
+          borderColor: 'rgba(220, 38, 38, 0.3)',
+          accentColor: '#dc2626',
+          icon: '🔴',
+          label: 'Urgente'
+        };
+      case 'info':
+        return {
+          bg: '#dbeafe',
+          color: '#1e40af',
+          borderColor: 'rgba(30, 64, 175, 0.25)',
+          accentColor: '#2563eb',
+          icon: '📌',
+          label: 'Informativo'
+        };
+      default:
+        return {
+          bg: '#f1f5f9',
+          color: 'var(--navy, #14213D)',
+          borderColor: '#e2e8f0',
+          accentColor: 'var(--navy, #14213D)',
+          icon: '📢',
+          label: 'General'
+        };
     }
   };
 
   const myAnnouncements = announcements.filter(a => a.teacher_id !== null);
   const adminAnnouncements = announcements.filter(a => a.teacher_id === null);
 
+  // Filtrado por pestaña y búsqueda
+  const filteredAnnouncements = announcements.filter(ann => {
+    const isMine = ann.teacher_id !== null;
+    if (activeFilter === 'mine' && !isMine) return false;
+    if (activeFilter === 'admin' && isMine) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = (ann.title || '').toLowerCase().includes(q);
+      const matchBody = (ann.body || '').toLowerCase().includes(q);
+      return matchTitle || matchBody;
+    }
+    return true;
+  });
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-      {/* SECCIÓN 1: MIS ANUNCIOS */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>Mis Anuncios</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Comunica avisos importantes a los estudiantes inscritos.</p>
-          </div>
-          <button className="btn btn-primary" onClick={() => { setSelectedAnnouncement(null); setShowModal(true); }}>
-            <Megaphone size={16} /> Crear Anuncio
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      
+      {/* ── ENCABEZADO Y ACCIÓN PRINCIPAL ── */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        paddingBottom: '1rem',
+        borderBottom: '1px solid var(--border-color, #E2E8F0)'
+      }}>
+        <div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
+            Anuncios del Curso
+          </h2>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+            Publica avisos, recordatorios y comunicados a los estudiantes inscritos.
+          </p>
+        </div>
+
+        <button
+          className="btn"
+          onClick={() => { setSelectedAnnouncement(null); setShowModal(true); }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: 'var(--gold, #FCA311)',
+            color: 'var(--navy, #14213D)',
+            border: 'none',
+            fontWeight: 700,
+            fontSize: '0.86rem',
+            padding: '0.65rem 1.35rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+        >
+          <Megaphone size={16} /> Crear Anuncio
+        </button>
+      </div>
+
+      {/* ── BARRA DE HERRAMIENTAS: FILTROS SEGMENTADOS Y BÚSQUEDA ── */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        {/* Pills de filtrado */}
+        <div style={{
+          display: 'inline-flex',
+          background: '#F1F5F9',
+          padding: '4px',
+          borderRadius: '10px',
+          gap: '4px'
+        }}>
+          <button
+            type="button"
+            onClick={() => setActiveFilter('all')}
+            style={{
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.4rem 0.9rem',
+              fontSize: '0.82rem',
+              fontWeight: activeFilter === 'all' ? 700 : 500,
+              background: activeFilter === 'all' ? 'var(--navy, #14213D)' : 'transparent',
+              color: activeFilter === 'all' ? '#FFFFFF' : 'var(--text-muted, #64748B)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem'
+            }}
+          >
+            <span>Todos</span>
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              background: activeFilter === 'all' ? 'rgba(255,255,255,0.2)' : '#E2E8F0',
+              color: activeFilter === 'all' ? '#FFFFFF' : '#64748B'
+            }}>
+              {announcements.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveFilter('mine')}
+            style={{
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.4rem 0.9rem',
+              fontSize: '0.82rem',
+              fontWeight: activeFilter === 'mine' ? 700 : 500,
+              background: activeFilter === 'mine' ? 'var(--navy, #14213D)' : 'transparent',
+              color: activeFilter === 'mine' ? '#FFFFFF' : 'var(--text-muted, #64748B)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem'
+            }}
+          >
+            <span>Mis Anuncios</span>
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              background: activeFilter === 'mine' ? 'rgba(255,255,255,0.2)' : '#E2E8F0',
+              color: activeFilter === 'mine' ? '#FFFFFF' : '#64748B'
+            }}>
+              {myAnnouncements.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveFilter('admin')}
+            style={{
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.4rem 0.9rem',
+              fontSize: '0.82rem',
+              fontWeight: activeFilter === 'admin' ? 700 : 500,
+              background: activeFilter === 'admin' ? 'var(--navy, #14213D)' : 'transparent',
+              color: activeFilter === 'admin' ? '#FFFFFF' : 'var(--text-muted, #64748B)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem'
+            }}
+          >
+            <span>Institucionales</span>
+            <span style={{
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              background: activeFilter === 'admin' ? 'rgba(255,255,255,0.2)' : '#E2E8F0',
+              color: activeFilter === 'admin' ? '#FFFFFF' : '#64748B'
+            }}>
+              {adminAnnouncements.length}
+            </span>
           </button>
         </div>
 
-        {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando anuncios...</div>
-        ) : myAnnouncements.length === 0 ? (
-          <div className="card" style={{ padding: '3.5rem 2rem', textAlign: 'center', background: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-            <Megaphone size={40} style={{ color: 'var(--navy)', opacity: 0.4, marginBottom: '1rem' }} />
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.5rem' }}>No hay anuncios publicados</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Haz clic en "Crear Anuncio" para enviar un mensaje a los estudiantes.</p>
+        {/* Buscador de anuncios */}
+        <div style={{
+          position: 'relative',
+          minWidth: '240px',
+          maxWidth: '340px',
+          flex: '1 1 auto'
+        }}>
+          <Search size={16} style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: '#94A3B8'
+          }} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Buscar por título o contenido..."
+            style={{
+              width: '100%',
+              padding: '0.5rem 2rem 0.5rem 2.2rem',
+              borderRadius: '8px',
+              border: '1px solid #E2E8F0',
+              background: '#FFFFFF',
+              fontSize: '0.84rem',
+              color: 'var(--navy, #14213D)',
+              outline: 'none',
+              boxSizing: 'border-box',
+              transition: 'all 0.2s ease'
+            }}
+            onFocus={e => { e.target.style.borderColor = 'var(--gold, #FCA311)'; e.target.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.15)'; }}
+            onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute',
+                right: '8px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── LISTADO DE ANUNCIOS ── */}
+      {loading ? (
+        <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted, #64748B)', background: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+          <div style={{ width: '32px', height: '32px', border: '3px solid #E2E8F0', borderTopColor: 'var(--gold, #FCA311)', borderRadius: '50%', animation: 'liaterSpin 0.8s linear infinite', margin: '0 auto 1rem' }} />
+          <span>Cargando anuncios del programa...</span>
+        </div>
+      ) : filteredAnnouncements.length === 0 ? (
+        <div className="card" style={{
+          padding: '3.5rem 2rem',
+          textAlign: 'center',
+          background: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
+        }}>
+          <div style={{
+            width: '60px',
+            height: '60px',
+            borderRadius: '50%',
+            background: '#F1F5F9',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.25rem',
+            color: 'var(--navy, #14213D)'
+          }}>
+            <Megaphone size={28} />
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {myAnnouncements.map(ann => {
-              const tagStyle = getTagStyle(ann.tag);
-              return (
-                <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--white)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '12px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '0 0 0.5rem 0' }}>
+            {searchQuery ? 'No se encontraron resultados' : 'No hay anuncios en esta sección'}
+          </h3>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: '0 0 1.25rem 0', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+            {searchQuery
+              ? `No se encontró ningún anuncio que coincida con "${searchQuery}". Intenta con otros términos.`
+              : activeFilter === 'mine'
+                ? 'Aún no has publicado anuncios en este curso. Comparte avisos con tus estudiantes.'
+                : activeFilter === 'admin'
+                  ? 'No hay comunicados institucionales de la administración para este programa.'
+                  : 'Crea tu primer comunicado para informar a los alumnos sobre fechas, tareas o novedades.'}
+          </p>
+          {searchQuery ? (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="btn btn-outline"
+              style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
+            >
+              Limpiar búsqueda
+            </button>
+          ) : (
+            <button
+              onClick={() => { setSelectedAnnouncement(null); setShowModal(true); }}
+              style={{
+                background: 'var(--gold, #FCA311)',
+                color: 'var(--navy, #14213D)',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.84rem',
+                padding: '0.55rem 1.2rem',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(252, 163, 17, 0.25)'
+              }}
+            >
+              + Crear Anuncio
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {filteredAnnouncements.map(ann => {
+            const isInstitutional = ann.teacher_id === null;
+            const tagStyle = getTagBadge(ann.tag, isInstitutional, ann.target_role);
+
+            return (
+              <article
+                key={ann.id}
+                className="card announcement-item-card"
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: '12px',
+                  border: '1px solid #E2E8F0',
+                  borderLeft: isInstitutional
+                    ? '4px solid #007A2E'
+                    : ann.tag === 'urgent'
+                      ? '4px solid #DC2626'
+                      : ann.tag === 'info'
+                        ? '4px solid #0284C7'
+                        : '4px solid var(--navy, #14213D)',
+                  boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+                  padding: '1.35rem 1.5rem',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem'
+                }}
+              >
+                {/* Cabecera de la tarjeta: Autor, Badges y Acciones */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: '1rem',
+                  flexWrap: 'wrap'
+                }}>
+                  {/* Autor y metadatos */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: isInstitutional ? 'rgba(0, 122, 46, 0.1)' : 'rgba(20, 33, 61, 0.08)',
+                      color: isInstitutional ? '#007A2E' : 'var(--navy, #14213D)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      flexShrink: 0
+                    }}>
+                      {isInstitutional ? '🏛️' : (profile?.name ? profile.name.charAt(0).toUpperCase() : 'P')}
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                          {isInstitutional ? 'Dirección Académica · UNAL' : (profile?.name ? `Prof. ${profile.name}` : 'Profesor')}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748B)' }}>
+                          · {new Date(ann.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      {/* Badges de clasificación */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '3px', flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: '0.73rem',
+                          fontWeight: 700,
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '6px',
+                          background: tagStyle.bg,
+                          color: tagStyle.color,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          border: `1px solid ${tagStyle.borderColor}`
+                        }}>
                           {tagStyle.icon} {tagStyle.label}
                         </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {new Date(ann.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
+
+                        {isInstitutional && tagStyle.targetLabel && (
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '6px',
+                            background: '#F1F5F9',
+                            color: '#64748B'
+                          }}>
+                            {tagStyle.targetLabel}
+                          </span>
+                        )}
                       </div>
-                      <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)' }}>{ann.title}</h4>
-                      <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{ann.body}</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="btn btn-outline" style={{ padding: '0.5rem' }} onClick={() => { setSelectedAnnouncement(ann); setShowModal(true); }}>
-                        <Edit3 size={16} />
-                      </button>
-                      <button className="btn btn-outline" style={{ padding: '0.5rem', color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2' }} onClick={() => handleDelete(ann)}>
-                        <Trash2 size={16} />
-                      </button>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
-      {/* SECCIÓN 2: AVISOS DE ADMINISTRACIÓN */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>Avisos de Administración</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Comunicados institucionales específicos para este programa.</p>
-          </div>
+                  {/* Acciones para el docente (Editar / Eliminar) */}
+                  {!isInstitutional && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedAnnouncement(ann); setShowModal(true); }}
+                        title="Editar anuncio"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                          background: '#FFFFFF',
+                          color: 'var(--navy, #14213D)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+                      >
+                        <Edit3 size={14} />
+                        <span>Editar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(ann)}
+                        title="Eliminar anuncio"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '0.4rem',
+                          borderRadius: '6px',
+                          border: '1px solid #FEE2E2',
+                          background: '#FEF2F2',
+                          color: '#EF4444',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#FEE2E2'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = '#FEF2F2'; }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Contenido del Anuncio */}
+                <div style={{ marginTop: '0.25rem' }}>
+                  <h3 style={{
+                    margin: '0 0 0.45rem 0',
+                    fontSize: '1.12rem',
+                    fontWeight: 700,
+                    color: 'var(--navy, #14213D)',
+                    lineHeight: 1.35
+                  }}>
+                    {ann.title}
+                  </h3>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '0.92rem',
+                    color: 'var(--text-secondary, #334155)',
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                    {ann.body}
+                  </p>
+                </div>
+
+                {/* Pie de tarjeta con indicador de alcance */}
+                <div style={{
+                  paddingTop: '0.65rem',
+                  borderTop: '1px solid #F1F5F9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-muted, #64748B)'
+                }}>
+                  <Users size={13} style={{ opacity: 0.7 }} />
+                  <span>Enviado a los estudiantes inscritos en el curso</span>
+                </div>
+              </article>
+            );
+          })}
         </div>
+      )}
 
-        {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando avisos...</div>
-        ) : adminAnnouncements.length === 0 ? (
-          <div className="card" style={{ padding: '2.5rem 2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-muted)', margin: 0 }}>No hay avisos recientes de administración</h3>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {adminAnnouncements.map(ann => {
-              const tagStyle = getTagStyle(ann.tag);
-              return (
-                <div key={ann.id} className="card" style={{ padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: tagStyle.color }}></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', paddingLeft: '0.5rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '12px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {tagStyle.icon} Institucional - {tagStyle.label}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.6rem', borderRadius: '12px', background: '#f1f5f9', color: '#64748b' }}>
-                          Para: {ann.target_role === 'student' ? 'Estudiantes' : ann.target_role === 'teacher' ? 'Profesores' : 'Todos'}
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {new Date(ann.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)' }}>{ann.title}</h4>
-                      <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{ann.body}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
+      {/* Modal de Crear / Editar Anuncio */}
       {showModal && (
         <AnnouncementModal
           announcement={selectedAnnouncement}
@@ -5844,7 +8117,7 @@ function AnunciosTab() {
 }
 
 const TABS = [
-  { id: 'resumen',      label: 'Inicio',                    icon: <BookOpen size={16} />,        component: ResumenTab },
+  { id: 'resumen',      label: 'Panorama del Curso',        icon: <BookOpen size={16} />,        component: ResumenTab },
   { id: 'clases',       label: 'Mis Clases',                icon: <Video size={16} />,           component: ClasesTab },
   { id: 'reforzamiento',label: 'Reforzamiento IA',          icon: <Brain size={16} />,           component: ReforzamientoIATab },
   { id: 'dudas',        label: 'Dudas',                     icon: <MessageSquare size={16} />,   component: DudasTab },
@@ -5874,9 +8147,7 @@ export default function TeacherPanel() {
 
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl) {
-      setActiveTab(tabFromUrl);
-    }
+    setActiveTab(tabFromUrl || 'resumen');
   }, [searchParams]);
 
   // Función centralizada de cambio de pestaña con soporte de deep-link a duda específica
@@ -5929,24 +8200,34 @@ export default function TeacherPanel() {
     }
 
     async function fetchAllPrograms() {
-      // Solo cargar programas donde el profesor tiene clases asignadas
       try {
-        // Primero obtenemos el teacher_profile.id (puede diferir del currentUser.id)
+        // 1. Obtener teacher_profile.id del usuario actual
         const { data: profileData } = await supabase
           .from('teacher_profiles')
           .select('id')
           .eq('user_id', currentUser.id)
           .maybeSingle();
         const tId = profileData?.id;
-        if (!tId) return;
 
-        // Obtenemos los program_id distintos donde tiene clases
-        const { data: classRows } = await supabase
-          .from('class_sessions')
+        // 2. Obtener programas desde enrollments (asignación directa de administrador)
+        const { data: enrollRows } = await supabase
+          .from('enrollments')
           .select('program_id')
-          .eq('teacher_id', tId);
+          .eq('student_id', currentUser.id);
 
-        const uniqueProgramIds = [...new Set((classRows || []).map(r => r.program_id).filter(Boolean))];
+        const enrollProgIds = (enrollRows || []).map(r => r.program_id).filter(Boolean);
+
+        // 3. Obtener programas donde el profesor tiene clases asignadas en class_sessions
+        let classProgIds = [];
+        if (tId) {
+          const { data: classRows } = await supabase
+            .from('class_sessions')
+            .select('program_id')
+            .eq('teacher_id', tId);
+          classProgIds = (classRows || []).map(r => r.program_id).filter(Boolean);
+        }
+
+        const uniqueProgramIds = [...new Set([...enrollProgIds, ...classProgIds])];
         if (uniqueProgramIds.length === 0) return;
 
         const { data } = await supabase
@@ -6026,9 +8307,35 @@ export default function TeacherPanel() {
               Mis programas
             </Link>
             <span>/</span>
-            <span style={{ color: 'var(--navy)', fontWeight: 700 }}>
-              {currentProgram?.title || 'Cargando programa...'}
-            </span>
+            {myPrograms.length > 1 ? (
+              <select
+                value={programId}
+                onChange={e => navigate(`/dashboard/profesor/${e.target.value}`)}
+                aria-label="Seleccionar programa"
+                style={{
+                  padding: '0.3rem 0.6rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: '#ffffff',
+                  color: 'var(--navy)',
+                  fontWeight: 700,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  maxWidth: '320px'
+                }}
+              >
+                {myPrograms.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.title} ({p.program_type === 'curso' ? 'Curso' : p.program_type === 'taller' ? 'Taller' : 'Diplomado'})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ color: 'var(--navy)', fontWeight: 700 }}>
+                {currentProgram?.title || 'Cargando programa...'}
+              </span>
+            )}
             {currentProgram && (currentProgram.is_published === false || currentProgram.status === 'draft' || currentProgram.status === 'disabled') && (
               <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', marginLeft: '0.5rem' }}>
                 INHABILITADO
@@ -6062,40 +8369,7 @@ export default function TeacherPanel() {
                 <Video size={16} /> Unirse a la sesión en vivo
               </a>
             )}
-            <Link
-              to="/portal"
-              style={{
-                fontSize: '0.82rem',
-                color: 'var(--text-muted)',
-                textDecoration: 'none',
-                padding: '0.4rem 0.8rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color)',
-                background: 'var(--white)',
-                fontWeight: 600,
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={e => { e.currentTarget.style.background = 'var(--bg-light)'; e.currentTarget.style.color = 'var(--navy)'; }}
-              onMouseOut={e => { e.currentTarget.style.background = 'var(--white)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >
-              ← Volver a mis programas
-            </Link>
           </div>
-        </div>
-
-        {/* --- PESTAÑAS DEL PROGRAMA --- */}
-        <div className="teacher-tabs">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              id={`teacher-tab-${tab.id}`}
-              className={`teacher-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
         </div>
 
         <ActiveComponent onChangeTab={handleChangeTab} />

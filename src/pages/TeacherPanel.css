@@ -1,4 +1,4 @@
-﻿/* ================================================
+/* ================================================
    TEACHER PANEL - Estilos con nuevo sistema de diseño LIATER
    Navy Profundo + Dorado + Verde UNAL
    ================================================ */
@@ -6,40 +6,40 @@
 .teacher-tabs {
   display: flex;
   gap: 0.5rem;
-  border-bottom: 2px solid var(--border-color);
-  margin-bottom: 2rem;
+  border-bottom: 2px solid var(--border-color, #E2E8F0);
+  margin-bottom: 1.5rem;
   flex-wrap: wrap;
 }
 
 .teacher-tab-btn {
-  padding: 0.625rem 1rem;
+  padding: 0.65rem 1.15rem;
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--text-muted, #64748B);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
-  transition: var(--transition-fast);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  transition: var(--transition-fast, all 0.15s ease);
+  border-radius: var(--radius-md, 6px) var(--radius-md, 6px) 0 0;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   white-space: nowrap;
 }
 
 .teacher-tab-btn:hover {
-  color: var(--primary-700);
-  background: var(--surface-light);
+  color: var(--navy, #14213D);
+  background: rgba(20, 33, 61, 0.03);
 }
 
 .teacher-tab-btn.active {
-  color: var(--gold-600);
-  border-bottom-color: var(--gold-500);
-  background: var(--gold-subtle);
-  font-weight: 600;
+  color: var(--navy, #14213D);
+  border-bottom-color: var(--gold, #FCA311);
+  background: rgba(252, 163, 17, 0.08);
+  font-weight: 700;
 }
 
 /* Hero banner del perfil de profesor */

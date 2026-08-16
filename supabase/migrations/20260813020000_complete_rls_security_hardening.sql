@@ -86,6 +86,11 @@ AS $$
     FROM public.class_sessions cs
     WHERE cs.program_id = p_program_id
       AND cs.teacher_id = public.get_auth_teacher_id()
+  ) OR EXISTS (
+    SELECT 1
+    FROM public.enrollments e
+    WHERE e.program_id = p_program_id
+      AND e.student_id = public.get_auth_profile_id()
   );
 $$;
 
@@ -323,18 +328,17 @@ CREATE POLICY "enrollments_admin_all"
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
+CREATE POLICY "enrollments_read_own"
+  ON public.enrollments FOR SELECT
+  USING (
+    student_id = public.get_auth_profile_id()
+  );
+
 CREATE POLICY "enrollments_teacher_read"
   ON public.enrollments FOR SELECT
   USING (
     public.get_auth_user_role() = 'teacher'
     AND public.is_teacher_in_program(program_id)
-  );
-
-CREATE POLICY "enrollments_student_read_own"
-  ON public.enrollments FOR SELECT
-  USING (
-    public.get_auth_user_role() = 'student'
-    AND student_id = public.get_auth_profile_id()
   );
 
 -- ----------------------------------------------------------------------------------------
