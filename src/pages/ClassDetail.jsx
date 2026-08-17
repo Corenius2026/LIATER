@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
@@ -10,8 +11,18 @@ import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
   Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck,
-  MessageSquare, Check, Lock, RotateCcw, Zap, Radio
+  MessageSquare, Check, Lock, RotateCcw, Zap, Radio, Eye
 } from 'lucide-react';
+
+function formatEmbedDocUrl(url) {
+  if (!url) return '';
+  let trimmed = url.trim();
+  if (trimmed.includes('drive.google.com')) {
+    if (trimmed.includes('/preview')) return trimmed;
+    return trimmed.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
+  }
+  return trimmed;
+}
 
 function formatEmbedVideoUrl(url) {
   if (!url) return null;
@@ -209,6 +220,7 @@ export default function ClassDetail() {
   const [moduleTitle, setModuleTitle] = useState('');
   const [moduleId, setModuleId] = useState(null);
   const [resources, setResources] = useState([]);
+  const [selectedDoc, setSelectedDoc] = useState(null);
   const [programType, setProgramType] = useState(null);
   const [loading, setLoading] = useState(true);
   const [programProgressDetails, setProgramProgressDetails] = useState(null);
@@ -1250,9 +1262,21 @@ export default function ClassDetail() {
                       </div>
                     </div>
 
-                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem' }}>
-                      <Download size={14} /> Descargar / Abrir
-                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDoc(res)}
+                      className="btn btn-outline"
+                      style={{
+                        fontSize: '0.78rem',
+                        padding: '0.4rem 0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Eye size={14} /> Abrir
+                    </button>
                   </div>
                 ))}
               </div>
@@ -2253,8 +2277,141 @@ export default function ClassDetail() {
               </div>
             )}
 
+      {/* MODAL VISOR DE DOCUMENTO IN-APP (SIN REDIRECCIÓN EXTERNA) */}
+      {selectedDoc && createPortal(
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 99999,
+            padding: '1.25rem',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => setSelectedDoc(null)}
+        >
+          <div 
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '1100px',
+              width: '100%',
+              height: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Encabezado del Visor */}
+            <div style={{
+              padding: '0.85rem 1.25rem',
+              borderBottom: '1px solid var(--border-color, #e2e8f0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#f8fafc',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '8px',
+                  background: 'var(--navy, #14213d)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  flexShrink: 0
+                }}>
+                  <FileText size={17} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    color: 'var(--navy, #14213d)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {selectedDoc.title || 'Documento de la Clase'}
+                  </h3>
+                  {selectedDoc.description && (
+                    <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>
+                      {selectedDoc.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedDoc(null)}
+                style={{
+                  background: 'rgba(0, 0, 0, 0.05)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.45rem 0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  color: 'var(--navy, #14213d)',
+                  transition: 'background 0.2s'
+                }}
+              >
+                <X size={16} /> Cerrar
+              </button>
+            </div>
+
+            {/* Contenedor del Iframe con Bloqueador de Redirección */}
+            <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', background: '#0f172a' }}>
+              {/* Bloqueador invisible sobre la esquina superior derecha para inhabilitar el botón de redirección de Google Drive */}
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '64px',
+                  height: '56px',
+                  zIndex: 20,
+                  background: 'transparent',
+                  cursor: 'default'
+                }}
+                title=""
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              />
+
+              <iframe
+                src={formatEmbedDocUrl(selectedDoc.url)}
+                title={selectedDoc.title || 'Visor de Documento'}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                  display: 'block'
+                }}
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                allow="autoplay"
+              />
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>
