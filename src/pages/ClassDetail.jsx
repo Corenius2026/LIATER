@@ -2277,6 +2277,10 @@ export default function ClassDetail() {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
       {/* MODAL VISOR DE DOCUMENTO IN-APP (SIN REDIRECCIÓN EXTERNA) */}
       {selectedDoc && createPortal(
         <div 
