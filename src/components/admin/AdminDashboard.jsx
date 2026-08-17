@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   Users, GraduationCap, BookOpen, ListTree, Video,
   LayoutDashboard, Clock, Zap, UserPlus, Megaphone,
@@ -16,12 +16,12 @@ export default function AdminDashboard({
   // ESTADISTICAS
   let stats = [
     { label: "Alumnos Inscritos", value: counts?.usuarios   || 0, color: "var(--navy)",      bg: "rgba(20, 33, 61, 0.08)",  icon: <Users        size={22} color="var(--navy)"      /> },
-    { label: "Profesores",        value: counts?.profesores  || 0, color: "var(--gold-dark)", bg: "var(--gold-subtle)",      icon: <GraduationCap size={22} color="var(--gold-dark)" /> },
-    { label: "Modulos",           value: counts?.modulos     || 0, color: "#16a34a",          bg: "#f0fdf4",                 icon: <BookOpen     size={22} color="#16a34a"           /> },
-    { label: "Sesiones",          value: (counts?.sesiones ?? counts?.subtemas) || 0, color: "var(--navy)", bg: "rgba(20, 33, 61, 0.08)", icon: <ListTree size={22} color="var(--navy)" /> },
-    { label: "Clases",            value: counts?.clases      || 0, color: "var(--gold-dark)", bg: "var(--gold-subtle)",      icon: <Video        size={22} color="var(--gold-dark)" /> },
+    { label: "Profesores Asignados", value: counts?.profesores  || 0, color: "var(--gold-dark)", bg: "var(--gold-subtle)",      icon: <GraduationCap size={22} color="var(--gold-dark)" /> },
+    { label: "Módulos",           value: counts?.modulos     || 0, color: "#16a34a",          bg: "#f0fdf4",                 icon: <BookOpen     size={22} color="#16a34a"           /> },
+    { label: "Sesiones",          value: (counts?.sesiones ?? counts?.subtemas) || 0, color: "#0284c7", bg: "#eff6ff", icon: <ListTree size={22} color="#0284c7" /> },
+    { label: "Clases Programadas", value: counts?.clases      || 0, color: "var(--gold-dark)", bg: "var(--gold-subtle)",      icon: <Video        size={22} color="var(--gold-dark)" /> },
   ];
-  if (isCourse) stats = stats.filter(s => s.label !== "Modulos");
+  if (isCourse) stats = stats.filter(s => s.label !== "Módulos");
 
   // ACCESOS RAPIDOS (5)
   const quickActions = [
@@ -132,13 +132,81 @@ export default function AdminDashboard({
         )}
       </div>
 
-      {/* ESTADISTICAS */}
-      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "1.15rem" }}>
+      {/* ESTADISTICAS (KPIs en Grid Horizontal) */}
+      <div
+        className="stats-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          gap: "1.1rem",
+          width: "100%",
+          marginBottom: "0.25rem"
+        }}
+      >
         {stats.map(s => (
-          <div className="stat-card" key={s.label} style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-lg)", padding: "1.25rem", boxShadow: "var(--shadow-sm)" }}>
-            <div className="stat-icon" style={{ background: s.bg, width: 44, height: 44, borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "0.85rem" }}>{s.icon}</div>
-            <div className="stat-number" style={{ color: "var(--navy)", fontWeight: 800, fontSize: "1.8rem", lineHeight: 1 }}>{s.value ?? "0"}</div>
-            <div className="stat-label" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.78rem", marginTop: "0.35rem" }}>{s.label}</div>
+          <div
+            className="stat-card"
+            key={s.label}
+            style={{
+              background: "#ffffff",
+              border: "1px solid var(--border-color)",
+              borderRadius: "14px",
+              padding: "1.15rem 1.25rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 6px 16px rgba(20, 33, 61, 0.08)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.04)";
+            }}
+          >
+            <div
+              className="stat-icon"
+              style={{
+                background: s.bg,
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {s.icon}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <span
+                style={{
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  fontSize: "0.72rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  lineHeight: 1.2,
+                }}
+              >
+                {s.label}
+              </span>
+              <span
+                style={{
+                  color: "var(--navy)",
+                  fontWeight: 800,
+                  fontSize: "1.75rem",
+                  lineHeight: 1.1,
+                  marginTop: "0.25rem",
+                }}
+              >
+                {s.value ?? "0"}
+              </span>
+            </div>
           </div>
         ))}
       </div>
