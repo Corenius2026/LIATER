@@ -133,7 +133,7 @@ class ErrorBoundary extends React.Component {
               </button>
             </div>
 
-            {isDev && this.state.error && (
+            {this.state.error && (
               <div style={{ marginTop: '2rem', textAlign: 'left' }}>
                 <button
                   type="button"

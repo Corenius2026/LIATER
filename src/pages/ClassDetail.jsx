@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { createDoubt, fetchStudentDoubtsForClass } from '../services/doubtService';
 import { calculateProgramProgressDetails } from '../services/programService';
-import { isClassLiveOrSoon } from '../utils/dateUtils';
+import { isClassLiveOrSoon, formatClassDate } from '../utils/dateUtils';
 import { safeJsonParse, safeSetItem, safeRemoveItem } from '../utils/storageUtils';
 import {
   Download, FileText, Video, Calendar, User, ExternalLink,
@@ -1242,7 +1242,7 @@ export default function ClassDetail() {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                       <div style={{ padding: '0.5rem', background: '#fff', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                        {getResourceIcon(res.type)}
+                        {getResourceIcon(res.resource_type || res.type)}
                       </div>
                       <div>
                         <h4 style={{ fontWeight: 600, color: 'var(--navy)', fontSize: '0.88rem', margin: 0 }}>{res.title}</h4>
