@@ -111,13 +111,16 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
     setYtLinking(false);
   };
 
-  const isPastClass = new Date(selectedClass?.class_date) < new Date();
+  if (!selectedClass) return null;
+
+  const isPastClass = selectedClass?.class_date ? new Date(selectedClass.class_date) < new Date() : false;
 
   // Determina el estado de ciclo de vida de la clase
   const classStatus = (() => {
-    if (!selectedClass) return 'upcoming';
+    if (!selectedClass || !selectedClass.class_date) return 'upcoming';
     const now = new Date();
     const classDate = new Date(selectedClass.class_date);
+    if (isNaN(classDate.getTime())) return 'upcoming';
     const diff = classDate - now;
     if (diff > 0 && diff < 60 * 60 * 1000) return 'live';   // próxima hora
     if (diff > 0) return 'upcoming';
@@ -147,7 +150,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
     completed: { label: 'Finalizada',  bg: '#DCFCE7',                color: '#007A2E', border: 'rgba(0,122,46,0.3)' },
     pending:   { label: 'Pendiente',   bg: '#FEF3C7',                color: '#92400E', border: 'rgba(245,158,11,0.4)' },
   };
-  const statusInfo = STATUS_LABELS[classStatus];
+  const statusInfo = STATUS_LABELS[classStatus] || STATUS_LABELS.upcoming;
 
   // ── FETCH MATERIALES ──
   const fetchMaterials = async () => {
@@ -609,12 +612,14 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
               <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)', marginTop: '0.45rem', flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <CalendarDays size={13} color="var(--gold, #FCA311)" />
-                  {new Date(selectedClass?.class_date).toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                  {selectedClass?.class_date ? formatClassDate(selectedClass.class_date, false) : 'Fecha por confirmar'}
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Clock size={13} color="var(--gold, #FCA311)" />
-                  {new Date(selectedClass?.class_date).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} · {selectedClass?.duration || 0} min
-                </span>
+                {selectedClass?.duration ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={13} color="var(--gold, #FCA311)" />
+                    {selectedClass.duration} min
+                  </span>
+                ) : null}
               </div>
             </div>
 
