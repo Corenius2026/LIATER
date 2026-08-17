@@ -899,14 +899,6 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                           )}
                         </div>
 
-                        {/* Nomenclatura preview */}
-                        {uploadFile && (
-                          <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', padding: '0.65rem 0.85rem', fontSize: '0.78rem', color: '#0369A1', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Sparkles size={14} color="#0284C7" style={{ flexShrink: 0 }} />
-                            <span><strong>Nomenclatura automática en Drive:</strong> [Clase {String(selectedClass?.order_index || 1).padStart(2, '0')} - {selectedClass?.title || 'Clase'}] {uploadFile.name}</span>
-                          </div>
-                        )}
-
                         <div style={{ marginBottom: '0.85rem' }}>
                           <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>
                             Título visible para los estudiantes (Opcional)
@@ -1124,14 +1116,6 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                             </div>
                           )}
                         </div>
-
-                        {/* Nomenclatura preview */}
-                        {uploadFile && (
-                          <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', padding: '0.65rem 0.85rem', fontSize: '0.78rem', color: '#0369A1', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Sparkles size={14} color="#0284C7" style={{ flexShrink: 0 }} />
-                            <span><strong>Nomenclatura automática en Drive:</strong> [Clase {String(selectedClass?.order_index || 1).padStart(2, '0')} - {selectedClass?.title || 'Clase'}] {uploadFile.name}</span>
-                          </div>
-                        )}
 
                         <div style={{ marginBottom: '0.85rem' }}>
                           <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>
