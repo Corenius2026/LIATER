@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { updateDoubtStatus } from '../services/doubtService';
@@ -33,6 +34,14 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
   const { currentProgram } = useTeacherContext();
   const { currentUser } = useAuth();
   const [activeSection, setActiveSection] = useState(initialSection || 'preclass'); // 'preclass' | 'recording' | 'activity'
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     if (initialSection) {
@@ -448,13 +457,13 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
   const moduleName = selectedClass?.sessions?.modules?.title || selectedClass?.subtopics?.modules?.title || 'Módulo';
   const sessionName = selectedClass?.sessions?.title || selectedClass?.subtopics?.title || 'Sesión';
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
       backgroundColor: 'rgba(14,21,50,0.65)',
       backdropFilter: 'blur(5px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: '1rem',
+      zIndex: 99999, padding: '1rem',
       animation: 'fadeIn 0.2s ease'
     }}>
       <div style={{
@@ -1275,7 +1284,8 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -2166,13 +2176,13 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
     boxSizing: 'border-box'
   };
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
       backgroundColor: 'rgba(14,21,50,0.65)',
       backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: '1rem',
+      zIndex: 99999, padding: '1rem',
       animation: 'fadeIn 0.2s ease'
     }}>
       <div style={{
@@ -2331,7 +2341,8 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -3748,13 +3759,13 @@ function ContactStudentModal({ student, currentProgram, onClose }) {
     }
   };
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
       backgroundColor: 'rgba(14,21,50,0.65)',
       backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1100, padding: '1rem',
+      zIndex: 99999, padding: '1rem',
       animation: 'fadeIn 0.2s ease'
     }}>
       <div style={{
@@ -3969,7 +3980,8 @@ function ContactStudentModal({ student, currentProgram, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -3979,13 +3991,13 @@ function ContactStudentModal({ student, currentProgram, onClose }) {
 function StudentDetailModal({ student, totalActivities, currentProgram, onOpenContact, onClose }) {
   if (!student) return null;
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
       backgroundColor: 'rgba(14,21,50,0.65)',
       backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: '1rem',
+      zIndex: 99999, padding: '1rem',
       animation: 'fadeIn 0.2s ease'
     }}>
       <div style={{
@@ -4275,7 +4287,8 @@ function StudentDetailModal({ student, totalActivities, currentProgram, onOpenCo
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

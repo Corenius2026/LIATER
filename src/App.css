@@ -186,6 +186,7 @@
 
 /* ── Page Content ── */
 .page-content {
-  padding: 1.15rem 2rem; flex: 1;
-  animation: fadeSlideUp 0.35s cubic-bezier(0.4,0,0.2,1) both;
+  padding: 1.15rem 2rem;
+  flex: 1;
+  animation: fadeIn 0.25s ease;
 }
