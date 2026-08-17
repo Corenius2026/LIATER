@@ -462,7 +462,7 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                   {classToday.class_date && (
                     <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.78rem', margin: 0 }}>
-                      {new Date(classToday.class_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs
+                      {new Date(classToday.class_date).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs
                     </p>
                   )}
                   {classToday.teacher_profiles?.name && (
@@ -513,7 +513,7 @@ export default function Dashboard() {
                   {classToday.class_date && (
                     <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.78rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Clock size={12} color="var(--gold)" />
-                      Inicio: {new Date(classToday.class_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs
+                      Inicio: {new Date(classToday.class_date).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs
                     </p>
                   )}
                   {classToday.teacher_profiles?.name && (
@@ -704,7 +704,7 @@ export default function Dashboard() {
                         <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                           <Clock size={11} />
                           {classDate
-                            ? classDate.toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                            ? classDate.toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })
                             : 'Fecha por confirmar'}
                         </p>
                         {cls.teacher_profiles?.name && (

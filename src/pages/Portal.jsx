@@ -820,7 +820,7 @@ function TeacherPortal({ getDiplomadoLink }) {
     const d = new Date(nextClass.class_date);
     nextClassDay = d.getDate();
     nextClassMonth = d.toLocaleString('es-ES', { month: 'short' });
-    nextClassTimeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    nextClassTimeStr = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
     nextClassProgTitle = nextClass.diploma_programs?.title || nextClass.sessions?.modules?.diploma_programs?.title || nextClass.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
     nextClassModuleName = nextClass.sessions?.modules?.title || nextClass.subtopics?.modules?.title || nextClass.module_name || '';
     nextClassProgId = nextClass.diploma_programs?.id || nextClass.sessions?.modules?.diploma_programs?.id || nextClass.subtopics?.modules?.diploma_programs?.id || nextClass.program_id;
@@ -1040,7 +1040,7 @@ function TeacherPortal({ getDiplomadoLink }) {
                 const d = new Date(progUpcomingClass.class_date);
                 const day = d.getDate();
                 const month = d.toLocaleString('es-ES', { month: 'short' });
-                const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                const time = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
                 progNextClassStr = `${day} ${month} · ${time} hrs`;
               } else if (progClassCount > 0) {
                 progNextClassStr = '✓ Clases concluidas';
@@ -1449,7 +1449,7 @@ function TeacherPortal({ getDiplomadoLink }) {
               const d = new Date(cls.class_date);
               const day = d.getDate();
               const month = d.toLocaleString('es-ES', { month: 'short' });
-              const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+              const timeStr = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
               const progTitle = cls.diploma_programs?.title || cls.sessions?.modules?.diploma_programs?.title || cls.subtopics?.modules?.diploma_programs?.title || 'Programa asignado';
               const progId = cls.diploma_programs?.id || cls.sessions?.modules?.diploma_programs?.id || cls.subtopics?.modules?.diploma_programs?.id || cls.program_id;
               

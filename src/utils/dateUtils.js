@@ -80,9 +80,10 @@ export const formatClassDate = (isoString, includeTimezoneSuffix = true) => {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      hour: 'numeric',
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      hour12: false,
+      hourCycle: 'h23'
     });
     
     const formatted = formatter.format(date);
@@ -108,12 +109,13 @@ export const formatShortDate = (isoString) => {
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: false,
       hourCycle: 'h23'
     }).format(date);
   } catch (e) {
     return '—';
   }
-}
+};
 
 /**
  * Determina si la clase es en el futuro basado en la hora actual.

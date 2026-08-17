@@ -1040,8 +1040,7 @@ export default function ClassDetail() {
               <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.84rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
                 {clsData.class_date && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Calendar size={15} color="var(--gold-dark)" />
-                    {new Date(clsData.class_date).toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                    {formatClassDate(clsData.class_date)}
                   </span>
                 )}
                 {clsData.teacher_profiles?.name && (
@@ -1143,7 +1142,7 @@ export default function ClassDetail() {
                     <div>
                       <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.1rem 0' }}>Clase en vivo · EN TRANSMISIÓN</p>
                       <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>
-                        {classDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs — La grabación estará disponible después
+                        {classDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs — La grabación estará disponible después
                       </p>
                     </div>
                   </div>
@@ -1178,7 +1177,7 @@ export default function ClassDetail() {
                       <p style={{ color: 'var(--gold)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.1rem 0' }}>Clase programada para HOY</p>
                       <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.88rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <Clock size={13} color="var(--gold)" />
-                        Inicio: {classDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} hs
+                        Inicio: {classDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs
                       </p>
                     </div>
                   </div>

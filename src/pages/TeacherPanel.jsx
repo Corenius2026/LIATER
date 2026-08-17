@@ -519,7 +519,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Clock size={13} color="var(--gold, #FCA311)" />
-                  {new Date(selectedClass?.class_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · {selectedClass?.duration || 0} min
+                  {new Date(selectedClass?.class_date).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} · {selectedClass?.duration || 0} min
                 </span>
               </div>
             </div>
@@ -2921,7 +2921,7 @@ function ResumenTab({ onChangeTab }) {
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Clock size={14} />
-                        {classDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · {c.duration || 0} min
+                        {classDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} · {c.duration || 0} min
                       </span>
                     </div>
                     {isClassLiveOrSoon(c, 10) && (c.meet_url || currentProgram?.meet_url) ? (

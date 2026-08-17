@@ -237,10 +237,33 @@ function ClassCreateModal({ isOpen, onClose, onRefresh, programId, initialSessio
               </select>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.9fr 0.9fr', gap: '0.85rem' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Fecha/Hora</label>
-              <input type="datetime-local" value={classDate} onChange={e => setClassDate(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} required />
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Fecha</label>
+              <input
+                type="date"
+                value={classDate ? classDate.split('T')[0] : ''}
+                onChange={e => {
+                  const time = classDate && classDate.includes('T') ? classDate.split('T')[1]?.substring(0, 5) : '18:00';
+                  setClassDate(`${e.target.value}T${time}`);
+                }}
+                style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}
+                required
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Hora (24 hrs)</label>
+              <input
+                type="time"
+                step="60"
+                value={classDate && classDate.includes('T') ? classDate.split('T')[1]?.substring(0, 5) : '18:00'}
+                onChange={e => {
+                  const date = classDate ? classDate.split('T')[0] : new Date().toISOString().split('T')[0];
+                  setClassDate(`${date}T${e.target.value}`);
+                }}
+                style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}
+                required
+              />
             </div>
             <div>
               <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Dur. (min)</label>
@@ -409,10 +432,33 @@ function ClassEditDrawer({ isOpen, onClose, onRefresh, programId, classData, ses
                   </select>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.9fr 0.9fr', gap: '0.85rem' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>Fecha/Hora</label>
-                  <input type="datetime-local" value={classDate} onChange={e => setClassDate(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px' }} required />
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>Fecha</label>
+                  <input
+                    type="date"
+                    value={classDate ? classDate.split('T')[0] : ''}
+                    onChange={e => {
+                      const time = classDate && classDate.includes('T') ? classDate.split('T')[1]?.substring(0, 5) : '18:00';
+                      setClassDate(`${e.target.value}T${time}`);
+                    }}
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px' }}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>Hora (24 hrs)</label>
+                  <input
+                    type="time"
+                    step="60"
+                    value={classDate && classDate.includes('T') ? classDate.split('T')[1]?.substring(0, 5) : '18:00'}
+                    onChange={e => {
+                      const date = classDate ? classDate.split('T')[0] : new Date().toISOString().split('T')[0];
+                      setClassDate(`${date}T${e.target.value}`);
+                    }}
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px' }}
+                    required
+                  />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>Dur. (min)</label>
