@@ -42,22 +42,25 @@ Permitir que los **profesores suban archivos PDF y presentaciones directamente d
      $$\text{[Clase 0X - Título de la Clase]} \text{ NombreOriginal.pdf}$$
   5. **Subida Multipart:** Transfiere el binario a Google Drive API v3 (`/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`).
   6. **Permisos Públicos:** Llama al endpoint de permisos de Drive asignando rol `reader` y tipo `anyone`.
-  7. **Persistencia:** Inserta el registro en la tabla `resources` y actualiza `class_sessions.presentation_url` con la URL de previsualización (`https://drive.google.com/file/d/{fileId}/preview`).
+  8. **Borrado Sincronizado Bidireccional:** Si el profesor elimina un archivo o presentación desde la interfaz, la función invoca `DELETE /drive/v3/files/{fileId}` en Google Drive API para remover el archivo de Drive automáticamente y mantener limpia la carpeta.
 
 ---
 
 ### 2.2 Panel de Administración: Configuración del Curso
 * **Componente:** `src/components/admin/AdminSettingsTab.jsx`
 * **Funcionalidad:**
-  * Campo destacado: **`Carpeta Principal de Google Drive (Materiales y PDFs)`**.
+  * Campo: **`Carpeta de Google Drive (Materiales y PDFs)`**.
   * Permite al administrador pegar el enlace completo de la carpeta de Drive (ej: `https://drive.google.com/drive/folders/1ABC_XYZ...`) o únicamente su ID.
   * Almacena el valor en la columna `drive_folder_id` de la tabla `diploma_programs`.
+  * Notificación flotante (*Toast*) de confirmación de guardado en la esquina inferior derecha.
 
 ---
 
-### 2.3 Panel del Profesor: Subida de Materiales
+### 2.3 Panel del Profesor: Subida y Eliminación de Materiales
 * **Componente:** `src/pages/TeacherPanel.jsx` (Dentro de `ClassDetailModal` en la sección *Pre-Clase*).
 * **Funcionalidad:**
+  * **Subida Automática:** Arrastrar y soltar (*Drag & Drop*) con nomenclatura automática y almacenamiento en Drive.
+  * **Eliminación Sincronizada:** Al hacer clic en el botón de eliminar, se borra el archivo tanto de Google Drive como de la base de datos de LIATER en un solo paso.
   * **Pestaña 1 (📤 Subir PDF a Google Drive):**
     * Zona de arrastre interactiva (*Drag & Drop*) con soporte para archivos de hasta 100MB.
     * Detector visual de tamaño y nombre del archivo.
