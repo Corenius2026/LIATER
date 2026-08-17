@@ -26,6 +26,16 @@ import AdminClassReinforcement from '../components/AdminClassReinforcement';
 const TeacherContext = React.createContext(null);
 const useTeacherContext = () => React.useContext(TeacherContext);
 
+function formatEmbedDocUrl(url) {
+  if (!url) return '';
+  let trimmed = url.trim();
+  if (trimmed.includes('drive.google.com')) {
+    if (trimmed.includes('/preview')) return trimmed;
+    return trimmed.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
+  }
+  return trimmed;
+}
+
 /* ─────────────────────────────────────────
    MODAL: DETALLE Y GESTIÓN DE CLASE
    Fases: PRE-CLASE | GRABACIÓN | ACTIVIDAD IA
@@ -34,6 +44,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
   const { currentProgram } = useTeacherContext();
   const { currentUser } = useAuth();
   const [activeSection, setActiveSection] = useState(initialSection || 'preclass'); // 'preclass' | 'recording' | 'activity'
+  const [selectedDoc, setSelectedDoc] = useState(null);
 
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -983,9 +994,44 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                           <span style={{ fontWeight: 600, fontSize: '0.86rem', color: 'var(--navy, #14213D)' }}>{p.title}</span>
                         </div>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', color: 'var(--navy, #14213D)', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
-                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
-                          <button onClick={() => handleDeleteResource(p.id)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #fca5a5', borderRadius: '5px', fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', cursor: 'pointer' }}>Eliminar</button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDoc(p)}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              color: 'var(--navy, #14213D)',
+                              background: '#FFFFFF',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontWeight: 600
+                            }}
+                          >
+                            <Eye size={13} /> Abrir
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteResource(p.id)}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              color: '#dc2626',
+                              background: '#fef2f2',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontWeight: 600
+                            }}
+                          >
+                            <Trash2 size={13} /> Eliminar
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1203,9 +1249,44 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', color: 'var(--navy, #14213D)', textDecoration: 'none', fontWeight: 600 }}>Ver</a>
-                          <button onClick={() => handleEditResource(p)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '5px', fontSize: '0.78rem', background: '#FFFFFF', cursor: 'pointer' }}>Editar</button>
-                          <button onClick={() => handleDeleteResource(p.id)} style={{ padding: '0.3rem 0.65rem', border: '1px solid #fca5a5', borderRadius: '5px', fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', cursor: 'pointer' }}>Eliminar</button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDoc(p)}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              color: 'var(--navy, #14213D)',
+                              background: '#FFFFFF',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontWeight: 600
+                            }}
+                          >
+                            <Eye size={13} /> Abrir
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteResource(p.id)}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              color: '#dc2626',
+                              background: '#fef2f2',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontWeight: 600
+                            }}
+                          >
+                            <Trash2 size={13} /> Eliminar
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1658,6 +1739,139 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
         </div>
       </div>
+
+      {/* MODAL VISOR DE DOCUMENTO IN-APP (IGUAL AL DE LOS ESTUDIANTES) */}
+      {selectedDoc && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 100000,
+            padding: '1.25rem',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => setSelectedDoc(null)}
+        >
+          <div 
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '1100px',
+              width: '100%',
+              height: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Encabezado del Visor */}
+            <div style={{
+              padding: '0.85rem 1.25rem',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#F8FAFC',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '8px',
+                  background: 'var(--navy, #14213D)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                  flexShrink: 0
+                }}>
+                  <FileText size={17} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    color: 'var(--navy, #14213D)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {selectedDoc.title || 'Documento de la Clase'}
+                  </h3>
+                  {selectedDoc.description && (
+                    <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#64748B' }}>
+                      {selectedDoc.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedDoc(null)}
+                style={{
+                  background: 'rgba(0, 0, 0, 0.05)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.45rem 0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  color: 'var(--navy, #14213D)',
+                  transition: 'background 0.2s'
+                }}
+              >
+                <X size={16} /> Cerrar Visor
+              </button>
+            </div>
+
+            {/* Contenedor del Iframe con Bloqueador de Redirección */}
+            <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', background: '#0F172A' }}>
+              {/* Bloqueador invisible sobre la esquina superior derecha */}
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '64px',
+                  height: '56px',
+                  zIndex: 20,
+                  background: 'transparent',
+                  cursor: 'default'
+                }}
+                title=""
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              />
+
+              <iframe
+                src={formatEmbedDocUrl(selectedDoc.url)}
+                title={selectedDoc.title || 'Visor de Documento'}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                  display: 'block'
+                }}
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                allow="autoplay"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );
