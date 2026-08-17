@@ -7,6 +7,7 @@ import {
 import { ConfirmModal, ActionBtns } from './AdminShared';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../../utils/dateUtils';
 import AdminClassReinforcement from '../AdminClassReinforcement';
+import TimePicker24h from '../common/TimePicker24h';
 
 // --- MODULE MODAL ---
 function ModuleModal({ isOpen, onClose, onRefresh, programId, initialData, modules = [] }) {
@@ -253,16 +254,12 @@ function ClassCreateModal({ isOpen, onClose, onRefresh, programId, initialSessio
             </div>
             <div>
               <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.85rem' }}>Hora (24 hrs)</label>
-              <input
-                type="time"
-                step="60"
+              <TimePicker24h
                 value={classDate && classDate.includes('T') ? classDate.split('T')[1]?.substring(0, 5) : '18:00'}
-                onChange={e => {
+                onChange={newTime => {
                   const date = classDate ? classDate.split('T')[0] : new Date().toISOString().split('T')[0];
-                  setClassDate(`${date}T${e.target.value}`);
+                  setClassDate(`${date}T${newTime}`);
                 }}
-                style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '4px' }}
-                required
               />
             </div>
             <div>
@@ -448,16 +445,12 @@ function ClassEditDrawer({ isOpen, onClose, onRefresh, programId, classData, ses
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>Hora (24 hrs)</label>
-                  <input
-                    type="time"
-                    step="60"
+                  <TimePicker24h
                     value={classDate && classDate.includes('T') ? classDate.split('T')[1]?.substring(0, 5) : '18:00'}
-                    onChange={e => {
+                    onChange={newTime => {
                       const date = classDate ? classDate.split('T')[0] : new Date().toISOString().split('T')[0];
-                      setClassDate(`${date}T${e.target.value}`);
+                      setClassDate(`${date}T${newTime}`);
                     }}
-                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px' }}
-                    required
                   />
                 </div>
                 <div>
