@@ -31,84 +31,26 @@ function normalizeDriveFolderId(raw?: string | null): string | null {
   return trimmed;
 }
 
-// ─── Generación de Access Token de Google con Service Account (Web Crypto) ───
-function pemToArrayBuffer(pem: string): ArrayBuffer {
-  const b64 = pem
-    .replace(/-----BEGIN[ A-Z_-]+-----/g, "")
-    .replace(/-----END[ A-Z_-]+-----/g, "")
-    .replace(/\s+/g, "");
-  const raw = atob(b64);
-  const buffer = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) {
-    buffer[i] = raw.charCodeAt(i);
-  }
-  return buffer.buffer;
-}
-
-function base64UrlEncode(str: string | Uint8Array): string {
-  let b64 = "";
-  if (typeof str === "string") {
-    b64 = btoa(unescape(encodeURIComponent(str)));
-  } else {
-    let binary = "";
-    const len = str.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(str[i]);
-    }
-    b64 = btoa(binary);
-  }
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-async function getGoogleAccessToken(serviceAccount: {
-  client_email: string;
-  private_key: string;
-}): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: "RS256", typ: "JWT" };
-  const claimSet = {
-    iss: serviceAccount.client_email,
-    scope: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file",
-    aud: "https://oauth2.googleapis.com/token",
-    exp: now + 3600,
-    iat: now,
-  };
-
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const encodedClaimSet = base64UrlEncode(JSON.stringify(claimSet));
-  const signatureInput = `${encodedHeader}.${encodedClaimSet}`;
-
-  const keyBuffer = pemToArrayBuffer(serviceAccount.private_key);
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    keyBuffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    new TextEncoder().encode(signatureInput),
-  );
-
-  const encodedSignature = base64UrlEncode(new Uint8Array(signature));
-  const jwt = `${signatureInput}.${encodedSignature}`;
-
-  // Canjear JWT por Access Token en Google OAuth2
+// ─── Generación de Access Token con OAuth2 Refresh Token (Cuenta de Usuario) ──
+async function getAccessTokenFromRefreshToken(
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<string> {
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
     }),
   });
 
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
-    throw new Error(`Error obteniendo token de Google OAuth2: ${errText}`);
+    throw new Error(`Error canjeando Refresh Token de Google OAuth2: ${errText}`);
   }
 
   const tokenData = await tokenRes.json();
@@ -126,38 +68,44 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    // 1. Obtener credenciales de Google Service Account desde los Secrets
-    const rawServiceAccount = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
-    if (!rawServiceAccount) {
-      return jsonResponse(
-        {
-          error:
-            "No se encontró el secret 'GOOGLE_SERVICE_ACCOUNT_JSON' en Supabase.",
-        },
-        500,
-      );
-    }
+    // 1. Obtener Token de Acceso de Google Drive
+    let accessToken = "";
 
-    let serviceAccount: { client_email: string; private_key: string };
-    try {
-      serviceAccount = typeof rawServiceAccount === "string"
-        ? JSON.parse(rawServiceAccount)
-        : rawServiceAccount;
-    } catch {
-      return jsonResponse(
-        { error: "El secret GOOGLE_SERVICE_ACCOUNT_JSON no tiene formato JSON válido." },
-        500,
-      );
-    }
+    const refreshToken = Deno.env.get("GOOGLE_REFRESH_TOKEN");
+    const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
+    const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
 
-    if (!serviceAccount.client_email || !serviceAccount.private_key) {
-      return jsonResponse(
-        {
-          error:
-            "El JSON de la cuenta de servicio debe contener 'client_email' y 'private_key'.",
-        },
-        500,
+    if (refreshToken && clientId && clientSecret) {
+      // Método A: OAuth 2.0 con Refresh Token de la cuenta real (Recomendado, sin problemas de cuota)
+      accessToken = await getAccessTokenFromRefreshToken(
+        clientId,
+        clientSecret,
+        refreshToken,
       );
+    } else {
+      // Método B: Fallback a Service Account
+      const rawServiceAccount = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
+      if (!rawServiceAccount) {
+        return jsonResponse(
+          {
+            error:
+              "Faltan los secrets de Google en Supabase. Configura 'GOOGLE_REFRESH_TOKEN', 'GOOGLE_CLIENT_ID' y 'GOOGLE_CLIENT_SECRET'.",
+          },
+          500,
+        );
+      }
+      let serviceAccount: { client_email: string; private_key: string };
+      try {
+        serviceAccount = typeof rawServiceAccount === "string"
+          ? JSON.parse(rawServiceAccount)
+          : rawServiceAccount;
+      } catch {
+        return jsonResponse(
+          { error: "El secret GOOGLE_SERVICE_ACCOUNT_JSON no tiene formato JSON válido." },
+          500,
+        );
+      }
+      accessToken = await getGoogleAccessToken(serviceAccount);
     }
 
     // 2. Extraer datos del formulario (FormData)
