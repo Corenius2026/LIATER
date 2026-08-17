@@ -282,7 +282,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     multipartBody.set(closeBytes, offset);
 
     const uploadRes = await fetch(
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink",
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink,webContentLink",
       {
         method: "POST",
         headers: {
@@ -308,7 +308,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 9. Asignar permiso público de lectura para que los estudiantes lo vean en el iframe sin pedir permisos
     try {
       await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+        `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`,
         {
           method: "POST",
           headers: {
