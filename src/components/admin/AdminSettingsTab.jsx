@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Save, AlertCircle, CheckCircle, Upload, Trash2, Image as ImageIcon, Eye, EyeOff, Video, MessageCircle, X } from 'lucide-react';
+import { Save, AlertCircle, CheckCircle, Upload, Trash2, Image as ImageIcon, Eye, EyeOff, Video, MessageCircle, Folder, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import { uploadProgramCover } from '../../services/programService';
@@ -18,6 +18,7 @@ export default function AdminSettingsTab() {
   const [isPublished, setIsPublished] = useState(true);
   const [meetUrl, setMeetUrl] = useState('');
   const [whatsappGroupId, setWhatsappGroupId] = useState('');
+  const [driveFolderId, setDriveFolderId] = useState('');
   
   // Estados para subida de imagen de portada
   const [coverFile, setCoverFile] = useState(null);
@@ -39,7 +40,7 @@ export default function AdminSettingsTab() {
       try {
         const { data, error } = await supabase
           .from('diploma_programs')
-          .select('title, description, program_type, image_url, is_published, status, meet_url, whatsapp_group_id')
+          .select('title, description, program_type, image_url, is_published, status, meet_url, whatsapp_group_id, drive_folder_id')
           .eq('id', programId)
           .single();
         
@@ -51,6 +52,7 @@ export default function AdminSettingsTab() {
         setIsPublished(data.is_published !== false && data.status !== 'draft');
         setMeetUrl(data.meet_url || '');
         setWhatsappGroupId(data.whatsapp_group_id || '');
+        setDriveFolderId(data.drive_folder_id || '');
         if (data.image_url) {
           setCoverPreview(data.image_url);
         }
@@ -191,7 +193,8 @@ export default function AdminSettingsTab() {
           description,
           image_url: finalImageUrl,
           meet_url: meetUrl,
-          whatsapp_group_id: whatsappGroupId
+          whatsapp_group_id: whatsappGroupId,
+          drive_folder_id: driveFolderId.trim() || null
         })
         .eq('id', programId);
       
@@ -211,61 +214,65 @@ export default function AdminSettingsTab() {
 
   if (role !== 'admin') {
     return (
-      <div className="page-header">
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
         <h2>Acceso Denegado</h2>
-        <p>Esta vista es exclusiva para administradores.</p>
+        <p>Esta pestaña es exclusiva para administradores.</p>
       </div>
     );
   }
 
   if (loading) {
-    return (
-      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Cargando configuración...
-      </div>
-    );
+    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando configuración...</div>;
   }
 
   const isButtonDisabled = saving || uploadingCover;
 
   return (
-    <div className="admin-settings-page">
-      <div className="page-header">
-        <h2>Configurar {programType === 'curso' ? 'Curso' : 'Diplomado'}</h2>
-        <p>Actualiza la información básica y la imagen de portada de este programa.</p>
+    <div style={{ maxWidth: '800px' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '0.25rem' }}>
+          Configurar Curso
+        </h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+          Actualiza la información básica, enlaces y la carpeta de almacenamiento de Google Drive para este programa.
+        </p>
       </div>
 
-      <div className="card" style={{ marginTop: '20px', maxWidth: '600px' }}>
-        {error && (
-          <div style={{ padding: '1rem', backgroundColor: '#fef2f2', color: '#dc2626', borderRadius: '4px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <AlertCircle size={18} />
-            <span>{error}</span>
-          </div>
-        )}
-        {success && (
-          <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', color: '#16a34a', borderRadius: '4px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <CheckCircle size={18} />
-            <span>{success}</span>
-          </div>
-        )}
+      {error && (
+        <div style={{ padding: '12px', background: '#fee2e2', color: '#dc2626', borderRadius: '6px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
 
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {success && (
+        <div style={{ padding: '12px', background: '#dcfce7', color: '#166534', borderRadius: '6px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <CheckCircle size={18} />
+          <span>{success}</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          
           <div>
-            <label htmlFor="settings-title-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Título del Programa</label>
+            <label htmlFor="settings-title-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
+              Título del Programa
+            </label>
             <input 
               id="settings-title-input"
               type="text" 
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)} 
               required
               style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
             />
           </div>
 
-
-          
           <div>
-            <label htmlFor="settings-description-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Descripción</label>
+            <label htmlFor="settings-description-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
+              Descripción
+            </label>
             <textarea 
               id="settings-description-input"
               value={description}
@@ -287,9 +294,6 @@ export default function AdminSettingsTab() {
               onChange={(e) => setMeetUrl(e.target.value)}
               style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
             />
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Este enlace estará disponible de forma destacada para administradores, profesores y estudiantes de este programa.
-            </p>
           </div>
 
           <div>
@@ -306,6 +310,24 @@ export default function AdminSettingsTab() {
             />
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
               El bot enviará recordatorios automáticos 10 horas antes de cada clase a este ID de grupo.
+            </p>
+          </div>
+
+          {/* CARPETA DE GOOGLE DRIVE DEL CURSO */}
+          <div style={{ background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: '8px', padding: '1.1rem' }}>
+            <label htmlFor="settings-drive-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '6px', color: '#0369A1', fontSize: '0.92rem' }}>
+              <Folder size={18} color="#0284C7" /> Carpeta Principal de Google Drive (Materiales y PDFs)
+            </label>
+            <input 
+              id="settings-drive-input"
+              type="text"
+              placeholder="https://drive.google.com/drive/folders/... o ID de la carpeta"
+              value={driveFolderId}
+              onChange={(e) => setDriveFolderId(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #7DD3FC', background: '#FFFFFF', fontSize: '0.88rem', boxSizing: 'border-box' }}
+            />
+            <p style={{ fontSize: '0.78rem', color: '#0284C7', margin: '6px 0 0 0', lineHeight: 1.4 }}>
+              💡 Los PDFs y presentaciones que suban los profesores para cualquier clase de este curso se guardarán automáticamente dentro de esta carpeta de Google Drive.
             </p>
           </div>
 
@@ -404,8 +426,8 @@ export default function AdminSettingsTab() {
               <span>Eliminar Programa</span>
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
 
       {showDeleteModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>

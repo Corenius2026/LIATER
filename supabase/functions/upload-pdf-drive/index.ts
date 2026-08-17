@@ -183,7 +183,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 4. Consultar datos de la clase y del programa para armar nomenclatura y buscar carpeta
     const { data: classData, error: classErr } = await supabase
       .from("class_sessions")
-      .select("id, title, order_index, drive_folder_id, program_id, programs(id, title, drive_folder_id)")
+      .select("id, title, order_index, drive_folder_id, program_id")
       .eq("id", classId)
       .single();
 
@@ -194,6 +194,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Consultar programa para obtener drive_folder_id global si la clase no tiene uno específico
+    let programDriveFolderId: string | null = null;
+    const effectiveProgramId = classData.program_id || programId;
+    if (effectiveProgramId) {
+      const { data: progData } = await supabase
+        .from("diploma_programs")
+        .select("id, title, drive_folder_id")
+        .eq("id", effectiveProgramId)
+        .maybeSingle();
+      if (progData) {
+        programDriveFolderId = progData.drive_folder_id;
+      }
+    }
+
     const orderNum = classData.order_index ?? 1;
     const classTitle = (classData.title || "Clase").trim();
     const originalFileName = file.name || "documento.pdf";
@@ -201,7 +215,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 5. Determinar la carpeta de destino en Google Drive
     const targetFolderId =
       normalizeDriveFolderId(classData.drive_folder_id) ||
-      normalizeDriveFolderId(classData.programs?.drive_folder_id);
+      normalizeDriveFolderId(programDriveFolderId);
 
     // 6. Armar Nomenclatura Estandarizada
     // Ej: [Clase 01 - Fundamentos de Robótica] Presentacion_Intro.pdf
