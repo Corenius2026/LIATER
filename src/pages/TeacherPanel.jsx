@@ -60,6 +60,11 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
   const [matUrl, setMatUrl]               = useState('');
   const [submitting, setSubmitting]       = useState(false);
   const [activeForm, setActiveForm]       = useState(null); // 'presentation' | 'complementary' | null
+  const [uploadFile, setUploadFile]       = useState(null);
+  const [uploadMode, setUploadMode]       = useState('file'); // 'file' | 'link'
+  const [uploadingPdf, setUploadingPdf]   = useState(false);
+  const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
+  const [isDragOver, setIsDragOver]       = useState(false);
 
   // — PRE-CLASE: Info de clase —
   const [classTitle, setClassTitle]       = useState(selectedClass?.title || '');
@@ -270,11 +275,56 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
   const handleCancelForm = () => {
     setEditId(null); setMatTitle(''); setMatType('presentation');
     setMatProvider('drive'); setMatUrl(''); setActiveForm(null); setMatError('');
+    setUploadFile(null); setUploadMode('file'); setUploadingPdf(false); setUploadSuccessMsg('');
+  };
+
+  const handleUploadPdfToDrive = async (e, resourceType = 'presentation') => {
+    if (e) e.preventDefault();
+    if (!uploadFile) {
+      setMatError('Por favor selecciona un archivo PDF para subir.');
+      return;
+    }
+    setUploadingPdf(true);
+    setMatError('');
+    setUploadSuccessMsg('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('classId', selectedClass.id);
+      formData.append('programId', selectedClass.program_id || currentProgram?.id || '');
+      formData.append('resourceType', resourceType);
+      if (matTitle.trim()) {
+        formData.append('customTitle', matTitle.trim());
+      }
+
+      const { data, error } = await supabase.functions.invoke('upload-pdf-drive', {
+        body: formData,
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setUploadSuccessMsg(`✓ Archivo subido con éxito a Google Drive: "${data.formattedFileName || uploadFile.name}"`);
+      setUploadFile(null);
+      setMatTitle('');
+      await fetchMaterials();
+      if (onClassUpdated) onClassUpdated();
+      setTimeout(() => {
+        handleCancelForm();
+      }, 2200);
+    } catch (err) {
+      console.error('Error subiendo PDF a Google Drive:', err);
+      setMatError('Error al subir a Google Drive: ' + (err.message || String(err)));
+    } finally {
+      setUploadingPdf(false);
+    }
   };
 
   const handleEditResource = (r) => {
     setEditId(r.id); setMatTitle(r.title); setMatType(r.resource_type);
     setMatProvider(r.provider || 'drive'); setMatUrl(r.url || '');
+    setUploadMode('link');
     setActiveForm(r.resource_type === 'presentation' ? 'presentation' : 'complementary');
     setMatError('');
   };
@@ -707,33 +757,185 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                 )}
 
                 {activeForm === 'presentation' && (
-                  <form onSubmit={e => handleSubmitResource(e, 'presentation')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #CBD5E1' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Título</label>
-                        <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Diapositivas Sesión 1" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Plataforma / Origen</label>
-                        <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}>
-                          <option value="drive">Google Drive / OneDrive</option>
-                          <option value="external">Otro enlace externo</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    <div style={{ marginBottom: '0.85rem' }}>
-                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>URL del archivo</label>
-                      <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-                      <button type="submit" disabled={submitting} style={{ background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
-                        {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Cargar')}
+                  <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #CBD5E1' }}>
+                    {/* Selector de Modo: Subir PDF a Drive vs Enlace Manual */}
+                    <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.6rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('file')}
+                        style={{
+                          padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: uploadMode === 'file' ? 700 : 500,
+                          background: uploadMode === 'file' ? 'var(--navy, #14213D)' : '#F1F5F9',
+                          color: uploadMode === 'file' ? '#FFFFFF' : 'var(--navy, #14213D)',
+                          display: 'flex', alignItems: 'center', gap: '0.4rem', border: 'none', cursor: 'pointer'
+                        }}
+                      >
+                        <Upload size={13} /> Subir PDF a Google Drive
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('link')}
+                        style={{
+                          padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: uploadMode === 'link' ? 700 : 500,
+                          background: uploadMode === 'link' ? 'var(--navy, #14213D)' : '#F1F5F9',
+                          color: uploadMode === 'link' ? '#FFFFFF' : 'var(--navy, #14213D)',
+                          display: 'flex', alignItems: 'center', gap: '0.4rem', border: 'none', cursor: 'pointer'
+                        }}
+                      >
+                        <LinkIcon size={13} /> Pegar Enlace Manual
                       </button>
                     </div>
-                  </form>
+
+                    {uploadSuccessMsg && (
+                      <div style={{ color: '#007A2E', background: '#DCFCE7', border: '1px solid #86EFAC', padding: '0.6rem 0.85rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <CheckCircle2 size={16} /> {uploadSuccessMsg}
+                      </div>
+                    )}
+
+                    {uploadMode === 'file' ? (
+                      <form onSubmit={e => handleUploadPdfToDrive(e, 'presentation')}>
+                        {/* Drag & Drop Zone */}
+                        <div
+                          onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+                          onDragLeave={() => setIsDragOver(false)}
+                          onDrop={e => {
+                            e.preventDefault();
+                            setIsDragOver(false);
+                            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                              const f = e.dataTransfer.files[0];
+                              if (f.type === 'application/pdf' || f.name.endsWith('.pdf')) {
+                                setUploadFile(f);
+                                if (!matTitle) setMatTitle(f.name.replace(/\.[^/.]+$/, ''));
+                              } else {
+                                setMatError('Por favor selecciona un archivo en formato PDF.');
+                              }
+                            }
+                          }}
+                          style={{
+                            border: `2px dashed ${isDragOver ? 'var(--gold, #FCA311)' : uploadFile ? '#007A2E' : '#CBD5E1'}`,
+                            borderRadius: '10px',
+                            background: isDragOver ? 'rgba(252,163,17,0.06)' : uploadFile ? '#F0FDF4' : '#F8FAFC',
+                            padding: '1.5rem 1rem',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            marginBottom: '0.85rem'
+                          }}
+                          onClick={() => document.getElementById('pdf-upload-input-pres')?.click()}
+                        >
+                          <input
+                            id="pdf-upload-input-pres"
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            style={{ display: 'none' }}
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                const f = e.target.files[0];
+                                setUploadFile(f);
+                                if (!matTitle) setMatTitle(f.name.replace(/\.[^/.]+$/, ''));
+                              }
+                            }}
+                          />
+                          {uploadFile ? (
+                            <div>
+                              <FileCheck size={32} color="#007A2E" style={{ margin: '0 auto 0.4rem' }} />
+                              <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', fontSize: '0.9rem' }}>{uploadFile.name}</div>
+                              <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '2px' }}>
+                                {(uploadFile.size / (1024 * 1024)).toFixed(2)} MB · Listo para subir a Google Drive
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setUploadFile(null); }}
+                                style={{ marginTop: '0.5rem', background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: '5px', padding: '0.2rem 0.6rem', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                Cambiar archivo
+                              </button>
+                            </div>
+                          ) : (
+                            <div>
+                              <Upload size={30} color="var(--gold, #FCA311)" style={{ margin: '0 auto 0.4rem' }} />
+                              <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', fontSize: '0.88rem' }}>
+                                Arrastra tu presentación PDF aquí o haz clic para buscar
+                              </div>
+                              <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '3px' }}>
+                                Soporta archivos PDF de hasta 100MB
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Nomenclatura preview */}
+                        {uploadFile && (
+                          <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', padding: '0.65rem 0.85rem', fontSize: '0.78rem', color: '#0369A1', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Sparkles size={14} color="#0284C7" style={{ flexShrink: 0 }} />
+                            <span><strong>Nomenclatura automática en Drive:</strong> [Clase {String(selectedClass?.order_index || 1).padStart(2, '0')} - {selectedClass?.title || 'Clase'}] {uploadFile.name}</span>
+                          </div>
+                        )}
+
+                        <div style={{ marginBottom: '0.85rem' }}>
+                          <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>
+                            Título visible para los estudiantes (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={matTitle}
+                            onChange={e => setMatTitle(e.target.value)}
+                            placeholder={uploadFile ? uploadFile.name.replace(/\.[^/.]+$/, '') : "Ej. Diapositivas de la Sesión"}
+                            style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                          <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.45rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                          <button
+                            type="submit"
+                            disabled={!uploadFile || uploadingPdf}
+                            style={{
+                              background: !uploadFile || uploadingPdf ? '#94A3B8' : 'var(--navy, #14213D)',
+                              color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.45rem 1.15rem',
+                              fontSize: '0.82rem', fontWeight: 700, cursor: !uploadFile || uploadingPdf ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', gap: '0.45rem',
+                              boxShadow: '0 2px 6px rgba(20,33,61,0.15)'
+                            }}
+                          >
+                            {uploadingPdf ? (
+                              <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Subiendo a Google Drive...</>
+                            ) : (
+                              <><Upload size={14} /> Subir a Google Drive</>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <form onSubmit={e => handleSubmitResource(e, 'presentation')}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Título</label>
+                            <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Diapositivas Sesión 1" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Plataforma / Origen</label>
+                            <select value={matProvider} onChange={e => setMatProvider(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}>
+                              <option value="drive">Google Drive / OneDrive</option>
+                              <option value="external">Otro enlace externo</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <div style={{ marginBottom: '0.85rem' }}>
+                          <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>URL del archivo</label>
+                          <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://drive.google.com/..." style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                          <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                          <button type="submit" disabled={submitting} style={{ background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                            {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Guardar Enlace')}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 )}
 
                 {matLoading ? (
@@ -785,34 +987,182 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                 )}
 
                 {activeForm === 'complementary' && (
-                  <form onSubmit={e => handleSubmitResource(e, 'complementary')} style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #CBD5E1' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Título del recurso</label>
-                        <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Lectura PDF, Guía de estudio" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Tipo</label>
-                        <select value={matType} onChange={e => setMatType(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}>
-                          <option value="pdf">PDF</option>
-                          <option value="link">Enlace Web</option>
-                          <option value="file">Archivo</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    <div style={{ marginBottom: '0.85rem' }}>
-                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>URL</label>
-                      <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                      <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-                      <button type="submit" disabled={submitting} style={{ background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
-                        {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Agregar')}
+                  <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #CBD5E1' }}>
+                    {/* Selector de Modo */}
+                    <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.6rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('file')}
+                        style={{
+                          padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: uploadMode === 'file' ? 700 : 500,
+                          background: uploadMode === 'file' ? 'var(--navy, #14213D)' : '#F1F5F9',
+                          color: uploadMode === 'file' ? '#FFFFFF' : 'var(--navy, #14213D)',
+                          display: 'flex', alignItems: 'center', gap: '0.4rem', border: 'none', cursor: 'pointer'
+                        }}
+                      >
+                        <Upload size={13} /> Subir PDF / Archivo a Drive
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('link')}
+                        style={{
+                          padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: uploadMode === 'link' ? 700 : 500,
+                          background: uploadMode === 'link' ? 'var(--navy, #14213D)' : '#F1F5F9',
+                          color: uploadMode === 'link' ? '#FFFFFF' : 'var(--navy, #14213D)',
+                          display: 'flex', alignItems: 'center', gap: '0.4rem', border: 'none', cursor: 'pointer'
+                        }}
+                      >
+                        <LinkIcon size={13} /> Pegar Enlace Manual
                       </button>
                     </div>
-                  </form>
+
+                    {uploadSuccessMsg && (
+                      <div style={{ color: '#007A2E', background: '#DCFCE7', border: '1px solid #86EFAC', padding: '0.6rem 0.85rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <CheckCircle2 size={16} /> {uploadSuccessMsg}
+                      </div>
+                    )}
+
+                    {uploadMode === 'file' ? (
+                      <form onSubmit={e => handleUploadPdfToDrive(e, 'pdf')}>
+                        {/* Drag & Drop Zone */}
+                        <div
+                          onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+                          onDragLeave={() => setIsDragOver(false)}
+                          onDrop={e => {
+                            e.preventDefault();
+                            setIsDragOver(false);
+                            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                              const f = e.dataTransfer.files[0];
+                              setUploadFile(f);
+                              if (!matTitle) setMatTitle(f.name.replace(/\.[^/.]+$/, ''));
+                            }
+                          }}
+                          style={{
+                            border: `2px dashed ${isDragOver ? 'var(--gold, #FCA311)' : uploadFile ? '#007A2E' : '#CBD5E1'}`,
+                            borderRadius: '10px',
+                            background: isDragOver ? 'rgba(252,163,17,0.06)' : uploadFile ? '#F0FDF4' : '#F8FAFC',
+                            padding: '1.5rem 1rem',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            marginBottom: '0.85rem'
+                          }}
+                          onClick={() => document.getElementById('pdf-upload-input-comp')?.click()}
+                        >
+                          <input
+                            id="pdf-upload-input-comp"
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            style={{ display: 'none' }}
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                const f = e.target.files[0];
+                                setUploadFile(f);
+                                if (!matTitle) setMatTitle(f.name.replace(/\.[^/.]+$/, ''));
+                              }
+                            }}
+                          />
+                          {uploadFile ? (
+                            <div>
+                              <FileCheck size={32} color="#007A2E" style={{ margin: '0 auto 0.4rem' }} />
+                              <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', fontSize: '0.9rem' }}>{uploadFile.name}</div>
+                              <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '2px' }}>
+                                {(uploadFile.size / (1024 * 1024)).toFixed(2)} MB · Listo para subir a Google Drive
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setUploadFile(null); }}
+                                style={{ marginTop: '0.5rem', background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: '5px', padding: '0.2rem 0.6rem', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                Cambiar archivo
+                              </button>
+                            </div>
+                          ) : (
+                            <div>
+                              <Upload size={30} color="var(--gold, #FCA311)" style={{ margin: '0 auto 0.4rem' }} />
+                              <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', fontSize: '0.88rem' }}>
+                                Arrastra tu documento PDF aquí o haz clic para buscar
+                              </div>
+                              <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '3px' }}>
+                                Soporta archivos PDF de hasta 100MB
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Nomenclatura preview */}
+                        {uploadFile && (
+                          <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', padding: '0.65rem 0.85rem', fontSize: '0.78rem', color: '#0369A1', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Sparkles size={14} color="#0284C7" style={{ flexShrink: 0 }} />
+                            <span><strong>Nomenclatura automática en Drive:</strong> [Clase {String(selectedClass?.order_index || 1).padStart(2, '0')} - {selectedClass?.title || 'Clase'}] {uploadFile.name}</span>
+                          </div>
+                        )}
+
+                        <div style={{ marginBottom: '0.85rem' }}>
+                          <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>
+                            Título visible para los estudiantes (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={matTitle}
+                            onChange={e => setMatTitle(e.target.value)}
+                            placeholder={uploadFile ? uploadFile.name.replace(/\.[^/.]+$/, '') : "Ej. Guía de Estudio / Lectura Complementaria"}
+                            style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                          <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.45rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                          <button
+                            type="submit"
+                            disabled={!uploadFile || uploadingPdf}
+                            style={{
+                              background: !uploadFile || uploadingPdf ? '#94A3B8' : 'var(--navy, #14213D)',
+                              color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '0.45rem 1.15rem',
+                              fontSize: '0.82rem', fontWeight: 700, cursor: !uploadFile || uploadingPdf ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', gap: '0.45rem',
+                              boxShadow: '0 2px 6px rgba(20,33,61,0.15)'
+                            }}
+                          >
+                            {uploadingPdf ? (
+                              <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Subiendo a Google Drive...</>
+                            ) : (
+                              <><Upload size={14} /> Subir a Google Drive</>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <form onSubmit={e => handleSubmitResource(e, 'complementary')}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Título del recurso</label>
+                            <input type="text" value={matTitle} onChange={e => setMatTitle(e.target.value)} placeholder="Ej. Lectura PDF, Guía de estudio" style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>Tipo</label>
+                            <select value={matType} onChange={e => setMatType(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }}>
+                              <option value="pdf">PDF</option>
+                              <option value="link">Enlace Web</option>
+                              <option value="file">Archivo</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <div style={{ marginBottom: '0.85rem' }}>
+                          <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy, #14213D)' }}>URL</label>
+                          <input type="url" value={matUrl} onChange={e => setMatUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem 0.7rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.84rem', boxSizing: 'border-box' }} required />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                          <button type="button" onClick={handleCancelForm} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                          <button type="submit" disabled={submitting} style={{ background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                            {submitting ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Agregar')}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 )}
 
                 {complementary.length === 0 ? (
