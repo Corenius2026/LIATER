@@ -57,6 +57,19 @@ async function getAccessTokenFromRefreshToken(
   return tokenData.access_token;
 }
 
+// ─── Extrae el ID del archivo de Google Drive desde una URL o ID directo ───
+function extractDriveFileId(rawUrlOrId?: string | null): string | null {
+  if (!rawUrlOrId || typeof rawUrlOrId !== "string") return null;
+  const trimmed = rawUrlOrId.trim();
+  const matchFile = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (matchFile) return matchFile[1];
+  const matchIdParam = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (matchIdParam) return matchIdParam[1];
+  const matchDirect = trimmed.match(/^([a-zA-Z0-9_-]{20,})/);
+  if (matchDirect) return matchDirect[1];
+  return null;
+}
+
 // ─── Handler Principal ───────────────────────────────────────────────────────
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -108,8 +121,97 @@ Deno.serve(async (req: Request): Promise<Response> => {
       accessToken = await getGoogleAccessToken(serviceAccount);
     }
 
-    // 2. Extraer datos del formulario (FormData)
+    const contentType = req.headers.get("content-type") || "";
+
+    // ── ACCIÓN: ELIMINAR ARCHIVO DE GOOGLE DRIVE (JSON) ──────────────────────
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      if (body.action === "delete") {
+        const fileId = extractDriveFileId(body.fileId || body.fileUrl);
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+        if (fileId) {
+          try {
+            const delRes = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              },
+            );
+            if (!delRes.ok && delRes.status !== 404) {
+              const delErr = await delRes.text();
+              console.warn("Aviso al eliminar de Google Drive:", delErr);
+            }
+          } catch (gErr) {
+            console.warn("Error conectando con Google Drive para eliminar:", gErr);
+          }
+        }
+
+        // Limpieza en base de datos
+        if (body.resourceId) {
+          await supabase.from("resources").delete().eq("id", body.resourceId);
+        }
+        if (body.classId && body.clearPresentation) {
+          await supabase.from("class_sessions").update({ presentation_url: null }).eq("id", body.classId);
+        }
+
+        return jsonResponse({
+          success: true,
+          deletedFileId: fileId,
+          message: "Archivo eliminado exitosamente de Google Drive.",
+        });
+      }
+    }
+
+    // ── ACCIÓN: SUBIDA DE ARCHIVO (FormData) ──────────────────────────────────
     const formData = await req.formData();
+
+    // Si viene acción delete en FormData
+    if (formData.get("action") === "delete") {
+      const fileUrl = formData.get("fileUrl") as string | null;
+      const fileIdParam = formData.get("fileId") as string | null;
+      const resourceId = formData.get("resourceId") as string | null;
+      const classId = formData.get("classId") as string | null;
+      const clearPresentation = formData.get("clearPresentation") === "true";
+
+      const fileId = extractDriveFileId(fileIdParam || fileUrl);
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+      if (fileId) {
+        try {
+          await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
+            {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          );
+        } catch (delErr) {
+          console.warn("Error al borrar en Google Drive:", delErr);
+        }
+      }
+
+      if (resourceId) {
+        await supabase.from("resources").delete().eq("id", resourceId);
+      }
+      if (classId && clearPresentation) {
+        await supabase.from("class_sessions").update({ presentation_url: null }).eq("id", classId);
+      }
+
+      return jsonResponse({
+        success: true,
+        deletedFileId: fileId,
+        message: "Archivo eliminado de Google Drive.",
+      });
+    }
+
     const file = formData.get("file") as File | null;
     const classId = formData.get("classId") as string | null;
     const programId = formData.get("programId") as string | null;

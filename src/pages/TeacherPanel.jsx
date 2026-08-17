@@ -359,8 +359,34 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 
   const handleDeleteResource = async (id) => {
     try {
+      const targetRes = materials.find(m => m.id === id);
+      const isPres = targetRes?.resource_type === 'presentation';
+
+      // 1. Si es archivo de Google Drive, solicitar borrado en Drive vía Edge Function
+      if (targetRes?.url && (targetRes.url.includes('drive.google.com') || targetRes.provider === 'drive')) {
+        try {
+          await supabase.functions.invoke('upload-pdf-drive', {
+            body: {
+              action: 'delete',
+              fileUrl: targetRes.url,
+              resourceId: id,
+              classId: selectedClass?.id,
+              clearPresentation: isPres,
+            },
+          });
+        } catch (driveErr) {
+          console.warn('Aviso: no se pudo eliminar de Google Drive o ya fue borrado:', driveErr);
+        }
+      }
+
+      // 2. Limpieza en base de datos
       const { error } = await supabase.from('resources').delete().eq('id', id).eq('class_id', selectedClass.id);
       if (error) throw error;
+
+      if (isPres && selectedClass?.id) {
+        await supabase.from('class_sessions').update({ presentation_url: null }).eq('id', selectedClass.id);
+      }
+
       await fetchMaterials();
     } catch (err) { setMatError('Error al eliminar: ' + err.message); }
   };
