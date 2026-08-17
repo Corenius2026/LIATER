@@ -2419,36 +2419,41 @@ function ClasesTab() {
                   return (
                     <div key={sesId} style={{ borderTop: '1px solid #E2E8F0' }}>
                       
-                      {/* ENCABEZADO DE SESIÓN */}
+                      {/* ENCABEZADO DE SESIÓN (Contraste definido) */}
                       <button
                         type="button"
                         onClick={() => toggleSession(sesId)}
                         style={{
                           width: '100%',
-                          padding: '0.8rem 1.4rem',
+                          padding: '0.85rem 1.4rem',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          background: '#F8FAFC',
+                          background: '#EAEFF5',
                           border: 'none',
+                          borderLeft: '4px solid var(--gold, #FCA311)',
                           cursor: 'pointer',
                           textAlign: 'left',
-                          borderBottom: isSesExpanded ? '1px solid #E2E8F0' : 'none'
+                          borderBottom: '1px solid #CBD5E1',
+                          transition: 'background 0.15s ease'
                         }}
+                        onMouseOver={e => e.currentTarget.style.background = '#DFE6EE'}
+                        onMouseOut={e => e.currentTarget.style.background = '#EAEFF5'}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <BookOpen size={15} color="var(--gold, #FCA311)" />
-                          <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)' }}>
+                          <BookOpen size={16} color="var(--navy, #14213D)" />
+                          <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--navy, #14213D)' }}>
                             {ses.title}
                           </span>
                           {ses.minDate && (
                             <span style={{
                               fontSize: '0.73rem',
-                              color: '#64748B',
+                              color: '#334155',
                               background: '#FFFFFF',
                               padding: '2px 8px',
                               borderRadius: '6px',
-                              border: '1px solid #E2E8F0'
+                              border: '1px solid #CBD5E1',
+                              fontWeight: 600
                             }}>
                               {ses.minDate === ses.maxDate
                                 ? new Date(ses.minDate).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })
@@ -2456,11 +2461,18 @@ function ClasesTab() {
                               }
                             </span>
                           )}
-                          <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                            ({ses.classes.length} clase{ses.classes.length !== 1 ? 's' : ''})
+                          <span style={{
+                            fontSize: '0.73rem',
+                            color: 'var(--navy, #14213D)',
+                            background: 'rgba(20, 33, 61, 0.07)',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontWeight: 600
+                          }}>
+                            {ses.classes.length} clase{ses.classes.length !== 1 ? 's' : ''}
                           </span>
                         </div>
-                        {isSesExpanded ? <ChevronUp size={15} color="#64748B" /> : <ChevronDown size={15} color="#64748B" />}
+                        {isSesExpanded ? <ChevronUp size={16} color="var(--navy, #14213D)" /> : <ChevronDown size={16} color="var(--navy, #14213D)" />}
                       </button>
 
                       {/* CLASES DENTRO DE LA SESIÓN */}
