@@ -2297,10 +2297,10 @@ function ClasesTab() {
       }}>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           {[
-            { id: 'all',       label: 'Todas las clases', count: classes.length,   icon: null },
-            { id: 'upcoming',  label: 'Próximas',         count: totalUpcoming,   icon: '📅' },
-            { id: 'pending',   label: 'Pendientes',       count: totalPending,    icon: '⚠️' },
-            { id: 'completed', label: 'Finalizadas',      count: totalCompleted,  icon: '✓'  }
+            { id: 'all',       label: 'Todas las clases', count: classes.length },
+            { id: 'upcoming',  label: 'Próximas',         count: totalUpcoming },
+            { id: 'pending',   label: 'Pendientes',       count: totalPending },
+            { id: 'completed', label: 'Finalizadas',      count: totalCompleted }
           ].map(f => {
             const isSelected = filterStatus === f.id;
             return (
@@ -2323,7 +2323,6 @@ function ClasesTab() {
                   transition: 'all 0.15s ease'
                 }}
               >
-                {f.icon && <span>{f.icon}</span>}
                 <span>{f.label}</span>
                 <span style={{
                   fontSize: '0.72rem',
