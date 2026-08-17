@@ -217,6 +217,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       normalizeDriveFolderId(classData.drive_folder_id) ||
       normalizeDriveFolderId(programDriveFolderId);
 
+    if (!targetFolderId) {
+      return jsonResponse(
+        {
+          error:
+            "No se ha configurado la carpeta de Google Drive para este curso. El administrador debe vincular el enlace de la carpeta en la pestaña 'Configuración' del curso.",
+        },
+        400,
+      );
+    }
+
     // 6. Armar Nomenclatura Estandarizada
     // Ej: [Clase 01 - Fundamentos de Robótica] Presentacion_Intro.pdf
     const formattedOrder = String(orderNum).padStart(2, "0");
