@@ -66,6 +66,15 @@ export default function AdminSettingsTab() {
     fetchProgram();
   }, [programId]);
 
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -245,13 +254,6 @@ export default function AdminSettingsTab() {
         </div>
       )}
 
-      {success && (
-        <div style={{ padding: '12px', background: '#dcfce7', color: '#166534', borderRadius: '6px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <CheckCircle size={18} />
-          <span>{success}</span>
-        </div>
-      )}
-
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
@@ -314,9 +316,9 @@ export default function AdminSettingsTab() {
           </div>
 
           {/* CARPETA DE GOOGLE DRIVE DEL CURSO */}
-          <div style={{ background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: '8px', padding: '1.1rem' }}>
-            <label htmlFor="settings-drive-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '6px', color: '#0369A1', fontSize: '0.92rem' }}>
-              <Folder size={18} color="#0284C7" /> Carpeta Principal de Google Drive (Materiales y PDFs)
+          <div>
+            <label htmlFor="settings-drive-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', marginBottom: '8px' }}>
+              <Folder size={16} /> Carpeta de Google Drive (Materiales y PDFs)
             </label>
             <input 
               id="settings-drive-input"
@@ -324,10 +326,10 @@ export default function AdminSettingsTab() {
               placeholder="https://drive.google.com/drive/folders/... o ID de la carpeta"
               value={driveFolderId}
               onChange={(e) => setDriveFolderId(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #7DD3FC', background: '#FFFFFF', fontSize: '0.88rem', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
             />
-            <p style={{ fontSize: '0.78rem', color: '#0284C7', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-              💡 Los PDFs y presentaciones que suban los profesores para cualquier clase de este curso se guardarán automáticamente dentro de esta carpeta de Google Drive.
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Los PDFs y presentaciones que suban los profesores para las clases de este curso se guardarán automáticamente en esta carpeta.
             </p>
           </div>
 
@@ -489,6 +491,31 @@ export default function AdminSettingsTab() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notificación en la esquina inferior derecha */}
+      {success && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          background: '#0F172A',
+          color: '#FFFFFF',
+          padding: '0.85rem 1.25rem',
+          borderRadius: '10px',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontWeight: 600,
+          fontSize: '0.86rem',
+          zIndex: 9999,
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          animation: 'fadeSlideUp 0.3s ease-out'
+        }}>
+          <CheckCircle size={18} color="#10B981" />
+          <span>{success}</span>
         </div>
       )}
     </div>
