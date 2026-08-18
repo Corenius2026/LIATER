@@ -3,12 +3,29 @@
  * Define la estructura de navegación utilizando React Router con Code-Splitting optimizado.
  */
 import React, { Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
 // --- Importación de Componentes de Layout ---
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
+
+// Listener para interceptar tokens de invitación o recuperación en el hash (#) y redirigir a /update-password
+function AuthHashListener() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    const hash = window.location.hash || '';
+    if (hash && (hash.includes('type=invite') || hash.includes('type=recovery') || hash.includes('type=signup') || hash.includes('error_code='))) {
+      if (location.pathname !== '/update-password') {
+        navigate(`/update-password${hash}`, { replace: true });
+      }
+    }
+  }, [location.pathname, navigate]);
+
+  return null;
+}
 
 // --- Importación de Páginas con React.lazy para Code-Splitting ---
 const Home = React.lazy(() => import('./pages/Home'));
@@ -68,6 +85,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <AuthHashListener />
         <Suspense fallback={<PageFallback />}>
           <Routes>
             {/* --- RUTAS PÚBLICAS --- */}
