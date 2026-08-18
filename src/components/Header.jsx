@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, User, Shield } from 'lucide-react';
+import { LogOut, User, Shield, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchStudentStreak } from '../services/activityService';
 
 import liaterLogoDark from '../assets/liater-logo-dark.png';
 
-export default function Header() {
+export default function Header({ onToggleSidebar, isSidebarOpen }) {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [streak, setStreak] = useState(0);
@@ -60,23 +60,47 @@ export default function Header() {
       boxShadow: '0 1px 4px rgba(20, 33, 61, 0.04)',
       position: 'sticky',
       top: 0,
-      zIndex: 50
+      zIndex: 50,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
     }}>
-      {/* IDENTIDAD INSTITUCIONAL SUPERIOR */}
-      <div 
-        className="header-title" 
-        onClick={() => navigate('/portal')}
-        style={{ display: 'flex', alignItems: 'center', gap: '1.125rem', cursor: 'pointer' }}
-      >
-        <img src={liaterLogoDark} alt="LIATER" style={{ height: '60px', objectFit: 'contain' }} />
-        <div style={{ height: '46px', width: '1.5px', background: '#E2E8F0' }} />
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1.2 }}>
-            Portal Educativo <span style={{ color: 'var(--gold, #FCA311)' }}>LIATER</span>
-          </span>
-          <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700, letterSpacing: '0.05em', marginTop: '2px' }}>
-            UNIVERSIDAD NACIONAL DE COLOMBIA
-          </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {/* BOTÓN HAMBURGUESA MÓVIL */}
+        <button
+          type="button"
+          className="mobile-menu-btn"
+          onClick={onToggleSidebar}
+          aria-label="Abrir menú de navegación"
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--navy, #14213D)',
+            padding: '0.45rem',
+            borderRadius: '8px',
+            transition: 'background 0.15s ease'
+          }}
+        >
+          {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+
+        {/* IDENTIDAD INSTITUCIONAL SUPERIOR */}
+        <div 
+          className="header-title" 
+          onClick={() => navigate('/portal')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', cursor: 'pointer' }}
+        >
+          <img src={liaterLogoDark} alt="LIATER" style={{ height: '56px', objectFit: 'contain', transition: 'height 0.2s ease' }} />
+          <div style={{ height: '40px', width: '1.5px', background: '#E2E8F0' }} />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1.2 }}>
+              Portal Educativo <span style={{ color: 'var(--gold, #FCA311)' }}>LIATER</span>
+            </span>
+            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, letterSpacing: '0.05em', marginTop: '2px' }}>
+              UNIVERSIDAD NACIONAL DE COLOMBIA
+            </span>
+          </div>
         </div>
       </div>
 

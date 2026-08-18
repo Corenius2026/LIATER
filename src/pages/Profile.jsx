@@ -804,7 +804,7 @@ export default function Profile() {
               </div>
               
               {/* CUADRÍCULA DE 2 COLUMNAS (2X2) */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1.25rem' }}>
                 
                 {/* FILA 1, COLUMNA 1: NOMBRE COMPLETO */}
                 <div>
@@ -941,7 +941,7 @@ export default function Profile() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               
               {/* ALINEACIÓN EN DOS COLUMNAS (EDICIÓN 60% + VISTA PREVIA 40%) */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1.5rem', alignItems: 'start' }}>
                 
                 {/* COLUMNA IZQUIERDA: FORMULARIO DE EDICIÓN */}
                 <form 

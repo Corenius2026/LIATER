@@ -190,3 +190,81 @@
   flex: 1;
   animation: fadeIn 0.25s ease;
 }
+
+/* ════════════════════════════════════════════
+   RESPONSIVE DESIGN (MÓVILES Y TABLETS)
+   ════════════════════════════════════════════ */
+.mobile-menu-btn {
+  display: none;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    width: 275px;
+    max-width: 85vw;
+    z-index: 1000;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 999;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-header {
+    height: 72px;
+    padding: 0 1rem;
+    gap: 0.5rem;
+  }
+
+  .header-title img {
+    height: 42px !important;
+  }
+
+  .profile-info {
+    display: none;
+  }
+
+  .page-content {
+    padding: 1rem 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    height: 64px;
+    padding: 0 0.75rem;
+  }
+
+  .header-title span:last-child {
+    display: none;
+  }
+}
+

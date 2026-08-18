@@ -324,7 +324,38 @@ input:focus, select:focus, textarea:focus {
 .page-description { color: var(--text-muted); font-size: 0.95rem; }
 
 /* ── Grid ── */
-.grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+.grid-3 { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+  gap: 1.5rem; 
+}
+@media (max-width: 640px) {
+  .grid-3 {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+/* ── Utilidades Responsive ── */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs-scrollable {
+  display: flex;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 0.5rem;
+  padding-bottom: 4px;
+}
+.tabs-scrollable::-webkit-scrollbar {
+  display: none;
+}
+
 
 /* ── Auth / Login page ── */
 .public-layout {

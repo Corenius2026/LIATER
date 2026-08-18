@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 
-export default function Sidebar() {
+export default function Sidebar({ isOpenMobile, onCloseMobile }) {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,26 +43,40 @@ export default function Sidebar() {
   const isGlobalRoute = globalRoutes.includes(location.pathname);
 
   const handleLogout = () => {
+    if (onCloseMobile) onCloseMobile();
     logout();
     navigate('/login');
   };
 
-  return (
-    <aside className="sidebar">
+  const handleNavClick = (path) => {
+    if (onCloseMobile) onCloseMobile();
+    if (path) navigate(path);
+  };
 
-      {/* --- SECCIÓN 1: Logo UNAL --- */}
-      <div 
-        className="sidebar-logo" 
-        onClick={() => navigate('/portal')} 
-        style={{ 
-          padding: '1.25rem 1rem 1rem 1rem', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
-          cursor: 'pointer',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
-        }}
-      >
+  return (
+    <>
+      {isOpenMobile && (
+        <div 
+          className="sidebar-backdrop"
+          onClick={onCloseMobile}
+          aria-hidden="true"
+        />
+      )}
+      <aside className={`sidebar ${isOpenMobile ? 'mobile-open' : ''}`}>
+
+        {/* --- SECCIÓN 1: Logo UNAL --- */}
+        <div 
+          className="sidebar-logo" 
+          onClick={() => handleNavClick('/portal')} 
+          style={{ 
+            padding: '1.25rem 1rem 1rem 1rem', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            cursor: 'pointer',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
         <img 
           src={unalPillLogo} 
           alt="Universidad Nacional de Colombia" 
@@ -424,5 +438,6 @@ export default function Sidebar() {
       </div>
 
     </aside>
+    </>
   );
 }

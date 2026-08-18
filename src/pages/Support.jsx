@@ -214,7 +214,7 @@ export default function Support() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         
         {/* ── CANALES DE ATENCIÓN DIRECTA (3 TARJETAS MODULARES) ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '1.25rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1.25rem' }}>
           
           {/* TARJETA 1: CORREO INSTITUCIONAL */}
           <div 

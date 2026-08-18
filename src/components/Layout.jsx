@@ -4,25 +4,37 @@
  * Integra la barra lateral (Sidebar), la barra superior (Header) y define
  * un área dinámica donde se carga el contenido de cada página.
  */
-import { Outlet } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import coreniusLogoColor from '../assets/Corenius_Logo_Principal_Color.svg';
 
 export default function Layout() {
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+  }, [location.pathname]);
+
   return (
-    // Contenedor principal que ocupa toda la pantalla mediante Flexbox
     <div className="app-layout">
       
-      {/* --- BARRA LATERAL (FIJA) --- */}
-      <Sidebar />
+      {/* --- BARRA LATERAL (CON SOPORTE RESPONSIVE) --- */}
+      <Sidebar 
+        isOpenMobile={isMobileSidebarOpen} 
+        onCloseMobile={() => setIsMobileSidebarOpen(false)} 
+      />
       
       {/* --- CONTENEDOR PRINCIPAL --- */}
-      {/* Esta sección toma todo el ancho sobrante de la pantalla, al lado del Sidebar */}
       <main className="main-content" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         
         {/* --- BARRA SUPERIOR (HEADER) --- */}
-        <Header />
+        <Header 
+          onToggleSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
+          isSidebarOpen={isMobileSidebarOpen}
+        />
         
         {/* --- ÁREA DINÁMICA DE CONTENIDO --- */}
         {/* El componente <Outlet /> de React Router es un "marcador de posición".

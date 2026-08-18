@@ -8,7 +8,14 @@
   gap: 0.5rem;
   border-bottom: 2px solid var(--border-color, #E2E8F0);
   margin-bottom: 1.5rem;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.teacher-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .teacher-tab-btn {
@@ -338,4 +345,29 @@
   border-color: var(--gold-400);
   background: var(--gold-subtle);
 }
+
+/* ── Mobile Responsive Rules ── */
+@media (max-width: 768px) {
+  .teacher-hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem 1rem;
+    gap: 1.25rem;
+  }
+  .teacher-hero-stats {
+    justify-content: center;
+    gap: 1.25rem;
+  }
+  .teacher-hero-img {
+    margin: 0 auto;
+  }
+  .announcement-header {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .upload-zone {
+    padding: 1.5rem 1rem;
+  }
+}
+
 
