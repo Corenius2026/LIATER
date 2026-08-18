@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "El nombre debe tener entre 2 y 120 caracteres." }), { status: 400, headers: jsonHeaders });
     }
 
-    const siteUrl = Deno.env.get("SITE_URL") ?? "https://liater.vercel.app";
+    const siteUrl = Deno.env.get("SITE_URL") ?? "https://www.latier-unal.com";
 
     // ── 5. Verificar si ya existe un perfil con ese correo ────────────
     const { data: existingProfile } = await supabaseAdmin

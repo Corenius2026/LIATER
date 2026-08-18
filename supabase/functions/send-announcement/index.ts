@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     // 3. Enviar correos usando Resend API
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     const SENDER_EMAIL = Deno.env.get("SENDER_EMAIL") ?? "LIATER <notificaciones@liater.edu.co>";
-    const SITE_URL = Deno.env.get("SITE_URL") ?? "https://liater.vercel.app";
+    const SITE_URL = Deno.env.get("SITE_URL") ?? "https://www.latier-unal.com";
 
     if (!RESEND_API_KEY) {
       console.warn("[send-announcement] No se encontró RESEND_API_KEY en los secretos. Modo simulado activado.");
