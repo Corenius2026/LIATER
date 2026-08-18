@@ -476,11 +476,7 @@ function ClassEditDrawer({ isOpen, onClose, onRefresh, programId, classData, ses
           {activeTab === 'recursos' && (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {error && <div style={{ color: '#b91c1c', background: '#fef2f2', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.84rem' }}>{error}</div>}
-              {success && <div style={{ color: '#15803d', background: '#f0fdf4', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.84rem' }}>check {success}</div>}
-              <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', padding: '0.85rem 1rem', fontSize: '0.82rem', color: '#166534', display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
-                <Zap size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
-                <span><strong>Sincronizacion automatica:</strong> Si configuras la Carpeta Drive, el link de grabacion se agrega automaticamente al finalizar la clase via Google Apps Script.</span>
-              </div>
+              {success && <div style={{ color: '#15803d', background: '#f0fdf4', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.84rem' }}>✓ {success}</div>}
               <div>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>URL de la Grabacion (Video)</label>
                 <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px' }} placeholder="https://youtube.com/... o Vimeo / Drive / Loom" />
