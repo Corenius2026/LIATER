@@ -755,13 +755,15 @@ export default function UserManagement() {
                       <button onClick={() => openDrawer(u)} title="Editar" style={{ display: "flex", alignItems: "center", gap: "0.25rem", padding: "0.3rem 0.65rem", background: "var(--navy)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
                         <Pencil size={12} /> Editar
                       </button>
-                      <button
-                        onClick={() => setConfirmDeactivate(u)}
-                        title={u.is_active !== false ? "Desactivar" : "Reactivar"}
-                        style={{ padding: "0.3rem 0.6rem", background: u.is_active !== false ? "#fef2f2" : "#f0fdf4", color: u.is_active !== false ? "#dc2626" : "#16a34a", border: "1px solid", borderColor: u.is_active !== false ? "#fca5a5" : "#86efac", borderRadius: "6px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700 }}
-                      >
-                        {u.is_active !== false ? "Desactivar" : "Activar"}
-                      </button>
+                      {u.is_active && (
+                        <button
+                          onClick={() => setConfirmDeactivate(u)}
+                          title="Desactivar cuenta"
+                          style={{ padding: "0.3rem 0.6rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700 }}
+                        >
+                          Desactivar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
