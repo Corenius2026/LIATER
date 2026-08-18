@@ -14,6 +14,7 @@ import AdminTeachers from '../components/admin/AdminTeachers';
 import AdminAnnouncements from '../components/admin/AdminAnnouncements';
 import AdminSettingsTab from '../components/admin/AdminSettingsTab';
 import CourseBuilder from '../components/admin/CourseBuilder';
+import './AdminPanel.css';
 
 const TABS = [
   { id: 'resumen',    label: 'Resumen',       icon: <LayoutDashboard size={16} /> },

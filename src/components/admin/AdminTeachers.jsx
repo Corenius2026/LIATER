@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from "../../lib/supabaseClient";
-import { X, CheckCircle, Plus, Trash2, GraduationCap, MapPin, Phone, Eye, UserPlus } from 'lucide-react';
-import { Initials, ConfirmModal, EmptyRow } from './AdminShared';
+import { X, CheckCircle, Plus, Trash2, GraduationCap, MapPin, Phone, Eye, UserPlus, Search, Users, AlertCircle } from 'lucide-react';
+import { ConfirmModal } from './AdminShared';
 import { Link } from 'react-router-dom';
 
 // Helper to safely parse JSON from the bio field if it exists
@@ -27,6 +27,11 @@ const parseTeacherMeta = (teacher) => {
     // Ignore JSON parse error, fallback to raw string
   }
   return meta;
+};
+
+const getInitials = (name) => {
+  const parts = (name || '').trim().split(' ');
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || 'PR';
 };
 
 /* ────────────────────────────────────
@@ -87,73 +92,200 @@ export function AssignTeacherDrawer({ programId, programTitle, assignedTeachers,
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 1000 }} />
+      <div 
+        onClick={onClose} 
+        style={{ 
+          position: 'fixed', 
+          inset: 0, 
+          backgroundColor: 'rgba(15, 23, 42, 0.6)', 
+          backdropFilter: 'blur(4px)',
+          zIndex: 1000,
+          animation: 'fadeIn 0.2s ease-out'
+        }} 
+      />
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: '450px', maxWidth: '90vw',
-        background: 'white', zIndex: 1001, display: 'flex', flexDirection: 'column',
-        boxShadow: '-4px 0 24px rgba(0,0,0,0.15)', animation: 'slideInRight 0.3s ease-out'
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: '480px', maxWidth: '92vw',
+        background: '#FFFFFF', zIndex: 1001, display: 'flex', flexDirection: 'column',
+        boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.18)', animation: 'slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
       }}>
-        <style>{`@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
+        <style>{`
+          @keyframes slideInRight { 
+            from { transform: translateX(100%); } 
+            to { transform: translateX(0); } 
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
         
         {/* Header */}
-        <div style={{ padding: '1.25rem 1.5rem', background: 'var(--navy)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ 
+          padding: '1.4rem 1.6rem', 
+          background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)', 
+          flexShrink: 0, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderBottom: '1px solid rgba(255,255,255,0.1)'
+        }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-              <UserPlus size={14} color="var(--gold)" />
-              <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
+              <UserPlus size={15} color="var(--gold, #FCA311)" />
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Asignar Profesor
               </span>
             </div>
-            <h2 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '1.05rem', lineHeight: 1.2 }}>{programTitle}</h2>
+            <h2 style={{ margin: 0, color: '#FFFFFF', fontWeight: 800, fontSize: '1.1rem', lineHeight: 1.25 }}>
+              {programTitle || 'Programa'}
+            </h2>
           </div>
-          <button onClick={onClose} style={{ color: 'rgba(255,255,255,0.65)', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}><X size={22} /></button>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              color: 'rgba(255,255,255,0.75)', 
+              background: 'rgba(255,255,255,0.1)', 
+              border: 'none', 
+              borderRadius: '8px',
+              cursor: 'pointer', 
+              padding: '0.45rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
           {successMsg && (
-            <div style={{ background: '#d1fae5', color: '#065f46', padding: '0.6rem 1rem', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-              <CheckCircle size={16} /> {successMsg}
+            <div style={{ 
+              background: '#DCFCE7', 
+              color: '#166534', 
+              border: '1px solid #86EFAC',
+              padding: '0.75rem 1rem', 
+              borderRadius: '8px', 
+              fontSize: '0.84rem', 
+              fontWeight: 600,
+              marginBottom: '1rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              flexShrink: 0 
+            }}>
+              <CheckCircle size={16} color="#166534" /> {successMsg}
             </div>
           )}
 
-          <input
-            type="text"
-            placeholder="Buscar profesor por nombre o rol..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            style={{ padding: '0.75rem 1rem', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', width: '100%', flexShrink: 0, boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)' }}
-          />
+          {/* Search Input in Drawer */}
+          <div style={{ position: 'relative', marginBottom: '1.25rem', flexShrink: 0 }}>
+            <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Buscar profesor por nombre o especialidad..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{ 
+                width: '100%', 
+                padding: '0.7rem 1rem 0.7rem 2.5rem', 
+                border: '1px solid #CBD5E1', 
+                borderRadius: '8px', 
+                fontSize: '0.86rem',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.15s ease'
+              }}
+              onFocus={e => e.currentTarget.style.borderColor = 'var(--gold, #FCA311)'}
+              onBlur={e => e.currentTarget.style.borderColor = '#CBD5E1'}
+            />
+          </div>
 
           <div style={{ overflowY: 'auto', flex: 1, paddingRight: '0.25rem' }}>
             {loading ? (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Cargando profesores...</p>
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748B' }}>
+                <div style={{ width: '28px', height: '28px', border: '3px solid #E2E8F0', borderTopColor: 'var(--gold, #FCA311)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 0.75rem' }} />
+                <span style={{ fontSize: '0.85rem' }}>Cargando profesores...</span>
+              </div>
             ) : filtered.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem', fontSize: '0.9rem', background: '#f8fafc', borderRadius: '8px' }}>
-                {unassigned.length === 0
-                  ? '✓ Todos los profesores de la plataforma ya están asignados a este programa.'
-                  : 'No se encontraron profesores con ese nombre o rol.'}
-              </p>
+              <div style={{ textAlign: 'center', padding: '2.5rem 1.5rem', background: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
+                <GraduationCap size={32} color="#94A3B8" style={{ margin: '0 auto 0.65rem' }} />
+                <p style={{ color: '#475569', margin: 0, fontSize: '0.86rem', fontWeight: 600 }}>
+                  {unassigned.length === 0
+                    ? 'Todos los profesores registrados ya están asignados a este programa.'
+                    : 'No se encontraron profesores con ese término de búsqueda.'}
+                </p>
+              </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 {filtered.map(teacher => {
                   const meta = parseTeacherMeta(teacher);
                   return (
-                    <div key={teacher.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'white', boxShadow: 'var(--shadow-sm)' }}>
-                      <div className="user-cell" style={{ gap: '0.75rem' }}>
-                        <Initials name={teacher.name} />
-                        <div>
-                          <div className="user-name" style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--navy)' }}>{teacher.name}</div>
-                          <div className="user-email" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{meta.role}</div>
+                    <div 
+                      key={teacher.id} 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        padding: '0.85rem 1rem', 
+                        border: '1px solid #E2E8F0', 
+                        borderRadius: '10px', 
+                        background: '#FFFFFF',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.borderColor = '#CBD5E1'}
+                      onMouseOut={e => e.currentTarget.style.borderColor = '#E2E8F0'}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                        {teacher.photo || teacher.photo_url ? (
+                          <img src={teacher.photo || teacher.photo_url} alt={teacher.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        ) : (
+                          <div style={{
+                            width: '36px', height: '36px', borderRadius: '50%',
+                            background: 'var(--navy, #14213D)', color: 'var(--gold, #FCA311)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.75rem', fontWeight: 700, flexShrink: 0
+                          }}>
+                            {getInitials(teacher.name)}
+                          </div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--navy, #14213D)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {teacher.name}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {meta.role}
+                          </div>
                         </div>
                       </div>
+
                       <button
+                        type="button"
                         onClick={() => handleAssign(teacher)}
                         disabled={assigning === teacher.id}
-                        className="btn btn-primary"
-                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap', minWidth: '90px' }}
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          padding: '0.45rem 0.85rem',
+                          background: 'var(--navy, #14213D)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: assigning === teacher.id ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseOver={e => { if (assigning !== teacher.id) e.currentTarget.style.background = '#000000'; }}
+                        onMouseOut={e => { if (assigning !== teacher.id) e.currentTarget.style.background = 'var(--navy, #14213D)'; }}
                       >
-                        {assigning === teacher.id ? '...' : '+ Asignar'}
+                        <Plus size={14} /> {assigning === teacher.id ? 'Asignando...' : 'Asignar'}
                       </button>
                     </div>
                   );
@@ -168,9 +300,9 @@ export function AssignTeacherDrawer({ programId, programTitle, assignedTeachers,
 }
 
 /* ────────────────────────────────────────────────────────
-   TAB 3 — Profesores (Supabase)
+   TAB PRINCIPAL — Profesores (Supabase)
 ──────────────────────────────────────────────────────── */
-export default function ProfesoresTab({ teachers, loading, onRefresh, programId, programTitle }) {
+export default function ProfesoresTab({ teachers = [], loading, onRefresh, programId, programTitle }) {
   const [showAssignDrawer, setShowAssignDrawer] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [teacherToUnassign, setTeacherToUnassign] = useState(null);
@@ -204,111 +336,303 @@ export default function ProfesoresTab({ teachers, loading, onRefresh, programId,
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
-      <div className="section-header-row" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+      
+      {/* HEADER SECTION */}
+      <div style={{
+        marginBottom: '1.5rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
         <div>
-          <span className="section-title" style={{ display: 'block' }}>Profesores del programa ({teachers.length})</span>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Directorio de profesores vinculados a este programa.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+              Profesores del Programa
+            </h2>
+            <span style={{
+              background: 'rgba(20, 33, 61, 0.08)',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              padding: '2px 9px',
+              borderRadius: '12px'
+            }}>
+              {filteredTeachers.length}
+            </span>
+          </div>
+          <p style={{ color: '#64748B', fontSize: '0.84rem', margin: '4px 0 0 0' }}>
+            Directorio de docentes y facilitadores vinculados a este programa.
+          </p>
         </div>
+
+        {/* BARRA DE ACCIONES */}
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            placeholder="Buscar por nombre o rol..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            style={{ padding: '0.55rem 1rem', border: '1px solid var(--border-color)', borderRadius: '6px', minWidth: '240px', fontSize: '0.85rem' }}
-          />
+          {/* BUSCADOR */}
+          <div style={{ position: 'relative', minWidth: '260px' }}>
+            <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o rol..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.55rem 1rem 0.55rem 2.3rem',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                fontSize: '0.84rem',
+                background: '#FFFFFF',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.15s ease'
+              }}
+              onFocus={e => e.currentTarget.style.borderColor = 'var(--gold, #FCA311)'}
+              onBlur={e => e.currentTarget.style.borderColor = '#CBD5E1'}
+            />
+            {searchTerm && (
+              <button 
+                type="button"
+                onClick={() => setSearchTerm('')}
+                style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* BOTON ASIGNAR */}
           <button
+            type="button"
             onClick={() => setShowAssignDrawer(true)}
-            style={{ fontSize: '0.85rem', padding: '0.55rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--navy)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, boxShadow: 'var(--shadow-sm)' }}
+            style={{
+              fontSize: '0.84rem',
+              padding: '0.55rem 1.15rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'var(--navy, #14213D)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 700,
+              boxShadow: '0 2px 6px rgba(20, 33, 61, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.background = '#000000'}
+            onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
           >
             <Plus size={16} /> Asignar Profesor
           </button>
         </div>
       </div>
 
-      <div className="admin-table-wrapper" style={{ background: 'white', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-        <table className="admin-table">
+      {/* TABLA DE PROFESORES */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '12px',
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        overflow: 'hidden'
+      }}>
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          textAlign: 'left',
+          tableLayout: 'fixed'
+        }}>
+          <colgroup>
+            <col style={{ width: '38%' }} />
+            <col style={{ width: '26%' }} />
+            <col style={{ width: '22%' }} />
+            <col style={{ width: '14%' }} />
+          </colgroup>
+
           <thead>
-            <tr>
-              <th>Profesor</th>
-              <th>Especialidad / Rol</th>
-              <th>Contacto</th>
-              <th style={{ textAlign: 'right', paddingRight: '1.5rem' }}>Acciones</th>
+            <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#475569' }}>
+                Profesor
+              </th>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#475569' }}>
+                Especialidad / Rol
+              </th>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#475569' }}>
+                Contacto
+              </th>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#475569', textAlign: 'right' }}>
+                Acciones
+              </th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Cargando profesores...</td>
+                <td colSpan={4} style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#64748B' }}>
+                  <div style={{ width: '28px', height: '28px', border: '3px solid #E2E8F0', borderTopColor: 'var(--gold, #FCA311)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 0.75rem' }} />
+                  <span style={{ fontSize: '0.85rem' }}>Cargando profesores...</span>
+                </td>
               </tr>
             ) : filteredTeachers.length === 0 ? (
-              <EmptyRow cols={4} message="No hay profesores asignados que coincidan con la búsqueda." />
-            ) : filteredTeachers.map(t => {
-              const meta = parseTeacherMeta(t);
-              return (
-                <tr key={t.id}>
-                  <td>
-                    <div className="user-cell">
-                      {t.photo || t.photo_url ? (
-                        <img src={t.photo || t.photo_url} alt={t.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
-                      ) : (
-                        <Initials name={t.name} />
-                      )}
-                      <div>
-                        <div className="user-name" style={{ fontWeight: 600, color: 'var(--navy)' }}>{t.name}</div>
-                        <div className="user-email" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.bio}</div>
+              <tr>
+                <td colSpan={4} style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#64748B' }}>
+                  <GraduationCap size={36} color="#CBD5E1" style={{ margin: '0 auto 0.75rem' }} />
+                  <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
+                    {searchTerm ? 'No se encontraron profesores' : 'No hay profesores asignados'}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#64748B', maxWidth: '380px', margin: '0 auto' }}>
+                    {searchTerm 
+                      ? 'Prueba con otro término de búsqueda.' 
+                      : 'Asigna profesores a este programa usando el botón "+ Asignar Profesor".'}
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              filteredTeachers.map((t, idx) => {
+                const meta = parseTeacherMeta(t);
+                const isLast = idx === filteredTeachers.length - 1;
+
+                return (
+                  <tr 
+                    key={t.id} 
+                    style={{
+                      borderBottom: isLast ? 'none' : '1px solid #F1F5F9',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = '#F8FAFC'}
+                    onMouseOut={e => e.currentTarget.style.background = '#FFFFFF'}
+                  >
+                    {/* PROFESOR */}
+                    <td style={{ padding: '1rem 1.25rem', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        {t.photo || t.photo_url ? (
+                          <img src={t.photo || t.photo_url} alt={t.name} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} />
+                        ) : (
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '50%',
+                            background: 'var(--navy, #14213D)',
+                            color: 'var(--gold, #FCA311)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.78rem',
+                            flexShrink: 0,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                          }}>
+                            {getInitials(t.name)}
+                          </div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {t.name || 'Sin nombre'}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {meta.bio}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 500 }}>
-                      <GraduationCap size={15} style={{ color: 'var(--gold)' }} /> {meta.role}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      {meta.country && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <MapPin size={13} /> {meta.country}
-                        </span>
-                      )}
-                      {meta.phone && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Phone size={13} /> {meta.phone}
-                        </span>
-                      )}
-                      {!meta.country && !meta.phone && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No disponible</span>
-                      )}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', paddingRight: '1.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
-                      <Link
-                        to={`/users`}
-                        className="btn-icon"
-                        title="Ver perfil completo en Gestión Global"
-                        style={{ background: '#f8fafc', color: 'var(--navy)', border: '1px solid var(--border-color)' }}
-                      >
-                        <Eye size={15} />
-                      </Link>
-                      <button
-                        onClick={() => setTeacherToUnassign(t)}
-                        className="btn-icon del"
-                        title="Desvincular profesor del programa"
-                        style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+
+                    {/* ESPECIALIDAD / ROL */}
+                    <td style={{ padding: '1rem 1.25rem', verticalAlign: 'middle' }}>
+                      <span style={{ 
+                        fontSize: '0.84rem', 
+                        color: 'var(--navy, #14213D)', 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '0.45rem', 
+                        fontWeight: 600,
+                        background: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '8px'
+                      }}>
+                        <GraduationCap size={14} color="var(--gold, #FCA311)" /> {meta.role}
+                      </span>
+                    </td>
+
+                    {/* CONTACTO */}
+                    <td style={{ padding: '1rem 1.25rem', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {meta.country && (
+                          <span style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <MapPin size={12} color="#64748B" /> {meta.country}
+                          </span>
+                        )}
+                        {meta.phone && (
+                          <span style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Phone size={12} color="#64748B" /> {meta.phone}
+                          </span>
+                        )}
+                        {!meta.country && !meta.phone && (
+                          <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>No registrado</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* ACCIONES */}
+                    <td style={{ padding: '1rem 1.25rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '0.45rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <Link
+                          to={`/users`}
+                          title="Ver perfil completo en Gestión Global"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '7px',
+                            background: '#F8FAFC',
+                            color: 'var(--navy, #14213D)',
+                            border: '1px solid #CBD5E1',
+                            textDecoration: 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseOver={e => { e.currentTarget.style.background = '#EEF2F6'; e.currentTarget.style.borderColor = '#94A3B8'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+                        >
+                          <Eye size={15} />
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => setTeacherToUnassign(t)}
+                          title="Desvincular profesor del programa"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '7px',
+                            background: '#FEF2F2',
+                            color: '#DC2626',
+                            border: '1px solid #FECACA',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseOver={e => { e.currentTarget.style.background = '#FEE2E2'; e.currentTarget.style.borderColor = '#FCA5A5'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#FECACA'; }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
+      {/* DRAWER ASIGNAR */}
       {showAssignDrawer && (
         <AssignTeacherDrawer
           programId={programId}
@@ -319,11 +643,13 @@ export default function ProfesoresTab({ teachers, loading, onRefresh, programId,
         />
       )}
 
+      {/* CONFIRMAR DESVINCULACION */}
       <ConfirmModal
         isOpen={!!teacherToUnassign}
         title="Desvincular Profesor"
         message={`¿Estás seguro de que deseas desvincular al profesor "${teacherToUnassign?.name}" de este programa?`}
-        confirmText="Desvincular"
+        note="El profesor ya no podrá gestionar las clases ni actividades de este programa."
+        confirmText="Desvincular Profesor"
         cancelText="Cancelar"
         loading={unassigning}
         onConfirm={handleConfirmUnassignTeacher}
