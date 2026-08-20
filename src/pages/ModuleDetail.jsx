@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle, CalendarPlus } from 'lucide-react';
+import { getGoogleCalendarUrl } from '../utils/dateUtils';
 
 export default function ModuleDetail() {
   const { id } = useParams();
@@ -14,6 +15,7 @@ export default function ModuleDetail() {
   const [completedActivities, setCompletedActivities] = useState(new Set());
 
   const [programType, setProgramType] = useState(null);
+  const [programTitle, setProgramTitle] = useState('');
 
   useEffect(() => {
     async function fetchModuleData() {
@@ -48,13 +50,16 @@ export default function ModuleDetail() {
             // No hacemos await aquí para no bloquear, lo dejamos en background
             supabase
               .from('diploma_programs')
-              .select('program_type')
+              .select('title, program_type')
               .eq('id', modData.program_id)
               .maybeSingle()
               .then(({ data: progData }) => {
                 if (progData?.program_type) {
                   setProgramType(progData.program_type);
                   localStorage.setItem('activeProgramType', progData.program_type);
+                }
+                if (progData?.title) {
+                  setProgramTitle(progData.title);
                 }
                 localStorage.setItem('activeProgramId', modData.program_id);
                 window.dispatchEvent(new Event('programContextChanged'));
@@ -245,6 +250,17 @@ export default function ModuleDetail() {
                       }
                     }
 
+                    const classDateObj = cls.class_date ? new Date(cls.class_date) : null;
+                    const isFutureClass = classDateObj && !isNaN(classDateObj.getTime()) && classDateObj.getTime() > Date.now();
+                    const googleCalUrl = isFutureClass
+                      ? getGoogleCalendarUrl(
+                          cls,
+                          programTitle || moduleData?.title || '',
+                          cls.teacher_profiles?.name || '',
+                          currentUser?.role === 'teacher' ? 'teacher' : 'student'
+                        )
+                      : null;
+
                     return (
                     <div key={cls.id} style={{
                       padding: '0.85rem 1rem',
@@ -253,9 +269,11 @@ export default function ModuleDetail() {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      background: 'var(--surface-light)'
+                      background: 'var(--surface-light)',
+                      gap: '1rem',
+                      flexWrap: 'wrap'
                     }}>
-                      <div>
+                      <div style={{ minWidth: 0, flex: '1 1 260px' }}>
                         <h4 style={{ fontWeight: 600, color: 'var(--navy)', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
                           {cls.title}
                         </h4>
@@ -286,9 +304,47 @@ export default function ModuleDetail() {
                         </div>
                       </div>
 
-                      <Link to={`/class/${cls.id}`} className="btn btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.78rem' }}>
-                        <PlayCircle size={14} /> Ver Clase
-                      </Link>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                        {isFutureClass && googleCalUrl && (
+                          <a
+                            href={googleCalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Agendar esta clase en Google Calendar"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: 'var(--radius-md, 8px)',
+                              background: '#FFFFFF',
+                              border: '1.5px solid #CBD5E1',
+                              color: 'var(--navy, #14213D)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                            }}
+                            onMouseOver={e => {
+                              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                              e.currentTarget.style.background = '#F8FAFC';
+                            }}
+                            onMouseOut={e => {
+                              e.currentTarget.style.borderColor = '#CBD5E1';
+                              e.currentTarget.style.background = '#FFFFFF';
+                            }}
+                          >
+                            <CalendarPlus size={13} color="var(--gold-dark, #b45309)" />
+                            <span>Agendar</span>
+                          </a>
+                        )}
+
+                        <Link to={`/class/${cls.id}`} className="btn btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <PlayCircle size={14} /> Ver Clase
+                        </Link>
+                      </div>
                     </div>
                   )})
                 )}
