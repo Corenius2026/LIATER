@@ -565,7 +565,11 @@ export default function Profile() {
               textTransform: 'uppercase',
               letterSpacing: '0.04em'
             }}>
-              🏛️ CONFIGURACIÓN DE CUENTA · PORTAL DOCENTE UNAL
+              {role === 'admin' 
+                ? '🏛️ CONFIGURACIÓN DE CUENTA · PANEL ADMINISTRADOR UNAL' 
+                : role === 'teacher' 
+                  ? '🏛️ CONFIGURACIÓN DE CUENTA · PORTAL DOCENTE UNAL' 
+                  : '🏛️ CONFIGURACIÓN DE CUENTA · PORTAL ESTUDIANTE UNAL'}
             </span>
             <span style={{
               background: isEmailVerified ? '#DCFCE7' : '#FEF3C7',
@@ -580,10 +584,18 @@ export default function Profile() {
           </div>
 
           <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
-            Mi Perfil Docente
+            {role === 'admin' 
+              ? 'Mi Perfil de Administrador' 
+              : role === 'teacher' 
+                ? 'Mi Perfil Docente' 
+                : 'Mi Perfil de Estudiante'}
           </h1>
           <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
-            Actualiza tus datos de contacto, personaliza tu presentación pública y administra la seguridad de tu cuenta.
+            {role === 'teacher'
+              ? 'Actualiza tus datos de contacto, personaliza tu presentación pública académica y administra la seguridad de tu cuenta.'
+              : role === 'admin'
+                ? 'Gestiona tus datos de acceso, credenciales institucionales y seguridad de la cuenta administrativa.'
+                : 'Actualiza tus datos personales, información de contacto y administra la seguridad de tu cuenta.'}
           </p>
         </div>
 
