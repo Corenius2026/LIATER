@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Plus, Pencil, Trash2, X, Megaphone, Send } from 'lucide-react';
 import { formatShortDate } from '../utils/dateUtils';
+import DeleteAnnouncementModal from '../components/DeleteAnnouncementModal';
 import './AdminPanel.css'; // Reusing admin styles
 
 export default function Communications() {
@@ -9,6 +10,7 @@ export default function Communications() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const fetchAnnouncements = async () => {
     try {
@@ -41,15 +43,14 @@ export default function Communications() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio global?')) return;
-    try {
-      const { error } = await supabase.from('announcements').delete().eq('id', id);
-      if (error) throw error;
-      fetchAnnouncements();
-    } catch (err) {
-      alert('Error al eliminar: ' + err.message);
-    }
+  const handleDelete = (a) => {
+    setConfirmDelete(a);
+  };
+
+  const handleConfirmDelete = async (id) => {
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) throw error;
+    fetchAnnouncements();
   };
 
   const getTargetLabel = (role, hasProgram) => {
@@ -135,7 +136,7 @@ export default function Communications() {
                           <Pencil size={12} /> Editar
                         </button>
                       )}
-                      <button onClick={() => handleDelete(a.id)} title="Eliminar" style={{ padding: "0.3rem 0.6rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 700 }}>
+                      <button onClick={() => handleDelete(a)} title="Eliminar" style={{ padding: "0.3rem 0.6rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 700 }}>
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -154,6 +155,14 @@ export default function Communications() {
           onRefresh={fetchAnnouncements}
         />
       )}
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <DeleteAnnouncementModal
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        announcement={confirmDelete}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

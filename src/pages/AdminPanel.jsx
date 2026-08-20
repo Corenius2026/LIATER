@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   ListTree, Video, FileText, Settings, ShieldAlert, ArrowLeft, Megaphone
 } from 'lucide-react';
-import { isClassLiveOrSoon } from '../utils/dateUtils';
+import { isClassLiveOrSoon, isClassActiveOrUpcoming } from '../utils/dateUtils';
 
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminStudents from '../components/admin/AdminStudents';
@@ -160,8 +160,7 @@ export default function AdminPanel() {
           }
         } catch {}
 
-        const now = new Date().toISOString();
-        const upcoming = classesData.filter(c => c.class_date && c.class_date > now).slice(0, 4);
+        const upcoming = classesData.filter(c => isClassActiveOrUpcoming(c)).slice(0, 6);
 
         setData({
           program: programData,

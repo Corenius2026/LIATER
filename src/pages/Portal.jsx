@@ -2,13 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Clock, Sparkles, Layers, Bell, ExternalLink, ShieldCheck, AlertCircle, ArrowUpRight } from 'lucide-react';
-import { formatShortDate, isClassLiveOrSoon } from '../utils/dateUtils';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Clock, Sparkles, Layers, Bell, ExternalLink, ShieldCheck, AlertCircle, ArrowUpRight, CalendarPlus } from 'lucide-react';
+import { formatShortDate, isClassLiveOrSoon, getGoogleCalendarUrl } from '../utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '../services/programService';
 import { updateDoubtStatus } from '../services/doubtService';
 import PendingActivitiesCard from '../components/PendingActivitiesCard';
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+/* ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    SUB-COMPONENTE: Portal de Estudiante
 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 function StudentPortal({ getDiplomadoLink }) {
@@ -61,7 +61,7 @@ function StudentPortal({ getDiplomadoLink }) {
           // Buscar clases programadas para hoy
           const { data: todayClasses } = await supabase
             .from('class_sessions')
-            .select('program_id, meet_url, class_date, duration')
+            .select('program_id, meet_url, class_date, duration, video_url')
             .in('program_id', enrolledDiplomas.map(d => d.id))
             .gte('class_date', todayStart)
             .lt('class_date', todayEnd);
@@ -644,7 +644,7 @@ function TeacherPortal({ getDiplomadoLink }) {
 
           const { data: todayClasses } = await supabase
             .from('class_sessions')
-            .select('program_id, meet_url, class_date, duration')
+            .select('program_id, meet_url, class_date, duration, video_url')
             .in('program_id', fetchedDiplomas.map(d => d.id))
             .gte('class_date', todayStart)
             .lt('class_date', todayEnd);
@@ -2572,6 +2572,35 @@ function TeacherPortal({ getDiplomadoLink }) {
 
             {/* ACCIONES A LA DERECHA */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap' }}>
+              {/* Botón Agendar en Google Calendar */}
+              {getGoogleCalendarUrl(nextClass, nextClassProgTitle, currentUser?.full_name) && (
+                <a
+                  href={getGoogleCalendarUrl(nextClass, nextClassProgTitle, currentUser?.full_name)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Agendar esta sesión en Google Calendar"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    background: '#FFFFFF',
+                    color: 'var(--navy, #14213D)',
+                    border: '1.5px solid var(--border-color, #E2E8F0)',
+                    padding: '0.6rem 1.1rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    textDecoration: 'none',
+                    transition: 'all 0.15s ease',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = 'var(--border-color, #E2E8F0)'; }}
+                >
+                  <CalendarPlus size={15} color="var(--gold-dark, #b45309)" />
+                  <span>Agendar en Calendar</span>
+                </a>
+              )}
               {isClassLiveOrSoon(nextClass, 10) && (nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url) ? (
                 <a
                   href={nextClass.meet_url || diplomas.find(d => d.id === nextClassProgId)?.meet_url}
@@ -2967,7 +2996,7 @@ function AdminPortal({ getDiplomadoLink }) {
 
         const { data: todayClasses } = await supabase
           .from('class_sessions')
-          .select('program_id, meet_url, class_date, duration')
+          .select('program_id, meet_url, class_date, duration, video_url')
           .in('program_id', diplomasData.map(d => d.id))
           .gte('class_date', todayStart)
           .lt('class_date', todayEnd);
@@ -3932,10 +3961,10 @@ export default function Portal() {
     </div>
   );
 }
-
-
-
-
-
-
-
+
+
+
+
+
+
+

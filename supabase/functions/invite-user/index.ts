@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Token de sesion invalido o expirado." }), { status: 401, headers: jsonHeaders });
+      return new Response(JSON.stringify({ error: "Token de sesión inválido o expirado." }), { status: 401, headers: jsonHeaders });
     }
 
     // ── 3. Verificar que el solicitante es admin ──────────────────────
@@ -97,40 +97,119 @@ Deno.serve(async (req: Request) => {
       }
 
       // Usuario invitado pero no activado: reenviar invitación
-      const { error: resendError } = await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
+      let resendSuccessful = false;
+      const { data: resendData, error: resendError } = await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
         data: { full_name: nameNorm, role: roleNorm },
         redirectTo: `${siteUrl}/update-password`,
       });
-      if (resendError) throw resendError;
 
-      // Registrar la fecha del reenvío
-      await supabaseAdmin
-        .from("users_profile")
-        .update({ invited_at: new Date().toISOString(), full_name: nameNorm })
-        .eq("id", existingProfile.id);
+      if (!resendError) {
+        resendSuccessful = true;
+      } else {
+        console.warn(`[invite-user] Reenvío directo falló para ${emailNorm} (${resendError.message}). Limpiando auth.users para re-invitar limpiamente...`);
+        // Si el usuario ya estaba en auth.users (ej. link anterior expirado o confirmado parcialmente):
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const existingAuthUser = listData?.users?.find(u => u.email?.toLowerCase() === emailNorm);
+        
+        if (existingAuthUser) {
+          // 1. Desvincular temporalmente auth_user_id para evitar que ON DELETE CASCADE de PostgreSQL borre users_profile
+          await supabaseAdmin
+            .from("users_profile")
+            .update({ auth_user_id: null })
+            .eq("id", existingProfile.id);
 
-      return new Response(JSON.stringify({
-        success: true,
-        resent: true,
-        message: `Invitacion reenviada a ${emailNorm}. El usuario debe revisar su correo.`,
-      }), { status: 200, headers: jsonHeaders });
+          // 2. Eliminar el usuario obsoleto en auth.users
+          await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.id);
+          
+          // 3. Crear nueva invitación limpia
+          const { data: retryData, error: retryErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
+            data: { full_name: nameNorm, role: roleNorm },
+            redirectTo: `${siteUrl}/update-password`,
+          });
+          
+          if (retryErr) throw retryErr;
+          
+          if (retryData?.user?.id) {
+            // 4. Vincular el nuevo auth_user_id en users_profile
+            await supabaseAdmin
+              .from("users_profile")
+              .update({
+                auth_user_id: retryData.user.id,
+                invited_at: new Date().toISOString(),
+                full_name: nameNorm,
+              })
+              .eq("id", existingProfile.id);
+            
+            resendSuccessful = true;
+          }
+        } else {
+          throw resendError;
+        }
+      }
+
+      if (resendSuccessful) {
+        // Registrar la fecha del reenvío
+        await supabaseAdmin
+          .from("users_profile")
+          .update({ invited_at: new Date().toISOString(), full_name: nameNorm })
+          .eq("id", existingProfile.id);
+
+        return new Response(JSON.stringify({
+          success: true,
+          resent: true,
+          message: `Invitación reenviada a ${emailNorm}. El usuario debe revisar su correo.`,
+        }), { status: 200, headers: jsonHeaders });
+      }
     }
 
-    // ── 6. Invitar usuario nuevo via Supabase Auth ────────────────────
+    // ── 6. Invitar usuario nuevo via Supabase Auth (con manejo de cuentas huérfanas) ──
+    let createdAuthUser = null;
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
       data: { full_name: nameNorm, role: roleNorm },
       redirectTo: `${siteUrl}/update-password`,
     });
 
-    if (inviteError) throw inviteError;
-    if (!inviteData.user) throw new Error("No se pudo crear la cuenta.");
+    if (inviteError) {
+      const errMsg = inviteError.message || "";
+      // Si el correo ya existía en auth.users (pero no en users_profile porque fue eliminado previamente):
+      if (errMsg.toLowerCase().includes("already") || errMsg.toLowerCase().includes("registered")) {
+        console.warn(`[invite-user] Cuenta huérfana en auth.users detectada para ${emailNorm}. Limpiando y re-creando...`);
+        
+        // Localizar el id en auth.users
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const orphanUser = listData?.users?.find(u => u.email?.toLowerCase() === emailNorm);
+        
+        if (orphanUser) {
+          await supabaseAdmin.auth.admin.deleteUser(orphanUser.id);
+          
+          // Reintentar invitación limpia
+          const { data: retryData, error: retryErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
+            data: { full_name: nameNorm, role: roleNorm },
+            redirectTo: `${siteUrl}/update-password`,
+          });
+          
+          if (retryErr) throw retryErr;
+          createdAuthUser = retryData?.user;
+        } else {
+          throw inviteError;
+        }
+      } else {
+        throw inviteError;
+      }
+    } else {
+      createdAuthUser = inviteData?.user;
+    }
+
+    if (!createdAuthUser) {
+      throw new Error("No se pudo inicializar la cuenta de autenticación.");
+    }
 
     // ── 7. Crear users_profile en estado pendiente ────────────────────
     // is_active: false — se activa en UpdatePassword tras definir contraseña
     const { data: newProfile, error: profileError } = await supabaseAdmin
       .from("users_profile")
       .insert([{
-        auth_user_id: inviteData.user.id,
+        auth_user_id: createdAuthUser.id,
         full_name: nameNorm,
         email: emailNorm,
         role: roleNorm,
@@ -155,7 +234,7 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({
       success: true,
       resent: false,
-      message: `Invitacion enviada a ${emailNorm}. El usuario debe revisar su correo para crear su contrasena.`,
+      message: `Invitación enviada a ${emailNorm}. El usuario debe revisar su correo para crear su contraseña.`,
       user_id: newProfile.id,
     }), { status: 200, headers: jsonHeaders });
 
@@ -163,9 +242,9 @@ Deno.serve(async (req: Request) => {
     const message = err instanceof Error ? err.message : String(err);
     // Mensajes seguros
     const safeMessage = message.includes("already registered")
-      ? "Este correo ya esta registrado en el sistema."
+      ? "Este correo ya está registrado en el sistema."
       : message.includes("Unable to validate email address")
-      ? "El formato del correo no es valido."
+      ? "El formato del correo no es válido."
       : "Error interno: " + message;
 
     return new Response(JSON.stringify({ error: safeMessage }), {

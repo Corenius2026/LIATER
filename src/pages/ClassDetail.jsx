@@ -222,6 +222,7 @@ export default function ClassDetail() {
   const [resources, setResources] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [programType, setProgramType] = useState(null);
+  const [programMeetUrl, setProgramMeetUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [programProgressDetails, setProgramProgressDetails] = useState(null);
 
@@ -581,11 +582,14 @@ export default function ClassDetail() {
           if (classData.program_id) {
             secondaryPromises.push(
               (async () => {
-                const { data: progData } = await supabase.from('diploma_programs').select('program_type').eq('id', classData.program_id).maybeSingle();
+                const { data: progData } = await supabase.from('diploma_programs').select('program_type, meet_url').eq('id', classData.program_id).maybeSingle();
                 localStorage.setItem('activeProgramId', classData.program_id);
                 if (progData?.program_type) {
                   setProgramType(progData.program_type);
                   localStorage.setItem('activeProgramType', progData.program_type);
+                }
+                if (progData?.meet_url) {
+                  setProgramMeetUrl(progData.meet_url);
                 }
                 window.dispatchEvent(new Event('programContextChanged'));
               })()
@@ -1134,7 +1138,7 @@ export default function ClassDetail() {
             const todayStart = new Date(); todayStart.setHours(0,0,0,0);
             const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
             const isClassToday = classDate >= todayStart && classDate <= todayEnd;
-            const meetLink = clsData?.meet_url || null;
+            const meetLink = clsData?.meet_url || programMeetUrl || null;
             const isLiveNow = isClassLiveOrSoon(clsData, 10);
 
             if (isLiveNow && meetLink) {
@@ -1154,7 +1158,7 @@ export default function ClassDetail() {
                     <div>
                       <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.1rem 0' }}>Clase en vivo · EN TRANSMISIÓN</p>
                       <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>
-                        {classDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs — La grabación estará disponible después
+                        {classDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs — Transmisión en curso
                       </p>
                     </div>
                   </div>
@@ -1171,7 +1175,7 @@ export default function ClassDetail() {
               );
             }
 
-            if (isClassToday) {
+            if (isClassToday && Date.now() < classDate.getTime()) {
               return (
                 <div style={{
                   background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)',

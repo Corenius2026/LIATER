@@ -3,12 +3,14 @@ import { supabase } from '../../lib/supabaseClient';
 import { Plus, Pencil, Trash2, X, Megaphone } from 'lucide-react';
 import { RoleBadge, StatusBadge, TypeBadge, Initials, ActionBtns, LoadingRow, EmptyRow, ConfirmModal } from './AdminShared';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../../utils/dateUtils';
+import DeleteAnnouncementModal from '../DeleteAnnouncementModal';
 
 export default function AnunciosTab({ programId }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const fetchAnnouncements = async () => {
     try {
@@ -42,15 +44,14 @@ export default function AnunciosTab({ programId }) {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este anuncio?')) return;
-    try {
-      const { error } = await supabase.from('announcements').delete().eq('id', id);
-      if (error) throw error;
-      fetchAnnouncements();
-    } catch (err) {
-      alert('Error al eliminar: ' + err.message);
-    }
+  const handleDelete = (a) => {
+    setConfirmDelete(a);
+  };
+
+  const handleConfirmDelete = async (id) => {
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) throw error;
+    fetchAnnouncements();
   };
 
   return (
@@ -111,7 +112,7 @@ export default function AnunciosTab({ programId }) {
                       {!a.teacher_id && (
                         <button onClick={() => handleEdit(a)} className="action-btn" title="Editar"><Pencil size={15} /></button>
                       )}
-                      <button onClick={() => handleDelete(a.id)} className="action-btn action-delete" title="Eliminar"><Trash2 size={15} /></button>
+                      <button onClick={() => handleDelete(a)} className="action-btn action-delete" title="Eliminar"><Trash2 size={15} /></button>
                     </div>
                   </td>
                 </tr>
@@ -129,6 +130,14 @@ export default function AnunciosTab({ programId }) {
           programId={programId}
         />
       )}
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <DeleteAnnouncementModal
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        announcement={confirmDelete}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

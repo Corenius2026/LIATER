@@ -4,24 +4,86 @@ import { supabase } from "../lib/supabaseClient";
 import {
   UserPlus, Users, GraduationCap, ShieldAlert, X, Mail,
   Pencil, Trash2, CheckCircle, BookOpen, PhoneCall, Globe,
-  ToggleLeft, ToggleRight, Send, RefreshCw, Eye, EyeOff, ChevronDown
+  ToggleLeft, ToggleRight, Send, RefreshCw, Eye, EyeOff, ChevronDown,
+  AlertTriangle, Clock
 } from "lucide-react";
 import "./AdminPanel.css";
 
 // ─── Helpers ────────────────────────────────────────────────
 // status: "active" | "pending" | "inactive"
 // Se determina por is_active e invited_at del perfil:
-//   is_active=true  → active
-//   is_active=false → pending (invitado, no activado)
-function AuthStatusBadge({ status }) {
+// Verifica si el registro es una invitación pendiente de activación
+function isInvitation(user) {
+  return !user?.is_active && Boolean(user?.invited_at);
+}
+
+// Calcula si la invitación enviada ya superó las 24 horas (86.400.000 ms)
+function isInviteExpired(user) {
+  if (!user || user.is_active) return false;
+  const dateStr = user.invited_at || user.created_at;
+  if (!dateStr) return true;
+  const elapsedMs = Date.now() - new Date(dateStr).getTime();
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  return elapsedMs >= TWENTY_FOUR_HOURS_MS;
+}
+
+// Horas restantes de vigencia de la invitación
+function getInviteHoursRemaining(user) {
+  if (!user || user.is_active) return 0;
+  const dateStr = user.invited_at || user.created_at;
+  if (!dateStr) return 0;
+  const elapsedMs = Date.now() - new Date(dateStr).getTime();
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const remainingMs = TWENTY_FOUR_HOURS_MS - elapsedMs;
+  if (remainingMs <= 0) return 0;
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+  const mins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 0) return `~${hours}h restantes`;
+  return `${mins}m restantes`;
+}
+
+function AuthStatusBadge({ user, status }) {
+  let finalStatus = status;
+  let customLabel = null;
+
+  if (user) {
+    if (user.is_active) {
+      finalStatus = "active";
+    } else {
+      const expired = isInviteExpired(user);
+      if (expired) {
+        finalStatus = "expired";
+      } else {
+        finalStatus = "pending";
+        const rem = getInviteHoursRemaining(user);
+        if (rem) customLabel = `Invitación Vigente (${rem})`;
+      }
+    }
+  }
+
   const map = {
     active:   { bg: "#d1fae5", color: "#065f46", label: "Activo" },
-    pending:  { bg: "#fef3c7", color: "#92400e", label: "Invitacion Pendiente" },
-    inactive: { bg: "#fee2e2", color: "#991b1b", label: "Inactivo" },
+    pending:  { bg: "#fef3c7", color: "#92400e", label: customLabel || "Invitación Vigente (<24h)" },
+    expired:  { bg: "#fee2e2", color: "#991b1b", label: "Invitación Expirada (>24h)" },
+    inactive: { bg: "#f1f5f9", color: "#64748b", label: "Inactivo" },
   };
-  const s = map[status] || { bg: "#f1f5f9", color: "#64748b", label: status };
+  const s = map[finalStatus] || { bg: "#f1f5f9", color: "#64748b", label: finalStatus };
   return (
-    <span style={{ background: s.bg, color: s.color, fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.55rem", borderRadius: "12px", whiteSpace: "nowrap" }}>
+    <span style={{
+      background: s.bg,
+      color: s.color,
+      fontSize: "0.72rem",
+      fontWeight: 700,
+      padding: "0.22rem 0.55rem",
+      borderRadius: "12px",
+      whiteSpace: "nowrap",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "0.3rem"
+    }}>
+      {finalStatus === "expired" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#dc2626", display: "inline-block" }} />}
+      {finalStatus === "pending" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", display: "inline-block" }} />}
+      {finalStatus === "active" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />}
       {s.label}
     </span>
   );
@@ -69,10 +131,10 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
       });
       if (fnErr) throw fnErr;
       if (data?.error) throw new Error(data.error);
-      setSuccess(`Invitacion enviada a ${email}. El usuario recibira un correo para crear su contrasena.`);
+      setSuccess(`Invitación enviada a ${email}. El usuario recibirá un correo para crear su contraseña.`);
       setTimeout(() => { onSuccess?.(); onClose(); }, 2800);
     } catch (err) {
-      setError(err.message || "Error al enviar invitacion.");
+      setError(err.message || "Error al enviar invitación.");
     } finally {
       setSubmitting(false);
     }
@@ -84,7 +146,7 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
         <div style={{ background: "var(--navy)", padding: "1.4rem 1.75rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.5)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "0.2rem" }}>Nuevo Usuario</div>
-            <h3 style={{ margin: 0, color: "white", fontWeight: 800, fontSize: "1.05rem" }}>Invitar por correo electronico</h3>
+            <h3 style={{ margin: 0, color: "white", fontWeight: 800, fontSize: "1.05rem" }}>Invitar por correo electrónico</h3>
           </div>
           <button onClick={onClose} style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}><X size={22} /></button>
         </div>
@@ -121,37 +183,37 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
 
           <div>
             <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Nombre completo</label>
-            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} required placeholder="Ej: Maria Garcia" />
+            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} required placeholder="Ej: María García" />
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Correo electronico</label>
+            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Correo electrónico</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} required placeholder="ejemplo@correo.com" />
           </div>
 
           {roleSelected === "teacher" && (
             <>
               <div>
-                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Area / Especialidad</label>
-                <input type="text" value={area} onChange={e => setArea(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} placeholder="Ej: Derecho Penal" />
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Área / Especialidad</label>
+                <input type="text" value={area} onChange={e => setArea(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} placeholder="Ej: Iluminación Deportiva" />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Biografia breve</label>
-                <textarea value={bio} onChange={e => setBio(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px", minHeight: "65px" }} placeholder="Descripcion del profesor..." />
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Biografía breve</label>
+                <textarea value={bio} onChange={e => setBio(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px", minHeight: "65px" }} placeholder="Descripción académica del profesor..." />
               </div>
             </>
           )}
 
           <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "8px", padding: "0.75rem 1rem", fontSize: "0.78rem", color: "#0369a1", display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
             <Send size={14} style={{ flexShrink: 0, marginTop: "1px" }} />
-            <span>El usuario recibira un correo de <strong>Supabase</strong> con un enlace para crear su propia contrasena. No necesitas escribir ninguna contrasena.</span>
+            <span>El usuario recibirá un correo de <strong>Supabase</strong> con un enlace para crear su propia contraseña. No necesitas escribir ninguna contraseña manual.</span>
           </div>
 
           <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "0.25rem" }}>
             <button type="button" onClick={onClose} style={{ padding: "0.65rem 1.25rem", borderRadius: "8px", border: "1px solid var(--border-color)", background: "#f8fafc", color: "var(--text-secondary)", fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
             <button type="submit" disabled={submitting} style={{ padding: "0.65rem 1.5rem", borderRadius: "8px", border: "none", background: "var(--navy)", color: "white", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Mail size={15} />
-              {submitting ? "Enviando..." : "Enviar Invitacion"}
+              {submitting ? "Enviando..." : "Enviar Invitación"}
             </button>
           </div>
         </form>
@@ -160,8 +222,418 @@ function CreateUserModal({ isOpen, onClose, onSuccess }) {
   );
 }
 
+// ─── Modal Eliminar Usuario (Seguro) ──────────────────────────
+function DeleteUserModal({ isOpen, onClose, user, onSuccess }) {
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setConfirmText("");
+      setDeleting(false);
+      setError("");
+    }
+  }, [isOpen, user]);
+
+  if (!isOpen || !user) return null;
+
+  const isPending = user.is_active === false;
+  const programCount = (user.assigned_programs || []).length;
+  const requiresTyping = !isPending || programCount > 0;
+  const canSubmit = !requiresTyping || confirmText.trim().toUpperCase() === "ELIMINAR";
+
+  const handleDelete = async (e) => {
+    if (e) e.preventDefault();
+    if (!canSubmit || deleting) return;
+    setDeleting(true);
+    setError("");
+
+    try {
+      let fnSuccess = false;
+
+      // 1. Intentar primero con la Edge Function delete-user
+      try {
+        const { data, error: fnErr } = await supabase.functions.invoke("delete-user", {
+          body: { user_id: user.id }
+        });
+
+        if (!fnErr && !data?.error) {
+          fnSuccess = true;
+        } else if (data?.error) {
+          console.warn("[DeleteUserModal] Edge function reportó error:", data.error);
+        }
+      } catch (invokeErr) {
+        console.warn("[DeleteUserModal] Edge function no disponible, usando cascada directa:", invokeErr);
+      }
+
+      // 2. Fallback: Ejecución directa en base de datos si la función no está desplegada en Supabase
+      if (!fnSuccess) {
+        if (user.role === "student") {
+          await supabase.from("activity_attempts").delete().eq("student_id", user.id);
+          await supabase.from("quiz_submissions").delete().eq("student_id", user.id);
+          await supabase.from("assignment_submissions").delete().eq("student_id", user.id);
+          await supabase.from("class_doubts").delete().eq("student_id", user.id);
+          await supabase.from("enrollments").delete().eq("student_id", user.id);
+        } else if (user.role === "teacher") {
+          await supabase.from("class_sessions").update({ teacher_id: null }).eq("teacher_id", user.id);
+          if (user.teacher_profile_id) {
+            await supabase.from("class_sessions").update({ teacher_id: null }).eq("teacher_id", user.teacher_profile_id);
+            await supabase.from("teacher_profiles").delete().eq("id", user.teacher_profile_id);
+          }
+          await supabase.from("teacher_profiles").delete().eq("user_id", user.id);
+          await supabase.from("enrollments").delete().eq("student_id", user.id);
+        }
+
+        const { error: delErr } = await supabase.from("users_profile").delete().eq("id", user.id);
+        if (delErr) throw delErr;
+      }
+
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      console.error("Error al eliminar usuario:", err);
+      setError(err.message || "No se pudo eliminar el usuario.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, padding: "1rem" }}>
+      <div style={{ width: "100%", maxWidth: "460px", background: "white", borderRadius: "16px", overflow: "hidden", boxShadow: "0 24px 48px rgba(0,0,0,0.25)", animation: "fadeSlideUp 0.25s ease-out" }}>
+        
+        {/* Header rojo */}
+        <div style={{ background: "#991b1b", padding: "1.25rem 1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", color: "white" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Trash2 size={18} color="white" />
+            </div>
+            <div>
+              <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.75)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Confirmación de Seguridad
+              </div>
+              <h3 style={{ margin: 0, color: "white", fontWeight: 800, fontSize: "1.05rem" }}>
+                Eliminar {user.role === "teacher" ? "Profesor" : "Estudiante"}
+              </h3>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ color: "rgba(255,255,255,0.7)", background: "none", border: "none", cursor: "pointer" }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Contenido */}
+        <div style={{ padding: "1.5rem" }}>
+          {error && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "0.75rem 1rem", borderRadius: "8px", fontSize: "0.84rem", marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <ShieldAlert size={16} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Tarjeta de información del usuario */}
+          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "1rem", marginBottom: "1.25rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <Initials name={user.full_name} size={40} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: "0.95rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {user.full_name || "Sin nombre"}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {user.email}
+                </div>
+              </div>
+              <AuthStatusBadge user={user} />
+            </div>
+
+            <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", fontSize: "0.76rem", color: "#64748b" }}>
+              <span>{user.role === "teacher" ? "Programas Asignados:" : "Programas Inscritos:"} <strong>{programCount}</strong></span>
+              <span>Rol: <strong style={{ textTransform: "capitalize" }}>{user.role === "teacher" ? "Profesor" : "Estudiante"}</strong></span>
+            </div>
+          </div>
+
+          <p style={{ fontSize: "0.875rem", color: "#334155", lineHeight: 1.5, margin: "0 0 1rem 0" }}>
+            {requiresTyping ? (
+              <>
+                ⚠️ <strong>Esta acción es irreversible.</strong> Se eliminarán definitivamente las credenciales de acceso, el perfil y los registros asociados de este usuario en la plataforma.
+              </>
+            ) : (
+              <>
+                Esta invitación pendiente no tiene historial de actividades. Se eliminará la cuenta y se liberará el correo para que pueda ser utilizado de nuevo.
+              </>
+            )}
+          </p>
+
+          {requiresTyping && (
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#475569", marginBottom: "0.4rem" }}>
+                Para confirmar, escribe <span style={{ color: "#b91c1c", fontWeight: 800 }}>ELIMINAR</span> a continuación:
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                placeholder="Escribe ELIMINAR"
+                style={{
+                  width: "100%",
+                  padding: "0.6rem 0.85rem",
+                  borderRadius: "8px",
+                  border: confirmText.toUpperCase() === "ELIMINAR" ? "2px solid #dc2626" : "1px solid #cbd5e1",
+                  fontSize: "0.88rem",
+                  fontWeight: 600,
+                  outline: "none"
+                }}
+              />
+            </div>
+          )}
+
+          {/* Acciones */}
+          <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={deleting}
+              style={{
+                padding: "0.6rem 1.2rem",
+                borderRadius: "8px",
+                border: "1px solid var(--border-color)",
+                background: "#f8fafc",
+                color: "var(--text-secondary)",
+                fontWeight: 600,
+                fontSize: "0.85rem",
+                cursor: "pointer"
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={!canSubmit || deleting}
+              style={{
+                padding: "0.6rem 1.4rem",
+                borderRadius: "8px",
+                border: "none",
+                background: canSubmit ? "#dc2626" : "#fca5a5",
+                color: "white",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                cursor: canSubmit && !deleting ? "pointer" : "not-allowed",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                boxShadow: canSubmit ? "0 2px 8px rgba(220, 38, 38, 0.25)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <Trash2 size={15} />
+              {deleting ? "Eliminando..." : "Eliminar Definitivamente"}
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal Reenviar Invitación (Diseño Profesional) ───────────
+function ResendInviteModal({ isOpen, onClose, user, onSuccess }) {
+  const [resending, setResending] = useState(false);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setResending(false);
+      setError("");
+      setSuccessMsg("");
+    }
+  }, [isOpen, user]);
+
+  if (!isOpen || !user) return null;
+
+  const handleConfirm = async (e) => {
+    if (e) e.preventDefault();
+    if (resending) return;
+    setResending(true);
+    setError("");
+
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke("invite-user", {
+        body: {
+          email: user.email,
+          full_name: user.full_name,
+          role: user.role,
+          area: user.area,
+          bio: user.bio
+        }
+      });
+
+      if (fnErr) {
+        let errorText = fnErr.message;
+        try {
+          if (fnErr.context && typeof fnErr.context.json === "function") {
+            const bodyJson = await fnErr.context.json();
+            if (bodyJson?.error) errorText = bodyJson.error;
+          }
+        } catch (_) {}
+        throw new Error(errorText || "Error al invocar la función de reenvío.");
+      }
+
+      if (data?.error) throw new Error(data.error);
+
+      setSuccessMsg(`Invitación reenviada correctamente a ${user.email}.`);
+      setTimeout(() => {
+        onSuccess?.();
+        onClose();
+      }, 1200);
+    } catch (err) {
+      console.error("Error al reenviar invitación:", err);
+      setError(err.message || "No se pudo reenviar la invitación.");
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const isTeacher = user.role === "teacher";
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, padding: "1rem" }}>
+      <div style={{ width: "100%", maxWidth: "480px", background: "white", borderRadius: "16px", overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)", animation: "fadeSlideUp 0.25s ease-out" }}>
+        
+        {/* Header Premium con degradado institucional */}
+        <div style={{ background: "linear-gradient(135deg, var(--navy, #14213d) 0%, #1e293b 100%)", padding: "1.25rem 1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", color: "white", borderBottom: "2px solid rgba(252, 163, 17, 0.4)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: "rgba(252, 163, 17, 0.15)", border: "1px solid rgba(252, 163, 17, 0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Mail size={20} color="var(--gold, #fca311)" />
+            </div>
+            <div>
+              <div style={{ fontSize: "0.68rem", color: "var(--gold, #fca311)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Gestión de Accesos · LIATER
+              </div>
+              <h3 style={{ margin: 0, color: "white", fontWeight: 800, fontSize: "1.05rem" }}>
+                Reenviar Invitación
+              </h3>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={resending}
+            style={{ color: "rgba(255,255,255,0.7)", background: "rgba(255,255,255,0.08)", border: "none", borderRadius: "6px", width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "var(--transition-fast)" }}
+            onMouseOver={e => e.currentTarget.style.color = "white"}
+            onMouseOut={e => e.currentTarget.style.color = "rgba(255,255,255,0.7)"}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Contenido del Modal */}
+        <div style={{ padding: "1.5rem" }}>
+          {error && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "0.75rem 1rem", borderRadius: "8px", fontSize: "0.84rem", marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <ShieldAlert size={16} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successMsg && (
+            <div style={{ background: "#f0fdf4", border: "1px solid #86efac", color: "#16a34a", padding: "0.75rem 1rem", borderRadius: "8px", fontSize: "0.84rem", marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <CheckCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {/* Tarjeta resumen del usuario destinatario */}
+          <div style={{ background: "var(--cream, #F8FAFC)", border: "1px solid var(--border-color, #E2E8F0)", borderRadius: "12px", padding: "1rem", marginBottom: "1.25rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+              <Initials name={user.full_name} size={42} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: "0.95rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {user.full_name || "Sin nombre registrado"}
+                </div>
+                <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.15rem" }}>
+                  <Mail size={13} color="var(--navy-light)" /> {user.email}
+                </div>
+              </div>
+              <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: "999px", background: isTeacher ? "rgba(252, 163, 17, 0.15)" : "rgba(20, 33, 61, 0.08)", color: isTeacher ? "var(--gold-dark, #b45309)" : "var(--navy)", border: isTeacher ? "1px solid rgba(252, 163, 17, 0.3)" : "1px solid rgba(20, 33, 61, 0.15)" }}>
+                {isTeacher ? "Profesor" : "Estudiante"}
+              </span>
+            </div>
+          </div>
+
+          {/* Bloque informativo de seguridad y vigencia */}
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.65rem", marginBottom: "1.5rem" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.83rem", color: "var(--navy)" }}>
+              <Send size={15} color="var(--gold-dark, #b45309)" style={{ flexShrink: 0, marginTop: "2px" }} />
+              <div>
+                <strong>Nuevo correo de acceso:</strong> Se generará y enviará un nuevo enlace de activación a la dirección de correo indicada.
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.83rem", color: "var(--navy)" }}>
+              <Clock size={15} color="#0284c7" style={{ flexShrink: 0, marginTop: "2px" }} />
+              <div>
+                <strong>Vigencia de 24 horas:</strong> El nuevo enlace será válido durante 24 horas a partir del momento del envío.
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.83rem", color: "var(--navy)" }}>
+              <AlertTriangle size={15} color="#d97706" style={{ flexShrink: 0, marginTop: "2px" }} />
+              <div>
+                <strong>Revocación automática:</strong> El enlace anterior quedará automáticamente invalidado por motivos de seguridad.
+              </div>
+            </div>
+          </div>
+
+          {/* Botones de Acción */}
+          <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={resending}
+              style={{
+                padding: "0.65rem 1.25rem",
+                borderRadius: "8px",
+                border: "1px solid var(--border-color)",
+                background: "#f8fafc",
+                color: "var(--text-secondary)",
+                fontWeight: 600,
+                fontSize: "0.88rem",
+                cursor: "pointer",
+                transition: "var(--transition-fast)"
+              }}
+              onMouseOver={e => e.currentTarget.style.background = "#e2e8f0"}
+              onMouseOut={e => e.currentTarget.style.background = "#f8fafc"}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={resending}
+              className="btn btn-primary"
+              style={{
+                padding: "0.65rem 1.45rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                fontSize: "0.88rem",
+                fontWeight: 700
+              }}
+            >
+              <RefreshCw size={15} className={resending ? "spin" : ""} />
+              {resending ? "Reenviando..." : "Reenviar Invitación"}
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // ─── Drawer de Estudiante ────────────────────────────────────
-function StudentDrawer({ isOpen, onClose, student, onRefresh }) {
+function StudentDrawer({ isOpen, onClose, student, onRefresh, onDeleteRequest, onResendRequest }) {
   const [activeTab, setActiveTab] = useState("perfil");
   const [diplomas, setDiplomas] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
@@ -234,7 +706,7 @@ function StudentDrawer({ isOpen, onClose, student, onRefresh }) {
       });
       if (fnErr) throw fnErr;
       if (data?.error) throw new Error(data.error);
-      setResendMsg(data?.resent ? "Invitacion reenviada con exito." : "Nueva invitacion enviada.");
+      setResendMsg(data?.resent ? "Invitación reenviada con éxito." : "Nueva invitación enviada.");
       setTimeout(() => setResendMsg(""), 3500);
     } catch (err) {
       setResendMsg("Error: " + (err.message || "No se pudo reenviar."));
@@ -273,16 +745,22 @@ function StudentDrawer({ isOpen, onClose, student, onRefresh }) {
             <button onClick={onClose} style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}><X size={22} /></button>
           </div>
           <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-              <AuthStatusBadge status={student.is_active ? "active" : "pending"} />
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+              <AuthStatusBadge user={student} />
               {!student.is_active && (
-                <button
-                  onClick={handleResendInvite}
-                  disabled={resending}
-                  style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", padding: "0.2rem 0.6rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem" }}
-                >
-                  <RefreshCw size={10} /> {resending ? "Reenviando..." : "Reenviar invitacion"}
-                </button>
+                isInviteExpired(student) ? (
+                  <button
+                    onClick={() => onResendRequest ? onResendRequest(student) : handleResendInvite()}
+                    disabled={resending}
+                    style={{ fontSize: "0.72rem", color: "white", background: "#0284c7", border: "none", borderRadius: "6px", padding: "0.25rem 0.65rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem", fontWeight: 700 }}
+                  >
+                    <RefreshCw size={10} className={resending ? "spin" : ""} /> {resending ? "Reenviando..." : "Reenviar invitación"}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.75)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", padding: "0.2rem 0.55rem" }}>
+                    🕒 Enlace válido ({getInviteHoursRemaining(student)})
+                  </span>
+                )
               )}
             </div>
             {resendMsg && (
@@ -298,44 +776,83 @@ function StudentDrawer({ isOpen, onClose, student, onRefresh }) {
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
               flex: 1, padding: "0.85rem", border: "none", background: "none", cursor: "pointer",
               fontWeight: 600, fontSize: "0.82rem", borderBottom: activeTab === tab.id ? "2px solid var(--gold-dark)" : "2px solid transparent",
-              color: activeTab === tab.id ? "var(--navy)" : "var(--text-muted)", marginBottom: "-2px", transition: "all 0.15s"
-            }}>{tab.label}</button>
+              color: activeTab === tab.id ? "var(--gold-dark)" : "var(--text-muted)", transition: "all 0.15s"
+            }}>
+              {tab.label}
+            </button>
           ))}
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem" }}>
+        <div style={{ padding: "1.5rem", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           {activeTab === "perfil" && (
-            <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
-              {success && <div style={{ background: "#f0fdf4", color: "#15803d", padding: "0.6rem", borderRadius: "8px", fontSize: "0.84rem" }}>&#10003; {success}</div>}
-              {error && <div style={{ background: "#fef2f2", color: "#b91c1c", padding: "0.6rem", borderRadius: "8px", fontSize: "0.84rem" }}>{error}</div>}
+            <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "1.1rem", flex: 1 }}>
+              {error && <div style={{ background: "#fef2f2", color: "#b91c1c", padding: "0.7rem 1rem", borderRadius: "8px", fontSize: "0.84rem" }}>{error}</div>}
+              {success && (
+                <div style={{ background: "#f0fdf4", color: "#15803d", padding: "0.7rem 1rem", borderRadius: "8px", fontSize: "0.84rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <CheckCircle size={16} /> {success}
+                </div>
+              )}
+
               <div>
                 <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Nombre completo</label>
-                <input value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} />
+                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} />
               </div>
+
               <div>
-                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Correo</label>
-                <input value={student.email} readOnly style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px", background: "#f8fafc", color: "var(--text-muted)" }} />
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Teléfono</label>
+                <input type="text" value={phone} onChange={e => setPhone(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} placeholder="+57 300 123 4567" />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Telefono</label>
-                  <input value={phone} onChange={e => setPhone(e.target.value)} style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} placeholder="+57 300..." />
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Pais</label>
-                  <input value={country} onChange={e => setCountry(e.target.value)} style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} />
-                </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>País</label>
+                <input type="text" value={country} onChange={e => setCountry(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} placeholder="Colombia" />
               </div>
-              <button type="submit" disabled={submitting} style={{ padding: "0.65rem 1.5rem", background: "var(--navy)", color: "white", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer", alignSelf: "flex-start" }}>
-                {submitting ? "Guardando..." : "Guardar Perfil"}
-              </button>
+
+              <div style={{ marginTop: "auto", paddingTop: "1.5rem", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: student.is_active === false ? "space-between" : "flex-end", alignItems: "center" }}>
+                {student.is_active === false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onDeleteRequest?.(student);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      background: "none",
+                      border: "none",
+                      color: "#dc2626",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      padding: "0.4rem 0.6rem",
+                      borderRadius: "6px"
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = "#fef2f2"}
+                    onMouseOut={e => e.currentTarget.style.background = "none"}
+                  >
+                    <Trash2 size={14} /> Eliminar estudiante
+                  </button>
+                )}
+
+                <button type="submit" disabled={submitting} style={{ padding: "0.65rem 1.5rem", borderRadius: "8px", border: "none", background: "var(--navy)", color: "white", fontWeight: 700, cursor: "pointer" }}>
+                  {submitting ? "Guardando..." : "Guardar Cambios"}
+                </button>
+              </div>
             </form>
           )}
 
           {activeTab === "inscripciones" && (
             <div>
-              <p style={{ fontSize: "0.83rem", color: "var(--text-muted)", marginBottom: "1rem" }}>Activa o desactiva la inscripcion de <strong>{student.full_name}</strong> en cada programa.</p>
-              {loading ? <p style={{ color: "var(--text-muted)" }}>Cargando...</p> : (
+              <p style={{ color: "var(--text-muted)", fontSize: "0.84rem", marginBottom: "1rem" }}>
+                Haz clic en el botón para inscribir o desinscribir al estudiante de los programas disponibles.
+              </p>
+              {loading ? (
+                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Cargando programas...</div>
+              ) : diplomas.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>No hay diplomados disponibles.</div>
+              ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                   {diplomas.map(d => {
                     const enrolled = enrollments.includes(d.id);
@@ -369,7 +886,7 @@ function StudentDrawer({ isOpen, onClose, student, onRefresh }) {
 }
 
 // ─── Drawer de Profesor ──────────────────────────────────────
-function TeacherDrawer({ isOpen, onClose, teacher, onRefresh }) {
+function TeacherDrawer({ isOpen, onClose, teacher, onRefresh, onDeleteRequest, onResendRequest }) {
   const [activeTab, setActiveTab] = useState("perfil");
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
@@ -427,6 +944,29 @@ function TeacherDrawer({ isOpen, onClose, teacher, onRefresh }) {
     finally { setSubmitting(false); }
   };
 
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+
+  const handleResendInvite = async () => {
+    if (!window.confirm(`¿Reenviar la invitación a ${teacher.email}? El enlace anterior quedará inválido y se generará uno nuevo válido por 24 horas.`)) return;
+    setResending(true);
+    setResendMsg("");
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke("invite-user", {
+        body: { email: teacher.email, full_name: teacher.full_name, role: teacher.role, area: teacher.area, bio: teacher.bio }
+      });
+      if (fnErr) throw fnErr;
+      if (data?.error) throw new Error(data.error);
+      setResendMsg(data?.resent ? "Invitación reenviada con éxito (válida por 24 horas)." : "Nueva invitación enviada.");
+      setTimeout(() => setResendMsg(""), 3500);
+      onRefresh?.();
+    } catch (err) {
+      setResendMsg("Error: " + (err.message || "No se pudo reenviar."));
+    } finally {
+      setResending(false);
+    }
+  };
+
   if (!isOpen || !teacher) return null;
 
   return (
@@ -451,49 +991,113 @@ function TeacherDrawer({ isOpen, onClose, teacher, onRefresh }) {
             </div>
             <button onClick={onClose} style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}><X size={22} /></button>
           </div>
+          <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+              <AuthStatusBadge user={teacher} />
+              {!teacher.is_active && (
+                isInviteExpired(teacher) ? (
+                  <button
+                    onClick={() => onResendRequest ? onResendRequest(teacher) : handleResendInvite()}
+                    disabled={resending}
+                    style={{ fontSize: "0.72rem", color: "white", background: "#0284c7", border: "none", borderRadius: "6px", padding: "0.25rem 0.65rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem", fontWeight: 700 }}
+                  >
+                    <RefreshCw size={10} className={resending ? "spin" : ""} /> {resending ? "Reenviando..." : "Reenviar invitación"}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.75)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", padding: "0.2rem 0.55rem" }}>
+                    🕒 Enlace válido ({getInviteHoursRemaining(teacher)})
+                  </span>
+                )
+              )}
+            </div>
+            {resendMsg && (
+              <span style={{ fontSize: "0.72rem", color: resendMsg.startsWith("Error") ? "#fca5a5" : "#86efac", fontWeight: 600 }}>
+                {resendMsg}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "flex", borderBottom: "2px solid var(--border-color)", background: "#fafafa", flexShrink: 0 }}>
-          {["perfil", "programas"].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+          {[
+            { id: "perfil", label: "Perfil Académico" },
+            { id: "programas", label: "Programas Asignados" },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
               flex: 1, padding: "0.85rem", border: "none", background: "none", cursor: "pointer",
-              fontWeight: 600, fontSize: "0.82rem", borderBottom: activeTab === tab ? "2px solid var(--gold-dark)" : "2px solid transparent",
-              color: activeTab === tab ? "var(--navy)" : "var(--text-muted)", marginBottom: "-2px", transition: "all 0.15s",
-              textTransform: "capitalize"
-            }}>{tab}</button>
+              fontWeight: 600, fontSize: "0.82rem", borderBottom: activeTab === tab.id ? "2px solid var(--gold-dark)" : "2px solid transparent",
+              color: activeTab === tab.id ? "var(--gold-dark)" : "var(--text-muted)", transition: "all 0.15s"
+            }}>
+              {tab.label}
+            </button>
           ))}
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem" }}>
+        <div style={{ padding: "1.5rem", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           {activeTab === "perfil" && (
-            <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
-              {success && <div style={{ background: "#f0fdf4", color: "#15803d", padding: "0.6rem", borderRadius: "8px", fontSize: "0.84rem" }}>&#10003; {success}</div>}
-              {error && <div style={{ background: "#fef2f2", color: "#b91c1c", padding: "0.6rem", borderRadius: "8px", fontSize: "0.84rem" }}>{error}</div>}
+            <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.1rem", flex: 1 }}>
+              {error && <div style={{ background: "#fef2f2", color: "#b91c1c", padding: "0.7rem 1rem", borderRadius: "8px", fontSize: "0.84rem" }}>{error}</div>}
+              {success && (
+                <div style={{ background: "#f0fdf4", color: "#15803d", padding: "0.7rem 1rem", borderRadius: "8px", fontSize: "0.84rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <CheckCircle size={16} /> {success}
+                </div>
+              )}
+
               <div>
-                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Nombre</label>
-                <input value={name} onChange={e => setName(e.target.value)} style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} />
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Nombre completo</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} required />
               </div>
+
               <div>
-                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Correo</label>
-                <input value={teacher.email} readOnly style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px", background: "#f8fafc", color: "var(--text-muted)" }} />
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Área / Especialidad</label>
+                <input type="text" value={area} onChange={e => setArea(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} />
               </div>
+
               <div>
-                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Area / Especialidad</label>
-                <input value={area} onChange={e => setArea(e.target.value)} style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px" }} />
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Biografía académica</label>
+                <textarea value={bio} onChange={e => setBio(e.target.value)} style={{ width: "100%", padding: "0.6rem 0.8rem", border: "1px solid var(--border-color)", borderRadius: "8px", minHeight: "100px" }} />
               </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "0.84rem" }}>Biografia</label>
-                <textarea value={bio} onChange={e => setBio(e.target.value)} style={{ width: "100%", padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px", minHeight: "80px" }} />
+
+              <div style={{ marginTop: "auto", paddingTop: "1.5rem", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: teacher.is_active === false ? "space-between" : "flex-end", alignItems: "center" }}>
+                {teacher.is_active === false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onDeleteRequest?.(teacher);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      background: "none",
+                      border: "none",
+                      color: "#dc2626",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      padding: "0.4rem 0.6rem",
+                      borderRadius: "6px"
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = "#fef2f2"}
+                    onMouseOut={e => e.currentTarget.style.background = "none"}
+                  >
+                    <Trash2 size={14} /> Eliminar profesor
+                  </button>
+                )}
+
+                <button type="submit" disabled={submitting} style={{ padding: "0.65rem 1.5rem", borderRadius: "8px", border: "none", background: "var(--navy)", color: "white", fontWeight: 700, cursor: "pointer" }}>
+                  {submitting ? "Guardando..." : "Guardar Cambios"}
+                </button>
               </div>
-              <button type="submit" disabled={submitting} style={{ padding: "0.65rem 1.5rem", background: "var(--navy)", color: "white", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer", alignSelf: "flex-start" }}>
-                {submitting ? "Guardando..." : "Guardar Cambios"}
-              </button>
             </form>
           )}
 
           {activeTab === "programas" && (
             <div>
-              <p style={{ fontSize: "0.83rem", color: "var(--text-muted)", marginBottom: "1rem" }}>Asigna o quita <strong>{teacher.full_name}</strong> de los programas.</p>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.84rem", marginBottom: "1rem" }}>
+                Asigna o desasigna al profesor de los programas académicos disponibles:
+              </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                 {programs.map(p => {
                   const assigned = assignedPrograms.includes(p.id);
@@ -538,7 +1142,15 @@ export default function UserManagement() {
   const [drawerUser, setDrawerUser] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmResend, setConfirmResend] = useState(null);
   const [processingId, setProcessingId] = useState(null);
+  const [resendingUserId, setResendingUserId] = useState(null);
+  const [globalToast, setGlobalToast] = useState(null);
+
+  const handleResendInviteDirect = (user) => {
+    setConfirmResend(user);
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -625,7 +1237,7 @@ export default function UserManagement() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.75rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--navy)", margin: 0 }}>Gestion de Usuarios</h1>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--navy)", margin: 0 }}>Gestión de Usuarios</h1>
           <p style={{ color: "var(--text-muted)", fontSize: "0.87rem", marginTop: "0.25rem" }}>Administra estudiantes y profesores de la plataforma.</p>
         </div>
         <button
@@ -635,6 +1247,28 @@ export default function UserManagement() {
           <UserPlus size={17} /> Nuevo Usuario
         </button>
       </div>
+
+      {/* Global Toast / Feedback */}
+      {globalToast && (
+        <div style={{
+          marginBottom: "1.5rem",
+          padding: "0.9rem 1.25rem",
+          borderRadius: "10px",
+          background: globalToast.type === "success" ? "#f0fdf4" : "#fef2f2",
+          color: globalToast.type === "success" ? "#15803d" : "#b91c1c",
+          border: `1px solid ${globalToast.type === "success" ? "#bbf7d0" : "#fecaca"}`,
+          display: "flex",
+          alignItems: "center",
+          gap: "0.65rem",
+          fontWeight: 600,
+          fontSize: "0.88rem",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          animation: "fadeSlideUp 0.25s ease-out"
+        }}>
+          {globalToast.type === "success" ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+          <span>{globalToast.text}</span>
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "1rem", marginBottom: "1.75rem" }}>
@@ -689,7 +1323,7 @@ export default function UserManagement() {
             <thead>
               <tr>
                 <th>{viewRole === "teacher" ? "Profesor" : "Estudiante"}</th>
-                {viewRole === "teacher" && <th>Area</th>}
+                {viewRole === "teacher" && <th>Área</th>}
                 <th>{viewRole === "teacher" ? "Programas Asignados" : "Programas Inscritos"}</th>
                 <th>Estado</th>
                 <th>Registro</th>
@@ -748,20 +1382,62 @@ export default function UserManagement() {
                       </span>
                     )}
                   </td>
-                  <td><AuthStatusBadge status={u.is_active ? "active" : "pending"} /></td>
+                  <td><AuthStatusBadge user={u} /></td>
                   <td style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{new Date(u.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}</td>
                   <td>
                     <div style={{ display: "flex", gap: "0.4rem", justifyContent: "center", alignItems: "center" }}>
                       <button onClick={() => openDrawer(u)} title="Editar" style={{ display: "flex", alignItems: "center", gap: "0.25rem", padding: "0.3rem 0.65rem", background: "var(--navy)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
                         <Pencil size={12} /> Editar
                       </button>
-                      {u.is_active && (
+                      {u.is_active === false && isInviteExpired(u) && (
+                        <button
+                          onClick={() => handleResendInviteDirect(u)}
+                          disabled={resendingUserId === u.id}
+                          title="Reenviar correo de invitación (el anterior ya expiró tras 24 horas)"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
+                            padding: "0.3rem 0.6rem",
+                            background: "#f0f9ff",
+                            color: "#0369a1",
+                            border: "1px solid #bae6fd",
+                            borderRadius: "6px",
+                            cursor: resendingUserId === u.id ? "not-allowed" : "pointer",
+                            fontSize: "0.72rem",
+                            fontWeight: 700
+                          }}
+                        >
+                          <RefreshCw size={11} className={resendingUserId === u.id ? "spin" : ""} />
+                          {resendingUserId === u.id ? "Enviando..." : "Reenviar"}
+                        </button>
+                      )}
+                      {u.is_active ? (
                         <button
                           onClick={() => setConfirmDeactivate(u)}
-                          title="Desactivar cuenta"
-                          style={{ padding: "0.3rem 0.6rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700 }}
+                          title="Suspender acceso a la plataforma"
+                          style={{ padding: "0.3rem 0.6rem", background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", borderRadius: "6px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700 }}
                         >
                           Desactivar
+                        </button>
+                      ) : (
+                        !isInvitation(u) && (
+                          <button
+                            onClick={() => setConfirmDeactivate(u)}
+                            title="Reactivar acceso a la plataforma"
+                            style={{ padding: "0.3rem 0.6rem", background: "#f0fdf4", color: "#16a34a", border: "1px solid #86efac", borderRadius: "6px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700 }}
+                          >
+                            Activar
+                          </button>
+                        )
+                      )}
+                      {u.is_active === false && (
+                        <button
+                          onClick={() => setConfirmDelete(u)}
+                          title="Eliminar usuario definitivamente"
+                          style={{ display: "flex", alignItems: "center", gap: "0.25rem", padding: "0.3rem 0.6rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: "6px", cursor: "pointer", fontSize: "0.72rem", fontWeight: 700 }}
+                        >
+                          <Trash2 size={12} /> Eliminar
                         </button>
                       )}
                     </div>
@@ -775,13 +1451,28 @@ export default function UserManagement() {
 
       {/* DRAWERS */}
       {viewRole === "student" ? (
-        <StudentDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} student={drawerUser} onRefresh={fetchUsers} />
+        <StudentDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} student={drawerUser} onRefresh={fetchUsers} onDeleteRequest={setConfirmDelete} onResendRequest={setConfirmResend} />
       ) : (
-        <TeacherDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} teacher={drawerUser} onRefresh={fetchUsers} />
+        <TeacherDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} teacher={drawerUser} onRefresh={fetchUsers} onDeleteRequest={setConfirmDelete} onResendRequest={setConfirmResend} />
       )}
 
       {/* CREATE MODAL */}
       <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={fetchUsers} />
+
+      {/* RESEND INVITE MODAL (PREMIUM LIATER) */}
+      <ResendInviteModal
+        isOpen={!!confirmResend}
+        onClose={() => setConfirmResend(null)}
+        user={confirmResend}
+        onSuccess={() => {
+          fetchUsers();
+          setGlobalToast({ type: "success", text: `Invitación reenviada a ${confirmResend?.email}. Válida por 24 horas.` });
+          setTimeout(() => setGlobalToast(null), 4500);
+        }}
+      />
+
+      {/* DELETE MODAL (SEGURO) */}
+      <DeleteUserModal isOpen={!!confirmDelete} onClose={() => setConfirmDelete(null)} user={confirmDelete} onSuccess={fetchUsers} />
 
       {/* CONFIRM DEACTIVATE */}
       {confirmDeactivate && (
@@ -792,12 +1483,12 @@ export default function UserManagement() {
             </h3>
             <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
               {confirmDeactivate.is_active !== false
-                ? `Se ocultara "${confirmDeactivate.full_name}" de las listas activas. Podras reactivarlo despues.`
-                : `Se reactivara la cuenta de "${confirmDeactivate.full_name}".`}
+                ? `Se ocultará "${confirmDeactivate.full_name}" de las listas activas. Podrás reactivarlo después.`
+                : `Se reactivará la cuenta de "${confirmDeactivate.full_name}".`}
             </p>
             <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "1.25rem" }}>
               <button onClick={() => setConfirmDeactivate(null)} style={{ padding: "0.6rem 1.25rem", border: "1px solid var(--border-color)", borderRadius: "8px", background: "#f8fafc", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
-              <button onClick={() => handleToggleStatus(confirmDeactivate)} disabled={processingId === confirmDeactivate.id} style={{ padding: "0.6rem 1.25rem", border: "none", borderRadius: "8px", background: confirmDeactivate.is_active !== false ? "#dc2626" : "#16a34a", color: "white", cursor: "pointer", fontWeight: 700 }}>
+              <button onClick={() => handleToggleStatus(confirmDeactivate)} disabled={processingId === confirmDeactivate.id} style={{ padding: "0.6rem 1.25rem", border: "none", borderRadius: "8px", background: confirmDeactivate.is_active !== false ? "#d97706" : "#16a34a", color: "white", cursor: "pointer", fontWeight: 700 }}>
                 {processingId === confirmDeactivate.id ? "Procesando..." : (confirmDeactivate.is_active !== false ? "Desactivar" : "Activar")}
               </button>
             </div>

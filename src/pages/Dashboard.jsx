@@ -3,20 +3,109 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { calculateProgramProgressDetails } from '../services/programService';
-import { isClassLiveOrSoon } from '../utils/dateUtils';
+import { isClassLiveOrSoon, isClassActiveOrUpcoming } from '../utils/dateUtils';
 import {
-  PlayCircle, BookOpen, Calendar, Video, Clock, User, Megaphone,
+  PlayCircle, BookOpen, Calendar, CalendarPlus, Video, Clock, User, Megaphone,
   ArrowRight, ArrowLeft, ChevronRight, MessageSquare, Award,
-  CheckCircle2, TrendingUp, BarChart2, AlertTriangle
+  CheckCircle2, TrendingUp, BarChart2, AlertTriangle, Layers
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────────────────
-   HELPER: icono de recurso de clase
+   HELPER: Enlace para agregar evento a Google Calendar
+───────────────────────────────────────────────────── */
+function getGoogleCalendarUrl(cls, programTitle) {
+  if (!cls?.class_date) return null;
+  try {
+    const startDate = new Date(cls.class_date);
+    if (isNaN(startDate.getTime())) return null;
+    const durationMinutes = Number(cls.duration) || 90;
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+    const formatUtc = (d) => d.toISOString().replace(/-|:|\.\d+/g, '');
+    const dates = `${formatUtc(startDate)}/${formatUtc(endDate)}`;
+
+    const title = encodeURIComponent(`${cls.title || 'Clase en vivo'} | ${programTitle || 'LIATER UNAL'}`);
+    const details = encodeURIComponent(
+      `Sesión en vivo: ${cls.title}\nDocente: ${cls.teacher_profiles?.name || 'Profesor'}\nPlataforma: Portal Educativo LIATER - Universidad Nacional de Colombia\nEnlace de acceso: ${cls.meet_url || 'https://liater.unal.edu.co'}`
+    );
+    const location = encodeURIComponent(cls.meet_url || 'Online - Portal LIATER');
+
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
+  } catch (err) {
+    console.error('Error generating Google Calendar URL:', err);
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────
+   HELPER: Fila de contenido de clase con estado riguroso
 ───────────────────────────────────────────────────── */
 function ClassRow({ cls, activityInfo }) {
   const hasRecording = !!cls.video_url;
-  const isFinalizada = hasRecording && activityInfo?.completed;
-  const actStatus = isFinalizada ? 'completada' : 'pendiente';
+  const classDate = cls.class_date ? new Date(cls.class_date) : null;
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+  const isToday = classDate && classDate >= todayStart && classDate <= todayEnd;
+  const isPast = classDate && classDate < todayStart;
+
+  // Determinación rigurosa del estado para máxima consistencia pedagógica
+  const hasActivity = !!activityInfo?.has;
+  const isActivityCompleted = hasActivity && activityInfo?.completed;
+  const isActivityPending = hasActivity && !activityInfo?.completed && (isPast || hasRecording || isToday);
+
+  let badgeConfig = null;
+
+  if (isActivityCompleted) {
+    // Si completó y aprobó la actividad de reforzamiento
+    badgeConfig = {
+      bg: 'var(--green-subtle, #f0fdf4)',
+      color: 'var(--green-600, #16a34a)',
+      border: '1px solid var(--green-400, #86efac)',
+      label: '✓ Completada'
+    };
+  } else if (isActivityPending) {
+    // Si la clase ya ocurrió o es hoy pero aún no realiza la actividad
+    badgeConfig = {
+      bg: '#fffbeb',
+      color: '#b45309',
+      border: '1px solid #fde68a',
+      label: '⚠️ Actividad pendiente'
+    };
+  } else if (isToday) {
+    // Clase programada para hoy
+    badgeConfig = {
+      bg: '#fee2e2',
+      color: '#dc2626',
+      border: '1px solid #fca5a5',
+      label: '🔴 Hoy en vivo'
+    };
+  } else if (hasRecording) {
+    // Grabación lista para estudiar
+    badgeConfig = {
+      bg: 'var(--gold-subtle, #fef9ec)',
+      color: 'var(--gold-dark, #b45309)',
+      border: '1px solid rgba(252, 163, 17, 0.4)',
+      label: '▶ Grabación lista'
+    };
+  } else if (isPast) {
+    // Ya se dictó en vivo pero aún no se ha subido la grabación
+    badgeConfig = {
+      bg: '#f1f5f9',
+      color: '#475569',
+      border: '1px solid #cbd5e1',
+      label: '⏳ Grabación pendiente'
+    };
+  } else {
+    // Clase futura en el calendario
+    badgeConfig = {
+      bg: '#f8fafc',
+      color: '#64748b',
+      border: '1px solid #e2e8f0',
+      label: '🗓️ Programada'
+    };
+  }
 
   return (
     <Link
@@ -27,37 +116,66 @@ function ClassRow({ cls, activityInfo }) {
         display: 'flex', alignItems: 'center', gap: '0.85rem',
         padding: '0.8rem 1rem',
         border: '1px solid var(--border-color)',
-        borderLeft: `4px solid ${hasRecording ? 'var(--navy)' : 'var(--gray)'}`,
+        borderLeft: `4px solid ${isActivityCompleted ? 'var(--green-600, #16a34a)' : hasRecording ? 'var(--gold, #fca311)' : isToday ? '#dc2626' : 'var(--navy)'}`,
         borderRadius: 'var(--radius-md)',
-        background: 'var(--white)',
+        background: isToday ? '#fff8f8' : 'var(--white)',
         transition: 'var(--transition-fast)',
         cursor: 'pointer'
       }}
         onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.borderColor = 'var(--navy-light)'; }}
         onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
       >
-        {/* Grabación disponible */}
+        {/* Icono de recurso / estado */}
         <div style={{
-          width: '34px', height: '34px', borderRadius: 'var(--radius-sm)', flexShrink: 0,
+          width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: hasRecording ? 'var(--gold-subtle)' : 'rgba(20,33,61,0.05)'
+          background: isActivityCompleted
+            ? 'var(--green-subtle, #f0fdf4)'
+            : hasRecording
+              ? 'var(--gold-subtle, #fef9ec)'
+              : isToday
+                ? '#fee2e2'
+                : 'rgba(20,33,61,0.05)'
         }}>
-          {hasRecording
-            ? <PlayCircle size={16} color="var(--gold-dark)" />
-            : <Video size={16} color="var(--gray-dark)" />
-          }
+          {isActivityCompleted ? (
+            <CheckCircle2 size={17} color="var(--green-600, #16a34a)" />
+          ) : hasRecording ? (
+            <PlayCircle size={17} color="var(--gold-dark, #b45309)" />
+          ) : isToday ? (
+            <Video size={17} color="#dc2626" />
+          ) : (
+            <Video size={17} color="var(--gray-dark, #64748b)" />
+          )}
         </div>
 
-        {/* Info */}
+        {/* Información de la Clase */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontWeight: 600, color: 'var(--navy)', fontSize: '0.87rem',
+          <p style={{ margin: 0, fontWeight: 700, color: 'var(--navy)', fontSize: '0.88rem',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {cls.title}
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+            {cls.sessionTitle && (
+              <span style={{
+                fontSize: '0.72rem',
+                color: 'var(--gold-dark, #b45309)',
+                fontWeight: 700,
+                background: 'var(--gold-subtle, #fef9ec)',
+                padding: '0.08rem 0.45rem',
+                borderRadius: '4px',
+                border: '1px solid rgba(252, 163, 17, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+              }}>
+                <Layers size={11} color="var(--gold-dark, #b45309)" />
+                {cls.sessionTitle}
+              </span>
+            )}
             <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-              {cls.class_date
-                ? new Date(cls.class_date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+              {cls.sessionTitle ? '· ' : ''}
+              {classDate
+                ? classDate.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })
                 : 'Sin fecha'}
             </p>
             {cls.teacher_profiles?.name && (
@@ -68,16 +186,19 @@ function ClassRow({ cls, activityInfo }) {
           </div>
         </div>
 
-        {/* Badge de actividad — paleta del sistema */}
-        {actStatus && (
+        {/* Badge de estado riguroso */}
+        {badgeConfig && (
           <span style={{
-            fontSize: '0.66rem', fontWeight: 700, flexShrink: 0,
-            padding: '0.15rem 0.5rem', borderRadius: '999px',
-            background: actStatus === 'completada' ? 'var(--green-subtle)' : 'var(--gold-subtle)',
-            color: actStatus === 'completada' ? 'var(--green-600)' : 'var(--gold-dark)',
-            border: `1px solid ${actStatus === 'completada' ? 'var(--green-400)' : 'var(--gold-light)'}`
+            fontSize: '0.68rem', fontWeight: 700, flexShrink: 0,
+            padding: '0.2rem 0.55rem', borderRadius: '999px',
+            background: badgeConfig.bg,
+            color: badgeConfig.color,
+            border: badgeConfig.border,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem'
           }}>
-            {actStatus === 'completada' ? '✓ Finalizada' : '● Pendiente'}
+            {badgeConfig.label}
           </span>
         )}
 
@@ -158,7 +279,7 @@ export default function Dashboard() {
             .eq('program_id', cleanProgramId)
             .gte('class_date', todayStartIso)
             .order('class_date', { ascending: true })
-            .limit(6),
+            .limit(12),
           supabase
             .from('announcements')
             .select('*, teacher_profiles(name)')
@@ -167,13 +288,12 @@ export default function Dashboard() {
             .limit(5),
           supabase
             .from('class_sessions')
-            .select('id, title, class_date, duration, video_url, teacher_profiles(name)')
+            .select('id, title, class_date, duration, video_url, meet_url, subtopic_id, teacher_profiles(name)')
             .eq('program_id', cleanProgramId)
-            .order('class_date', { ascending: false })
-            .limit(8),
+            .order('class_date', { ascending: true, nullsFirst: false }),
           supabase
             .from('sessions')
-            .select('id', { count: 'exact', head: true })
+            .select('id, title, module_id, order_index')
             .eq('program_id', cleanProgramId),
           supabase
             .from('class_sessions')
@@ -188,16 +308,29 @@ export default function Dashboard() {
           : true;
         const freshAnnouncements = isPublished ? (announcementsData || []) : [];
 
-        // Conteo de sesiones si no viene por program_id directo
-        let calculatedSessionsCount = sessionsRes?.count || 0;
-        if (!calculatedSessionsCount && modulesData && modulesData.length > 0) {
+        // Conteo y mapeo de sesiones
+        let programSessions = sessionsRes?.data || [];
+        if (programSessions.length === 0 && modulesData && modulesData.length > 0) {
           const modIds = modulesData.map(m => m.id);
-          const { count: modSessionsCount } = await supabase
+          const { data: modSessions } = await supabase
             .from('sessions')
-            .select('id', { count: 'exact', head: true })
+            .select('id, title, module_id, order_index')
             .in('module_id', modIds);
-          calculatedSessionsCount = modSessionsCount || 0;
+          programSessions = modSessions || [];
         }
+
+        const sessionMap = {};
+        programSessions.forEach(s => {
+          if (s.id && s.title) sessionMap[s.id] = s.title;
+        });
+
+        // Fallback para subtopics
+        const { data: subtopicsData } = await supabase.from('subtopics').select('id, title');
+        (subtopicsData || []).forEach(st => {
+          if (st.id && st.title && !sessionMap[st.id]) sessionMap[st.id] = st.title;
+        });
+
+        const calculatedSessionsCount = programSessions.length || 0;
 
         setDashboardData({
           diplomaTitle: diplomaData?.title || 'Programa Académico',
@@ -226,16 +359,21 @@ export default function Dashboard() {
             ? calculateProgramProgressDetails(cleanProgramId, currentUser.id)
             : Promise.resolve({ percentage: 0, totalClasses: 0, completedClassesValue: 0 }),
 
-          // 2b. Actividades publicadas de las últimas clases (para stats + estado)
+          // 2b. Actividades publicadas del programa (para stats globales + mapeo de clases)
           (async () => {
-            const classIds = (allClassesData || []).map(c => c.id);
-            if (classIds.length === 0) return { activities: [], attempts: [] };
+            const { data: progClasses } = await supabase
+              .from('class_sessions')
+              .select('id')
+              .eq('program_id', cleanProgramId);
+
+            const allProgClassIds = (progClasses || []).map(c => c.id);
+            if (allProgClassIds.length === 0) return { activities: [], attempts: [] };
 
             const { data: acts } = await supabase
               .from('class_activities')
               .select('id, class_id, is_mandatory')
               .eq('is_published', true)
-              .in('class_id', classIds);
+              .in('class_id', allProgClassIds);
 
             const actIds = (acts || []).map(a => a.id);
             if (actIds.length === 0 || !currentUser?.id) return { activities: acts || [], attempts: [] };
@@ -303,12 +441,55 @@ export default function Dashboard() {
             };
           });
 
-          setRecentClasses((allClassesData || []).map(c => ({
-            ...c,
-            activityInfo: activityByClass[c.id] || null
-          })));
+          const nowTime = new Date().getTime();
+          const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+          const classesWithMeta = (allClassesData || []).map(c => {
+            const act = activityByClass[c.id];
+            const hasActivity = !!act?.has;
+            const isCompleted = hasActivity && !!act?.completed;
+            const hasRecording = !!c.video_url;
+            const classTime = c.class_date ? new Date(c.class_date).getTime() : null;
+            const isOlderThan3Days = classTime ? (nowTime - classTime) > THREE_DAYS_MS : false;
+
+            // Se oculta del tablón prioritario si:
+            // 1. Ya completó y aprobó la actividad
+            // 2. Ya tiene grabación, NO tiene actividad, y ya pasaron más de 3 días desde la clase
+            const shouldHide = isCompleted || (hasRecording && !hasActivity && isOlderThan3Days);
+
+            return {
+              ...c,
+              sessionTitle: sessionMap[c.subtopic_id] || null,
+              activityInfo: act || null,
+              shouldHide
+            };
+          });
+
+          // Priorizar clases activas (no completadas ni archivadas tras 3 días)
+          const activeClasses = classesWithMeta.filter(c => !c.shouldHide);
+          const displayClasses = activeClasses.length > 0 ? activeClasses.slice(0, 6) : classesWithMeta.slice(0, 6);
+          setRecentClasses(displayClasses);
         } else {
-          setRecentClasses(allClassesData || []);
+          const nowTime = new Date().getTime();
+          const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+          const classesWithMeta = (allClassesData || []).map(c => {
+            const hasRecording = !!c.video_url;
+            const classTime = c.class_date ? new Date(c.class_date).getTime() : null;
+            const isOlderThan3Days = classTime ? (nowTime - classTime) > THREE_DAYS_MS : false;
+            const shouldHide = hasRecording && isOlderThan3Days;
+
+            return {
+              ...c,
+              sessionTitle: sessionMap[c.subtopic_id] || null,
+              activityInfo: null,
+              shouldHide
+            };
+          });
+
+          const activeClasses = classesWithMeta.filter(c => !c.shouldHide);
+          const displayClasses = activeClasses.length > 0 ? activeClasses.slice(0, 6) : classesWithMeta.slice(0, 6);
+          setRecentClasses(displayClasses);
         }
 
         // Contexto global del Sidebar
@@ -354,19 +535,34 @@ export default function Dashboard() {
 
   const isCourse = programType === 'curso';
 
-  // ── LÓGICA DE CLASE EN VIVO (Habilitada desde 10 min antes hasta fin de transmisión) ──
+  // ── LÓGICA DE CLASE EN VIVO Y CLASE PROGRAMADA HOY ──
+  const nowTime = Date.now();
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const todayEnd   = new Date(); todayEnd.setHours(23,59,59,999);
+
+  // 1. Si hay alguna clase EN VIVO en este momento (o en ventana de 10 min previos hasta fin de transmisión)
   const activeLiveClass = upcomingClasses.find(c => isClassLiveOrSoon(c, 10));
   const activeLiveMeetUrl = activeLiveClass ? (activeLiveClass.meet_url || meetUrl) : null;
 
-  // Clase de hoy (si hay alguna programada para hoy sin grabación aún)
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const todayEnd   = new Date(); todayEnd.setHours(23,59,59,999);
-  const classToday = upcomingClasses.find(c => {
+  // 2. Si no hay clase en vivo, buscar la próxima clase programada para HOY que aún no haya iniciado
+  const upcomingClassToday = !activeLiveClass ? upcomingClasses.find(c => {
+    if (c.video_url) return false;
     const d = c.class_date ? new Date(c.class_date) : null;
-    return d && d >= todayStart && d <= todayEnd && !c.video_url;
-  });
-  const isClassTodayLive = classToday ? isClassLiveOrSoon(classToday, 10) : false;
-  const classTodayMeetUrl = classToday ? (classToday.meet_url || meetUrl) : null;
+    if (!d || d < todayStart || d > todayEnd) return false;
+    return d.getTime() > nowTime;
+  }) : null;
+
+  // Banner principal:
+  // - Si hay clase en vivo activa: destacamos ESA clase en vivo con botón "Entrar a la Clase"
+  // - Si no hay clase en vivo pero sí una clase futura hoy: destacamos la próxima clase
+  // - Si todas las de hoy ya concluyeron y no hay en vivo: classToday es null y no muestra aviso desfasado
+  const classToday = activeLiveClass || upcomingClassToday;
+  const isClassTodayLive = !!activeLiveClass;
+  const classTodayMeetUrl = activeLiveMeetUrl || (upcomingClassToday ? (upcomingClassToday.meet_url || meetUrl) : null);
+
+  // Lista de 'Próximas Clases en Vivo' depurada:
+  // Excluye clases que ya finalizaron su tiempo de transmisión y muestra como máximo 3 clases
+  const visibleUpcomingClasses = upcomingClasses.filter(c => isClassActiveOrUpcoming(c)).slice(0, 3);
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
@@ -658,9 +854,9 @@ export default function Dashboard() {
             <h2 style={{ fontSize: '1.05rem', margin: 0, fontWeight: 700, color: 'var(--navy)' }}>Próximas Clases en Vivo</h2>
           </div>
 
-          {upcomingClasses.length > 0 ? (
+          {visibleUpcomingClasses.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {upcomingClasses.map(cls => {
+              {visibleUpcomingClasses.map(cls => {
                 const classDate = cls.class_date ? new Date(cls.class_date) : null;
                 const isToday = classDate && classDate >= todayStart && classDate <= todayEnd;
                 const tomorrowEnd = new Date(todayEnd); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
@@ -668,6 +864,7 @@ export default function Dashboard() {
                 const urgencyLabel = isToday ? 'HOY' : isTomorrow ? 'MAÑANA' : null;
                 const isLiveNow = isClassLiveOrSoon(cls, 10);
                 const clsMeet = cls.meet_url || meetUrl;
+                const googleCalUrl = getGoogleCalendarUrl(cls, dashboardData.diplomaTitle);
 
                 return (
                   <div key={cls.id} style={{
@@ -713,17 +910,48 @@ export default function Dashboard() {
                           </p>
                         )}
                       </div>
-                      {isLiveNow && clsMeet ? (
-                        <a href={clsMeet} target="_blank" rel="noreferrer" className="btn btn-primary"
-                          style={{ padding: '0.3rem 0.7rem', fontSize: '0.72rem', flexShrink: 0, background: '#dc2626', border: 'none' }}>
-                          <Video size={12} /> Entrar
-                        </a>
-                      ) : (
-                        <Link to={`/class/${cls.id}`} className="btn btn-outline"
-                          style={{ padding: '0.3rem 0.7rem', fontSize: '0.72rem', flexShrink: 0 }}>
-                          Detalle
-                        </Link>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        {googleCalUrl && (
+                          <a
+                            href={googleCalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Añadir a Google Calendar"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0.35rem 0.55rem',
+                              borderRadius: 'var(--radius-sm, 6px)',
+                              background: '#ffffff',
+                              border: '1px solid #cbd5e1',
+                              color: 'var(--navy)',
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                              gap: '0.25rem'
+                            }}
+                            onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--gold-dark)'; e.currentTarget.style.background = '#f8fafc'; }}
+                            onMouseOut={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = '#ffffff'; }}
+                          >
+                            <CalendarPlus size={13} color="var(--gold-dark)" />
+                            <span style={{ fontSize: '0.68rem' }}>Calendar</span>
+                          </a>
+                        )}
+                        {isLiveNow && clsMeet ? (
+                          <a href={clsMeet} target="_blank" rel="noreferrer" className="btn btn-primary"
+                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem', flexShrink: 0, background: '#dc2626', border: 'none', fontWeight: 700 }}>
+                            <Video size={12} /> Entrar
+                          </a>
+                        ) : (
+                          <Link to={`/class/${cls.id}`} className="btn btn-outline"
+                            style={{ padding: '0.35rem 0.7rem', fontSize: '0.72rem', flexShrink: 0, fontWeight: 600 }}>
+                            Detalle
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

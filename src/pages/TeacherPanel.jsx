@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { updateDoubtStatus } from '../services/doubtService';
-import { formatClassDate, isClassLiveOrSoon } from '../utils/dateUtils';
+import { formatClassDate, isClassLiveOrSoon, getGoogleCalendarUrl } from '../utils/dateUtils';
 import { extractYouTubeId, formatYouTubeUrls, linkYouTubeVideoToClass } from '../services/youtubeAutomationService';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
+  CalendarPlus,
   BookOpen, Video, FileText, Megaphone, Presentation,
   Plus, Upload, Link as LinkIcon, Clock, CheckCircle2,
   CalendarDays, Timer, ShieldAlert, Eye, Pencil, Trash2,
@@ -22,6 +23,7 @@ import {
 
 import './TeacherPanel.css';
 import AdminClassReinforcement from '../components/AdminClassReinforcement';
+import DeleteAnnouncementModal from '../components/DeleteAnnouncementModal';
 
 const TeacherContext = React.createContext(null);
 const useTeacherContext = () => React.useContext(TeacherContext);
@@ -2575,7 +2577,7 @@ function ClasesTab() {
 
                             {/* ACCIONES */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              {!isPast && isLive && (cls.meet_url || currentProgram?.meet_url) && (
+                              {isLive && (cls.meet_url || currentProgram?.meet_url) && (
                                 <a
                                   href={cls.meet_url || currentProgram?.meet_url}
                                   target="_blank"
@@ -3524,7 +3526,7 @@ function ResumenTab({ onChangeTab }) {
                       </span>
                     )}
                     <div style={{ fontWeight: 800, color: '#14213D', fontSize: '1.05rem', marginBottom: '0.5rem' }}>{c.title}</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.85rem' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <CalendarDays size={14} />
                         {classDate.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'long' })}
@@ -3534,6 +3536,35 @@ function ResumenTab({ onChangeTab }) {
                         {classDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} · {c.duration || 0} min
                       </span>
                     </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                      {getGoogleCalendarUrl(c, currentProgram?.title, profile?.name || currentUser?.full_name) && (
+                        <a
+                          href={getGoogleCalendarUrl(c, currentProgram?.title, profile?.name || currentUser?.full_name)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Agendar esta clase en Google Calendar"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: '#F8FAFC',
+                            color: 'var(--navy, #14213D)',
+                            border: '1px solid #E2E8F0',
+                            padding: '0.45rem 0.9rem',
+                            borderRadius: '7px',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            textDecoration: 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseOver={e => { e.currentTarget.style.background = '#E2E8F0'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = '#F8FAFC'; }}
+                        >
+                          <CalendarPlus size={14} color="var(--gold-dark, #b45309)" />
+                          <span>Agendar en Calendar</span>
+                        </a>
+                      )}
                     {isClassLiveOrSoon(c, 10) && (c.meet_url || currentProgram?.meet_url) ? (
                       <a href={c.meet_url || currentProgram?.meet_url} target="_blank" rel="noreferrer" style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
@@ -3547,6 +3578,7 @@ function ResumenTab({ onChangeTab }) {
                         <Video size={15} /> Unirse a la sesión en vivo
                       </a>
                     ) : null}
+                    </div>
                   </div>
                 );
               })
@@ -8147,6 +8179,7 @@ function AnunciosTab() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'mine' | 'admin'
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -8173,15 +8206,14 @@ function AnunciosTab() {
     fetchAnnouncements();
   }, [programId]);
 
-  const handleDelete = async (ann) => {
-    if (!window.confirm(`¿Eliminar el anuncio "${ann.title}"?`)) return;
-    try {
-      const { error } = await supabase.from('announcements').delete().eq('id', ann.id);
-      if (error) throw error;
-      fetchAnnouncements();
-    } catch (err) {
-      alert('Error al eliminar: ' + err.message);
-    }
+  const handleDelete = (ann) => {
+    setConfirmDelete(ann);
+  };
+
+  const handleConfirmDelete = async (id) => {
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) throw error;
+    fetchAnnouncements();
   };
 
   const getTagBadge = (tag, isInstitutional = false, targetRole = 'all') => {
@@ -8724,6 +8756,14 @@ function AnunciosTab() {
           onRefresh={fetchAnnouncements}
         />
       )}
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <DeleteAnnouncementModal
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        announcement={confirmDelete}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

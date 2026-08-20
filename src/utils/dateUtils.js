@@ -156,3 +156,93 @@ export const isClassLiveOrSoon = (cls, preMinutes = 10) => {
   return now >= startWindow && now <= endWindow;
 };
 
+/**
+ * Determina si una clase es futura o está actualmente en curso (su tiempo de fin no ha pasado).
+ * Excluye clases que ya tienen video de grabación o cuya duración programada ya expiró.
+ *
+ * @param {Object|string} cls - Objeto clase con { class_date, duration, video_url } o fecha ISO
+ * @returns {boolean} True si la clase no ha finalizado
+ */
+export const isClassActiveOrUpcoming = (cls) => {
+  if (!cls) return false;
+  if (typeof cls === 'object' && cls.video_url) return false;
+  const isoString = typeof cls === 'string' ? cls : cls.class_date;
+  if (!isoString) return false;
+
+  const classTime = new Date(isoString).getTime();
+  if (isNaN(classTime)) return false;
+
+  const durationMinutes = (typeof cls === 'object' && cls.duration && cls.duration > 0) ? cls.duration : 120;
+  const classEndTime = classTime + (durationMinutes * 60 * 1000);
+
+  return Date.now() <= classEndTime;
+};
+
+/**
+ * Genera la URL para agendar una clase directamente en Google Calendar.
+ *
+ * @param {Object} cls - Objeto de la clase con { class_date, duration, title, meet_url, teacher_profiles }
+ * @param {string} [programTitle] - Nombre del diplomado o programa
+ * @param {string} [teacherName] - Nombre del docente (opcional)
+ * @param {string} [role='teacher'] - Rol del usuario ('teacher' o 'student')
+ * @returns {string|null} URL lista para abrir en ventana nueva hacia Google Calendar
+ */
+export const getGoogleCalendarUrl = (cls, programTitle = '', teacherName = '', role = 'teacher') => {
+  if (!cls?.class_date) return null;
+  try {
+    const startDate = new Date(cls.class_date);
+    if (isNaN(startDate.getTime())) return null;
+    const durationMinutes = Number(cls.duration) || 90;
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+    const formatUtc = (d) => d.toISOString().replace(/-|:|\.\d+/g, '');
+    const dates = `${formatUtc(startDate)}/${formatUtc(endDate)}`;
+
+    const progSuffix = programTitle ? ` | ${programTitle}` : ' | LIATER UNAL';
+    const title = encodeURIComponent(`${cls.title || 'Clase en vivo'}${progSuffix}`);
+    
+    const docName = teacherName || cls.teacher_profiles?.name || 'Docente UNAL';
+    const meetLink = cls.meet_url || '';
+
+    let detailsText = '';
+    if (role === 'teacher') {
+      detailsText = [
+        '🏛️ PORTAL EDUCATIVO LIATER — UNAL',
+        programTitle ? `📚 Diplomado: ${programTitle}` : '',
+        `📌 Clase a dictar: ${cls.title || 'Clase en vivo'}`,
+        `👨‍🏫 Docente: ${docName}`,
+        '',
+        meetLink ? `🔗 Enlace de la videollamada:\n${meetLink}` : '🔗 Enlace de videollamada: Disponible en el portal',
+        '',
+        '📋 Recordatorios para la sesión:',
+        '• Conectarse 5 a 10 minutos antes para verificar audio, cámara y presentación.',
+        '• Habilitar la grabación de la clase para los estudiantes.',
+        '• Al concluir, subir recursos o actividades en el Portal LIATER.',
+        '',
+        '🌐 Acceso al panel docente: https://liater.unal.edu.co/portal'
+      ].filter(Boolean).join('\n');
+    } else {
+      detailsText = [
+        '🏛️ PORTAL EDUCATIVO LIATER — UNAL',
+        programTitle ? `📚 Diplomado: ${programTitle}` : '',
+        `📌 Sesión: ${cls.title || 'Clase en vivo'}`,
+        `👨‍🏫 Docente: ${docName}`,
+        '',
+        meetLink ? `🔗 Enlace de acceso a la clase:\n${meetLink}` : '🔗 Enlace de acceso: Disponible en el portal',
+        '',
+        '💡 Tip: Recuerda tener a mano tus apuntes y revisar el material previo en el aula virtual.'
+      ].filter(Boolean).join('\n');
+    }
+
+    const details = encodeURIComponent(detailsText);
+    const location = encodeURIComponent(meetLink || 'Portal Educativo LIATER - Universidad Nacional de Colombia');
+
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
+  } catch (err) {
+    console.error('Error generando enlace de Google Calendar:', err);
+    return null;
+  }
+};
+
+
+
