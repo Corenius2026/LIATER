@@ -299,6 +299,98 @@ export function AssignTeacherDrawer({ programId, programTitle, assignedTeachers,
   );
 }
 
+// Helper to check invitation expiry
+function isInviteExpired(user) {
+  if (!user || user.is_active) return false;
+  if (!user.confirmation_sent_at && !user.created_at) return false;
+  const sentDate = new Date(user.confirmation_sent_at || user.created_at);
+  const diffHours = (Date.now() - sentDate.getTime()) / (1000 * 60 * 60);
+  return diffHours >= 24;
+}
+
+function getInviteHoursRemaining(user) {
+  if (!user || user.is_active) return null;
+  const sentDate = new Date(user.confirmation_sent_at || user.created_at);
+  const expiryTime = sentDate.getTime() + 24 * 60 * 60 * 1000;
+  const remainingMs = expiryTime - Date.now();
+  if (remainingMs <= 0) return null;
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+  const mins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 0) return `~${hours}h restantes`;
+  return `${mins}m restantes`;
+}
+
+function AuthStatusBadge({ user }) {
+  if (user) {
+    let finalStatus = "active";
+    let customLabel = null;
+
+    if (user.is_active) {
+      finalStatus = "active";
+    } else if (user.is_active === false) {
+      const expired = isInviteExpired(user);
+      if (expired) {
+        finalStatus = "expired";
+      } else {
+        finalStatus = "pending";
+        const rem = getInviteHoursRemaining(user);
+        if (rem) customLabel = `Invitación (${rem})`;
+      }
+    }
+
+    const map = {
+      active:   { bg: "#d1fae5", color: "#065f46", border: "#86efac", label: "Activo" },
+      pending:  { bg: "#fef3c7", color: "#92400e", border: "#fde68a", label: customLabel || "Invitación Vigente" },
+      expired:  { bg: "#fee2e2", color: "#991b1b", border: "#fca5a5", label: "Invitación Expirada" },
+      inactive: { bg: "#f1f5f9", color: "#64748b", border: "#cbd5e1", label: "Inactivo" },
+    };
+    const s = map[finalStatus] || map.active;
+    return (
+      <span style={{
+        background: s.bg,
+        color: s.color,
+        border: `1px solid ${s.border}`,
+        fontSize: "0.74rem",
+        fontWeight: 700,
+        padding: "0.25rem 0.65rem",
+        borderRadius: "20px",
+        whiteSpace: "nowrap",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.35rem"
+      }}>
+        <span style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: finalStatus === "expired" ? "#dc2626" : finalStatus === "pending" ? "#d97706" : finalStatus === "active" ? "#16a34a" : "#64748b",
+          display: "inline-block"
+        }} />
+        {s.label}
+      </span>
+    );
+  }
+
+  return (
+    <span style={{
+      background: "#d1fae5",
+      color: "#065f46",
+      border: "1px solid #86efac",
+      fontSize: "0.74rem",
+      fontWeight: 700,
+      padding: "0.25rem 0.65rem",
+      borderRadius: "20px",
+      whiteSpace: "nowrap",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "0.35rem"
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />
+      Activo
+    </span>
+  );
+}
+
 /* ────────────────────────────────────────────────────────
    TAB PRINCIPAL — Profesores (Supabase)
 ──────────────────────────────────────────────────────── */
@@ -444,10 +536,11 @@ export default function ProfesoresTab({ teachers = [], loading, onRefresh, progr
           tableLayout: 'fixed'
         }}>
           <colgroup>
-            <col style={{ width: '38%' }} />
-            <col style={{ width: '26%' }} />
-            <col style={{ width: '22%' }} />
-            <col style={{ width: '14%' }} />
+            <col style={{ width: '30%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '18%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '12%' }} />
           </colgroup>
 
           <thead>
@@ -457,6 +550,9 @@ export default function ProfesoresTab({ teachers = [], loading, onRefresh, progr
               </th>
               <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#475569' }}>
                 Especialidad / Rol
+              </th>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#475569' }}>
+                Estado
               </th>
               <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#475569' }}>
                 Contacto
@@ -470,14 +566,14 @@ export default function ProfesoresTab({ teachers = [], loading, onRefresh, progr
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#64748B' }}>
+                <td colSpan={5} style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#64748B' }}>
                   <div style={{ width: '28px', height: '28px', border: '3px solid #E2E8F0', borderTopColor: 'var(--gold, #FCA311)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 0.75rem' }} />
                   <span style={{ fontSize: '0.85rem' }}>Cargando profesores...</span>
                 </td>
               </tr>
             ) : filteredTeachers.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#64748B' }}>
+                <td colSpan={5} style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#64748B' }}>
                   <GraduationCap size={36} color="#CBD5E1" style={{ margin: '0 auto 0.75rem' }} />
                   <div style={{ fontWeight: 700, color: 'var(--navy, #14213D)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
                     {searchTerm ? 'No se encontraron profesores' : 'No hay profesores asignados'}
@@ -554,6 +650,11 @@ export default function ProfesoresTab({ teachers = [], loading, onRefresh, progr
                       }}>
                         <GraduationCap size={14} color="var(--gold, #FCA311)" /> {meta.role}
                       </span>
+                    </td>
+
+                    {/* ESTADO */}
+                    <td style={{ padding: '1rem 1.25rem', verticalAlign: 'middle' }}>
+                      <AuthStatusBadge user={t.users_profile} />
                     </td>
 
                     {/* CONTACTO */}

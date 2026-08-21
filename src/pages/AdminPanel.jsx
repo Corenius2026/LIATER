@@ -156,7 +156,32 @@ export default function AdminPanel() {
 
           const { data: allTeacherProfiles } = await supabase.from('teacher_profiles').select('*');
           if (allTeacherProfiles) {
-            teachersData = allTeacherProfiles.filter(t => enrolledUserIds.has(t.user_id) || teacherIdsInClasses.has(t.id));
+            const userProfileMap = new Map();
+            (enrolledData || []).forEach(e => {
+              if (e.student_id && e.users_profile) {
+                userProfileMap.set(e.student_id, e.users_profile);
+              }
+            });
+
+            const matched = allTeacherProfiles.filter(t => enrolledUserIds.has(t.user_id) || teacherIdsInClasses.has(t.id));
+
+            const missingUids = matched.map(t => t.user_id).filter(uid => uid && !userProfileMap.has(uid));
+            if (missingUids.length > 0) {
+              try {
+                const { data: profiles } = await supabase
+                  .from('users_profile')
+                  .select('id, full_name, email, role, is_active, created_at, confirmation_sent_at, confirmed_at')
+                  .in('id', missingUids);
+                if (profiles) {
+                  profiles.forEach(p => userProfileMap.set(p.id, p));
+                }
+              } catch {}
+            }
+
+            teachersData = matched.map(t => ({
+              ...t,
+              users_profile: userProfileMap.get(t.user_id) || t.users_profile || null
+            }));
           }
         } catch {}
 
