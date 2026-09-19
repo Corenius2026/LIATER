@@ -208,11 +208,23 @@ export default function PendingActivities() {
                     </span>
                   </div>
 
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
-                    {item.title}
-                  </h3>
-
-
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
+                      {item.title}
+                    </h3>
+                    {item.classCount > 1 && (
+                      <span style={{
+                        padding: '0.08rem 0.5rem',
+                        borderRadius: '4px',
+                        background: '#e2e8f0',
+                        color: '#1e293b',
+                        fontSize: '0.72rem',
+                        fontWeight: 700
+                      }}>
+                        {item.classCount} clases
+                      </span>
+                    )}
+                  </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap', marginTop: '0.2rem' }}>
                     {item.teacherName && (
@@ -221,7 +233,11 @@ export default function PendingActivities() {
                       </span>
                     )}
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar size={13} /> Publicado el {formatShortDate(item.date)}
+                      <Calendar size={13} /> {item.type === 'Sesión en vivo' || item.type === 'Clase hoy'
+                        ? (item.timeRange
+                            ? `Programada para: ${formatShortDate(item.date).split(',')[0]}, ${item.timeRange}`
+                            : `Programada para: ${formatShortDate(item.date)}`)
+                        : `Publicado el ${formatShortDate(item.date)}`}
                     </span>
                   </div>
                 </div>

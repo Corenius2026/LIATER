@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { 
   Plus, Pencil, Trash2, ChevronDown, ChevronRight, 
-  Video, Clock, X, Zap, FileText, Link2
+  Video, Clock, X, Zap, FileText, Link2, Eye
 } from 'lucide-react';
 import { ConfirmModal, ActionBtns } from './AdminShared';
 import { toLocalDatetimeString, parseLocalDatetime, formatShortDate } from '../../utils/dateUtils';
@@ -491,6 +492,36 @@ function ClassEditDrawer({ isOpen, onClose, onRefresh, programId, classData, ses
                 <input type="text" value={driveFolderId} onChange={e => setDriveFolderId(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid #7dd3fc', borderRadius: '6px', background: '#f0f9ff' }} placeholder="https://drive.google.com/drive/folders/... o ID de carpeta" />
                 <div style={{ fontSize: '0.74rem', color: '#0284c7', marginTop: '3px' }}>Cuando la grabacion se sube a esta carpeta, el script la detecta y actualiza la URL automaticamente.</div>
               </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--navy)' }}>Recursos y Materiales de Estudio</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Sube PDFs a Drive, gestiona enlaces y previsualiza cómo lo ven los estudiantes.
+                  </div>
+                </div>
+                {classData?.id && (
+                  <Link
+                    to={`/class/${classData.id}`}
+                    style={{
+                      background: 'var(--navy)',
+                      color: 'white',
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      boxShadow: '0 2px 5px rgba(20,33,61,0.15)'
+                    }}
+                  >
+                    <Eye size={13} color="var(--gold)" /> Gestionar en Vista de Clase
+                  </Link>
+                )}
+              </div>
+
               <button type="submit" disabled={submitting} className="btn btn-primary" style={{ alignSelf: 'flex-start', padding: '0.65rem 1.5rem' }}>
                 {submitting ? 'Guardando...' : 'Guardar Recursos'}
               </button>
@@ -679,6 +710,25 @@ function SessionNode({ session, classes, isExpanded, onToggle, onEditSession, on
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                <Link
+                  to={`/class/${c.id}`}
+                  title="Ver clase y gestionar materiales (Modo Admin)"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    padding: '0.3rem 0.65rem',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    background: '#ffffff',
+                    color: 'var(--navy)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '4px',
+                    textDecoration: 'none'
+                  }}
+                >
+                  <Eye size={12} color="var(--gold-dark)" /> Ver Clase
+                </Link>
                 <button onClick={() => onEditClass(c)} title="Editar clase" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.65rem', fontSize: '0.72rem', fontWeight: 600, background: 'var(--navy)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                   <Pencil size={11} /> Editar
                 </button>

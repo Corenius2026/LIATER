@@ -11,8 +11,10 @@ import {
   Download, FileText, Video, Calendar, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
   Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck,
-  MessageSquare, Check, Lock, RotateCcw, Zap, Radio, Eye
+  MessageSquare, Check, Lock, RotateCcw, Zap, Radio, Eye,
+  Plus, Pencil, Trash2, Shield, Upload, RefreshCw
 } from 'lucide-react';
+import AdminClassReinforcement from '../components/AdminClassReinforcement';
 
 function formatEmbedDocUrl(url) {
   if (!url) return '';
@@ -242,6 +244,281 @@ export default function ClassDetail() {
     const timer = setInterval(() => setNowTime(Date.now()), 30000);
     return () => clearInterval(timer);
   }, []);
+
+  // ── ESTADOS Y FUNCIONES DE GESTIÓN ADMINISTRATIVA Y DOCENTE ──
+  const isAdmin = currentUser?.role === 'admin';
+  const isTeacher = currentUser?.role === 'teacher';
+  const isTeacherOrAdmin = isAdmin || isTeacher;
+  const canManageContent = isAdmin || isTeacher;
+
+  // Recursos (Materiales)
+  const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+  const [resourceModalMode, setResourceModalMode] = useState('create'); // 'create' | 'edit'
+  const [editingResource, setEditingResource] = useState(null);
+  const [resActiveTab, setResActiveTab] = useState('upload'); // 'upload' | 'link'
+  const [resFormTitle, setResFormTitle] = useState('');
+  const [resFormUrl, setResFormUrl] = useState('');
+  const [resFormType, setResFormType] = useState('presentation'); // 'presentation' | 'file' | 'link' | 'code'
+  const [resFormDescription, setResFormDescription] = useState('');
+  const [uploadPdfFile, setUploadPdfFile] = useState(null);
+  const [isDragOverPdf, setIsDragOverPdf] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [resFormError, setResFormError] = useState('');
+  const [resFormSuccess, setResFormSuccess] = useState('');
+
+  // Eliminación de recursos
+  const [resourceToDelete, setResourceToDelete] = useState(null);
+  const [isDeletingResource, setIsDeletingResource] = useState(false);
+
+  // Grabación (Video)
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [videoInputUrl, setVideoInputUrl] = useState('');
+  const [isSavingVideo, setIsSavingVideo] = useState(false);
+  const [videoModalError, setVideoModalError] = useState('');
+
+  // Actividad con IA (Modal Admin)
+  const [isAdminReinforcementOpen, setIsAdminReinforcementOpen] = useState(false);
+
+  // Edición rápida de clase
+  const [isEditClassModalOpen, setIsEditClassModalOpen] = useState(false);
+  const [editClassTitle, setEditClassTitle] = useState('');
+  const [editClassDate, setEditClassDate] = useState('');
+  const [editClassDuration, setEditClassDuration] = useState('');
+  const [isSavingClass, setIsSavingClass] = useState(false);
+  const [editClassError, setEditClassError] = useState('');
+
+  // Dudas de todos los estudiantes (para admin)
+  const [allClassDoubts, setAllClassDoubts] = useState([]);
+
+  const fetchResources = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('class_id', id)
+        .order('created_at', { ascending: true });
+      if (!error && data) {
+        setResources(data);
+      }
+    } catch (err) {
+      console.error('Error fetching resources:', err);
+    }
+  };
+
+  const openCreateResourceModal = () => {
+    setResourceModalMode('create');
+    setEditingResource(null);
+    setResActiveTab('upload');
+    setResFormTitle('');
+    setResFormUrl('');
+    setResFormType('presentation');
+    setResFormDescription('');
+    setUploadPdfFile(null);
+    setResFormError('');
+    setResFormSuccess('');
+    setIsResourceModalOpen(true);
+  };
+
+  const openEditResourceModal = (res) => {
+    setResourceModalMode('edit');
+    setEditingResource(res);
+    setResActiveTab('link');
+    setResFormTitle(res.title || '');
+    setResFormUrl(res.url || '');
+    setResFormType(res.resource_type || res.type || 'presentation');
+    setResFormDescription(res.description || '');
+    setUploadPdfFile(null);
+    setResFormError('');
+    setResFormSuccess('');
+    setIsResourceModalOpen(true);
+  };
+
+  const handleSubmitResource = async (e) => {
+    e.preventDefault();
+    setResFormError('');
+    setResFormSuccess('');
+
+    if (resActiveTab === 'upload') {
+      if (!uploadPdfFile) {
+        setResFormError('Por favor selecciona o arrastra un archivo PDF.');
+        return;
+      }
+      setUploadingPdf(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', uploadPdfFile);
+        formData.append('classId', id);
+        formData.append('programId', clsData?.program_id || '');
+        formData.append('resourceType', resFormType || 'presentation');
+        if (resFormTitle.trim()) {
+          formData.append('customTitle', resFormTitle.trim());
+        }
+
+        const { data, error } = await supabase.functions.invoke('upload-pdf-drive', {
+          body: formData,
+        });
+
+        if (error) {
+          let msg = error.message;
+          try {
+            if (error.context && typeof error.context.json === 'function') {
+              const b = await error.context.json();
+              if (b?.error) msg = b.error;
+            }
+          } catch (_) {}
+          throw new Error(msg);
+        }
+        if (data?.error) throw new Error(data.error);
+
+        setResFormSuccess(`✓ Archivo subido con éxito a Google Drive: "${data.formattedFileName || uploadPdfFile.name}"`);
+        await fetchResources();
+        setTimeout(() => {
+          setIsResourceModalOpen(false);
+          setUploadPdfFile(null);
+        }, 1500);
+      } catch (err) {
+        console.error('Error subiendo a Google Drive:', err);
+        setResFormError('Error al subir a Google Drive: ' + (err.message || String(err)));
+      } finally {
+        setUploadingPdf(false);
+      }
+    } else {
+      if (!resFormTitle.trim()) {
+        setResFormError('El título del recurso es obligatorio.');
+        return;
+      }
+      if (!resFormUrl.trim()) {
+        setResFormError('La URL o enlace es obligatorio.');
+        return;
+      }
+      setUploadingPdf(true);
+      try {
+        const provider = resFormUrl.includes('drive.google.com') ? 'drive' : (resFormUrl.includes('github.com') ? 'github' : 'link');
+        const payload = {
+          class_id: id,
+          title: resFormTitle.trim(),
+          resource_type: resFormType,
+          provider: provider,
+          url: resFormUrl.trim(),
+          description: resFormDescription ? resFormDescription.trim() : null,
+          is_visible: true,
+        };
+
+        if (editingResource?.id) {
+          const { error } = await supabase.from('resources').update(payload).eq('id', editingResource.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('resources').insert([payload]);
+          if (error) throw error;
+        }
+
+        setResFormSuccess('✓ Recurso guardado correctamente.');
+        await fetchResources();
+        setTimeout(() => {
+          setIsResourceModalOpen(false);
+          setEditingResource(null);
+        }, 1000);
+      } catch (err) {
+        setResFormError('Error al guardar el recurso: ' + err.message);
+      } finally {
+        setUploadingPdf(false);
+      }
+    }
+  };
+
+  const handleDeleteResourceConfirm = async () => {
+    if (!resourceToDelete) return;
+    setIsDeletingResource(true);
+    try {
+      if (resourceToDelete.url && (resourceToDelete.url.includes('drive.google.com') || resourceToDelete.provider === 'drive')) {
+        try {
+          await supabase.functions.invoke('upload-pdf-drive', {
+            body: {
+              action: 'delete',
+              fileUrl: resourceToDelete.url,
+              resourceId: resourceToDelete.id,
+              classId: id,
+              clearPresentation: resourceToDelete.resource_type === 'presentation',
+            },
+          });
+        } catch (driveErr) {
+          console.warn('Aviso al eliminar de Google Drive:', driveErr);
+        }
+      }
+
+      const { error } = await supabase.from('resources').delete().eq('id', resourceToDelete.id);
+      if (error) throw error;
+
+      await fetchResources();
+      setResourceToDelete(null);
+    } catch (err) {
+      alert('Error al eliminar recurso: ' + err.message);
+    } finally {
+      setIsDeletingResource(false);
+    }
+  };
+
+  const handleOpenVideoModal = () => {
+    setVideoInputUrl(clsData?.video_url || '');
+    setVideoModalError('');
+    setIsVideoModalOpen(true);
+  };
+
+  const handleSaveVideoModal = async (e) => {
+    e.preventDefault();
+    setIsSavingVideo(true);
+    setVideoModalError('');
+    try {
+      const trimmed = videoInputUrl.trim() || null;
+      const { error } = await supabase
+        .from('class_sessions')
+        .update({ video_url: trimmed })
+        .eq('id', id);
+      if (error) throw error;
+      setClsData(prev => ({ ...prev, video_url: trimmed }));
+      setIsVideoModalOpen(false);
+    } catch (err) {
+      setVideoModalError('Error al guardar video: ' + err.message);
+    } finally {
+      setIsSavingVideo(false);
+    }
+  };
+
+  const handleOpenEditClassModal = () => {
+    setEditClassTitle(clsData?.title || '');
+    setEditClassDate(clsData?.class_date ? clsData.class_date.substring(0, 16) : '');
+    setEditClassDuration(clsData?.duration || '');
+    setEditClassError('');
+    setIsEditClassModalOpen(true);
+  };
+
+  const handleSaveClassModal = async (e) => {
+    e.preventDefault();
+    if (!editClassTitle.trim()) {
+      setEditClassError('El título de la clase es obligatorio.');
+      return;
+    }
+    setIsSavingClass(true);
+    setEditClassError('');
+    try {
+      const updates = {
+        title: editClassTitle.trim(),
+        class_date: editClassDate ? new Date(editClassDate).toISOString() : null,
+        duration: editClassDuration ? parseInt(editClassDuration) : null,
+      };
+      const { error } = await supabase
+        .from('class_sessions')
+        .update(updates)
+        .eq('id', id);
+      if (error) throw error;
+      setClsData(prev => ({ ...prev, ...updates }));
+      setIsEditClassModalOpen(false);
+    } catch (err) {
+      setEditClassError('Error al actualizar clase: ' + err.message);
+    } finally {
+      setIsSavingClass(false);
+    }
+  };
 
   const handleOptionSelect = (questionId, optionId) => {
     setUserAnswers(prev => {
@@ -529,16 +806,21 @@ export default function ClassDetail() {
           classRes,
           resRes,
           doubtsRes,
-          actRes
+          actRes,
+          adminDoubtsRes
         ] = await Promise.all([
           // 1. Detalles de la clase
           supabase.from('class_sessions').select('*, teacher_profiles(*)').eq('id', id).maybeSingle(),
           // 2. Recursos
           supabase.from('resources').select('*').eq('class_id', id).order('created_at', { ascending: true }),
-          // 3. Dudas
+          // 3. Dudas del estudiante actual
           currentUser?.id ? fetchStudentDoubtsForClass(id, currentUser.id) : Promise.resolve({ doubts: [] }),
           // 4. Actividades
-          actQuery.order('created_at', { ascending: false })
+          actQuery.order('created_at', { ascending: false }),
+          // 5. Dudas de toda la clase (para admin/docente)
+          (userRole === 'admin' || userRole === 'teacher')
+            ? supabase.from('class_doubts').select('*, users_profile:student_id(full_name, email)').eq('class_id', id).order('created_at', { ascending: false })
+            : Promise.resolve({ data: [] })
         ]);
 
         const classData = classRes.data;
@@ -547,6 +829,7 @@ export default function ClassDetail() {
 
         setResources(resRes.data || []);
         setUserDoubts(doubtsRes.doubts || []);
+        if (adminDoubtsRes?.data) setAllClassDoubts(adminDoubtsRes.data);
 
         const actData = (actRes.data && actRes.data.length > 0) ? actRes.data[0] : null;
 
@@ -1041,9 +1324,157 @@ export default function ClassDetail() {
         const isCourse = programType === 'curso' || programType === 'course';
         return (
           <>
+            {/* BARRA SUPERIOR DE MODO ADMINISTRADOR */}
+            {isAdmin && (
+              <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                borderRadius: '12px',
+                padding: '0.85rem 1.25rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                border: '1px solid #334155',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.12)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    background: 'rgba(252, 163, 17, 0.2)',
+                    color: '#fca311',
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '8px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    letterSpacing: '0.5px'
+                  }}>
+                    <Shield size={14} /> MODO ADMINISTRADOR
+                  </span>
+                  <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>
+                    Vista previa de la clase con controles de gestión
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {clsData?.program_id && (
+                    <Link
+                      to={`/dashboard/admin/${clsData.program_id}?tab=curriculum`}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        color: '#ffffff',
+                        padding: '0.4rem 0.85rem',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        border: '1px solid rgba(255,255,255,0.15)'
+                      }}
+                    >
+                      <ArrowLeft size={13} /> Volver al Constructor
+                    </Link>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleOpenEditClassModal}
+                    style={{
+                      background: 'var(--gold, #fca311)',
+                      color: '#14213d',
+                      padding: '0.4rem 0.9rem',
+                      borderRadius: '6px',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <Pencil size={13} /> Editar Clase
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* BARRA SUPERIOR DE MODO DOCENTE */}
+            {isTeacher && !isAdmin && (
+              <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                borderRadius: '12px',
+                padding: '0.85rem 1.25rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                border: '1px solid #334155',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.12)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    background: 'rgba(252, 163, 17, 0.2)',
+                    color: '#fca311',
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '8px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    letterSpacing: '0.5px'
+                  }}>
+                    <BookOpen size={14} /> MODO DOCENTE
+                  </span>
+                  <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>
+                    Gestión académica de materiales de estudio y actividad de reforzamiento
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <Link
+                    to={clsData?.program_id ? `/teacher?programId=${clsData.program_id}&tab=classes` : '/teacher'}
+                    style={{
+                      background: 'rgba(255,255,255,0.1)',
+                      color: '#ffffff',
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '6px',
+                      fontSize: '0.76rem',
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                    onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  >
+                    <ArrowLeft size={13} /> Volver a Mis Clases
+                  </Link>
+                </div>
+              </div>
+            )}
+
             <div style={{ marginBottom: '1.25rem' }}>
-              <Link to={isCourse ? (clsData?.program_id ? `/dashboard/${clsData.program_id}` : '/portal') : (moduleId ? `/module/${moduleId}` : '/portal')} className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                <ArrowLeft size={14} /> {isCourse ? 'Volver al inicio del curso' : (moduleId ? 'Volver al Módulo' : 'Volver al Portal')}
+              <Link
+                to={
+                  isTeacher
+                    ? (clsData?.program_id ? `/teacher?programId=${clsData.program_id}&tab=classes` : '/teacher')
+                    : (isCourse ? (clsData?.program_id ? `/dashboard/${clsData.program_id}` : '/portal') : (moduleId ? `/module/${moduleId}` : '/portal'))
+                }
+                className="btn btn-outline"
+                style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <ArrowLeft size={14} /> {isTeacher ? 'Volver a Mis Clases' : (isCourse ? 'Volver al inicio del curso' : (moduleId ? 'Volver al Módulo' : 'Volver al Portal'))}
               </Link>
             </div>
 
@@ -1214,9 +1645,33 @@ export default function ClassDetail() {
           })()}
 
           <div className="card-placeholder order-grabacion">
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Video size={18} color="var(--gold-dark)" /> Grabación / Transmisión de la Clase
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Video size={18} color="var(--gold-dark)" /> Grabación / Transmisión de la Clase
+              </h3>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={handleOpenVideoModal}
+                  style={{
+                    background: '#ffffff',
+                    color: 'var(--navy)',
+                    border: '1px solid var(--border-color)',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.76rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                  }}
+                >
+                  <Pencil size={13} color="var(--gold-dark)" /> {clsData.video_url ? 'Editar Grabación' : 'Configurar Grabación'}
+                </button>
+              )}
+            </div>
 
             {clsData.video_url ? (
               <PrivateVideoPlayer videoUrl={clsData.video_url} title={clsData.title} studentName={currentUser?.full_name || currentUser?.email} />
@@ -1227,22 +1682,67 @@ export default function ClassDetail() {
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
                   El video de esta sesión estará disponible una vez finalizada la transmisión.
                 </p>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleOpenVideoModal}
+                    className="btn btn-primary"
+                    style={{ marginTop: '0.85rem', fontSize: '0.78rem', padding: '0.4rem 0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Plus size={14} /> Cargar Enlace de Video
+                  </button>
+                )}
               </div>
             )}
           </div>
 
           {/* 2. RECURSOS Y MATERIAL DE ESTUDIO */}
           <div className="card-placeholder order-recursos">
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Paperclip size={18} color="var(--gold-dark)" /> Recursos y Material de Estudio ({resources.length})
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Paperclip size={18} color="var(--gold-dark)" /> Recursos y Material de Estudio ({resources.length})
+              </h3>
+
+              {canManageContent && (
+                <button
+                  type="button"
+                  onClick={openCreateResourceModal}
+                  style={{
+                    background: 'var(--navy)',
+                    color: '#ffffff',
+                    padding: '0.4rem 0.9rem',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 2px 6px rgba(20,33,61,0.2)'
+                  }}
+                >
+                  <Plus size={14} color="var(--gold)" /> Agregar Material
+                </button>
+              )}
+            </div>
 
             {resources.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '1.25rem 1rem', background: 'var(--surface-light)', borderRadius: 'var(--radius-md)' }}>
-                <Paperclip size={24} color="var(--text-muted)" style={{ marginBottom: '0.35rem' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0 }}>
+              <div style={{ textAlign: 'center', padding: '1.75rem 1rem', background: 'var(--surface-light)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)' }}>
+                <Paperclip size={28} color="var(--text-muted)" style={{ marginBottom: '0.35rem' }} />
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: '0 0 0.85rem 0' }}>
                   No hay archivos ni recursos adicionales cargados para esta clase.
                 </p>
+                {canManageContent && (
+                  <button
+                    type="button"
+                    onClick={openCreateResourceModal}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '0.45rem 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <Plus size={14} /> Subir o Vincular Primer Recurso
+                  </button>
+                )}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -1254,33 +1754,89 @@ export default function ClassDetail() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    background: 'var(--surface-light)'
+                    background: 'var(--surface-light)',
+                    gap: '1rem'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <div style={{ padding: '0.5rem', background: '#fff', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>
+                      <div style={{ padding: '0.5rem', background: '#fff', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', flexShrink: 0 }}>
                         {getResourceIcon(res.resource_type || res.type)}
                       </div>
-                      <div>
-                        <h4 style={{ fontWeight: 600, color: 'var(--navy)', fontSize: '0.88rem', margin: 0 }}>{res.title}</h4>
+                      <div style={{ minWidth: 0 }}>
+                        <h4 style={{ fontWeight: 600, color: 'var(--navy)', fontSize: '0.88rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {res.title}
+                        </h4>
                         {res.description && <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>{res.description}</p>}
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 600, textTransform: 'uppercase' }}>
+                            {res.resource_type || res.type || 'archivo'}
+                          </span>
+                          {res.provider && (
+                            <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                              • {res.provider === 'drive' ? 'Google Drive' : res.provider}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDoc(res)}
-                      className="btn btn-outline"
-                      style={{
-                        fontSize: '0.78rem',
-                        padding: '0.4rem 0.85rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Eye size={14} /> Abrir
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDoc(res)}
+                        className="btn btn-outline"
+                        style={{
+                          fontSize: '0.78rem',
+                          padding: '0.4rem 0.85rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Eye size={14} /> Abrir
+                      </button>
+
+                      {canManageContent && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditResourceModal(res)}
+                            title="Editar recurso"
+                            style={{
+                              padding: '0.4rem 0.65rem',
+                              background: '#ffffff',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              color: 'var(--navy)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              fontSize: '0.76rem'
+                            }}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResourceToDelete(res)}
+                            title="Eliminar recurso"
+                            style={{
+                              padding: '0.4rem 0.65rem',
+                              background: '#fef2f2',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              color: '#dc2626',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              fontSize: '0.76rem'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1419,11 +1975,11 @@ export default function ClassDetail() {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                     <button
-                      onClick={handleOpenResults}
+                      onClick={handleViewReview}
                       className="btn btn-outline"
-                      style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.8rem', color: '#166534', borderColor: '#86efac', background: '#ffffff', fontWeight: 700 }}
+                      style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                     >
-                      Revisar respuestas
+                      <BookOpen size={14} /> Ver revisión de respuestas
                     </button>
                     {canRetry && (
                       <button
@@ -1439,105 +1995,184 @@ export default function ClassDetail() {
               );
             })()}
 
-          </div>
-
-          {/* 2. ENVIAR UNA DUDA Y LISTA DE DUDAS REGISTRADAS */}
-          <div className="card-placeholder order-dudas">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <HelpCircle size={18} color="var(--gold-dark)" /> ¿Tienes una duda sobre esta clase?
-              </h3>
-              <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: '12px', fontWeight: 600 }}>
-                Atención docente
-              </span>
-            </div>
-
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 1rem 0', lineHeight: 1.45 }}>
-              Envía tu pregunta para que el docente pueda revisarla y atenderla durante la clase.
-            </p>
-
-            <button
-              ref={doubtButtonRef}
-              onClick={openDoubtModal}
-              className="btn"
-              style={{
-                width: '100%',
-                background: 'var(--navy)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.6rem 1rem',
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.45rem',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)'
-              }}
-            >
-              <Send size={15} /> Enviar una duda
-            </button>
-
-            {/* LISTA DE DUDAS ENVIADAS POR EL ESTUDIANTE EN ESTA CLASE */}
-            {userDoubts.length > 0 && (
-              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-                <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <MessageSquare size={15} color="var(--gold-dark)" />
-                  Mis dudas enviadas ({userDoubts.length})
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  {userDoubts.map(doubt => (
-                    <div key={doubt.id} style={{
-                      padding: '0.65rem 0.85rem',
-                      background: 'var(--surface-light)',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3 }}>
-                          {doubt.subject}
-                        </span>
-                        <span style={{
-                          fontSize: '0.68rem',
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: '10px',
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap',
-                          background: doubt.status === 'atendida' ? '#dcfce7' :
-                                      doubt.status === 'revisada' ? '#fef3c7' :
-                                      doubt.status === 'archivada' ? '#f1f5f9' : '#dbeafe',
-                          color: doubt.status === 'atendida' ? '#166534' :
-                                 doubt.status === 'revisada' ? '#92400e' :
-                                 doubt.status === 'archivada' ? '#475569' : '#1e40af'
-                        }}>
-                          {doubt.status === 'atendida' ? 'Atendida en clase' :
-                           doubt.status === 'revisada' ? 'Revisada' :
-                           doubt.status === 'archivada' ? 'Archivada' : 'Enviada'}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            {/* BOTÓN ADMINISTRATIVO / DOCENTE PARA GESTIONAR ACTIVIDAD CON IA */}
+            {canManageContent && (
+              <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px dashed var(--border-color)' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAdminReinforcementOpen(true)}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #1e3a5f 0%, #14213D 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.6rem 0.85rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    boxShadow: '0 2px 6px rgba(20,33,61,0.2)'
+                  }}
+                >
+                  <Zap size={14} color="var(--gold)" /> Gestionar Actividad con IA
+                </button>
               </div>
             )}
 
-            {/* PREPARACIÓN VISUAL DE ETIQUETAS DE ESTADOS FUTUROS CUANDO NO HAY DUDAS */}
-            {userDoubts.length === 0 && (
-              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
-                  ESTADOS DE REVISIÓN:
-                </span>
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>Enviada</span>
-                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Revisada</span>
-                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Atendida en clase</span>
-                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>Archivada</span>
-                </div>
+          </div>
+
+          {/* 2. ENVIAR UNA DUDA O GESTIÓN DE DUDAS (ADMIN / DOCENTE) */}
+          <div className="card-placeholder order-dudas">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <HelpCircle size={18} color="var(--gold-dark)" />
+                {canManageContent ? `Dudas de Estudiantes (${allClassDoubts.length})` : '¿Tienes una duda sobre esta clase?'}
+              </h3>
+              <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: '12px', fontWeight: 600 }}>
+                {canManageContent ? (isAdmin ? 'Gestión Administrativa' : 'Atención Docente') : 'Atención docente'}
+              </span>
+            </div>
+
+            {canManageContent ? (
+              <div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 1rem 0', lineHeight: 1.45 }}>
+                  Preguntas enviadas por los estudiantes sobre los temas de esta sesión.
+                </p>
+
+                {allClassDoubts.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.25rem 1rem', background: 'var(--surface-light)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                    No hay dudas registradas por estudiantes para esta clase aún.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    {allClassDoubts.map(doubt => (
+                      <div key={doubt.id} style={{
+                        padding: '0.75rem 0.9rem',
+                        background: 'var(--surface-light)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)' }}>
+                            {doubt.subject}
+                          </span>
+                          <span style={{
+                            fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '10px',
+                            background: doubt.status === 'atendida' ? '#dcfce7' :
+                                        doubt.status === 'revisada' ? '#fef3c7' : '#dbeafe',
+                            color: doubt.status === 'atendida' ? '#166534' :
+                                   doubt.status === 'revisada' ? '#92400e' : '#1e40af'
+                          }}>
+                            {doubt.status === 'atendida' ? 'Atendida' :
+                             doubt.status === 'revisada' ? 'Revisada' : 'Enviada'}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 6px 0', lineHeight: 1.4 }}>
+                          {doubt.description}
+                        </p>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Alumno: <strong>{doubt.users_profile?.full_name || doubt.users_profile?.email || 'Estudiante'}</strong></span>
+                          <span>{doubt.created_at ? new Date(doubt.created_at).toLocaleDateString('es-CO') : ''}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 1rem 0', lineHeight: 1.45 }}>
+                  Envía tu pregunta para que el docente pueda revisarla y atenderla durante la clase.
+                </p>
+
+                <button
+                  ref={doubtButtonRef}
+                  onClick={openDoubtModal}
+                  className="btn"
+                  style={{
+                    width: '100%',
+                    background: 'var(--navy)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '0.6rem 1rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(20, 33, 61, 0.2)'
+                  }}
+                >
+                  <Send size={15} /> Enviar una duda
+                </button>
+
+                {/* LISTA DE DUDAS ENVIADAS POR EL ESTUDIANTE EN ESTA CLASE */}
+                {userDoubts.length > 0 && (
+                  <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <MessageSquare size={15} color="var(--gold-dark)" />
+                      Mis dudas enviadas ({userDoubts.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      {userDoubts.map(doubt => (
+                        <div key={doubt.id} style={{
+                          padding: '0.65rem 0.85rem',
+                          background: 'var(--surface-light)',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3 }}>
+                              {doubt.subject}
+                            </span>
+                            <span style={{
+                              fontSize: '0.68rem',
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '10px',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                              background: doubt.status === 'atendida' ? '#dcfce7' :
+                                          doubt.status === 'revisada' ? '#fef3c7' :
+                                          doubt.status === 'archivada' ? '#f1f5f9' : '#dbeafe',
+                              color: doubt.status === 'atendida' ? '#166534' :
+                                     doubt.status === 'revisada' ? '#92400e' :
+                                     doubt.status === 'archivada' ? '#475569' : '#1e40af'
+                            }}>
+                              {doubt.status === 'atendida' ? 'Atendida en clase' :
+                               doubt.status === 'revisada' ? 'Revisada' :
+                               doubt.status === 'archivada' ? 'Archivada' : 'Enviada'}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* PREPARACIÓN VISUAL DE ETIQUETAS DE ESTADOS FUTUROS CUANDO NO HAY DUDAS */}
+                {userDoubts.length === 0 && (
+                  <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                      ESTADOS DE REVISIÓN:
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>Enviada</span>
+                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Revisada</span>
+                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Atendida en clase</span>
+                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>Archivada</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -2420,6 +3055,569 @@ export default function ClassDetail() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* =================================================================== */}
+      {/* MODALES DE GESTIÓN ADMINISTRATIVA */}
+      {/* =================================================================== */}
+
+      {/* 1. MODAL AGREGAR / EDITAR RECURSO */}
+      {isResourceModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '540px',
+            maxHeight: '92vh', overflowY: 'auto', padding: '1.75rem',
+            boxShadow: '0 20px 45px rgba(0,0,0,0.25)', position: 'relative',
+            animation: 'fadeSlideUp 0.3s ease-out'
+          }}>
+            <button
+              onClick={() => setIsResourceModalOpen(false)}
+              style={{
+                position: 'absolute', top: '1.25rem', right: '1.25rem',
+                background: '#f1f5f9', border: 'none', borderRadius: '50%',
+                width: '32px', height: '32px', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', cursor: 'pointer', color: '#64748b'
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Paperclip size={20} color="var(--gold)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  {resourceModalMode === 'edit' ? 'Editar Material de Estudio' : 'Agregar Material de Estudio'}
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  El material estará disponible inmediatamente para los estudiantes.
+                </p>
+              </div>
+            </div>
+
+            {/* Pestañas (solo en modo creación) */}
+            {resourceModalMode === 'create' && (
+              <div style={{ display: 'flex', borderBottom: '2px solid var(--border-color)', marginBottom: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setResActiveTab('upload')}
+                  style={{
+                    flex: 1, padding: '0.6rem', border: 'none', background: 'none', cursor: 'pointer',
+                    fontWeight: 700, fontSize: '0.82rem',
+                    borderBottom: resActiveTab === 'upload' ? '2px solid var(--gold-dark)' : '2px solid transparent',
+                    color: resActiveTab === 'upload' ? 'var(--navy)' : 'var(--text-muted)',
+                    marginBottom: '-2px', transition: 'all 0.15s'
+                  }}
+                >
+                  <Upload size={14} style={{ display: 'inline', marginRight: 4 }} /> Subir PDF (Google Drive)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResActiveTab('link')}
+                  style={{
+                    flex: 1, padding: '0.6rem', border: 'none', background: 'none', cursor: 'pointer',
+                    fontWeight: 700, fontSize: '0.82rem',
+                    borderBottom: resActiveTab === 'link' ? '2px solid var(--gold-dark)' : '2px solid transparent',
+                    color: resActiveTab === 'link' ? 'var(--navy)' : 'var(--text-muted)',
+                    marginBottom: '-2px', transition: 'all 0.15s'
+                  }}
+                >
+                  <ExternalLink size={14} style={{ display: 'inline', marginRight: 4 }} /> Vincular Enlace Web
+                </button>
+              </div>
+            )}
+
+            {resFormError && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                {resFormError}
+              </div>
+            )}
+            {resFormSuccess && (
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                {resFormSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitResource} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {resActiveTab === 'upload' ? (
+                <>
+                  {/* Zona de Drag and Drop PDF */}
+                  <div
+                    onDragOver={e => { e.preventDefault(); setIsDragOverPdf(true); }}
+                    onDragLeave={() => setIsDragOverPdf(false)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setIsDragOverPdf(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        const f = e.dataTransfer.files[0];
+                        if (f.type === 'application/pdf' || f.name.endsWith('.pdf')) {
+                          setUploadPdfFile(f);
+                          if (!resFormTitle) setResFormTitle(f.name.replace(/\.[^/.]+$/, ''));
+                        } else {
+                          setResFormError('Por favor selecciona un archivo en formato PDF.');
+                        }
+                      }
+                    }}
+                    style={{
+                      border: `2px dashed ${isDragOverPdf ? 'var(--gold)' : uploadPdfFile ? '#16a34a' : '#cbd5e1'}`,
+                      borderRadius: '12px',
+                      background: isDragOverPdf ? 'rgba(252,163,17,0.06)' : uploadPdfFile ? '#f0fdf4' : '#f8fafc',
+                      padding: '1.75rem 1rem',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onClick={() => document.getElementById('class-pdf-file-input')?.click()}
+                  >
+                    <input
+                      id="class-pdf-file-input"
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={e => {
+                        if (e.target?.files?.[0]) {
+                          const f = e.target.files[0];
+                          setUploadPdfFile(f);
+                          if (!resFormTitle) setResFormTitle(f.name.replace(/\.[^/.]+$/, ''));
+                        }
+                      }}
+                    />
+                    {uploadPdfFile ? (
+                      <div>
+                        <FileCheck size={36} color="#16a34a" style={{ margin: '0 auto 0.4rem' }} />
+                        <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '0.92rem' }}>{uploadPdfFile.name}</div>
+                        <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>
+                          {(uploadPdfFile.size / (1024 * 1024)).toFixed(2)} MB · Listo para subir
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setUploadPdfFile(null); }}
+                          style={{ marginTop: '0.6rem', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', padding: '0.25rem 0.65rem', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          Cambiar archivo
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload size={32} color="var(--gold-dark)" style={{ margin: '0 auto 0.4rem' }} />
+                        <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '0.9rem' }}>
+                          Arrastra tu archivo PDF aquí o haz clic para seleccionarlo
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '4px' }}>
+                          Soporta diapositivas o guías PDF de hasta 100 MB
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                      Título del Material
+                    </label>
+                    <input
+                      type="text"
+                      value={resFormTitle}
+                      onChange={e => setResFormTitle(e.target.value)}
+                      placeholder={uploadPdfFile ? uploadPdfFile.name.replace(/\.[^/.]+$/, '') : "Ej. Diapositivas de la Sesión"}
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                      Tipo de Material
+                    </label>
+                    <select
+                      value={resFormType}
+                      onChange={e => setResFormType(e.target.value)}
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                    >
+                      <option value="presentation">Presentación / Diapositivas</option>
+                      <option value="pdf">Documento / Guía PDF</option>
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                      Título del Recurso *
+                    </label>
+                    <input
+                      type="text"
+                      value={resFormTitle}
+                      onChange={e => setResFormTitle(e.target.value)}
+                      placeholder="Ej. Código fuente en GitHub / Cuaderno Colab / Enlace Drive"
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                      URL / Enlace Web *
+                    </label>
+                    <input
+                      type="url"
+                      value={resFormUrl}
+                      onChange={e => setResFormUrl(e.target.value)}
+                      placeholder="https://drive.google.com/... o https://..."
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                      required
+                    />
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                      Los enlaces a Google Drive se incrustan automáticamente en el visor protegido.
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                        Tipo de Recurso
+                      </label>
+                      <select
+                        value={resFormType}
+                        onChange={e => setResFormType(e.target.value)}
+                        style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                      >
+                        <option value="presentation">Presentación / Diapositivas</option>
+                        <option value="pdf">Documento / PDF</option>
+                        <option value="link">Enlace Web Externo</option>
+                        <option value="code">Código / Repositorio</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                        Descripción (Opcional)
+                      </label>
+                      <textarea
+                        value={resFormDescription}
+                        onChange={e => setResFormDescription(e.target.value)}
+                        placeholder="Breve nota sobre cómo usar este material..."
+                        style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem', minHeight: '60px' }}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsResourceModalOpen(false)}
+                  style={{ padding: '0.55rem 1rem', background: '#f1f5f9', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingPdf}
+                  className="btn btn-primary"
+                  style={{ padding: '0.55rem 1.25rem', fontSize: '0.82rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {uploadingPdf ? (
+                    <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Subiendo...</>
+                  ) : (
+                    resourceModalMode === 'edit' ? 'Guardar Cambios' : (resActiveTab === 'upload' ? 'Subir a Google Drive' : 'Vincular Recurso')
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MODAL CONFIRMACIÓN ELIMINAR RECURSO */}
+      {resourceToDelete && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '420px',
+            padding: '1.75rem', boxShadow: '0 20px 45px rgba(0,0,0,0.25)', textAlign: 'center'
+          }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <Trash2 size={24} />
+            </div>
+            <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: 800, color: 'var(--navy)' }}>
+              ¿Eliminar este material?
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: '0 0 1.25rem 0', lineHeight: 1.4 }}>
+              Se eliminará <strong>"{resourceToDelete.title}"</strong> de la lista de recursos visibles para los estudiantes.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setResourceToDelete(null)}
+                style={{ padding: '0.55rem 1.2rem', background: '#f1f5f9', border: '1px solid var(--border-color)', borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingResource}
+                onClick={handleDeleteResourceConfirm}
+                style={{ padding: '0.55rem 1.25rem', background: '#dc2626', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+              >
+                {isDeletingResource ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. MODAL EDITAR GRABACIÓN (VIDEO) */}
+      {isVideoModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '480px',
+            padding: '1.75rem', boxShadow: '0 20px 45px rgba(0,0,0,0.25)', position: 'relative'
+          }}>
+            <button
+              onClick={() => setIsVideoModalOpen(false)}
+              style={{
+                position: 'absolute', top: '1.25rem', right: '1.25rem',
+                background: '#f1f5f9', border: 'none', borderRadius: '50%',
+                width: '32px', height: '32px', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', cursor: 'pointer', color: '#64748b'
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Video size={20} color="var(--gold)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  Configurar Grabación / Video
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Pega el enlace de la grabación para incrustarla en el reproductor protegido.
+                </p>
+              </div>
+            </div>
+
+            {videoModalError && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                {videoModalError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveVideoModal} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                  URL de la Grabación (YouTube, Vimeo, Google Drive o Loom)
+                </label>
+                <input
+                  type="url"
+                  value={videoInputUrl}
+                  onChange={e => setVideoInputUrl(e.target.value)}
+                  placeholder="https://youtube.com/watch?v=... o Google Drive / Vimeo / Loom"
+                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                />
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Deja el campo vacío si deseas desactivar el reproductor temporalmente.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsVideoModalOpen(false)}
+                  style={{ padding: '0.55rem 1rem', background: '#f1f5f9', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingVideo}
+                  className="btn btn-primary"
+                  style={{ padding: '0.55rem 1.25rem', fontSize: '0.82rem', fontWeight: 700 }}
+                >
+                  {isSavingVideo ? 'Guardando...' : 'Guardar Video'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL EDITAR DATOS DE LA CLASE */}
+      {isEditClassModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '480px',
+            padding: '1.75rem', boxShadow: '0 20px 45px rgba(0,0,0,0.25)', position: 'relative'
+          }}>
+            <button
+              onClick={() => setIsEditClassModalOpen(false)}
+              style={{
+                position: 'absolute', top: '1.25rem', right: '1.25rem',
+                background: '#f1f5f9', border: 'none', borderRadius: '50%',
+                width: '32px', height: '32px', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', cursor: 'pointer', color: '#64748b'
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Pencil size={20} color="var(--gold)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  Editar Información de la Clase
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Modifica los datos principales de esta sesión.
+                </p>
+              </div>
+            </div>
+
+            {editClassError && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                {editClassError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveClassModal} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                  Título de la Clase *
+                </label>
+                <input
+                  type="text"
+                  value={editClassTitle}
+                  onChange={e => setEditClassTitle(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                    Fecha y Hora
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={editClassDate}
+                    onChange={e => setEditClassDate(e.target.value)}
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '0.84rem' }}>
+                    Duración (min)
+                  </label>
+                  <input
+                    type="number"
+                    value={editClassDuration}
+                    onChange={e => setEditClassDuration(e.target.value)}
+                    placeholder="120"
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditClassModalOpen(false)}
+                  style={{ padding: '0.55rem 1rem', background: '#f1f5f9', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingClass}
+                  className="btn btn-primary"
+                  style={{ padding: '0.55rem 1.25rem', fontSize: '0.82rem', fontWeight: 700 }}
+                >
+                  {isSavingClass ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. MODAL ACTIVIDAD CON IA */}
+      {isAdminReinforcementOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '920px',
+            maxHeight: '92vh', overflowY: 'auto', padding: '1.75rem',
+            boxShadow: '0 20px 45px rgba(0,0,0,0.25)', position: 'relative',
+            animation: 'fadeSlideUp 0.3s ease-out'
+          }}>
+            <button
+              onClick={() => {
+                setIsAdminReinforcementOpen(false);
+                // Refrescar actividad para actualizar la vista de estudiante
+                supabase.from('class_activities').select('*').eq('class_id', id).order('created_at', { ascending: false }).then(({ data }) => {
+                  if (data && data.length > 0) {
+                    setActivityConfig(data[0]);
+                    setActivityState(data[0].is_published ? 'no_iniciada' : 'no_configurada');
+                  }
+                });
+              }}
+              style={{
+                position: 'absolute', top: '1.25rem', right: '1.25rem',
+                background: '#f1f5f9', border: 'none', borderRadius: '50%',
+                width: '34px', height: '34px', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', cursor: 'pointer', color: '#64748b'
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'linear-gradient(135deg, var(--navy) 0%, #1e3a5f 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Zap size={22} color="var(--gold)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  Actividad de Reforzamiento con IA
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Pega la transcripción de la clase para generar preguntas automáticas con Inteligencia Artificial, o redacta preguntas manualmente.
+                </p>
+              </div>
+            </div>
+
+            <AdminClassReinforcement classId={id} />
+          </div>
+        </div>
       )}
 
     </div>

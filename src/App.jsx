@@ -36,7 +36,7 @@ const ModulesList = React.lazy(() => import('./pages/ModulesList'));
 const ModuleDetail = React.lazy(() => import('./pages/ModuleDetail'));
 const ClassDetail = React.lazy(() => import('./pages/ClassDetail'));
 const Teachers = React.lazy(() => import('./pages/Teachers'));
-const TeacherResources = React.lazy(() => import('./pages/TeacherResources'));
+const CourseResources = React.lazy(() => import('./pages/CourseResources'));
 const ClassesManagement = React.lazy(() => import('./pages/ClassesManagement'));
 const UserManagement = React.lazy(() => import('./pages/UserManagement'));
 const Communications = React.lazy(() => import('./pages/Communications'));
@@ -112,7 +112,8 @@ function App() {
               <Route path="/module/:id" element={<ModuleDetail />} />
               <Route path="/class/*" element={<ClassDetail />} />
               <Route path="/teachers/:programId" element={<Teachers />} />
-              <Route path="/resources/:programId" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherResources /></ProtectedRoute>} />
+              <Route path="/resources/:programId" element={<CourseResources />} />
+              <Route path="/recursos/:programId" element={<CourseResources />} />
               <Route path="/classes/:programId" element={<ProtectedRoute allowedRoles={['teacher', 'admin']}><ClassesManagement /></ProtectedRoute>} />
               <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
               <Route path="/communications" element={<ProtectedRoute allowedRoles={['admin']}><Communications /></ProtectedRoute>} />

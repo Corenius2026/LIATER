@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabaseClient';
 import { Plus, Trash2, Edit2, CheckCircle2, AlertTriangle, PlayCircle, GripVertical, Save, FileText, Check, Sparkles, RefreshCw } from 'lucide-react';
 
 export default function AdminClassReinforcement({ classId }) {
-  const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
+  const isTeacher = currentUser?.role === 'teacher';
+  const isTeacherOrAdmin = isAdmin || isTeacher;
 
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState(null);
@@ -1227,9 +1228,9 @@ export default function AdminClassReinforcement({ classId }) {
       </div>
 
       {/* ==========================================
-          SECCIÓN TEMPORAL: Prueba de generación con IA (Solo Admins)
+          SECCIÓN: Generación de preguntas con IA (Admins y Docentes)
           ========================================== */}
-      {isAdmin && (
+      {isTeacherOrAdmin && (
         <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
           <h3 style={{ fontSize: '1.1rem', color: '#0f172a', marginBottom: '1rem', fontWeight: 'bold' }}>
             Prueba de generación con IA

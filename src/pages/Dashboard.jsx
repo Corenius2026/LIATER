@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { calculateProgramProgressDetails } from '../services/programService';
-import { isClassLiveOrSoon, isClassActiveOrUpcoming } from '../utils/dateUtils';
+import { isClassLiveOrSoon, isClassActiveOrUpcoming, safeFormatTime, safeFormatDate } from '../utils/dateUtils';
 import {
   PlayCircle, BookOpen, Calendar, CalendarPlus, Video, Clock, User, Megaphone,
   ArrowRight, ArrowLeft, ChevronRight, MessageSquare, Award,
-  CheckCircle2, TrendingUp, BarChart2, AlertTriangle, Layers
+  CheckCircle2, TrendingUp, BarChart2, AlertTriangle, Layers,
+  Paperclip, Home, ListTree, Users
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────────────────
@@ -35,6 +36,126 @@ function getGoogleCalendarUrl(cls, programTitle) {
     console.error('Error generating Google Calendar URL:', err);
     return null;
   }
+}
+
+/* ─────────────────────────────────────────────────────
+   HELPER: Enlace de Google Calendar para una SESIÓN (agrupa sus clases)
+───────────────────────────────────────────────────── */
+function getSessionGoogleCalendarUrl(session, programTitle, fallbackMeetUrl) {
+  if (!session?.startDate) return null;
+  try {
+    const startDate = session.startDate;
+    if (isNaN(startDate.getTime())) return null;
+    const endDate = session.endDate && !isNaN(session.endDate.getTime())
+      ? session.endDate
+      : new Date(startDate.getTime() + 90 * 60 * 1000);
+
+    const formatUtc = (d) => d.toISOString().replace(/-|:|\.\d+/g, '');
+    const dates = `${formatUtc(startDate)}/${formatUtc(endDate)}`;
+
+    const title = encodeURIComponent(`${session.title || 'Sesión en vivo'} | ${programTitle || 'LIATER UNAL'}`);
+
+    const classLines = (session.classes || []).map(c => {
+      const time = safeFormatTime(c.class_date);
+      return `• ${c.title}${time ? ` (${time} hs)` : ''}`;
+    }).join('\n');
+
+    const details = encodeURIComponent(
+      `🏛️ PORTAL EDUCATIVO LIATER — UNAL\n` +
+      (programTitle ? `📚 Programa: ${programTitle}\n` : '') +
+      `📌 Sesión: ${session.title}\n` +
+      ((session.classes && session.classes.length > 1) ? `\n📋 Clases comprendidas (${session.classes.length}):\n${classLines}\n` : '') +
+      `\n👨‍🏫 Docente(s): ${session.teachers || 'Profesor'}\n` +
+      `🔗 Enlace de acceso: ${session.meetUrl || fallbackMeetUrl || 'https://liater.unal.edu.co'}\n` +
+      `🌐 Aula Virtual LIATER`
+    );
+    const location = encodeURIComponent(session.meetUrl || fallbackMeetUrl || 'Online - Portal LIATER');
+
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
+  } catch (err) {
+    console.error('Error generating Google Calendar URL for session:', err);
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────
+   HELPER: Agrupar clases próximas en sesiones
+───────────────────────────────────────────────────── */
+function groupClassesIntoSessions(classes = [], sessionMap = {}) {
+  if (!Array.isArray(classes) || classes.length === 0) return [];
+
+  const activeOrUpcoming = classes.filter(c => isClassActiveOrUpcoming(c));
+  if (activeOrUpcoming.length === 0) return [];
+
+  const groups = new Map();
+
+  activeOrUpcoming.forEach(c => {
+    // Si la clase tiene subtopic_id, se agrupa por ese ID de sesión; si no, por el id de la clase
+    const key = c.subtopic_id ? `session_${c.subtopic_id}` : `class_${c.id}`;
+
+    if (!groups.has(key)) {
+      const sessionTitle = (c.subtopic_id && sessionMap[c.subtopic_id])
+        ? sessionMap[c.subtopic_id]
+        : (c.sessionTitle || c.title);
+
+      groups.set(key, {
+        id: key,
+        sessionId: c.subtopic_id || null,
+        title: sessionTitle,
+        classes: [],
+        earliestTime: c.class_date ? new Date(c.class_date).getTime() : Infinity
+      });
+    }
+
+    const group = groups.get(key);
+    group.classes.push(c);
+    const cTime = c.class_date ? new Date(c.class_date).getTime() : Infinity;
+    if (cTime < group.earliestTime) {
+      group.earliestTime = cTime;
+    }
+  });
+
+  const result = Array.from(groups.values()).sort((a, b) => a.earliestTime - b.earliestTime);
+
+  return result.map(session => {
+    session.classes.sort((a, b) => {
+      const tA = a.class_date ? new Date(a.class_date).getTime() : 0;
+      const tB = b.class_date ? new Date(b.class_date).getTime() : 0;
+      return tA - tB;
+    });
+
+    const firstClass = session.classes[0];
+    const lastClass = session.classes[session.classes.length - 1];
+
+    const rawStart = firstClass?.class_date ? new Date(firstClass.class_date) : null;
+    const startDate = (rawStart && !isNaN(rawStart.getTime())) ? rawStart : null;
+    let endDate = null;
+    if (lastClass?.class_date) {
+      const rawEnd = new Date(lastClass.class_date);
+      if (!isNaN(rawEnd.getTime())) {
+        const durationMin = Number(lastClass.duration) || 90;
+        endDate = new Date(rawEnd.getTime() + durationMin * 60 * 1000);
+      }
+    }
+
+    const teacherNames = Array.from(new Set(
+      session.classes.map(c => c.teacher_profiles?.name).filter(Boolean)
+    ));
+
+    const liveClass = session.classes.find(c => isClassLiveOrSoon(c, 10));
+    const meetUrl = liveClass?.meet_url || firstClass?.meet_url || null;
+
+    return {
+      ...session,
+      startDate,
+      endDate,
+      teachers: teacherNames.join(', '),
+      isLiveNow: !!liveClass,
+      liveClass,
+      meetUrl,
+      firstClass
+    };
+  });
 }
 
 /* ─────────────────────────────────────────────────────
@@ -174,9 +295,7 @@ function ClassRow({ cls, activityInfo }) {
             )}
             <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
               {cls.sessionTitle ? '· ' : ''}
-              {classDate
-                ? classDate.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })
-                : 'Sin fecha'}
+              {safeFormatDate(classDate, 'Sin fecha')}
             </p>
             {cls.teacher_profiles?.name && (
               <span style={{ fontSize: '0.72rem', color: 'var(--navy)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
@@ -228,6 +347,7 @@ export default function Dashboard() {
     sessionsCount: 0,
     totalClassesCount: 0,
     upcomingClasses: [],
+    sessionMap: {},
     latestRecordings: [],
     firstModuleId: null,
     announcements: [],
@@ -275,11 +395,11 @@ export default function Dashboard() {
             .order('order_index', { ascending: true }),
           supabase
             .from('class_sessions')
-            .select('id, title, class_date, duration, video_url, meet_url, teacher_profiles(name)')
+            .select('id, title, class_date, duration, video_url, meet_url, subtopic_id, teacher_profiles(name)')
             .eq('program_id', cleanProgramId)
             .gte('class_date', todayStartIso)
             .order('class_date', { ascending: true })
-            .limit(12),
+            .limit(30),
           supabase
             .from('announcements')
             .select('*, teacher_profiles(name)')
@@ -292,7 +412,7 @@ export default function Dashboard() {
             .eq('program_id', cleanProgramId)
             .order('class_date', { ascending: true, nullsFirst: false }),
           supabase
-            .from('sessions')
+            .from('subtopics')
             .select('id, title, module_id, order_index')
             .eq('program_id', cleanProgramId),
           supabase
@@ -313,7 +433,7 @@ export default function Dashboard() {
         if (programSessions.length === 0 && modulesData && modulesData.length > 0) {
           const modIds = modulesData.map(m => m.id);
           const { data: modSessions } = await supabase
-            .from('sessions')
+            .from('subtopics')
             .select('id, title, module_id, order_index')
             .in('module_id', modIds);
           programSessions = modSessions || [];
@@ -324,13 +444,12 @@ export default function Dashboard() {
           if (s.id && s.title) sessionMap[s.id] = s.title;
         });
 
-        // Fallback para subtopics
-        const { data: subtopicsData } = await supabase.from('subtopics').select('id, title');
-        (subtopicsData || []).forEach(st => {
-          if (st.id && st.title && !sessionMap[st.id]) sessionMap[st.id] = st.title;
-        });
-
         const calculatedSessionsCount = programSessions.length || 0;
+
+        const mappedUpcoming = (upcomingData || []).map(c => ({
+          ...c,
+          sessionTitle: sessionMap[c.subtopic_id] || null
+        }));
 
         setDashboardData({
           diplomaTitle: diplomaData?.title || 'Programa Académico',
@@ -340,7 +459,8 @@ export default function Dashboard() {
           modulesCount: modulesData?.length || 0,
           sessionsCount: calculatedSessionsCount,
           totalClassesCount: totalClassesCount || (allClassesData?.length || 0),
-          upcomingClasses: isPublished ? (upcomingData || []) : [],
+          upcomingClasses: isPublished ? mappedUpcoming : [],
+          sessionMap,
           latestRecordings: [],
           firstModuleId: modulesData?.[0]?.id || null,
           announcements: freshAnnouncements
@@ -508,6 +628,12 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [programId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── AGRUPACIÓN DE CLASES PRÓXIMAS EN SESIONES (Hook incondicional al nivel superior) ──
+  const safeUpcomingClasses = Array.isArray(dashboardData.upcomingClasses) ? dashboardData.upcomingClasses : [];
+  const upcomingSessions = useMemo(() => {
+    return groupClassesIntoSessions(safeUpcomingClasses, dashboardData.sessionMap || {});
+  }, [safeUpcomingClasses, dashboardData.sessionMap]);
+
   /* ── SKELETON ── */
   if (loading) {
     return (
@@ -530,7 +656,8 @@ export default function Dashboard() {
 
   const {
     diplomaTitle, programType, isPublished, modulesCount, sessionsCount,
-    totalClassesCount, upcomingClasses, firstModuleId, announcements, meetUrl
+    totalClassesCount, upcomingClasses, firstModuleId, announcements, meetUrl,
+    sessionMap
   } = dashboardData;
 
   const isCourse = programType === 'curso';
@@ -541,11 +668,11 @@ export default function Dashboard() {
   const todayEnd   = new Date(); todayEnd.setHours(23,59,59,999);
 
   // 1. Si hay alguna clase EN VIVO en este momento (o en ventana de 10 min previos hasta fin de transmisión)
-  const activeLiveClass = upcomingClasses.find(c => isClassLiveOrSoon(c, 10));
+  const activeLiveClass = safeUpcomingClasses.find(c => isClassLiveOrSoon(c, 10));
   const activeLiveMeetUrl = activeLiveClass ? (activeLiveClass.meet_url || meetUrl) : null;
 
   // 2. Si no hay clase en vivo, buscar la próxima clase programada para HOY que aún no haya iniciado
-  const upcomingClassToday = !activeLiveClass ? upcomingClasses.find(c => {
+  const upcomingClassToday = !activeLiveClass ? safeUpcomingClasses.find(c => {
     if (c.video_url) return false;
     const d = c.class_date ? new Date(c.class_date) : null;
     if (!d || d < todayStart || d > todayEnd) return false;
@@ -560,9 +687,8 @@ export default function Dashboard() {
   const isClassTodayLive = !!activeLiveClass;
   const classTodayMeetUrl = activeLiveMeetUrl || (upcomingClassToday ? (upcomingClassToday.meet_url || meetUrl) : null);
 
-  // Lista de 'Próximas Clases en Vivo' depurada:
-  // Excluye clases que ya finalizaron su tiempo de transmisión y muestra como máximo 3 clases
-  const visibleUpcomingClasses = upcomingClasses.filter(c => isClassActiveOrUpcoming(c)).slice(0, 3);
+  // Lista de 'Próximas Sesiones en Vivo' depurada (máximo 3 sesiones)
+  const visibleUpcomingSessions = upcomingSessions.slice(0, 3);
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
@@ -629,6 +755,121 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {/* ── BARRA DE PESTAÑAS DEL CURSO (NAVEGACIÓN INTEGRADA) ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        marginBottom: '1.75rem',
+        overflowX: 'auto',
+        paddingBottom: '4px',
+        borderBottom: '1px solid var(--border-color)',
+        scrollbarWidth: 'none'
+      }}>
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.55rem 1.1rem',
+            borderRadius: '8px 8px 0 0',
+            fontSize: '0.84rem',
+            fontWeight: 700,
+            background: 'var(--navy, #14213D)',
+            color: '#FFFFFF',
+            borderBottom: '3px solid var(--gold, #FCA311)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Home size={15} /> Resumen
+        </div>
+        <Link
+          to={isCourse ? `/syllabus/${cleanProgramId}` : `/modules/${cleanProgramId}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.55rem 1rem',
+            borderRadius: '8px 8px 0 0',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            textDecoration: 'none',
+            background: '#F1F5F9',
+            color: 'var(--navy)',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
+          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
+        >
+          {isCourse ? <ListTree size={15} /> : <BookOpen size={15} />}
+          {isCourse ? 'Sesiones' : 'Módulos'}
+        </Link>
+        <Link
+          to={`/resources/${cleanProgramId}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.55rem 1rem',
+            borderRadius: '8px 8px 0 0',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            textDecoration: 'none',
+            background: '#F1F5F9',
+            color: 'var(--navy)',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
+          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
+        >
+          <Paperclip size={15} color="var(--gold-dark, #b45309)" /> Recursos y Materiales
+        </Link>
+        <Link
+          to={`/resultados/${cleanProgramId}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.55rem 1rem',
+            borderRadius: '8px 8px 0 0',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            textDecoration: 'none',
+            background: '#F1F5F9',
+            color: 'var(--navy)',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
+          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
+        >
+          <BarChart2 size={15} /> Mis Resultados
+        </Link>
+        <Link
+          to={`/teachers/${cleanProgramId}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.55rem 1rem',
+            borderRadius: '8px 8px 0 0',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            textDecoration: 'none',
+            background: '#F1F5F9',
+            color: 'var(--navy)',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
+          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
+        >
+          <Users size={15} /> Profesores
+        </Link>
+      </div>
+
       {/* ── BANNER CLASE HOY (EN VIVO O PROGRAMADA) ── */}
       {classToday && (
         isClassTodayLive ? (
@@ -658,7 +899,7 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                   {classToday.class_date && (
                     <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.78rem', margin: 0 }}>
-                      {new Date(classToday.class_date).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs
+                      {safeFormatTime(classToday.class_date)} hs
                     </p>
                   )}
                   {classToday.teacher_profiles?.name && (
@@ -709,7 +950,7 @@ export default function Dashboard() {
                   {classToday.class_date && (
                     <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.78rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Clock size={12} color="var(--gold)" />
-                      Inicio: {new Date(classToday.class_date).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })} hs
+                      Inicio: {safeFormatTime(classToday.class_date)} hs
                     </p>
                   )}
                   {classToday.teacher_profiles?.name && (
@@ -805,10 +1046,16 @@ export default function Dashboard() {
                 {isCourse ? 'Contenido del Curso' : 'Contenido del Diplomado'}
               </h2>
             </div>
-            <Link to={isCourse ? `/syllabus/${cleanProgramId}` : `/modules/${cleanProgramId}`}
-              style={{ fontSize: '0.78rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
-              {isCourse ? 'Ver sesiones →' : 'Ver módulos →'}
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <Link to={`/resources/${cleanProgramId}`}
+                style={{ fontSize: '0.78rem', color: 'var(--navy)', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                <Paperclip size={12} color="var(--gold-dark)" /> Recursos
+              </Link>
+              <Link to={isCourse ? `/syllabus/${cleanProgramId}` : `/modules/${cleanProgramId}`}
+                style={{ fontSize: '0.78rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
+                {isCourse ? 'Ver sesiones →' : 'Ver módulos →'}
+              </Link>
+            </div>
           </div>
 
           {recentClasses.length > 0 ? (
@@ -845,29 +1092,44 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* PRÓXIMAS CLASES EN VIVO */}
+        {/* PRÓXIMAS SESIONES EN VIVO */}
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
-            <div style={{ width: '34px', height: '34px', borderRadius: 'var(--radius-md)', background: 'rgba(20,33,61,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Calendar size={16} color="var(--navy)" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ width: '34px', height: '34px', borderRadius: 'var(--radius-md)', background: 'rgba(20,33,61,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Calendar size={16} color="var(--navy)" />
+              </div>
+              <h2 style={{ fontSize: '1.05rem', margin: 0, fontWeight: 700, color: 'var(--navy)' }}>Próximas Sesiones en Vivo</h2>
             </div>
-            <h2 style={{ fontSize: '1.05rem', margin: 0, fontWeight: 700, color: 'var(--navy)' }}>Próximas Clases en Vivo</h2>
+            <Link to={isCourse ? `/syllabus/${cleanProgramId}` : `/modules/${cleanProgramId}`}
+              style={{ fontSize: '0.78rem', color: 'var(--gold-dark)', fontWeight: 700, textDecoration: 'none' }}>
+              {isCourse ? 'Ver sesiones →' : 'Ver módulos →'}
+            </Link>
           </div>
 
-          {visibleUpcomingClasses.length > 0 ? (
+          {visibleUpcomingSessions.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {visibleUpcomingClasses.map(cls => {
-                const classDate = cls.class_date ? new Date(cls.class_date) : null;
-                const isToday = classDate && classDate >= todayStart && classDate <= todayEnd;
+              {visibleUpcomingSessions.map(session => {
+                const sessionDate = session.startDate;
+                const isToday = sessionDate && sessionDate >= todayStart && sessionDate <= todayEnd;
                 const tomorrowEnd = new Date(todayEnd); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
-                const isTomorrow = classDate && classDate > todayEnd && classDate <= tomorrowEnd;
+                const isTomorrow = sessionDate && sessionDate > todayEnd && sessionDate <= tomorrowEnd;
                 const urgencyLabel = isToday ? 'HOY' : isTomorrow ? 'MAÑANA' : null;
-                const isLiveNow = isClassLiveOrSoon(cls, 10);
-                const clsMeet = cls.meet_url || meetUrl;
-                const googleCalUrl = getGoogleCalendarUrl(cls, dashboardData.diplomaTitle);
+                const isLiveNow = session.isLiveNow;
+                const sessionMeet = session.meetUrl || meetUrl;
+                const googleCalUrl = getSessionGoogleCalendarUrl(session, dashboardData.diplomaTitle, meetUrl);
+                const classCount = session.classes.length;
+
+                // Formateo de fecha y hora
+                const dateStr = safeFormatDate(sessionDate, 'Fecha por confirmar');
+                const startTimeStr = safeFormatTime(sessionDate);
+                const endTimeStr = (session.endDate && classCount > 1)
+                  ? safeFormatTime(session.endDate)
+                  : null;
+                const timeDisplay = endTimeStr ? `${startTimeStr} - ${endTimeStr} hs` : (startTimeStr ? `${startTimeStr} hs` : '');
 
                 return (
-                  <div key={cls.id} style={{
+                  <div key={session.id} style={{
                     padding: '0.85rem 1rem',
                     border: `1px solid ${isLiveNow ? '#fca5a5' : isToday ? 'rgba(220,38,38,0.2)' : isTomorrow ? '#fcd34d' : 'var(--border-color)'}`,
                     borderLeft: `4px solid ${isLiveNow ? '#dc2626' : isToday ? '#e11d48' : isTomorrow ? '#d97706' : 'var(--navy)'}`,
@@ -877,7 +1139,18 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
-                          <h4 style={{ fontWeight: 700, color: 'var(--navy)', margin: 0, fontSize: '0.87rem' }}>{cls.title}</h4>
+                          <h4 style={{ fontWeight: 700, color: 'var(--navy)', margin: 0, fontSize: '0.88rem' }}>
+                            {session.title}
+                          </h4>
+                          {classCount > 1 && (
+                            <span style={{
+                              padding: '0.08rem 0.45rem', borderRadius: '4px',
+                              background: '#e2e8f0', color: '#1e293b',
+                              fontSize: '0.66rem', fontWeight: 700, flexShrink: 0
+                            }}>
+                              {classCount} clases
+                            </span>
+                          )}
                           {isLiveNow ? (
                             <span style={{
                               padding: '0.08rem 0.45rem', borderRadius: '999px',
@@ -898,18 +1171,19 @@ export default function Dashboard() {
                             </span>
                           )}
                         </div>
+
                         <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                           <Clock size={11} />
-                          {classDate
-                            ? classDate.toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })
-                            : 'Fecha por confirmar'}
+                          <span>{dateStr}{timeDisplay ? `, ${timeDisplay}` : ''}</span>
                         </p>
-                        {cls.teacher_profiles?.name && (
+
+                        {session.teachers && (
                           <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.74rem', color: 'var(--navy)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <User size={11} color="var(--gold-dark)" /> Prof. {cls.teacher_profiles.name}
+                            <User size={11} color="var(--gold-dark)" /> Prof. {session.teachers}
                           </p>
                         )}
                       </div>
+
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
                         {googleCalUrl && (
                           <a
@@ -940,19 +1214,74 @@ export default function Dashboard() {
                             <span style={{ fontSize: '0.68rem' }}>Calendar</span>
                           </a>
                         )}
-                        {isLiveNow && clsMeet ? (
-                          <a href={clsMeet} target="_blank" rel="noreferrer" className="btn btn-primary"
+                        {isLiveNow && sessionMeet ? (
+                          <a href={sessionMeet} target="_blank" rel="noreferrer" className="btn btn-primary"
                             style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem', flexShrink: 0, background: '#dc2626', border: 'none', fontWeight: 700 }}>
                             <Video size={12} /> Entrar
                           </a>
                         ) : (
-                          <Link to={`/class/${cls.id}`} className="btn btn-outline"
+                          <Link to={session.firstClass ? `/class/${session.firstClass.id}` : '#'} className="btn btn-outline"
                             style={{ padding: '0.35rem 0.7rem', fontSize: '0.72rem', flexShrink: 0, fontWeight: 600 }}>
-                            Detalle
+                            {classCount > 1 ? 'Ver clases' : 'Detalle'}
                           </Link>
                         )}
                       </div>
                     </div>
+
+                    {/* Desglose interactivo si la sesión tiene múltiples clases */}
+                    {classCount > 1 && (
+                      <div style={{ marginTop: '0.55rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                          <Layers size={11} color="var(--navy)" />
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            Clases de esta sesión:
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                          {session.classes.map(c => {
+                            const cTime = safeFormatTime(c.class_date);
+                            const cIsLive = isClassLiveOrSoon(c, 10);
+                            return (
+                              <Link
+                                key={c.id}
+                                to={`/class/${c.id}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '5px',
+                                  background: cIsLive ? '#fee2e2' : '#ffffff',
+                                  border: `1px solid ${cIsLive ? '#dc2626' : '#cbd5e1'}`,
+                                  color: cIsLive ? '#dc2626' : 'var(--navy)',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  textDecoration: 'none',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseOver={e => {
+                                  if (!cIsLive) {
+                                    e.currentTarget.style.borderColor = 'var(--gold-dark)';
+                                    e.currentTarget.style.background = '#f8fafc';
+                                  }
+                                }}
+                                onMouseOut={e => {
+                                  if (!cIsLive) {
+                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                    e.currentTarget.style.background = '#ffffff';
+                                  }
+                                }}
+                              >
+                                <Video size={10} color={cIsLive ? '#dc2626' : 'var(--gold-dark)'} />
+                                <span>{c.title}</span>
+                                {cTime && <span style={{ color: cIsLive ? '#dc2626' : 'var(--text-muted)', fontSize: '0.67rem' }}>({cTime})</span>}
+                                {cIsLive && <span style={{ fontSize: '0.58rem', background: '#dc2626', color: '#fff', borderRadius: '3px', padding: '0.05rem 0.25rem', fontWeight: 800 }}>EN VIVO</span>}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -961,7 +1290,7 @@ export default function Dashboard() {
             <div style={{ textAlign: 'center', padding: '2.5rem 1rem', background: 'rgba(20,33,61,0.02)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)' }}>
               <Calendar size={30} color="var(--navy)" style={{ opacity: 0.25, marginBottom: '0.5rem' }} />
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-                No hay clases en vivo programadas próximamente.
+                No hay sesiones en vivo programadas próximamente.
               </p>
             </div>
           )}

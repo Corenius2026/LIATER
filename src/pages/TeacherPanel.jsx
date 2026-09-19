@@ -38,6 +38,23 @@ function formatEmbedDocUrl(url) {
   return trimmed;
 }
 
+function TypePill({ type }) {
+  const labels = {
+    presentation: 'Presentación',
+    reading: 'Lectura',
+    exercise: 'Ejercicio',
+    document: 'Documento',
+    code: 'Código',
+    link: 'Enlace',
+    other: 'Otro'
+  };
+  return (
+    <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: '#F1F5F9', color: '#475569', fontWeight: 600 }}>
+      {labels[type] || type || 'Recurso'}
+    </span>
+  );
+}
+
 /* ─────────────────────────────────────────
    MODAL: DETALLE Y GESTIÓN DE CLASE
    Fases: PRE-CLASE | GRABACIÓN | ACTIVIDAD IA
@@ -2602,9 +2619,8 @@ function ClasesTab() {
                                 </a>
                               )}
 
-                              <button
-                                type="button"
-                                onClick={() => setSelectedClass(cls)}
+                              <Link
+                                to={`/class/${cls.id}`}
                                 style={{
                                   background: 'var(--navy, #14213D)',
                                   color: '#FFFFFF',
@@ -2618,13 +2634,14 @@ function ClasesTab() {
                                   alignItems: 'center',
                                   gap: '0.45rem',
                                   flexShrink: 0,
+                                  textDecoration: 'none',
                                   transition: 'all 0.15s ease'
                                 }}
                                 onMouseOver={e => e.currentTarget.style.background = '#000000'}
                                 onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
                               >
                                 <Eye size={14} /> Gestionar clase
-                              </button>
+                              </Link>
                             </div>
                           </div>
                         );

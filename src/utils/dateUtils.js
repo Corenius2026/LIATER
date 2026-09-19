@@ -118,6 +118,57 @@ export const formatShortDate = (isoString) => {
 };
 
 /**
+ * Formateo ultra seguro de hora en formato HH:mm (hora Colombia / es-CO).
+ * Nunca arroja RangeError aunque el valor sea nulo o inválido.
+ */
+export const safeFormatTime = (isoOrDate, fallback = '') => {
+  if (!isoOrDate) return fallback;
+  try {
+    const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+    if (isNaN(d.getTime())) return fallback;
+    return d.toLocaleTimeString('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      hourCycle: 'h23'
+    });
+  } catch (e) {
+    return fallback;
+  }
+};
+
+/**
+ * Formateo ultra seguro de fecha (es-CO).
+ * Nunca arroja RangeError aunque el valor sea nulo o inválido.
+ */
+export const safeFormatDate = (isoOrDate, fallback = 'Fecha por confirmar', options = { weekday: 'short', day: 'numeric', month: 'short' }) => {
+  if (!isoOrDate) return fallback;
+  try {
+    const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+    if (isNaN(d.getTime())) return fallback;
+    return d.toLocaleDateString('es-CO', options);
+  } catch (e) {
+    return fallback;
+  }
+};
+
+/**
+ * Formateo amigable de fecha y hora para sesiones y clases.
+ */
+export const safeFormatDateTime = (isoOrDate, fallback = 'Fecha por confirmar') => {
+  if (!isoOrDate) return fallback;
+  try {
+    const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+    if (isNaN(d.getTime())) return fallback;
+    const datePart = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+    const timePart = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
+    return `${datePart}, ${timePart} hs`;
+  } catch (e) {
+    return fallback;
+  }
+};
+
+/**
  * Determina si la clase es en el futuro basado en la hora actual.
  * @param {string} isoString - Fecha ISO de la clase
  * @returns {boolean} True si la clase aún no ha ocurrido

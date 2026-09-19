@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle, CalendarPlus } from 'lucide-react';
-import { getGoogleCalendarUrl } from '../utils/dateUtils';
+import { getGoogleCalendarUrl, safeFormatDateTime } from '../utils/dateUtils';
 
 export default function ModuleDetail() {
   const { id } = useParams();
@@ -280,7 +280,7 @@ export default function ModuleDetail() {
                         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                           {cls.class_date && (
                             <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                              <Clock size={12} /> {new Date(cls.class_date).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              <Clock size={12} /> {safeFormatDateTime(cls.class_date)}
                             </span>
                           )}
                           {cls.teacher_profiles?.name && (

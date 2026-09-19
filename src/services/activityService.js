@@ -281,14 +281,42 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
 
     if (programIds.length > 0) {
       try {
-        const { data: classes, error: classErr } = await supabase
-          .from('class_sessions')
-          .select('id, title, class_date, program_id, teacher_id')
-          .in('program_id', programIds)
-          .order('class_date', { ascending: true })
-          .limit(100);
+        const [
+          { data: classes, error: classErr },
+          { data: subtopicsData }
+        ] = await Promise.all([
+          supabase
+            .from('class_sessions')
+            .select('id, title, class_date, duration, program_id, teacher_id, subtopic_id')
+            .in('program_id', programIds)
+            .order('class_date', { ascending: true })
+            .limit(100),
+          supabase
+            .from('subtopics')
+            .select('id, title, program_id, module_id, order_index')
+            .in('program_id', programIds)
+        ]);
+
+        const sessionMap = {};
+        (subtopicsData || []).forEach(st => {
+          if (st.id && st.title) sessionMap[st.id] = st.title;
+        });
+
+        // Fallback si no vinieron por program_id
+        if (Object.keys(sessionMap).length === 0) {
+          const { data: mods } = await supabase.from('modules').select('id').in('program_id', programIds);
+          if (mods && mods.length > 0) {
+            const modIds = mods.map(m => m.id);
+            const { data: stByMod } = await supabase.from('subtopics').select('id, title').in('module_id', modIds);
+            (stByMod || []).forEach(st => {
+              if (st.id && st.title) sessionMap[st.id] = st.title;
+            });
+          }
+        }
 
         if (!classErr && classes) {
+          const sessionGroups = new Map();
+
           classes.forEach(cls => {
             if (!cls.class_date) return;
             const strId = String(cls.id).toLowerCase();
@@ -315,9 +343,48 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
 
             if (clsDate < now) return; // Solo mostramos clases futuras en pendientes
 
-            const programTitle = programMap[cls.program_id] || 'Programa Inscrito';
-            const tzOffset = clsDate.getTimezoneOffset() * 60000;
-            const clsDateStr = new Date(clsDate.getTime() - tzOffset).toISOString().split('T')[0];
+            // Agrupar por sesión (subtopic_id) si existe, o por clase individual
+            const sessionKey = cls.subtopic_id 
+              ? `${cls.program_id}_sub_${cls.subtopic_id}` 
+              : `${cls.program_id}_cls_${cls.id}`;
+
+            if (!sessionGroups.has(sessionKey)) {
+              const sessionTitle = (cls.subtopic_id && sessionMap[cls.subtopic_id])
+                ? sessionMap[cls.subtopic_id]
+                : cls.title;
+
+              sessionGroups.set(sessionKey, {
+                id: cls.id,
+                sessionId: cls.subtopic_id || cls.id,
+                title: sessionTitle,
+                programId: cls.program_id,
+                programTitle: programMap[cls.program_id] || 'Programa Inscrito',
+                classes: [],
+                earliestDate: clsDate,
+                latestDate: clsDate,
+                latestDuration: Number(cls.duration) || 90
+              });
+            }
+
+            const group = sessionGroups.get(sessionKey);
+            group.classes.push(cls);
+            if (clsDate < group.earliestDate) {
+              group.earliestDate = clsDate;
+            }
+            if (clsDate > group.latestDate) {
+              group.latestDate = clsDate;
+              group.latestDuration = Number(cls.duration) || 90;
+            }
+          });
+
+          // Convertir los grupos de sesiones en actividades pendientes (ordenados por fecha de inicio)
+          const sortedSessionGroups = Array.from(sessionGroups.values()).sort((a, b) => a.earliestDate - b.earliestDate);
+
+          sortedSessionGroups.forEach(group => {
+            const classCount = group.classes.length;
+            const startDate = group.earliestDate;
+            const tzOffset = startDate.getTimezoneOffset() * 60000;
+            const clsDateStr = new Date(startDate.getTime() - tzOffset).toISOString().split('T')[0];
 
             let urgency = 'upcoming';
             let statusLabel = 'Próxima';
@@ -327,16 +394,26 @@ export async function fetchStudentPendingActivities(studentId, limit = 4) {
               statusLabel = 'Hoy';
             }
 
+            let timeRange = null;
+            if (classCount > 1) {
+              const startHour = startDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
+              const endCalc = new Date(group.latestDate.getTime() + group.latestDuration * 60 * 1000);
+              const endHour = endCalc.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
+              timeRange = `${startHour} - ${endHour} hs`;
+            }
+
             pendingActivities.push({
-              id: cls.id,
-              title: cls.title,
+              id: group.id,
+              title: group.title,
               type: 'Sesión en vivo',
-              programId: cls.program_id,
-              programTitle,
-              date: cls.class_date,
+              programId: group.programId,
+              programTitle: group.programTitle,
+              date: startDate.toISOString(),
               urgency,
               statusLabel,
-              link: `/class/${cls.id}`
+              classCount,
+              timeRange,
+              link: `/class/${group.classes[0].id}`
             });
           });
         }

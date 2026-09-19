@@ -488,9 +488,24 @@ export default function PendingActivitiesCard({ studentId }) {
                       </span>
                     </div>
 
-                    <h4 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.title}
-                    </h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <h4 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.title}
+                      </h4>
+                      {item.classCount > 1 && (
+                        <span style={{
+                          padding: '0.06rem 0.42rem',
+                          borderRadius: '4px',
+                          background: '#e2e8f0',
+                          color: '#1e293b',
+                          fontSize: '0.66rem',
+                          fontWeight: 700,
+                          flexShrink: 0
+                        }}>
+                          {item.classCount} clases
+                        </span>
+                      )}
+                    </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                       <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -505,8 +520,11 @@ export default function PendingActivitiesCard({ studentId }) {
                         fontWeight: (item.urgency === 'today' || item.urgency === 'overdue') ? 700 : 500
                       }}>
                         <span>
-                          {item.type === 'Sesión en vivo' || item.type === 'Clase hoy' ? 'Próxima clase: ' : 'Cierra: '}
-                          {formatShortDate(item.date)}
+                          {item.type === 'Sesión en vivo' || item.type === 'Clase hoy'
+                            ? (item.timeRange
+                                ? `Próxima sesión: ${formatShortDate(item.date).split(',')[0]}, ${item.timeRange}`
+                                : `Próxima sesión: ${formatShortDate(item.date)}`)
+                            : `Cierra: ${formatShortDate(item.date)}`}
                         </span>
                         {(item.urgency === 'today' || item.urgency === 'overdue') && (
                           <span style={{ 
