@@ -88,38 +88,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
 
-    if (refreshToken && clientId && clientSecret) {
-      // Método A: OAuth 2.0 con Refresh Token de la cuenta real (Recomendado, sin problemas de cuota)
-      accessToken = await getAccessTokenFromRefreshToken(
-        clientId,
-        clientSecret,
-        refreshToken,
+    if (!refreshToken || !clientId || !clientSecret) {
+      return jsonResponse(
+        {
+          error:
+            "Faltan los secrets de Google en Supabase. Configura 'GOOGLE_REFRESH_TOKEN', 'GOOGLE_CLIENT_ID' y 'GOOGLE_CLIENT_SECRET' en Supabase Secrets.",
+        },
+        500,
       );
-    } else {
-      // Método B: Fallback a Service Account
-      const rawServiceAccount = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
-      if (!rawServiceAccount) {
-        return jsonResponse(
-          {
-            error:
-              "Faltan los secrets de Google en Supabase. Configura 'GOOGLE_REFRESH_TOKEN', 'GOOGLE_CLIENT_ID' y 'GOOGLE_CLIENT_SECRET'.",
-          },
-          500,
-        );
-      }
-      let serviceAccount: { client_email: string; private_key: string };
-      try {
-        serviceAccount = typeof rawServiceAccount === "string"
-          ? JSON.parse(rawServiceAccount)
-          : rawServiceAccount;
-      } catch {
-        return jsonResponse(
-          { error: "El secret GOOGLE_SERVICE_ACCOUNT_JSON no tiene formato JSON válido." },
-          500,
-        );
-      }
-      accessToken = await getGoogleAccessToken(serviceAccount);
     }
+
+    accessToken = await getAccessTokenFromRefreshToken(
+      clientId,
+      clientSecret,
+      refreshToken,
+    );
 
     const contentType = req.headers.get("content-type") || "";
 
@@ -283,10 +266,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const sanitizedClassTitle = classTitle.replace(/[\\/:*?"<>|]/g, "-");
     const formattedFileName = `[Clase ${formattedOrder} - ${sanitizedClassTitle}] ${originalFileName}`;
 
-    // 7. Obtener token de acceso de Google Drive
-    const accessToken = await getGoogleAccessToken(serviceAccount);
-
-    // 8. Subida Multipart a Google Drive API v3
+    // 8. Subida Multipart a Google Drive API v3 (usando el accessToken obtenido arriba)
     const metadata: Record<string, unknown> = {
       name: formattedFileName,
       mimeType: file.type || "application/pdf",
