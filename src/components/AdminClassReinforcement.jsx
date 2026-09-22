@@ -5,8 +5,9 @@ import {
   Plus, Trash2, Edit2, CheckCircle2, AlertTriangle, PlayCircle, 
   GripVertical, Save, FileText, Check, Sparkles, RefreshCw, 
   FileQuestion, ExternalLink, Presentation, ChevronDown, ChevronUp, 
-  Layers, HelpCircle, ArrowRight, Upload
+  Layers, HelpCircle, ArrowRight, Upload, Calendar, Clock, RotateCcw
 } from 'lucide-react';
+import { toLocalDatetimeString, parseLocalDatetime, formatClassDate } from '../utils/dateUtils';
 
 export default function AdminClassReinforcement({ classId, onOpenUploadModal }) {
   const { currentUser } = useAuth();
@@ -29,7 +30,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     title: 'Actividad de Reforzamiento',
     description: '',
     is_mandatory: false,
-    max_attempts: 1
+    max_attempts: 1,
+    due_date: ''
   });
 
   const [previewMode, setPreviewMode] = useState(false);
@@ -305,7 +307,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           title: actData.title,
           description: actData.description || '',
           is_mandatory: actData.is_mandatory,
-          max_attempts: actData.max_attempts
+          max_attempts: actData.max_attempts,
+          due_date: actData.due_date ? toLocalDatetimeString(actData.due_date) : ''
         });
 
         // 3. Obtener preguntas, opciones y correctas
@@ -394,7 +397,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           title: draftData.draft_data.activity_title || 'Actividad de Reforzamiento',
           description: draftData.draft_data.activity_description || '',
           is_mandatory: false,
-          max_attempts: 1
+          max_attempts: 1,
+          due_date: draftData.draft_data.due_date ? toLocalDatetimeString(draftData.draft_data.due_date) : ''
         });
 
         const isOptionCorrect = (o, oIndex, q) => {
@@ -465,19 +469,29 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     setSaving(true);
     setError('');
     try {
-      const { data, error: insertError } = await supabase
+      const payload = {
+        class_id: classId,
+        title: localActivity.title,
+        description: localActivity.description,
+        is_mandatory: localActivity.is_mandatory,
+        max_attempts: localActivity.max_attempts,
+        due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null,
+        is_published: false
+      };
+
+      let { data, error: insertError } = await supabase
         .from('class_activities')
-        .insert([{
-          class_id: classId,
-          title: localActivity.title,
-          description: localActivity.description,
-          is_mandatory: localActivity.is_mandatory,
-          max_attempts: localActivity.max_attempts,
-          is_published: false
-        }])
+        .insert([payload])
         .select()
         .single();
       
+      if (insertError && (insertError.code === '42703' || insertError.message?.includes('due_date'))) {
+        delete payload.due_date;
+        const retry = await supabase.from('class_activities').insert([payload]).select().single();
+        data = retry.data;
+        insertError = retry.error;
+      }
+
       if (insertError) throw insertError;
       
       setActivity(data);
@@ -509,18 +523,28 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         targetActId = existingAct.id;
         setActivity(existingAct);
       } else {
-        const { data: newAct, error: actErr } = await supabase
+        const insertPayload = {
+          class_id: classId,
+          title: localActivity.title || 'Actividad de Reforzamiento',
+          description: localActivity.description || '',
+          is_mandatory: localActivity.is_mandatory || false,
+          max_attempts: localActivity.max_attempts || 1,
+          due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null,
+          is_published: false
+        };
+
+        let { data: newAct, error: actErr } = await supabase
           .from('class_activities')
-          .insert([{
-            class_id: classId,
-            title: localActivity.title || 'Actividad de Reforzamiento',
-            description: localActivity.description || '',
-            is_mandatory: localActivity.is_mandatory || false,
-            max_attempts: localActivity.max_attempts || 1,
-            is_published: false
-          }])
+          .insert([insertPayload])
           .select()
           .single();
+
+        if (actErr && (actErr.code === '42703' || actErr.message?.includes('due_date'))) {
+          delete insertPayload.due_date;
+          const retry = await supabase.from('class_activities').insert([insertPayload]).select().single();
+          newAct = retry.data;
+          actErr = retry.error;
+        }
 
         if (actErr) throw actErr;
         targetActId = newAct.id;
@@ -726,36 +750,56 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           .limit(1)
           .maybeSingle();
 
+        const parsedDue = localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null;
+
         if (existingAct) {
           realActId = existingAct.id;
-          const { data: updatedAct, error: updateError } = await supabase
+          const updatePayload = {
+            title: localActivity.title,
+            description: localActivity.description,
+            is_mandatory: localActivity.is_mandatory,
+            max_attempts: localActivity.max_attempts,
+            due_date: parsedDue
+          };
+          let { data: updatedAct, error: updateError } = await supabase
             .from('class_activities')
-            .update({
-              title: localActivity.title,
-              description: localActivity.description,
-              is_mandatory: localActivity.is_mandatory,
-              max_attempts: localActivity.max_attempts
-            })
+            .update(updatePayload)
             .eq('id', realActId)
             .select()
             .single();
+
+          if (updateError && (updateError.code === '42703' || updateError.message?.includes('due_date'))) {
+            delete updatePayload.due_date;
+            const retry = await supabase.from('class_activities').update(updatePayload).eq('id', realActId).select().single();
+            updatedAct = retry.data;
+            updateError = retry.error;
+          }
 
           if (updateError) throw updateError;
           currentAct = updatedAct;
           setActivity(updatedAct);
         } else {
-          const { data: newAct, error: insertError } = await supabase
+          const insertPayload = {
+            class_id: classId,
+            title: localActivity.title,
+            description: localActivity.description,
+            is_mandatory: localActivity.is_mandatory,
+            max_attempts: localActivity.max_attempts,
+            due_date: parsedDue,
+            is_published: false
+          };
+          let { data: newAct, error: insertError } = await supabase
             .from('class_activities')
-            .insert([{
-              class_id: classId,
-              title: localActivity.title,
-              description: localActivity.description,
-              is_mandatory: localActivity.is_mandatory,
-              max_attempts: localActivity.max_attempts,
-              is_published: false
-            }])
+            .insert([insertPayload])
             .select()
             .single();
+
+          if (insertError && (insertError.code === '42703' || insertError.message?.includes('due_date'))) {
+            delete insertPayload.due_date;
+            const retry = await supabase.from('class_activities').insert([insertPayload]).select().single();
+            newAct = retry.data;
+            insertError = retry.error;
+          }
 
           if (insertError) throw insertError;
           realActId = newAct.id;
@@ -763,17 +807,27 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           setActivity(newAct);
         }
       } else {
-        const { data: updatedAct, error: updateError } = await supabase
+        const parsedDue = localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null;
+        const updatePayload = {
+          title: localActivity.title,
+          description: localActivity.description,
+          is_mandatory: localActivity.is_mandatory,
+          max_attempts: localActivity.max_attempts,
+          due_date: parsedDue
+        };
+        let { data: updatedAct, error: updateError } = await supabase
           .from('class_activities')
-          .update({
-            title: localActivity.title,
-            description: localActivity.description,
-            is_mandatory: localActivity.is_mandatory,
-            max_attempts: localActivity.max_attempts
-          })
+          .update(updatePayload)
           .eq('id', realActId)
           .select()
           .single();
+
+        if (updateError && (updateError.code === '42703' || updateError.message?.includes('due_date'))) {
+          delete updatePayload.due_date;
+          const retry = await supabase.from('class_activities').update(updatePayload).eq('id', realActId).select().single();
+          updatedAct = retry.data;
+          updateError = retry.error;
+        }
 
         if (updateError) throw updateError;
         currentAct = updatedAct;
@@ -1002,18 +1056,28 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           currentAct = existingAct;
         } else {
           // Crear la fila inicial en class_activities
-          const { data: newAct, error: createErr } = await supabase
+          const insertPayload = {
+            class_id: classId,
+            title: localActivity.title || 'Actividad de Reforzamiento',
+            description: localActivity.description || '',
+            is_mandatory: localActivity.is_mandatory || false,
+            max_attempts: localActivity.max_attempts || 1,
+            due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null,
+            is_published: false
+          };
+
+          let { data: newAct, error: createErr } = await supabase
             .from('class_activities')
-            .insert([{
-              class_id: classId,
-              title: localActivity.title || 'Actividad de Reforzamiento',
-              description: localActivity.description || '',
-              is_mandatory: localActivity.is_mandatory || false,
-              max_attempts: localActivity.max_attempts || 1,
-              is_published: false
-            }])
+            .insert([insertPayload])
             .select()
             .single();
+
+          if (createErr && (createErr.code === '42703' || createErr.message?.includes('due_date'))) {
+            delete insertPayload.due_date;
+            const retry = await supabase.from('class_activities').insert([insertPayload]).select().single();
+            newAct = retry.data;
+            createErr = retry.error;
+          }
 
           if (createErr) throw createErr;
           realActId = newAct.id;
@@ -1043,18 +1107,28 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       }
 
       // 4. Actualizar el estado en class_activities
-      const { data: updatedAct, error: pubErr } = await supabase
+      const pubPayload = { 
+        is_published: willPublish,
+        title: localActivity.title || currentAct?.title || 'Actividad de Reforzamiento',
+        description: localActivity.description || currentAct?.description || '',
+        is_mandatory: localActivity.is_mandatory !== undefined ? localActivity.is_mandatory : false,
+        max_attempts: localActivity.max_attempts || 1,
+        due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null
+      };
+
+      let { data: updatedAct, error: pubErr } = await supabase
         .from('class_activities')
-        .update({ 
-          is_published: willPublish,
-          title: localActivity.title || currentAct?.title || 'Actividad de Reforzamiento',
-          description: localActivity.description || currentAct?.description || '',
-          is_mandatory: localActivity.is_mandatory !== undefined ? localActivity.is_mandatory : false,
-          max_attempts: localActivity.max_attempts || 1
-        })
+        .update(pubPayload)
         .eq('id', realActId)
         .select()
         .single();
+
+      if (pubErr && (pubErr.code === '42703' || pubErr.message?.includes('due_date'))) {
+        delete pubPayload.due_date;
+        const retry = await supabase.from('class_activities').update(pubPayload).eq('id', realActId).select().single();
+        updatedAct = retry.data;
+        pubErr = retry.error;
+      }
 
       if (pubErr) throw pubErr;
 
@@ -1079,6 +1153,61 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       setError('Error al cambiar el estado de publicación: ' + (err.message || err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleQuickExtendDays = async (days = 7) => {
+    const target = new Date();
+    target.setDate(target.getDate() + days);
+    target.setHours(23, 59, 0, 0);
+    const localStr = toLocalDatetimeString(target.toISOString());
+    setLocalActivity(prev => ({ ...prev, due_date: localStr }));
+    
+    // Si la actividad ya existe en BD, guardar al instante para reactivarla inmediatamente
+    const realActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) ? activity.id : null;
+    if (realActId) {
+      setSaving(true);
+      try {
+        const parsed = parseLocalDatetime(localStr);
+        const { error: updErr } = await supabase
+          .from('class_activities')
+          .update({ due_date: parsed })
+          .eq('id', realActId);
+        
+        if (updErr) throw updErr;
+        setActivity(prev => ({ ...(prev || {}), due_date: parsed }));
+        setSuccess(`✓ Actividad reactivada con éxito. Plazo extendido hasta el ${formatClassDate(parsed, false)}.`);
+        setTimeout(() => setSuccess(''), 5000);
+      } catch (e) {
+        console.error('Error reactivando actividad:', e);
+        setError('No se pudo reactivar automáticamente la fecha: ' + (e.message || e));
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const handleClearDeadline = async () => {
+    setLocalActivity(prev => ({ ...prev, due_date: '' }));
+    const realActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) ? activity.id : null;
+    if (realActId) {
+      setSaving(true);
+      try {
+        const { error: updErr } = await supabase
+          .from('class_activities')
+          .update({ due_date: null })
+          .eq('id', realActId);
+
+        if (updErr) throw updErr;
+        setActivity(prev => ({ ...(prev || {}), due_date: null }));
+        setSuccess('✓ Plazo eliminado. La actividad queda abierta indefinidamente.');
+        setTimeout(() => setSuccess(''), 4000);
+      } catch (e) {
+        console.error('Error eliminando plazo:', e);
+        setError('No se pudo actualizar el plazo: ' + (e.message || e));
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -1317,6 +1446,140 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
                 style={{ width: '100px', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px' }} 
               />
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(0 = Ilimitados)</span>
+            </div>
+          </div>
+          
+          {/* FECHA LÍMITE Y CONTROL DE VENCIMIENTO / REACTIVACIÓN */}
+          <div style={{ gridColumn: '1 / -1', marginTop: '0.75rem', padding: '1rem 1.25rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={18} color="var(--navy)" />
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--navy)' }}>Fecha y Hora Límite para Presentar</span>
+              </div>
+              {/* Indicador de estado */}
+              {(() => {
+                if (!localActivity.due_date) {
+                  return (
+                    <span style={{ fontSize: '0.78rem', background: '#f1f5f9', color: '#475569', padding: '3px 10px', borderRadius: '12px', fontWeight: 600 }}>
+                      ⚪ Sin fecha límite (Abierta indefinidamente)
+                    </span>
+                  );
+                }
+                const parsed = parseLocalDatetime(localActivity.due_date);
+                const isExpired = parsed ? new Date(parsed) < new Date() : false;
+                if (isExpired) {
+                  return (
+                    <span style={{ fontSize: '0.78rem', background: '#fee2e2', color: '#991b1b', padding: '3px 10px', borderRadius: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      🔴 Plazo vencido (Cerrada para estudiantes)
+                    </span>
+                  );
+                }
+                return (
+                  <span style={{ fontSize: '0.78rem', background: '#dcfce7', color: '#166534', padding: '3px 10px', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    🟢 Abierta hasta {formatClassDate(parsed, false)}
+                  </span>
+                );
+              })()}
+            </div>
+
+            {/* Alerta y botón de reactivación si el plazo ya venció */}
+            {(() => {
+              if (!localActivity.due_date) return null;
+              const parsed = parseLocalDatetime(localActivity.due_date);
+              const isExpired = parsed ? new Date(parsed) < new Date() : false;
+              if (!isExpired) return null;
+
+              return (
+                <div style={{ marginBottom: '1rem', padding: '0.85rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#991b1b', fontSize: '0.85rem' }}>
+                    <AlertTriangle size={18} />
+                    <div>
+                      <strong>Esta actividad ha finalizado.</strong> Los estudiantes no pueden resolverla porque el plazo expiró.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickExtendDays(7)}
+                      disabled={saving}
+                      className="btn btn-primary"
+                      style={{ background: '#dc2626', borderColor: '#dc2626', fontSize: '0.82rem', padding: '0.45rem 0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+                    >
+                      <RotateCcw size={15} /> Reactivar (+7 días)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearDeadline}
+                      disabled={saving}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.82rem', padding: '0.45rem 0.8rem', background: 'white', color: '#475569' }}
+                    >
+                      Reabrir sin fecha límite
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 240px', minWidth: '220px' }}>
+                <input 
+                  type="datetime-local" 
+                  value={localActivity.due_date} 
+                  onChange={e => setLocalActivity(prev => ({ ...prev, due_date: e.target.value }))}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.88rem' }} 
+                />
+              </div>
+
+              {/* Botones de extensión y atajo rápido */}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginRight: '2px' }}>Extender plazo:</span>
+                <button
+                  type="button"
+                  onClick={() => handleQuickExtendDays(3)}
+                  disabled={saving}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                  title="Establecer límite para dentro de 3 días a las 23:59"
+                >
+                  +3 días
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickExtendDays(7)}
+                  disabled={saving}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                  title="Establecer límite para dentro de 7 días a las 23:59"
+                >
+                  +7 días
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickExtendDays(15)}
+                  disabled={saving}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                  title="Establecer límite para dentro de 15 días a las 23:59"
+                >
+                  +15 días
+                </button>
+                {localActivity.due_date && (
+                  <button
+                    type="button"
+                    onClick={handleClearDeadline}
+                    disabled={saving}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', color: '#64748b' }}
+                    title="Eliminar la fecha límite para dejarla abierta"
+                  >
+                    Sin límite
+                  </button>
+                )}
+              </div>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              Los estudiantes podrán resolver y enviar la actividad hasta esta fecha y hora. Una vez vencida, podrás reactivarla o ampliar el plazo cuando lo necesites.
             </div>
           </div>
           

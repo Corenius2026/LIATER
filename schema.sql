@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS public.class_activities (
   title character varying NOT NULL,
   description text,
   available_from timestamp with time zone,
+  due_date timestamp with time zone,
   is_published boolean DEFAULT false,
   is_mandatory boolean DEFAULT false,
   max_attempts integer DEFAULT 1,

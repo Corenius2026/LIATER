@@ -436,14 +436,22 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
       .maybeSingle();
     let actId;
     if (existing) {
+      actId = existing.id;
       const updatePayload = { 
         title: draftData.activity_title || 'Actividad de Reforzamiento', 
         description: draftData.activity_description || '', 
         is_published: true, 
         max_attempts: maxAttempts 
       };
+      if (draftData.due_date) updatePayload.due_date = draftData.due_date;
       
-      const { data: updated, error } = await supabase.from('class_activities').update(updatePayload).eq('id', existing.id).select('id').single();
+      let { data: updated, error } = await supabase.from('class_activities').update(updatePayload).eq('id', existing.id).select('id').single();
+      if (error && (error.code === '42703' || error.message?.includes('due_date'))) {
+        delete updatePayload.due_date;
+        const retry = await supabase.from('class_activities').update(updatePayload).eq('id', existing.id).select('id').single();
+        updated = retry.data;
+        error = retry.error;
+      }
       if (error) throw error;
       const { data: oldQs } = await supabase.from('activity_questions').select('id').eq('activity_id', actId);
       if (oldQs && oldQs.length > 0) {
@@ -461,8 +469,15 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
         max_attempts: maxAttempts, 
         is_mandatory: false 
       };
+      if (draftData.due_date) insertPayload.due_date = draftData.due_date;
       
-      const { data: newAct, error } = await supabase.from('class_activities').insert(insertPayload).select('id').single();
+      let { data: newAct, error } = await supabase.from('class_activities').insert(insertPayload).select('id').single();
+      if (error && (error.code === '42703' || error.message?.includes('due_date'))) {
+        delete insertPayload.due_date;
+        const retry = await supabase.from('class_activities').insert([insertPayload]).select('id').single();
+        newAct = retry.data;
+        error = retry.error;
+      }
       if (error) throw error;
       actId = newAct.id;
     }
@@ -5899,18 +5914,28 @@ function BorradoresTab() {
     let activityId;
 
     if (existingAct) {
-      const { data: updatedAct, error: updateErr } = await supabase
+      const updatePayload = {
+        title: draftData.activity_title || 'Actividad de Reforzamiento',
+        description: draftData.activity_description || '',
+        is_published: true,
+        max_attempts: attemptsValue,
+        is_mandatory: false,
+      };
+      if (draftData.due_date) updatePayload.due_date = draftData.due_date;
+
+      let { data: updatedAct, error: updateErr } = await supabase
         .from('class_activities')
-        .update({
-          title: draftData.activity_title || 'Actividad de Reforzamiento',
-          description: draftData.activity_description || '',
-          is_published: true,
-          max_attempts: attemptsValue,
-          is_mandatory: false,
-        })
+        .update(updatePayload)
         .eq('id', existingAct.id)
         .select('id')
         .single();
+
+      if (updateErr && (updateErr.code === '42703' || updateErr.message?.includes('due_date'))) {
+        delete updatePayload.due_date;
+        const retry = await supabase.from('class_activities').update(updatePayload).eq('id', existingAct.id).select('id').single();
+        updatedAct = retry.data;
+        updateErr = retry.error;
+      }
 
       if (updateErr) throw updateErr;
       activityId = updatedAct.id;
@@ -5924,18 +5949,28 @@ function BorradoresTab() {
         await supabase.from('activity_questions').delete().in('id', oldQIds);
       }
     } else {
-      const { data: newAct, error: actErr } = await supabase
+      const insertPayload = {
+        class_id: classId,
+        title: draftData.activity_title || 'Actividad de Reforzamiento',
+        description: draftData.activity_description || '',
+        is_published: true,
+        max_attempts: attemptsValue,
+        is_mandatory: false,
+      };
+      if (draftData.due_date) insertPayload.due_date = draftData.due_date;
+
+      let { data: newAct, error: actErr } = await supabase
         .from('class_activities')
-        .insert({
-          class_id: classId,
-          title: draftData.activity_title || 'Actividad de Reforzamiento',
-          description: draftData.activity_description || '',
-          is_published: true,
-          max_attempts: attemptsValue,
-          is_mandatory: false,
-        })
+        .insert(insertPayload)
         .select('id')
         .single();
+
+      if (actErr && (actErr.code === '42703' || actErr.message?.includes('due_date'))) {
+        delete insertPayload.due_date;
+        const retry = await supabase.from('class_activities').insert(insertPayload).select('id').single();
+        newAct = retry.data;
+        actErr = retry.error;
+      }
 
       if (actErr) throw actErr;
       activityId = newAct.id;

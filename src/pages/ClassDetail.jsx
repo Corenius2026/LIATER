@@ -559,6 +559,34 @@ export default function ClassDetail() {
     setIsActivityModalOpen(true);
   };
 
+  const [reactivatingActivity, setReactivatingActivity] = useState(false);
+
+  const handleQuickReactivateActivity = async (days = 7) => {
+    if (!activityConfig?.id) return;
+    setReactivatingActivity(true);
+    try {
+      const target = new Date();
+      target.setDate(target.getDate() + days);
+      target.setHours(23, 59, 0, 0);
+      const iso = target.toISOString();
+
+      const { error: updErr } = await supabase
+        .from('class_activities')
+        .update({ due_date: iso })
+        .eq('id', activityConfig.id);
+
+      if (updErr) throw updErr;
+
+      setActivityConfig(prev => ({ ...prev, due_date: iso }));
+      setActivityState(userAttempts && userAttempts.length > 0 && userAttempts[0].status === 'in_progress' ? 'en_progreso' : 'no_iniciada');
+    } catch (err) {
+      console.error('Error reactivando actividad:', err);
+      alert('Error reactivando la actividad: ' + (err.message || err));
+    } finally {
+      setReactivatingActivity(false);
+    }
+  };
+
   const handleOpenResults = () => {
     setViewingResultsMode(true);
     setIsActivityModalOpen(true);
@@ -961,6 +989,7 @@ export default function ClassDetail() {
                   id: actData.id,
                   title: actData.title,
                   description: actData.description,
+                  due_date: actData.due_date || null,
                   estimatedTimeMinutes: 10,
                   maxAttempts: actData.max_attempts ?? 1,
                   isMandatory: actData.is_mandatory,
@@ -1067,14 +1096,11 @@ export default function ClassDetail() {
 
                   // Verificar si la actividad está vencida
                   if (stateToSet !== 'completada') {
-                    let dueDate = actData.due_date ? new Date(actData.due_date) : null;
-                    if (!dueDate && nextClassRes.data?.class_date) {
-                      dueDate = new Date(new Date(nextClassRes.data.class_date).getTime() - 5 * 60000);
-                    } else if (!dueDate && classData?.class_date) {
-                      dueDate = new Date(new Date(classData.class_date).getTime() + 7 * 24 * 60 * 60000);
-                    }
-                    if (dueDate && dueDate < new Date()) {
-                      stateToSet = 'vencida';
+                    if (actData.due_date) {
+                      const dueDate = new Date(actData.due_date);
+                      if (dueDate < new Date()) {
+                        stateToSet = 'vencida';
+                      }
                     }
                   }
 
@@ -1906,6 +1932,19 @@ export default function ClassDetail() {
                     ? 'Único intento permitido'
                     : `${activityConfig.maxAttempts} intentos permitidos`}
                 </span>
+                {activityConfig.due_date && (
+                  <span style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '4px',
+                    color: activityState === 'vencida' ? '#dc2626' : 'var(--text-muted)',
+                    fontWeight: activityState === 'vencida' ? 700 : 500
+                  }}>
+                    <Calendar size={13} color={activityState === 'vencida' ? '#dc2626' : 'var(--gold-dark)'} />
+                    {activityState === 'vencida' ? 'Venció: ' : 'Límite: '}
+                    {formatClassDate(activityConfig.due_date, false)}
+                  </span>
+                )}
               </div>
             )}
 
@@ -1934,9 +1973,33 @@ export default function ClassDetail() {
             )}
 
             {activityState === 'vencida' && (
-              <div style={{ padding: '0.85rem', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Lock size={16} />
-                <span>La fecha límite para realizar esta actividad ha finalizado.</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <div style={{ padding: '0.85rem', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Lock size={16} />
+                  <span>La fecha límite para realizar esta actividad ha finalizado{activityConfig?.due_date ? ` (${formatClassDate(activityConfig.due_date, false)})` : ''}.</span>
+                </div>
+                {canManageContent && (
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickReactivateActivity(7)}
+                      disabled={reactivatingActivity}
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.8rem', padding: '0.45rem 0.8rem', background: '#dc2626', borderColor: '#dc2626', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+                      title="Ampliar automáticamente el plazo por 7 días más"
+                    >
+                      <RotateCcw size={14} /> {reactivatingActivity ? 'Reactivando...' : 'Reactivar (+7 días)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAdminReinforcementOpen(true)}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.8rem', padding: '0.45rem 0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                      <Calendar size={14} /> Personalizar plazo
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
