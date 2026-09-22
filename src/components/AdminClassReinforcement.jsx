@@ -116,9 +116,16 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         payload.transcript = manualTranscript.trim();
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      const invokeOptions = { body: payload };
+      if (accessToken) {
+        invokeOptions.headers = { Authorization: `Bearer ${accessToken}` };
+      }
+
       const { data, error: fnErr } = await supabase.functions.invoke(
         'generar-preguntas-reforzamiento',
-        { body: payload }
+        invokeOptions
       );
 
       if (fnErr) {
