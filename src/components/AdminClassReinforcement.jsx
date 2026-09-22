@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { Plus, Trash2, Edit2, CheckCircle2, AlertTriangle, PlayCircle, GripVertical, Save, FileText, Check, Sparkles, RefreshCw } from 'lucide-react';
+import { 
+  Plus, Trash2, Edit2, CheckCircle2, AlertTriangle, PlayCircle, 
+  GripVertical, Save, FileText, Check, Sparkles, RefreshCw, 
+  FileQuestion, ExternalLink, Presentation, ChevronDown, ChevronUp, 
+  Layers, HelpCircle, ArrowRight, Upload
+} from 'lucide-react';
 
-export default function AdminClassReinforcement({ classId }) {
+export default function AdminClassReinforcement({ classId, onOpenUploadModal }) {
+  const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
   const isTeacher = currentUser?.role === 'teacher';
   const isTeacherOrAdmin = isAdmin || isTeacher;
@@ -30,112 +36,216 @@ export default function AdminClassReinforcement({ classId }) {
   const [previewSelectedOptions, setPreviewSelectedOptions] = useState({});
 
   // ==========================================
-  // ESTADOS TEMPORALES PARA PRUEBA DE IA
+  // ESTADOS PARA GENERACIÓN DE PREGUNTAS CON IA
   // ==========================================
-  const [testTranscript, setTestTranscript] = useState('');
-  const [testQuestionCount, setTestQuestionCount] = useState(5);
-  const [testGenerating, setTestGenerating] = useState(false);
-  const [testResult, setTestResult] = useState(null);
-  const [testError, setTestError] = useState('');
+  const [classResources, setClassResources] = useState([]);
+  const [loadingResources, setLoadingResources] = useState(false);
+  const [selectedResourceId, setSelectedResourceId] = useState('');
+  const [aiMode, setAiMode] = useState('document'); // 'document' | 'transcript'
+  const [aiQuestionCount, setAiQuestionCount] = useState(5);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiSuccess, setAiSuccess] = useState('');
+  const [generationSource, setGenerationSource] = useState(null); // { type, docTitle, date }
+  const [manualTranscript, setManualTranscript] = useState('');
+  const [showManualSection, setShowManualSection] = useState(false);
+  
+  // Modal de confirmación si ya existen preguntas
+  const [replaceQuestionsModalOpen, setReplaceQuestionsModalOpen] = useState(false);
+  const [pendingDraftToLoad, setPendingDraftToLoad] = useState(null);
 
-  const handleTestGenerate = async () => {
-    if (testTranscript.trim().length < 200) {
-      setTestError('La transcripción debe tener al menos 200 caracteres.');
-      return;
+  const fetchClassResources = async () => {
+    if (!classId) return;
+    setLoadingResources(true);
+    try {
+      const { data, error: resErr } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('class_id', classId)
+        .neq('is_visible', false)
+        .order('created_at', { ascending: true });
+
+      if (!resErr && data) {
+        setClassResources(data);
+        if (data.length > 0) {
+          // Pre-seleccionar la presentación o el primer documento
+          setSelectedResourceId(prev => {
+            if (prev && data.some(r => r.id === prev)) return prev;
+            const presentation = data.find(r => r.resource_type === 'presentation');
+            return presentation ? presentation.id : data[0].id;
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error al cargar recursos de la clase para IA:', err);
+    } finally {
+      setLoadingResources(false);
     }
+  };
 
-    if (questions.length > 0) {
-      if (!window.confirm("El editor ya contiene preguntas. ¿Deseas reemplazarlas por las 5 preguntas que generará la IA?")) {
+  const handleGenerateQuestions = async (mode = 'document') => {
+    setAiError('');
+    setAiSuccess('');
+
+    if (mode === 'document') {
+      if (!selectedResourceId) {
+        setAiError('Por favor selecciona un material de estudio de la lista para analizar.');
+        return;
+      }
+    } else {
+      if (manualTranscript.trim().length < 200) {
+        setAiError('La transcripción debe tener al menos 200 caracteres para poder generar preguntas representativas.');
         return;
       }
     }
-    
-    setTestGenerating(true);
-    setTestError('');
-    setTestResult(null);
-    
+
+    setAiGenerating(true);
+
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "generar-preguntas-reforzamiento",
-        {
-          body: {
-            transcript: testTranscript.trim(),
-            questionCount: 5,
-            classTitle: localActivity.title,
-            promptRules: `
-- El enunciado no debe introducir escenarios, condiciones o términos que no aparezcan expresamente en el contenido de la clase.
-- Las opciones incorrectas deben ser plausibles y basarse en confusiones conceptuales razonables; evita opciones absurdas o evidentemente falsas.
-- DEBES marcar exactamente una opción como correcta para cada pregunta (is_correct: true).
-- Redacta una única aclaración pedagógica continua para cada pregunta explicando por qué la respuesta es correcta en base a lo expuesto en la clase.
-            `.trim()
-          }
-        }
+      const selectedDoc = classResources.find(r => r.id === selectedResourceId);
+      const payload = {
+        classId,
+        questionCount: aiQuestionCount,
+        classTitle: localActivity.title
+      };
+
+      if (mode === 'document') {
+        payload.resourceId = selectedResourceId;
+      } else {
+        payload.transcript = manualTranscript.trim();
+      }
+
+      const { data, error: fnErr } = await supabase.functions.invoke(
+        'generar-preguntas-reforzamiento',
+        { body: payload }
       );
-      
-      if (error) throw error;
-      
-      setTestResult(data);
 
-      // Carga automática de preguntas en el editor
-      if (data?.draft?.questions) {
-        const isOptionCorrect = (o, oIndex, q) => {
-          if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
-          if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
-          if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
-          if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
-          if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
-          return false;
-        };
-
-        const newQuestions = data.draft.questions.map((q, qIndex) => {
-          const qId = `temp-q-${crypto.randomUUID()}`;
-          let correctOptId = null;
-
-          const newOptions = (q.options || []).map((o, oIndex) => {
-            const oId = `temp-o-${crypto.randomUUID()}`;
-            if (isOptionCorrect(o, oIndex, q)) {
-              correctOptId = oId;
-            }
-            return {
-              id: oId,
-              question_id: qId,
-              text: o.text || `Opción ${oIndex + 1}`,
-              order_num: oIndex
-            };
-          });
-
-          if (!correctOptId && newOptions.length > 0) {
-            correctOptId = newOptions[0].id;
+      if (fnErr) {
+        let msg = fnErr.message || 'Error al conectar con la función de inteligencia artificial';
+        try {
+          if (fnErr.context && typeof fnErr.context.json === 'function') {
+            const body = await fnErr.context.json();
+            if (body?.error) msg = body.error;
           }
+        } catch (_) {}
+        throw new Error(msg);
+      }
 
+      if (!data?.ok && data?.error) {
+        throw new Error(data.error);
+      }
+
+      if (!data?.draft?.questions || data.draft.questions.length === 0) {
+        throw new Error('La IA no devolvió preguntas válidas. Por favor intenta nuevamente.');
+      }
+
+      const isOptionCorrect = (o, oIndex, q) => {
+        if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
+        if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
+        if (typeof q.correct_index === 'number' && q.correct_index === oIndex) return true;
+        if (typeof q.correct_answer === 'number' && q.correct_answer === oIndex) return true;
+        if (typeof q.correct_answer === 'string' && (q.correct_answer === o.text || q.correct_answer === String(oIndex))) return true;
+        return false;
+      };
+
+      const parsedQuestions = data.draft.questions.map((q, qIndex) => {
+        const qId = `temp-q-${crypto.randomUUID()}`;
+        let correctOptId = null;
+
+        const newOptions = (q.options || []).map((o, oIndex) => {
+          const oId = `temp-o-${crypto.randomUUID()}`;
+          if (isOptionCorrect(o, oIndex, q)) {
+            correctOptId = oId;
+          }
           return {
-            id: qId,
-            activity_id: activity?.id || 'temp-act',
-            text: q.text || 'Sin enunciado',
-            question_type: q.question_type || 'single_choice',
-            order_num: qIndex,
-            options: newOptions,
-            correctOptionId: correctOptId
+            id: oId,
+            question_id: qId,
+            text: o.text || `Opción ${oIndex + 1}`,
+            order_num: oIndex
           };
         });
 
-        setQuestions(newQuestions);
+        if (!correctOptId && newOptions.length > 0) {
+          correctOptId = newOptions[0].id;
+        }
+
+        return {
+          id: qId,
+          activity_id: activity?.id || 'temp-act',
+          text: q.text || 'Sin enunciado',
+          question_type: q.question_type || 'single_choice',
+          order_num: qIndex,
+          options: newOptions,
+          correctOptionId: correctOptId,
+          explanation: q.explanation || '',
+          source_basis: q.source_basis || ''
+        };
+      });
+
+      const docName = mode === 'document' 
+        ? (selectedDoc?.title || 'Material seleccionado') 
+        : 'Transcripción de la clase';
+
+      const sourceMeta = {
+        type: mode,
+        docTitle: docName,
+        date: new Date().toISOString()
+      };
+
+      if (questions.length > 0) {
+        setPendingDraftToLoad({
+          questions: parsedQuestions,
+          sourceMeta,
+          activityTitle: data.draft.activity_title,
+          activityDescription: data.draft.activity_description
+        });
+        setReplaceQuestionsModalOpen(true);
+      } else {
+        applyGeneratedQuestions(parsedQuestions, sourceMeta, 'replace', data.draft.activity_title, data.draft.activity_description);
       }
+
     } catch (err) {
-      console.error('Error invocando Edge Function:', err);
-      setTestError(err.message || 'Error desconocido al invocar la función');
+      console.error('Error generando preguntas con IA:', err);
+      setAiError(err.message || 'Error desconocido al invocar la función de IA.');
     } finally {
-      setTestGenerating(false);
+      setAiGenerating(false);
     }
+  };
+
+  const applyGeneratedQuestions = (newQuestions, sourceMeta, strategy = 'replace', newTitle = '', newDesc = '') => {
+    if (strategy === 'replace') {
+      setQuestions(newQuestions);
+      if (newTitle && (!localActivity.title || localActivity.title === 'Actividad de Reforzamiento')) {
+        setLocalActivity(prev => ({
+          ...prev,
+          title: newTitle,
+          description: newDesc || prev.description
+        }));
+      }
+    } else {
+      const offset = questions.length;
+      const renumbered = newQuestions.map((q, i) => ({
+        ...q,
+        order_num: offset + i
+      }));
+      setQuestions(prev => [...prev, ...renumbered]);
+    }
+
+    setGenerationSource(sourceMeta);
+    setAiSuccess(`✓ ${newQuestions.length} preguntas generadas con IA a partir de "${sourceMeta.docTitle}" cargadas en el borrador.`);
+    setTimeout(() => setAiSuccess(''), 7000);
+    setReplaceQuestionsModalOpen(false);
+    setPendingDraftToLoad(null);
   };
 
   useEffect(() => {
     if (classId) {
       loadActivityData();
+      fetchClassResources();
     }
   }, [classId]);
 
-  // Realtime subscription para sincronizar drafts creados por la IA en vivo
+  // Realtime subscription para sincronizar drafts creados por la IA y recursos en vivo
   useEffect(() => {
     if (!classId) return;
     const channel = supabase
@@ -145,6 +255,9 @@ export default function AdminClassReinforcement({ classId }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_drafts', filter: `class_id=eq.${classId}` }, () => {
         loadActivityData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources', filter: `class_id=eq.${classId}` }, () => {
+        fetchClassResources();
       })
       .subscribe();
 
@@ -984,7 +1097,7 @@ export default function AdminClassReinforcement({ classId }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       {/* BANNER INFORMATIVO SI HAY BORRADOR DE IA */}
-      {draft && !activity?.is_published && (
+      {(draft || generationSource) && !activity?.is_published && (
         <div style={{ 
           padding: '1.25rem 1.5rem', 
           background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)', 
@@ -1009,7 +1122,9 @@ export default function AdminClassReinforcement({ classId }) {
                 </span>
               </div>
               <div style={{ fontSize: '0.84rem', color: '#15803d', marginTop: '2px' }}>
-                Las preguntas fueron generadas automáticamente a partir de la transcripción de la clase. Puedes revisarlas, editarlas y publicarlas a continuación.
+                {generationSource?.docTitle 
+                  ? `Preguntas generadas a partir de "${generationSource.docTitle}". Puedes revisarlas, editarlas, eliminar o añadir más preguntas manualmente antes de publicar.`
+                  : 'Las preguntas fueron generadas automáticamente con IA. Puedes revisarlas, editarlas y publicarlas a continuación.'}
               </div>
             </div>
           </div>
@@ -1114,7 +1229,417 @@ export default function AdminClassReinforcement({ classId }) {
         </div>
       </div>
 
-      {/* 2. PREGUNTAS Y OPCIONES */}
+      {/* 2. GENERADOR DE PREGUNTAS CON IA (GOOGLE GEMINI) */}
+      {isTeacherOrAdmin && (
+        <div className="card" style={{ 
+          padding: '1.5rem', 
+          background: '#ffffff', 
+          borderRadius: '10px', 
+          border: '1.5px solid #cbd5e1',
+          boxShadow: '0 2px 8px rgba(20, 33, 61, 0.04)'
+        }}>
+          {/* Header del generador */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ 
+                width: '42px', height: '42px', borderRadius: '10px', 
+                background: 'linear-gradient(135deg, #14213d 0%, #1e3a5f 100%)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                color: 'var(--gold)', flexShrink: 0 
+              }}>
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  Generador de Preguntas con IA
+                  <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '20px', background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Google Gemini Flash
+                  </span>
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Genera preguntas de evaluación formativa analizando automáticamente los documentos y presentaciones de esta clase.
+                </p>
+              </div>
+            </div>
+
+            {/* Pestañas de modo (Documentos vs Transcripción) */}
+            <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => { setAiMode('document'); setAiError(''); }}
+                style={{
+                  padding: '0.35rem 0.8rem',
+                  fontSize: '0.78rem',
+                  fontWeight: aiMode === 'document' ? 700 : 500,
+                  background: aiMode === 'document' ? '#ffffff' : 'transparent',
+                  color: aiMode === 'document' ? 'var(--navy)' : 'var(--text-secondary)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  boxShadow: aiMode === 'document' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <Presentation size={14} color={aiMode === 'document' ? 'var(--gold-dark)' : 'inherit'} /> Desde Documento / Presentación
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAiMode('transcript'); setAiError(''); }}
+                style={{
+                  padding: '0.35rem 0.8rem',
+                  fontSize: '0.78rem',
+                  fontWeight: aiMode === 'transcript' ? 700 : 500,
+                  background: aiMode === 'transcript' ? '#ffffff' : 'transparent',
+                  color: aiMode === 'transcript' ? 'var(--navy)' : 'var(--text-secondary)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  boxShadow: aiMode === 'transcript' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <FileText size={14} /> Desde Transcripción
+              </button>
+            </div>
+          </div>
+
+          {/* MODO A: DESDE MATERIALES DE LA CLASE */}
+          {aiMode === 'document' && (
+            <div>
+              {loadingResources ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  <RefreshCw size={18} className="spin" style={{ marginBottom: '0.5rem' }} />
+                  <div>Cargando materiales de la clase...</div>
+                </div>
+              ) : classResources.length === 0 ? (
+                /* ESTADO VACÍO: NO HAY DOCUMENTOS SUBIDOS */
+                <div style={{
+                  padding: '1.75rem',
+                  background: '#fffbeb',
+                  border: '1.5px dashed #fcd34d',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '1.25rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b45309', flexShrink: 0 }}>
+                      <FileQuestion size={24} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#92400e' }}>
+                        Esta clase no tiene materiales de estudio subidos aún
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#b45309', marginTop: '3px', maxWidth: '520px' }}>
+                        Para generar preguntas con Inteligencia Artificial, primero debes subir una presentación (PDF) o documento de lectura en la sección de Materiales.
+                      </div>
+                    </div>
+                  </div>
+
+                  {onOpenUploadModal && (
+                    <button
+                      type="button"
+                      onClick={onOpenUploadModal}
+                      style={{
+                        padding: '0.55rem 1.1rem',
+                        background: '#d97706',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        boxShadow: '0 2px 6px rgba(217, 119, 6, 0.25)'
+                      }}
+                    >
+                      <Upload size={14} /> Subir Material a esta Clase
+                    </button>
+                  )}
+                </div>
+              ) : (
+                /* SELECTOR DE DOCUMENTOS DE LA CLASE */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.45rem' }}>
+                      Selecciona el material de estudio para generar las preguntas:
+                    </label>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                      {classResources.map((res) => {
+                        const isSelected = selectedResourceId === res.id;
+                        const isPresentation = res.resource_type === 'presentation';
+
+                        return (
+                          <div
+                            key={res.id}
+                            onClick={() => setSelectedResourceId(res.id)}
+                            style={{
+                              border: `2px solid ${isSelected ? 'var(--navy)' : 'var(--border-color)'}`,
+                              background: isSelected ? '#f8fafc' : '#ffffff',
+                              borderRadius: '8px',
+                              padding: '0.85rem 1rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.75rem',
+                              transition: 'all 0.15s ease',
+                              boxShadow: isSelected ? '0 2px 6px rgba(20, 33, 61, 0.08)' : 'none'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                              <div style={{
+                                width: '18px', height: '18px', borderRadius: '50%',
+                                border: `2px solid ${isSelected ? 'var(--navy)' : '#cbd5e1'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--navy)' }} />}
+                              </div>
+
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {res.title || 'Documento sin título'}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  <span style={{ 
+                                    padding: '0.05rem 0.35rem', 
+                                    borderRadius: '4px', 
+                                    background: isPresentation ? '#fef3c7' : '#f1f5f9', 
+                                    color: isPresentation ? '#92400e' : '#475569',
+                                    fontWeight: 600,
+                                    fontSize: '0.68rem'
+                                  }}>
+                                    {isPresentation ? 'Presentación' : (res.resource_type || 'PDF')}
+                                  </span>
+                                  {res.created_at && (
+                                    <span>{new Date(res.created_at).toLocaleDateString('es-CO')}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {res.url && (
+                              <a
+                                href={res.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Abrir y previsualizar documento en nueva pestaña"
+                                style={{
+                                  padding: '0.35rem 0.55rem',
+                                  background: '#f8fafc',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: '6px',
+                                  color: '#64748b',
+                                  fontSize: '0.72rem',
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  flexShrink: 0
+                                }}
+                              >
+                                <ExternalLink size={12} /> Ver
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Selector de cantidad y botón generar */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    flexWrap: 'wrap', 
+                    gap: '1rem',
+                    paddingTop: '0.5rem',
+                    borderTop: '1px solid #f1f5f9'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Cantidad de preguntas:
+                      </span>
+                      {[3, 5, 8, 10].map(count => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => setAiQuestionCount(count)}
+                          style={{
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '6px',
+                            border: `1.5px solid ${aiQuestionCount === count ? 'var(--gold-dark)' : 'var(--border-color)'}`,
+                            background: aiQuestionCount === count ? '#fffbeb' : '#ffffff',
+                            color: aiQuestionCount === count ? '#92400e' : 'var(--text-secondary)',
+                            fontWeight: aiQuestionCount === count ? 800 : 500,
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {count}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateQuestions('document')}
+                      disabled={aiGenerating || !selectedResourceId}
+                      className="btn btn-primary"
+                      style={{
+                        padding: '0.6rem 1.35rem',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        boxShadow: '0 2px 8px rgba(20,33,61,0.2)'
+                      }}
+                    >
+                      {aiGenerating ? (
+                        <>
+                          <RefreshCw size={15} className="spin" /> Analizando documento con IA (~3-5s)...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={15} color="var(--gold)" /> Generar Preguntas con IA
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MODO B: DESDE TRANSCRIPCIÓN MANUAL */}
+          {aiMode === 'transcript' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.35rem' }}>
+                  Pega la transcripción o resumen de la clase (Mín. 200 caracteres):
+                </label>
+                <textarea
+                  value={manualTranscript}
+                  onChange={(e) => setManualTranscript(e.target.value)}
+                  placeholder="Pega aquí la transcripción de la sesión grabada o el texto explicativo de la clase..."
+                  style={{
+                    width: '100%',
+                    minHeight: '110px',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginTop: '0.25rem', color: manualTranscript.trim().length >= 200 ? '#16a34a' : '#64748b' }}>
+                  <span>{manualTranscript.trim().length} caracteres</span>
+                  {manualTranscript.trim().length < 200 && <span>Faltan {200 - manualTranscript.trim().length} para el mínimo</span>}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Cantidad de preguntas:
+                  </span>
+                  {[3, 5, 8, 10].map(count => (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => setAiQuestionCount(count)}
+                      style={{
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '6px',
+                        border: `1.5px solid ${aiQuestionCount === count ? 'var(--gold-dark)' : 'var(--border-color)'}`,
+                        background: aiQuestionCount === count ? '#fffbeb' : '#ffffff',
+                        color: aiQuestionCount === count ? '#92400e' : 'var(--text-secondary)',
+                        fontWeight: aiQuestionCount === count ? 800 : 500,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleGenerateQuestions('transcript')}
+                  disabled={aiGenerating || manualTranscript.trim().length < 200}
+                  className="btn btn-primary"
+                  style={{ padding: '0.6rem 1.35rem', fontSize: '0.84rem', fontWeight: 700 }}
+                >
+                  {aiGenerating ? (
+                    <>
+                      <RefreshCw size={15} className="spin" /> Generando preguntas...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={15} color="var(--gold)" /> Generar desde Transcripción
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MENSAJES DE ALERTA DE LA IA */}
+          {aiError && (
+            <div style={{
+              marginTop: '1rem',
+              padding: '0.75rem 1rem',
+              background: '#fef2f2',
+              color: '#b91c1c',
+              border: '1px solid #fca5a5',
+              borderRadius: '8px',
+              fontSize: '0.84rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <AlertTriangle size={16} flexShrink={0} />
+              <span>{aiError}</span>
+            </div>
+          )}
+
+          {aiSuccess && (
+            <div style={{
+              marginTop: '1rem',
+              padding: '0.75rem 1rem',
+              background: '#f0fdf4',
+              color: '#15803d',
+              border: '1px solid #86efac',
+              borderRadius: '8px',
+              fontSize: '0.84rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <CheckCircle2 size={16} flexShrink={0} />
+              <span>{aiSuccess}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. PREGUNTAS Y OPCIONES */}
       <div className="card" style={{ padding: '1.5rem', background: 'white', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)' }}>Constructor de Preguntas ({questions.length})</h3>
@@ -1227,56 +1752,105 @@ export default function AdminClassReinforcement({ classId }) {
         )}
       </div>
 
-      {/* ==========================================
-          SECCIÓN: Generación de preguntas con IA (Admins y Docentes)
-          ========================================== */}
-      {isTeacherOrAdmin && (
-        <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-          <h3 style={{ fontSize: '1.1rem', color: '#0f172a', marginBottom: '1rem', fontWeight: 'bold' }}>
-            Prueba de generación con IA
-          </h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.4rem', fontWeight: 500, color: '#334155' }}>
-                Transcripción de la clase (Mín. 200 caracteres)
-              </label>
-              <textarea 
-                value={testTranscript}
-                onChange={(e) => setTestTranscript(e.target.value)}
-                placeholder="Pega la transcripción aquí..."
-                style={{ width: '100%', minHeight: '120px', padding: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', resize: 'vertical' }}
-              />
-              <div style={{ fontSize: '0.75rem', color: testTranscript.trim().length >= 200 ? '#16a34a' : '#64748b', marginTop: '0.2rem' }}>
-                {testTranscript.trim().length} caracteres
+      {/* MODAL: CONFIRMAR REEMPLAZO O AÑADIR PREGUNTAS DE IA */}
+      {replaceQuestionsModalOpen && pendingDraftToLoad && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '14px', width: '100%', maxWidth: '500px',
+            padding: '1.75rem', boxShadow: '0 20px 45px rgba(0,0,0,0.25)', position: 'relative',
+            animation: 'fadeSlideUp 0.25s ease-out'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)' }}>
+                <Layers size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)' }}>
+                  ¿Cómo deseas aplicar las preguntas?
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  El editor ya tiene {questions.length} {questions.length === 1 ? 'pregunta' : 'preguntas'} registradas.
+                </p>
               </div>
             </div>
-            
 
-            <button 
-              onClick={handleTestGenerate}
-              disabled={testGenerating || testTranscript.trim().length < 200}
-              className="btn btn-primary"
-              style={{ alignSelf: 'flex-start', padding: '0.6rem 1.2rem' }}
-            >
-              {testGenerating ? 'Generando...' : 'Generar borrador con IA'}
-            </button>
-            
-            {testError && (
-              <div style={{ padding: '0.75rem', background: '#fef2f2', color: '#b91c1c', border: '1px solid #f87171', borderRadius: '4px', fontSize: '0.9rem' }}>
-                {testError}
-              </div>
-            )}
-            
-            {testResult?.draft?.questions && (
-              <div style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem' }}>
-                ✓ {testResult.draft.questions.length} preguntas generadas y cargadas automáticamente en el editor.
-              </div>
-            )}
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+              La Inteligencia Artificial generó <strong>{pendingDraftToLoad.questions.length} preguntas</strong> a partir de <em>"{pendingDraftToLoad.sourceMeta.docTitle}"</em>. Selecciona cómo deseas organizarlas:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => applyGeneratedQuestions(pendingDraftToLoad.questions, pendingDraftToLoad.sourceMeta, 'replace', pendingDraftToLoad.activityTitle, pendingDraftToLoad.activityDescription)}
+                style={{
+                  padding: '0.85rem 1rem',
+                  background: '#ffffff',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseOver={e => e.currentTarget.style.borderColor = 'var(--navy)'}
+                onMouseOut={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+              >
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>
+                  🔄 Reemplazar todas las preguntas
+                </div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Elimina las preguntas actuales del editor y deja únicamente las {pendingDraftToLoad.questions.length} generadas por la IA.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyGeneratedQuestions(pendingDraftToLoad.questions, pendingDraftToLoad.sourceMeta, 'append', pendingDraftToLoad.activityTitle, pendingDraftToLoad.activityDescription)}
+                style={{
+                  padding: '0.85rem 1rem',
+                  background: '#ffffff',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseOver={e => e.currentTarget.style.borderColor = 'var(--navy)'}
+                onMouseOut={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+              >
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>
+                  ➕ Añadir al final (Conservar las actuales)
+                </div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Mantén tus preguntas existentes y añade las nuevas al final (Total: {questions.length + pendingDraftToLoad.questions.length} preguntas).
+                </div>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => { setReplaceQuestionsModalOpen(false); setPendingDraftToLoad(null); }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: '#f1f5f9',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
-      {/* FIN SECCIÓN TEMPORAL */}
 
     </div>
   );

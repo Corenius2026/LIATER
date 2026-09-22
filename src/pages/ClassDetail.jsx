@@ -3610,12 +3610,18 @@ export default function ClassDetail() {
                   Actividad de Reforzamiento con IA
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Pega la transcripción de la clase para generar preguntas automáticas con Inteligencia Artificial, o redacta preguntas manualmente.
+                  Genera preguntas automáticas con Inteligencia Artificial analizando los materiales de la clase, o redacta preguntas manualmente.
                 </p>
               </div>
             </div>
 
-            <AdminClassReinforcement classId={id} />
+            <AdminClassReinforcement 
+              classId={id} 
+              onOpenUploadModal={() => {
+                setIsAdminReinforcementOpen(false);
+                openCreateResourceModal();
+              }}
+            />
           </div>
         </div>
       )}
