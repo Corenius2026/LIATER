@@ -10,8 +10,9 @@ import {
 
 export default function AdminClassReinforcement({ classId, onOpenUploadModal }) {
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'admin';
-  const isTeacher = currentUser?.role === 'teacher';
+  const userRole = (currentUser?.role || '').trim().toLowerCase();
+  const isAdmin = userRole === 'admin';
+  const isTeacher = ['teacher', 'docente', 'profesor'].includes(userRole);
   const isTeacherOrAdmin = isAdmin || isTeacher;
 
   const [loading, setLoading] = useState(true);

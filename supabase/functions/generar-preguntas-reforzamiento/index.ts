@@ -498,25 +498,62 @@ Deno.serve(async (req: Request): Promise<Response> => {
     auth: { persistSession: false },
   });
 
-  const { data: profile, error: profileError } = await supabaseAdmin
+  // 1. Buscar perfil por auth_user_id
+  let { data: profile } = await supabaseAdmin
     .from("users_profile")
-    .select("role, is_active")
+    .select("id, role, is_active, email")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  if (profileError) {
-    console.error("Error consultando perfil:", profileError);
-    return jsonResponse(
-      { ok: false, error: "No fue posible verificar el perfil" },
-      500,
-    );
+  // 2. Fallback: buscar perfil por id primario
+  if (!profile) {
+    const { data: profileById } = await supabaseAdmin
+      .from("users_profile")
+      .select("id, role, is_active, email")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profileById) profile = profileById;
   }
 
-  if (
-    !profile ||
-    profile.is_active !== true ||
-    !["teacher", "admin"].includes(profile.role)
-  ) {
+  // 3. Fallback: buscar perfil por email de autenticación
+  if (!profile && user.email) {
+    const { data: profileByEmail } = await supabaseAdmin
+      .from("users_profile")
+      .select("id, role, is_active, email")
+      .eq("email", user.email)
+      .maybeSingle();
+    if (profileByEmail) profile = profileByEmail;
+  }
+
+  const normalizedRole = (profile?.role || "").trim().toLowerCase();
+  let isAuthorized = ["teacher", "admin", "docente", "profesor"].includes(normalizedRole);
+
+  // 4. Fallback: verificar si existe registro asociado en teacher_profiles
+  if (!isAuthorized && (profile?.id || user.id)) {
+    const targetUserId = profile?.id || user.id;
+    const { data: teacherProfile } = await supabaseAdmin
+      .from("teacher_profiles")
+      .select("id")
+      .or(`user_id.eq.${targetUserId},id.eq.${targetUserId}`)
+      .maybeSingle();
+
+    if (teacherProfile) {
+      isAuthorized = true;
+    }
+  }
+
+  // 5. Fallback: verificar si en los metadatos de Supabase Auth viene el rol
+  if (!isAuthorized) {
+    const metaRole = String(
+      user.user_metadata?.role || user.app_metadata?.role || ""
+    ).trim().toLowerCase();
+    if (["teacher", "admin", "docente", "profesor"].includes(metaRole)) {
+      isAuthorized = true;
+    }
+  }
+
+  // 6. Verificar si la cuenta está desactivada explícitamente (solo rechaza si es false)
+  if (!isAuthorized || profile?.is_active === false) {
     return jsonResponse(
       { ok: false, error: "Solo profesores y administradores pueden generar preguntas" },
       403,
