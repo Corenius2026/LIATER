@@ -445,8 +445,13 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
       
       const { data: updated, error } = await supabase.from('class_activities').update(updatePayload).eq('id', existing.id).select('id').single();
       if (error) throw error;
-      actId = updated.id;
-      await supabase.from('activity_questions').delete().eq('activity_id', actId);
+      const { data: oldQs } = await supabase.from('activity_questions').select('id').eq('activity_id', actId);
+      if (oldQs && oldQs.length > 0) {
+        const oldQIds = oldQs.map(q => q.id);
+        await supabase.from('question_correct_answers').delete().in('question_id', oldQIds);
+        await supabase.from('question_options').delete().in('question_id', oldQIds);
+        await supabase.from('activity_questions').delete().in('id', oldQIds);
+      }
     } else {
       const insertPayload = { 
         class_id: classId, 
@@ -5910,8 +5915,14 @@ function BorradoresTab() {
       if (updateErr) throw updateErr;
       activityId = updatedAct.id;
 
-      // Limpiar preguntas anteriores para re-insertar limpiamente
-      await supabase.from('activity_questions').delete().eq('activity_id', activityId);
+      // Limpiar preguntas anteriores para re-insertar limpiamente (respetando Foreign Keys)
+      const { data: oldQs } = await supabase.from('activity_questions').select('id').eq('activity_id', activityId);
+      if (oldQs && oldQs.length > 0) {
+        const oldQIds = oldQs.map(q => q.id);
+        await supabase.from('question_correct_answers').delete().in('question_id', oldQIds);
+        await supabase.from('question_options').delete().in('question_id', oldQIds);
+        await supabase.from('activity_questions').delete().in('id', oldQIds);
+      }
     } else {
       const { data: newAct, error: actErr } = await supabase
         .from('class_activities')
@@ -6048,7 +6059,13 @@ function BorradoresTab() {
         if (deleteClassAct) {
           const { data: act } = await supabase.from('class_activities').select('id').eq('class_id', classId).maybeSingle();
           if (act) {
-            await supabase.from('activity_questions').delete().eq('activity_id', act.id);
+            const { data: oldQs } = await supabase.from('activity_questions').select('id').eq('activity_id', act.id);
+            if (oldQs && oldQs.length > 0) {
+              const oldQIds = oldQs.map(q => q.id);
+              await supabase.from('question_correct_answers').delete().in('question_id', oldQIds);
+              await supabase.from('question_options').delete().in('question_id', oldQIds);
+              await supabase.from('activity_questions').delete().in('id', oldQIds);
+            }
             await supabase.from('class_activities').delete().eq('id', act.id);
           }
         }

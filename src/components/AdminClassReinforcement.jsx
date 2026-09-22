@@ -494,25 +494,38 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   const persistQuestionsToDatabase = async (activityId, currentQuestions) => {
     if (!activityId || !currentQuestions) return [];
 
-    // Si es una actividad temporal de borrador, primero crear la actividad en class_activities
+    // Si es una actividad temporal de borrador, resolver o crear en class_activities
     let targetActId = activityId;
-    if (activityId === 'draft-temp' || String(activityId).startsWith('temp-')) {
-      const { data: newAct, error: actErr } = await supabase
+    if (!targetActId || targetActId === 'draft-temp' || String(targetActId).startsWith('temp-')) {
+      const { data: existingAct } = await supabase
         .from('class_activities')
-        .insert([{
-          class_id: classId,
-          title: localActivity.title || 'Actividad de Reforzamiento',
-          description: localActivity.description || '',
-          is_mandatory: localActivity.is_mandatory || false,
-          max_attempts: localActivity.max_attempts || 1,
-          is_published: false
-        }])
-        .select()
-        .single();
+        .select('id, title, description, is_mandatory, max_attempts, is_published')
+        .eq('class_id', classId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (actErr) throw actErr;
-      targetActId = newAct.id;
-      setActivity(newAct);
+      if (existingAct) {
+        targetActId = existingAct.id;
+        setActivity(existingAct);
+      } else {
+        const { data: newAct, error: actErr } = await supabase
+          .from('class_activities')
+          .insert([{
+            class_id: classId,
+            title: localActivity.title || 'Actividad de Reforzamiento',
+            description: localActivity.description || '',
+            is_mandatory: localActivity.is_mandatory || false,
+            max_attempts: localActivity.max_attempts || 1,
+            is_published: false
+          }])
+          .select()
+          .single();
+
+        if (actErr) throw actErr;
+        targetActId = newAct.id;
+        setActivity(newAct);
+      }
     }
 
     const normalizeQType = (t) => {
@@ -524,20 +537,19 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       return 'single_choice';
     };
 
-    // 0. Eliminar de DB preguntas que ya no estén en currentQuestions
+    // 0. Eliminar de DB preguntas que ya no estén en currentQuestions (en orden para respetar Foreign Keys)
     const { data: existingQs } = await supabase
       .from('activity_questions')
       .select('id')
-      .eq('activity_id', activityId);
+      .eq('activity_id', targetActId);
 
     if (existingQs && existingQs.length > 0) {
       const currentRealIds = new Set(currentQuestions.filter(q => !String(q.id).startsWith('temp-')).map(q => q.id));
       const idsToDelete = existingQs.map(q => q.id).filter(id => !currentRealIds.has(id));
       if (idsToDelete.length > 0) {
-        await supabase
-          .from('activity_questions')
-          .delete()
-          .in('id', idsToDelete);
+        await supabase.from('question_correct_answers').delete().in('question_id', idsToDelete);
+        await supabase.from('question_options').delete().in('question_id', idsToDelete);
+        await supabase.from('activity_questions').delete().in('id', idsToDelete);
       }
     }
 
@@ -612,6 +624,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           const currentOptRealIds = new Set((q.options || []).filter(o => !String(o.id).startsWith('temp-')).map(o => o.id));
           const optIdsToDelete = existingOpts.map(o => o.id).filter(id => !currentOptRealIds.has(id));
           if (optIdsToDelete.length > 0) {
+            await supabase.from('question_correct_answers').delete().in('correct_option_id', optIdsToDelete);
             await supabase
               .from('question_options')
               .delete()
@@ -694,30 +707,63 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   };
 
   const saveActivityInfo = async () => {
-    let currentAct = activity;
     setSaving(true);
     setError('');
     try {
-      if (!currentAct) {
-        // Crear la actividad si aún no existía en la base de datos
-        const { data: newAct, error: insertError } = await supabase
-          .from('class_activities')
-          .insert([{
-            class_id: classId,
-            title: localActivity.title,
-            description: localActivity.description,
-            is_mandatory: localActivity.is_mandatory,
-            max_attempts: localActivity.max_attempts,
-            is_published: false
-          }])
-          .select()
-          .single();
+      let realActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) 
+        ? activity.id 
+        : null;
 
-        if (insertError) throw insertError;
-        currentAct = newAct;
-        setActivity(newAct);
+      let currentAct = null;
+
+      if (!realActId) {
+        // Verificar si ya existe en la BD para esta clase
+        const { data: existingAct } = await supabase
+          .from('class_activities')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingAct) {
+          realActId = existingAct.id;
+          const { data: updatedAct, error: updateError } = await supabase
+            .from('class_activities')
+            .update({
+              title: localActivity.title,
+              description: localActivity.description,
+              is_mandatory: localActivity.is_mandatory,
+              max_attempts: localActivity.max_attempts
+            })
+            .eq('id', realActId)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          currentAct = updatedAct;
+          setActivity(updatedAct);
+        } else {
+          const { data: newAct, error: insertError } = await supabase
+            .from('class_activities')
+            .insert([{
+              class_id: classId,
+              title: localActivity.title,
+              description: localActivity.description,
+              is_mandatory: localActivity.is_mandatory,
+              max_attempts: localActivity.max_attempts,
+              is_published: false
+            }])
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          realActId = newAct.id;
+          currentAct = newAct;
+          setActivity(newAct);
+        }
       } else {
-        const { error: updateError } = await supabase
+        const { data: updatedAct, error: updateError } = await supabase
           .from('class_activities')
           .update({
             title: localActivity.title,
@@ -725,24 +771,22 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
             is_mandatory: localActivity.is_mandatory,
             max_attempts: localActivity.max_attempts
           })
-          .eq('id', currentAct.id);
+          .eq('id', realActId)
+          .select()
+          .single();
 
         if (updateError) throw updateError;
-
-        setActivity(prev => ({
-          ...prev,
-          title: localActivity.title,
-          description: localActivity.description,
-          is_mandatory: localActivity.is_mandatory,
-          max_attempts: localActivity.max_attempts
-        }));
+        currentAct = updatedAct;
+        setActivity(updatedAct);
       }
 
       // Guardar en la BD todas las preguntas y opciones (incluyendo las generadas por IA)
-      const savedQs = await persistQuestionsToDatabase(currentAct.id, questions);
-      setQuestions(savedQs);
+      if (questions.length > 0) {
+        const savedQs = await persistQuestionsToDatabase(realActId, questions);
+        setQuestions(savedQs);
+      }
 
-      setSuccess('Las preguntas y la actividad han sido guardadas en borrador. El profesor asignado o el administrador pueden revisarla y hacer clic en "Publicar Actividad".');
+      setSuccess('Las preguntas y la actividad han sido guardadas en borrador. Puedes revisarla y hacer clic en "Publicar Actividad".');
       setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
       console.error(err);
@@ -826,6 +870,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     if (!window.confirm('¿Eliminar pregunta? Se borrarán sus opciones y respuestas.')) return;
     if (!String(id).startsWith('temp-')) {
       try {
+        await supabase.from('question_correct_answers').delete().eq('question_id', id);
+        await supabase.from('question_options').delete().eq('question_id', id);
         await supabase.from('activity_questions').delete().eq('id', id);
       } catch (err) { console.error(err); }
     }
@@ -931,27 +977,63 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   };
 
   const togglePublish = async () => {
-    let currentAct = activity;
-    if (!currentAct) {
-      return setError('Debes guardar la actividad antes de publicarla.');
-    }
-    
     setSaving(true);
     setError('');
     try {
-      // 1. Guardar primero en DB todas las preguntas y opciones pendientes
-      const savedQs = await persistQuestionsToDatabase(currentAct.id, questions);
+      // 1. Obtener o crear la actividad real en la base de datos
+      let realActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) 
+        ? activity.id 
+        : null;
+
+      let currentAct = activity;
+
+      if (!realActId) {
+        // Verificar si ya existe en la BD para esta clase
+        const { data: existingAct } = await supabase
+          .from('class_activities')
+          .select('id, title, description, is_mandatory, max_attempts, is_published')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingAct) {
+          realActId = existingAct.id;
+          currentAct = existingAct;
+        } else {
+          // Crear la fila inicial en class_activities
+          const { data: newAct, error: createErr } = await supabase
+            .from('class_activities')
+            .insert([{
+              class_id: classId,
+              title: localActivity.title || 'Actividad de Reforzamiento',
+              description: localActivity.description || '',
+              is_mandatory: localActivity.is_mandatory || false,
+              max_attempts: localActivity.max_attempts || 1,
+              is_published: false
+            }])
+            .select()
+            .single();
+
+          if (createErr) throw createErr;
+          realActId = newAct.id;
+          currentAct = newAct;
+        }
+      }
+
+      // 2. Persistir todas las preguntas y opciones pendientes con el UUID real
+      const savedQs = await persistQuestionsToDatabase(realActId, questions);
       setQuestions(savedQs);
 
-      const willPublish = !currentAct.is_published;
-      
-      // 2. Validaciones antes de publicar
+      const willPublish = !currentAct?.is_published;
+
+      // 3. Validaciones antes de publicar
       if (willPublish) {
         if (savedQs.length === 0) {
           throw new Error('La actividad debe tener al menos una pregunta para ser publicada.');
         }
         for (const q of savedQs) {
-          if (q.options.length < 2) {
+          if (!q.options || q.options.length < 2) {
             throw new Error(`La pregunta "${q.text}" debe tener al menos 2 opciones.`);
           }
           if (!q.correctOptionId) {
@@ -960,14 +1042,23 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         }
       }
 
-      const { error } = await supabase
+      // 4. Actualizar el estado en class_activities
+      const { data: updatedAct, error: pubErr } = await supabase
         .from('class_activities')
-        .update({ is_published: willPublish })
-        .eq('id', currentAct.id);
-        
-      if (error) throw error;
+        .update({ 
+          is_published: willPublish,
+          title: localActivity.title || currentAct?.title || 'Actividad de Reforzamiento',
+          description: localActivity.description || currentAct?.description || '',
+          is_mandatory: localActivity.is_mandatory !== undefined ? localActivity.is_mandatory : false,
+          max_attempts: localActivity.max_attempts || 1
+        })
+        .eq('id', realActId)
+        .select()
+        .single();
 
-      // Sincronizar también activity_drafts para mantener consistencia bidireccional
+      if (pubErr) throw pubErr;
+
+      // 5. Sincronizar también activity_drafts para mantener consistencia bidireccional
       try {
         await supabase
           .from('activity_drafts')
@@ -979,13 +1070,13 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       } catch (draftErr) {
         console.warn('Nota: No se pudo actualizar status en activity_drafts:', draftErr);
       }
-      
-      setActivity(prev => ({ ...prev, is_published: willPublish }));
-      setSuccess(willPublish ? 'Actividad publicada exitosamente.' : 'Actividad regresada a borrador.');
-      setTimeout(() => setSuccess(''), 3000);
+
+      setActivity(updatedAct || { ...(currentAct || {}), id: realActId, is_published: willPublish });
+      setSuccess(willPublish ? '✓ Actividad publicada exitosamente. Los estudiantes ya pueden responderla.' : 'Actividad regresada a borrador.');
+      setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
-      console.error(err);
-      setError('Error al cambiar el estado de publicación: ' + err.message);
+      console.error('Error al cambiar el estado de publicación:', err);
+      setError('Error al cambiar el estado de publicación: ' + (err.message || err));
     } finally {
       setSaving(false);
     }
@@ -1160,11 +1251,11 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
               fontSize: '0.8rem', 
               padding: '0.2rem 0.6rem', 
               borderRadius: '20px', 
-              background: activity.is_published ? '#dcfce7' : '#f1f5f9',
-              color: activity.is_published ? '#166534' : '#475569',
+              background: activity?.is_published ? '#dcfce7' : '#f1f5f9',
+              color: activity?.is_published ? '#166534' : '#475569',
               fontWeight: 600
             }}>
-              {activity.is_published ? 'PUBLICADA' : 'BORRADOR (Pendiente de revisión)'}
+              {activity?.is_published ? 'PUBLICADA' : 'BORRADOR (Pendiente de revisión)'}
             </span>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1174,10 +1265,10 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
             <button 
               onClick={togglePublish} 
               disabled={saving}
-              className={`btn ${activity.is_published ? 'btn-secondary' : 'btn-primary'}`}
-              style={activity.is_published ? { borderColor: 'var(--border-color)', color: '#dc2626' } : {}}
+              className={`btn ${activity?.is_published ? 'btn-secondary' : 'btn-primary'}`}
+              style={activity?.is_published ? { borderColor: 'var(--border-color)', color: '#dc2626' } : {}}
             >
-              {activity.is_published ? 'Despublicar' : 'Publicar Actividad'}
+              {activity?.is_published ? 'Despublicar' : 'Publicar Actividad'}
             </button>
           </div>
         </div>
