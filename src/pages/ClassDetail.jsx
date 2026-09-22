@@ -592,6 +592,8 @@ export default function ClassDetail() {
     setIsActivityModalOpen(true);
   };
 
+  const handleViewReview = handleOpenResults;
+
   const handleNextQuestion = () => {
     if (currentQuestionIdx < activityConfig.questions.length - 1) {
       setCurrentQuestionIdx(prev => prev + 1);
