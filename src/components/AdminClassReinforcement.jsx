@@ -1180,7 +1180,12 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         setTimeout(() => setSuccess(''), 5000);
       } catch (e) {
         console.error('Error reactivando actividad:', e);
-        setError('No se pudo reactivar automáticamente la fecha: ' + (e.message || e));
+        const msg = String(e.message || e);
+        if (msg.includes('due_date') || msg.includes('schema cache')) {
+          setError('La columna "due_date" aún no existe en tu base de datos de Supabase. Ejecuta en el SQL Editor de Supabase: ALTER TABLE class_activities ADD COLUMN IF NOT EXISTS due_date timestamptz;');
+        } else {
+          setError('No se pudo reactivar automáticamente la fecha: ' + msg);
+        }
       } finally {
         setSaving(false);
       }
@@ -1204,7 +1209,12 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         setTimeout(() => setSuccess(''), 4000);
       } catch (e) {
         console.error('Error eliminando plazo:', e);
-        setError('No se pudo actualizar el plazo: ' + (e.message || e));
+        const msg = String(e.message || e);
+        if (msg.includes('due_date') || msg.includes('schema cache')) {
+          setError('La columna "due_date" aún no existe en Supabase. Ejecuta la sentencia SQL en Supabase para habilitarla.');
+        } else {
+          setError('No se pudo actualizar el plazo: ' + msg);
+        }
       } finally {
         setSaving(false);
       }

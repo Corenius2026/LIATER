@@ -581,7 +581,12 @@ export default function ClassDetail() {
       setActivityState(userAttempts && userAttempts.length > 0 && userAttempts[0].status === 'in_progress' ? 'en_progreso' : 'no_iniciada');
     } catch (err) {
       console.error('Error reactivando actividad:', err);
-      alert('Error reactivando la actividad: ' + (err.message || err));
+      const msg = String(err.message || err);
+      if (msg.includes('due_date') || msg.includes('schema cache')) {
+        alert('Aviso: La columna "due_date" aún no existe en Supabase.\n\nPor favor ejecuta en el SQL Editor de Supabase:\nALTER TABLE public.class_activities ADD COLUMN IF NOT EXISTS due_date timestamp with time zone NULL;\nNOTIFY pgrst, \'reload schema\';');
+      } else {
+        alert('Error reactivando la actividad: ' + msg);
+      }
     } finally {
       setReactivatingActivity(false);
     }
