@@ -56,6 +56,22 @@ function getResourceTypeLabel(type) {
   }
 }
 
+/* ── HELPER: Formatear etiqueta combinada de Sesión y Clase ── */
+function formatSessionAndClass(sessionTitle, classTitle) {
+  const cTitle = classTitle ? classTitle.trim() : '';
+  const sTitle = sessionTitle ? sessionTitle.trim() : '';
+
+  if (!sTitle) {
+    if (!cTitle) return 'Clase';
+    return cTitle.toLowerCase().startsWith('clase') ? cTitle : `Clase: ${cTitle}`;
+  }
+
+  const sessionPart = sTitle.toLowerCase().startsWith('sesi') ? sTitle : `Sesión: ${sTitle}`;
+  const classPart = cTitle.toLowerCase().startsWith('clase') ? cTitle : `Clase: ${cTitle}`;
+
+  return `${sessionPart} · ${classPart}`;
+}
+
 export default function CourseResources() {
   const { programId } = useParams();
   const { currentUser } = useAuth();
@@ -123,7 +139,7 @@ export default function CourseResources() {
         window.dispatchEvent(new Event('programContextChanged'));
       }
 
-      // 2. Obtener todas las clases del programa con sus sesiones y módulos
+      // 2. Obtener todas las clases del programa
       let classesData = [];
       const classMap = {};
       const availableClasses = [];
@@ -131,31 +147,15 @@ export default function CourseResources() {
       try {
         const { data: cData, error: cErr } = await supabase
           .from('class_sessions')
-          .select(`
-            id,
-            title,
-            class_date,
-            order_index,
-            session_id,
-            subtopic_id,
-            sessions (
-              id,
-              title,
-              order_index,
-              modules (
-                id,
-                title,
-                order_index
-              )
-            )
-          `)
+          .select('*')
           .eq('program_id', cleanProgramId)
           .order('order_index', { ascending: true, nullsFirst: false });
 
         if (cErr) {
+          console.warn('Aviso al consultar class_sessions:', cErr);
           const { data: fallbackData } = await supabase
             .from('class_sessions')
-            .select('id, title, class_date, order_index')
+            .select('id, title, class_date, order_index, subtopic_id')
             .eq('program_id', cleanProgramId)
             .order('order_index', { ascending: true, nullsFirst: false });
           classesData = fallbackData || [];
@@ -163,59 +163,147 @@ export default function CourseResources() {
           classesData = cData || [];
         }
       } catch (e) {
-        console.warn('Aviso al consultar clases, usando fallback plano:', e);
-        const { data: fallbackData } = await supabase
-          .from('class_sessions')
-          .select('id, title, class_date, order_index')
-          .eq('program_id', cleanProgramId)
-          .order('order_index', { ascending: true, nullsFirst: false });
-        classesData = fallbackData || [];
+        console.warn('Excepción al consultar clases:', e);
       }
 
-      // 2.1 Obtener sesiones del programa para filtro por sesión
-      let sessionsData = [];
+      // 2.1 Obtener módulos del programa (para vincular sesiones si vienen por módulo)
+      let modulesData = [];
+      const modMap = {};
       try {
-        const { data: sData, error: sErr } = await supabase
-          .from('sessions')
+        const { data: mData } = await supabase
+          .from('modules')
           .select('id, title, order_index')
           .eq('program_id', cleanProgramId)
           .order('order_index', { ascending: true });
-        if (sErr || !sData || sData.length === 0) {
-          const { data: subData } = await supabase
-            .from('subtopics')
-            .select('id, title, order_index')
-            .eq('program_id', cleanProgramId)
-            .order('order_index', { ascending: true });
-          sessionsData = subData || [];
-        } else {
-          sessionsData = sData;
-        }
-      } catch {
+        modulesData = mData || [];
+        modulesData.forEach(m => {
+          modMap[String(m.id)] = m.title;
+        });
+      } catch {}
+
+      const modIds = modulesData.map(m => m.id);
+
+      // 2.2 Obtener sesiones del programa (tanto de subtopics como de sessions)
+      const sessionsMap = new Map();
+
+      // Intento A: subtopics por program_id
+      try {
+        const { data: subProg } = await supabase
+          .from('subtopics')
+          .select('id, title, order_index, module_id')
+          .eq('program_id', cleanProgramId)
+          .order('order_index', { ascending: true });
+        (subProg || []).forEach(s => {
+          sessionsMap.set(String(s.id), {
+            id: String(s.id),
+            title: s.title || 'Sesión sin título',
+            orderIndex: s.order_index ?? 999,
+            moduleId: s.module_id,
+            moduleTitle: s.module_id ? (modMap[String(s.module_id)] || null) : null,
+            classIds: new Set()
+          });
+        });
+      } catch {}
+
+      // Intento B: subtopics por module_id
+      if (modIds.length > 0) {
         try {
-          const { data: subData } = await supabase
+          const { data: subMod } = await supabase
             .from('subtopics')
-            .select('id, title, order_index')
-            .eq('program_id', cleanProgramId)
+            .select('id, title, order_index, module_id')
+            .in('module_id', modIds)
             .order('order_index', { ascending: true });
-          sessionsData = subData || [];
+          (subMod || []).forEach(s => {
+            if (!sessionsMap.has(String(s.id))) {
+              sessionsMap.set(String(s.id), {
+                id: String(s.id),
+                title: s.title || 'Sesión sin título',
+                orderIndex: s.order_index ?? 999,
+                moduleId: s.module_id,
+                moduleTitle: s.module_id ? (modMap[String(s.module_id)] || null) : null,
+                classIds: new Set()
+              });
+            }
+          });
         } catch {}
       }
 
-      const sessionsMap = new Map();
-      (sessionsData || []).forEach(s => {
-        sessionsMap.set(String(s.id), {
-          id: String(s.id),
-          title: s.title || 'Sesión sin título',
-          orderIndex: s.order_index ?? 999,
-          classIds: new Set()
+      // Intento C: sessions por program_id (si existe la tabla sessions)
+      try {
+        const { data: sProg } = await supabase
+          .from('sessions')
+          .select('id, title, order_index, module_id')
+          .eq('program_id', cleanProgramId)
+          .order('order_index', { ascending: true });
+        (sProg || []).forEach(s => {
+          if (!sessionsMap.has(String(s.id))) {
+            sessionsMap.set(String(s.id), {
+              id: String(s.id),
+              title: s.title || 'Sesión sin título',
+              orderIndex: s.order_index ?? 999,
+              moduleId: s.module_id,
+              moduleTitle: s.module_id ? (modMap[String(s.module_id)] || null) : null,
+              classIds: new Set()
+            });
+          }
         });
-      });
+      } catch {}
 
+      // Intento D: IDs de sesión referenciados directamente por las clases cargadas
+      const referencedSessionIds = Array.from(new Set(
+        classesData
+          .map(c => c.subtopic_id ? String(c.subtopic_id) : (c.session_id ? String(c.session_id) : null))
+          .filter(id => id && !sessionsMap.has(String(id)))
+      ));
+
+      if (referencedSessionIds.length > 0) {
+        try {
+          const { data: missingSubs } = await supabase
+            .from('subtopics')
+            .select('id, title, order_index, module_id')
+            .in('id', referencedSessionIds);
+          (missingSubs || []).forEach(s => {
+            sessionsMap.set(String(s.id), {
+              id: String(s.id),
+              title: s.title || 'Sesión sin título',
+              orderIndex: s.order_index ?? 999,
+              moduleId: s.module_id,
+              moduleTitle: s.module_id ? (modMap[String(s.module_id)] || null) : null,
+              classIds: new Set()
+            });
+          });
+        } catch {}
+
+        try {
+          const { data: missingSess } = await supabase
+            .from('sessions')
+            .select('id, title, order_index, module_id')
+            .in('id', referencedSessionIds);
+          (missingSess || []).forEach(s => {
+            if (!sessionsMap.has(String(s.id))) {
+              sessionsMap.set(String(s.id), {
+                id: String(s.id),
+                title: s.title || 'Sesión sin título',
+                orderIndex: s.order_index ?? 999,
+                moduleId: s.module_id,
+                moduleTitle: s.module_id ? (modMap[String(s.module_id)] || null) : null,
+                classIds: new Set()
+              });
+            }
+          });
+        } catch {}
+      }
+
+      // 2.3 Mapear clases vinculándolas con sus sesiones
       classesData.forEach(cls => {
-        const sesObj = cls.sessions || cls.subtopics;
-        const modObj = sesObj?.modules;
-        const sId = sesObj?.id ? String(sesObj.id) : (cls.session_id ? String(cls.session_id) : (cls.subtopic_id ? String(cls.subtopic_id) : null));
-        const sTitle = sesObj?.title || null;
+        const sId = cls.subtopic_id ? String(cls.subtopic_id) : (cls.session_id ? String(cls.session_id) : null);
+        const sessionObj = sId ? sessionsMap.get(sId) : null;
+        const sTitle = sessionObj?.title || null;
+        const mTitle = sessionObj?.moduleTitle || (cls.module_id ? modMap[String(cls.module_id)] : null);
+
+        if (sId && sessionObj) {
+          sessionObj.classIds.add(cls.id);
+        }
 
         classMap[cls.id] = {
           id: cls.id,
@@ -224,7 +312,7 @@ export default function CourseResources() {
           order_index: cls.order_index,
           sessionId: sId,
           sessionTitle: sTitle,
-          moduleTitle: modObj?.title || null,
+          moduleTitle: mTitle,
         };
 
         availableClasses.push({
@@ -235,19 +323,6 @@ export default function CourseResources() {
           sessionId: sId,
           sessionTitle: sTitle
         });
-
-        if (sId) {
-          if (!sessionsMap.has(sId)) {
-            sessionsMap.set(sId, {
-              id: sId,
-              title: sTitle || 'Sesión',
-              orderIndex: sesObj?.order_index ?? 999,
-              classIds: new Set([cls.id])
-            });
-          } else {
-            sessionsMap.get(sId).classIds.add(cls.id);
-          }
-        }
       });
 
       setClassesList(availableClasses);
@@ -703,7 +778,7 @@ export default function CourseResources() {
             ) : (
               <Link
                 to={`/class/${res.classId}`}
-                title={`Ir a la clase: ${res.classTitle}`}
+                title={res.sessionTitle ? `${res.sessionTitle} — ${res.classTitle}` : `Ir a la clase: ${res.classTitle}`}
                 style={{
                   background: 'linear-gradient(135deg, rgba(20,33,61,0.07) 0%, rgba(20,33,61,0.03) 100%)',
                   color: 'var(--navy, #14213D)',
@@ -717,7 +792,7 @@ export default function CourseResources() {
                   gap: '0.35rem',
                   border: '1px solid rgba(20,33,61,0.12)',
                   transition: 'all 0.15s ease',
-                  maxWidth: '70%'
+                  maxWidth: '72%'
                 }}
                 onMouseOver={e => {
                   e.currentTarget.style.background = 'var(--navy, #14213D)';
@@ -730,7 +805,7 @@ export default function CourseResources() {
               >
                 <Video size={13} color="var(--gold, #FCA311)" />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  Clase: {res.classTitle}
+                  {formatSessionAndClass(res.sessionTitle, res.classTitle)}
                 </span>
               </Link>
             )}
@@ -1703,7 +1778,7 @@ export default function CourseResources() {
                     <optgroup label="Clases Específicas">
                       {classesList.map(c => (
                         <option key={c.id} value={c.id}>
-                          Clase: {c.title} {c.sessionTitle ? `(${c.sessionTitle})` : ''}
+                          {formatSessionAndClass(c.sessionTitle, c.title)}
                         </option>
                       ))}
                     </optgroup>
