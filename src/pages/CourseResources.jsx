@@ -8,7 +8,7 @@ import {
   Layers, Calendar, Clock, ChevronRight, X, Check, Copy,
   Sparkles, Home, BarChart2, Users, ListTree, FolderDown,
   Plus, Trash2, Edit3, EyeOff, Upload, Link as LinkIcon, Folder,
-  AlertCircle, RefreshCw
+  AlertCircle, RefreshCw, Info
 } from 'lucide-react';
 
 /* ── HELPER: Formatear URL para embeber documentos de Google Drive ── */
