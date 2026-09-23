@@ -1004,40 +1004,6 @@ export default function CourseResources() {
 
       {/* ── ENCABEZADO PRINCIPAL ── */}
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
-          <span className={`badge ${isCourse ? 'badge-gold' : 'badge-primary'}`} style={{ fontSize: '0.74rem', padding: '0.2rem 0.6rem' }}>
-            {isCourse ? 'Curso Corto' : 'Diplomado'}
-          </span>
-          <span style={{
-            background: 'rgba(252, 163, 17, 0.15)',
-            color: 'var(--gold-dark, #b45309)',
-            fontSize: '0.74rem',
-            padding: '0.2rem 0.65rem',
-            borderRadius: '999px',
-            fontWeight: 700,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.3rem'
-          }}>
-            <Paperclip size={12} /> {resources.length} {resources.length === 1 ? 'material en total' : 'materiales en total'}
-          </span>
-          {generalResources.length > 0 && (
-            <span style={{
-              background: '#EFF6FF',
-              color: '#1D4ED8',
-              fontSize: '0.74rem',
-              padding: '0.2rem 0.65rem',
-              borderRadius: '999px',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.3rem'
-            }}>
-              <Sparkles size={12} /> {generalResources.length} {generalResources.length === 1 ? 'general del curso' : 'generales del curso'}
-            </span>
-          )}
-        </div>
-
         <h1 className="page-title" style={{ fontSize: '1.85rem', lineHeight: 1.25, margin: 0 }}>
           Recursos y Materiales de Estudio
         </h1>
