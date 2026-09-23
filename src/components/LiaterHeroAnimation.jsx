@@ -1,22 +1,25 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import liaterLogoImg from '../assets/liater-logo.png';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 export default function LiaterHeroAnimation() {
   const mountRef = useRef(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth || 500;
-    const height = container.clientHeight || 480;
+    let isDisposed = false;
+    const width = container.clientWidth || 520;
+    const height = container.clientHeight || 460;
 
     // ─── 1. ESCENA, CÁMARA Y RENDERER ─────────────────────────────────────────
     const scene = new THREE.Scene();
 
-    const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
-    camera.position.set(0, 0, 7.8);
+    const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
+    camera.position.set(0, 0, 7.2);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -29,175 +32,231 @@ export default function LiaterHeroAnimation() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.35;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
 
-    // ─── 2. ILUMINACIÓN DE ESTUDIO CINEMATOGRÁFICO ────────────────────────────
-    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+    // ─── 2. ENTORNO PBR Y REFLEXIONES DE ESTUDIO ──────────────────────────────
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+    const roomEnv = new RoomEnvironment();
+    const envTexture = pmremGenerator.fromScene(roomEnv).texture;
+    scene.environment = envTexture;
 
-    // Luz principal solar cálida con sombras suaves
-    const keyLight = new THREE.DirectionalLight(0xfff7e8, 3.6);
-    keyLight.position.set(-3.5, 5.5, 6.0);
+    // ─── 3. ILUMINACIÓN CINEMATOGRÁFICA ───────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0xffffff, 1.8));
+
+    // Luz principal solar cálida
+    const keyLight = new THREE.DirectionalLight(0xfff7e8, 3.8);
+    keyLight.position.set(-3.5, 5.0, 5.5);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 1024;
     keyLight.shadow.mapSize.height = 1024;
     scene.add(keyLight);
 
-    // Luz de contorno azul cian para reflejos de borde
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.8);
-    rimLight.position.set(5.0, -2.5, -3.5);
+    // Luz de contorno azul cian para destellos de borde metálico
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 2.2);
+    rimLight.position.set(4.5, -2.5, -3.5);
     scene.add(rimLight);
 
-    // Luz puntual de relleno
-    const fillLight = new THREE.PointLight(0xfca311, 2.0, 10, 1.2);
-    fillLight.position.set(3, 2, 4);
+    // Luz puntual dorada de relleno
+    const fillLight = new THREE.PointLight(0xfca311, 2.2, 12, 1.2);
+    fillLight.position.set(3.0, 2.0, 4.0);
     scene.add(fillLight);
 
-    // ─── 3. GRUPO PRINCIPAL DEL LOGO 3D ───────────────────────────────────────
+    // Luz cenital suave
+    const topLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    topLight.position.set(0, 6.0, 1.5);
+    scene.add(topLight);
+
+    // ─── 4. GRUPO PRINCIPAL INTERACTIVO ───────────────────────────────────────
     const logoRoot = new THREE.Group();
+    // Ángulo inicial tres cuartos elegante (similar a la vista de referencia)
+    logoRoot.rotation.y = -0.52;
+    logoRoot.rotation.x = 0.08;
     scene.add(logoRoot);
 
-    // ─── 4. MATERIAL DE ORO METÁLICO DEL BORDE ────────────────────────────────
-    const goldRimMat = new THREE.MeshPhysicalMaterial({
-      color: 0xefa213,
-      emissive: 0x4a2c00,
-      emissiveIntensity: 0.18,
+    // ─── 5. MATERIALES FÍSICOS (PBR) PARA LIATER ──────────────────────────────
+    // Oro metálico para el medallón y las letras "E" y "R"
+    const goldMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0xf5b112),
+      emissive: new THREE.Color(0x3d2400),
+      emissiveIntensity: 0.16,
       metalness: 0.88,
       roughness: 0.22,
       clearcoat: 0.85,
       clearcoatRoughness: 0.12,
       reflectivity: 0.95,
+      side: THREE.DoubleSide,
     });
 
-    const discRadius = 1.65;
-    const discDepth = 0.24;
+    // Azul marino oscuro oficial para las letras "L", "I", "A", "T"
+    const navyLettersMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0x14213d),
+      emissive: new THREE.Color(0x060c18),
+      emissiveIntensity: 0.2,
+      metalness: 0.68,
+      roughness: 0.28,
+      clearcoat: 0.65,
+      clearcoatRoughness: 0.15,
+      side: THREE.DoubleSide,
+    });
 
-    // 4.1 Cilindro / Medallón central
-    const discGeo = new THREE.CylinderGeometry(discRadius, discRadius, discDepth, 80);
-    const discMesh = new THREE.Mesh(discGeo, goldRimMat);
-    discMesh.rotation.x = Math.PI / 2;
-    discMesh.position.y = 0.55;
-    discMesh.castShadow = true;
-    discMesh.receiveShadow = true;
-    logoRoot.add(discMesh);
+    // Símbolo central en relieve dentro del emblema (azul marino profundo / negro satinado)
+    const waveReliefMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0x0d1729),
+      emissive: new THREE.Color(0x040810),
+      emissiveIntensity: 0.1,
+      metalness: 0.45,
+      roughness: 0.26,
+      clearcoat: 0.75,
+      clearcoatRoughness: 0.12,
+      side: THREE.DoubleSide,
+    });
 
-    // 4.2 Bisel perimetral curvado para destellos especulares
-    const bevelGeo = new THREE.TorusGeometry(discRadius, 0.035, 20, 80);
-    const frontBevel = new THREE.Mesh(bevelGeo, goldRimMat);
-    frontBevel.position.set(0, 0.55, discDepth / 2);
-    logoRoot.add(frontBevel);
+    // ─── 6. CARGA DEL MODELO 3D GLB ───────────────────────────────────────────
+    const loader = new GLTFLoader();
+    const modelUrl = `${import.meta.env.BASE_URL}models/LIATER_logo_3D.glb`;
 
-    const backBevel = new THREE.Mesh(bevelGeo, goldRimMat);
-    backBevel.position.set(0, 0.55, -discDepth / 2);
-    logoRoot.add(backBevel);
+    loader.load(
+      modelUrl,
+      (gltf) => {
+        if (isDisposed) return;
 
-    // ─── 5. CARAS DEL EMBLEMA (Corte exacto del círculo del logo original) ───
-    const img = new Image();
-    img.src = liaterLogoImg;
-    img.onload = () => {
-      // 5.1 Textura exacta del círculo (sin texto ni bordes vacíos)
-      const circleCanvas = document.createElement('canvas');
-      circleCanvas.width = 512;
-      circleCanvas.height = 512;
-      const cCtx = circleCanvas.getContext('2d');
+        const model = gltf.scene;
 
-      // Recorte circular perfecto
-      cCtx.beginPath();
-      cCtx.arc(256, 256, 255, 0, Math.PI * 2);
-      cCtx.closePath();
-      cCtx.clip();
+        // Asignar materiales PBR según la jerarquía de nodos del modelo
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
 
-      // Extraer exactamente las coordenadas del círculo en liater-logo.png (138, 62 a 642, 561)
-      cCtx.drawImage(img, 138, 62, 504, 500, 0, 0, 512, 512);
+            const parentName = child.parent?.name || '';
+            const meshName = child.name || '';
 
-      const circleTexture = new THREE.CanvasTexture(circleCanvas);
-      circleTexture.colorSpace = THREE.SRGBColorSpace;
-      circleTexture.generateMipmaps = true;
-      circleTexture.minFilter = THREE.LinearMipmapLinearFilter;
+            // 1. Letras "L", "I", "A", "T" -> Azul Marino LIATER
+            if (
+              parentName.includes('Letra_L') ||
+              parentName.includes('Letra_I') ||
+              parentName.includes('Letra_A') ||
+              parentName.includes('Letra_T')
+            ) {
+              child.material = navyLettersMat;
+            }
+            // 2. Letras "E", "R" -> Oro Metálico
+            else if (
+              parentName.includes('Letra_E') ||
+              parentName.includes('Letra_R')
+            ) {
+              child.material = goldMat;
+            }
+            // 3. Símbolo de onda en relieve central -> Azul marino profundo
+            else if (
+              parentName.includes('Simbolo_en_relieve') ||
+              parentName.includes('Pieza18') ||
+              meshName.includes('Simbolo')
+            ) {
+              child.material = waveReliefMat;
+            }
+            // 4. Medallón / Emblema dorado -> Oro Metálico
+            else if (
+              parentName.includes('Emblema_dorado') ||
+              meshName.includes('Emblema')
+            ) {
+              child.material = goldMat;
+            }
+            // 5. Por defecto (cualquier otro componente decorativo)
+            else {
+              if (child.material?.name?.includes('24517718')) {
+                child.material = goldMat;
+              } else if (child.material?.name?.includes('000') || child.material?.name?.includes('312920')) {
+                child.material = waveReliefMat;
+              } else {
+                child.material = navyLettersMat;
+              }
+            }
+          }
+        });
 
-      const circleFaceMat = new THREE.MeshStandardMaterial({
-        map: circleTexture,
-        roughness: 0.22,
-        metalness: 0.15,
-      });
+        // Centrado geométrico y escalado proporcional automático
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
 
-      const circleFaceGeo = new THREE.CircleGeometry(discRadius * 0.99, 64);
+        const modelPivot = new THREE.Group();
+        // Desplazar el modelo para que su centro geométrico coincida exactamente con el origen (0, 0, 0)
+        model.position.set(-center.x, -center.y, -center.z);
+        modelPivot.add(model);
 
-      // Cara frontal
-      const frontFace = new THREE.Mesh(circleFaceGeo, circleFaceMat);
-      frontFace.position.set(0, 0.55, discDepth / 2 + 0.005);
-      logoRoot.add(frontFace);
+        // Escalar para que tenga una presencia óptima y nítida en el hero
+        const targetHeight = 4.05;
+        const scaleFactor = targetHeight / (size.y || 1);
+        modelPivot.scale.setScalar(scaleFactor);
 
-      // Cara trasera
-      const backFace = new THREE.Mesh(circleFaceGeo, circleFaceMat);
-      backFace.position.set(0, 0.55, -discDepth / 2 - 0.005);
-      backFace.rotation.y = Math.PI;
-      logoRoot.add(backFace);
+        logoRoot.add(modelPivot);
+        setLoading(false);
+      },
+      undefined,
+      (err) => {
+        console.error('Error cargando el modelo LIATER_logo_3D.glb:', err);
+        setLoading(false);
+      }
+    );
 
-      // 5.2 Textura exacta del texto inferior "LIATER" del logo original
-      const textCanvas = document.createElement('canvas');
-      textCanvas.width = 512;
-      textCanvas.height = 128;
-      const tCtx = textCanvas.getContext('2d');
-
-      // Extraer el texto "LIATER" original (139, 614 a 634, 708)
-      tCtx.drawImage(img, 130, 606, 512, 108, 0, 10, 512, 108);
-
-      const textTexture = new THREE.CanvasTexture(textCanvas);
-      textTexture.colorSpace = THREE.SRGBColorSpace;
-
-      const textPlaneGeo = new THREE.PlaneGeometry(3.1, 0.78);
-      const textPlaneMat = new THREE.MeshBasicMaterial({
-        map: textTexture,
-        transparent: true,
-      });
-
-      // Texto frontal
-      const frontText = new THREE.Mesh(textPlaneGeo, textPlaneMat);
-      frontText.position.set(0, -1.45, 0.05);
-      logoRoot.add(frontText);
-
-      // Texto trasero
-      const backText = new THREE.Mesh(textPlaneGeo, textPlaneMat);
-      backText.position.set(0, -1.45, -0.05);
-      backText.rotation.y = Math.PI;
-      logoRoot.add(backText);
-    };
-
-    // ─── 6. INTERACCIÓN CON EL MOUSE (Arrastre 360° + Inclinación suave) ──────
+    // ─── 7. INTERACCIÓN CON EL MOUSE Y TÁCTIL ──────────────────────────────────
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
-    let targetRotY = 0;
-    let targetRotX = 0;
+    let targetRotY = -0.52;
+    let targetRotX = 0.08;
     let mouseParallax = { x: 0, y: 0 };
 
-    const onMouseDown = (e) => {
+    const handlePointerDown = (clientX, clientY) => {
       isDragging = true;
-      previousMousePosition = { x: e.clientX, y: e.clientY };
+      previousMousePosition = { x: clientX, y: clientY };
     };
 
-    const onMouseMove = (e) => {
+    const handlePointerMove = (clientX, clientY) => {
       const rect = container.getBoundingClientRect();
-      const nx = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
-      const ny = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
-      mouseParallax.x = nx * 0.38;
-      mouseParallax.y = -ny * 0.22;
+      const nx = (clientX - rect.left - rect.width / 2) / (rect.width / 2);
+      const ny = (clientY - rect.top - rect.height / 2) / (rect.height / 2);
+      mouseParallax.x = nx * 0.32;
+      mouseParallax.y = -ny * 0.18;
 
       if (isDragging) {
-        const deltaX = e.clientX - previousMousePosition.x;
-        const deltaY = e.clientY - previousMousePosition.y;
-        targetRotY += deltaX * 0.015;
-        targetRotX += deltaY * 0.015;
-        previousMousePosition = { x: e.clientX, y: e.clientY };
+        const deltaX = clientX - previousMousePosition.x;
+        const deltaY = clientY - previousMousePosition.y;
+        targetRotY += deltaX * 0.012;
+        targetRotX += deltaY * 0.012;
+        previousMousePosition = { x: clientX, y: clientY };
       }
     };
 
-    const onMouseUp = () => {
+    const handlePointerUp = () => {
       isDragging = false;
     };
+
+    const onMouseDown = (e) => handlePointerDown(e.clientX, e.clientY);
+    const onMouseMove = (e) => handlePointerMove(e.clientX, e.clientY);
+    const onMouseUp = () => handlePointerUp();
+
+    const onTouchStart = (e) => {
+      if (e.touches.length === 1) {
+        handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+    const onTouchMove = (e) => {
+      if (e.touches.length === 1) {
+        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+    const onTouchEnd = () => handlePointerUp();
 
     container.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd);
 
     const onResize = () => {
       const w = container.clientWidth;
@@ -208,7 +267,7 @@ export default function LiaterHeroAnimation() {
     };
     window.addEventListener('resize', onResize);
 
-    // ─── 7. ANIMACIÓN A 60 FPS ────────────────────────────────────────────────
+    // ─── 8. LOOP DE ANIMACIÓN ────────────────────────────────────────────────
     let animationFrameId;
     const clock = new THREE.Clock();
 
@@ -216,17 +275,17 @@ export default function LiaterHeroAnimation() {
       animationFrameId = requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
-      // Giro continuo suave
+      // Giro suave cuando el usuario no está arrastrando
       if (!isDragging) {
-        targetRotY += 0.0075;
+        targetRotY += 0.0065;
       }
 
       // Suavizado cinético (Lerp)
       logoRoot.rotation.y += (targetRotY + mouseParallax.x - logoRoot.rotation.y) * 0.08;
       logoRoot.rotation.x += (targetRotX + mouseParallax.y - logoRoot.rotation.x) * 0.08;
 
-      // Flotación senoidal
-      logoRoot.position.y = Math.sin(elapsed * 1.6) * 0.1;
+      // Flotación armónica
+      logoRoot.position.y = Math.sin(elapsed * 1.5) * 0.08;
 
       renderer.render(scene, camera);
     };
@@ -235,29 +294,35 @@ export default function LiaterHeroAnimation() {
 
     // ─── LIMPIEZA ─────────────────────────────────────────────────────────────
     return () => {
+      isDisposed = true;
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', onResize);
       container.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
-      
-      // Liberar geometrías, materiales y texturas de la GPU
+      container.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+
       scene.traverse((obj) => {
         if (obj.isMesh) {
           if (obj.geometry) obj.geometry.dispose();
           if (obj.material) {
             if (Array.isArray(obj.material)) {
-              obj.material.forEach((m) => {
-                if (m.map) m.map.dispose();
-                m.dispose();
-              });
+              obj.material.forEach((m) => m.dispose());
             } else {
-              if (obj.material.map) obj.material.map.dispose();
               obj.material.dispose();
             }
           }
         }
       });
+
+      pmremGenerator.dispose();
+      envTexture.dispose();
+      roomEnv.dispose();
+      goldMat.dispose();
+      navyLettersMat.dispose();
+      waveReliefMat.dispose();
 
       renderer.dispose();
       if (renderer.domElement.parentNode) {
@@ -281,6 +346,21 @@ export default function LiaterHeroAnimation() {
         userSelect: 'none',
         background: 'transparent',
       }}
-    />
+    >
+      {loading && (
+        <div
+          style={{
+            position: 'absolute',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(252, 163, 17, 0.25) 0%, transparent 70%)',
+            filter: 'blur(20px)',
+            animation: 'pulse 1.8s infinite ease-in-out',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </div>
   );
 }
