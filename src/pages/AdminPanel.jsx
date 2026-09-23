@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
-  ListTree, Video, FileText, Settings, ShieldAlert, ArrowLeft, Megaphone
+  ListTree, Video, FileText, Settings, ShieldAlert, ArrowLeft, Megaphone, Paperclip
 } from 'lucide-react';
 import { isClassLiveOrSoon, isClassActiveOrUpcoming } from '../utils/dateUtils';
 
@@ -14,11 +14,13 @@ import AdminTeachers from '../components/admin/AdminTeachers';
 import AdminAnnouncements from '../components/admin/AdminAnnouncements';
 import AdminSettingsTab from '../components/admin/AdminSettingsTab';
 import CourseBuilder from '../components/admin/CourseBuilder';
+import AdminResources from '../components/admin/AdminResources';
 import './AdminPanel.css';
 
 const TABS = [
   { id: 'resumen',    label: 'Resumen',       icon: <LayoutDashboard size={16} /> },
   { id: 'curriculum', label: 'Constructor',   icon: <ListTree size={16} /> },
+  { id: 'recursos',   label: 'Material del Curso', icon: <Paperclip size={16} /> },
   { id: 'alumnos',    label: 'Alumnos',       icon: <Users size={16} /> },
   { id: 'profesores', label: 'Profesores',    icon: <GraduationCap size={16} /> },
   { id: 'anuncios',   label: 'Anuncios',      icon: <Megaphone size={16} /> },
@@ -243,6 +245,7 @@ export default function AdminPanel() {
     switch (activeTab) {
       case 'resumen':    return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} isPublished={data.program?.is_published !== false && data.program?.status !== 'draft'} onTabChange={handleTabChange} onTogglePublish={handleTogglePublish} activeLiveMeetUrl={activeLiveMeetUrl} activeLiveTitle={activeLiveClass?.title || null} />;
       case 'curriculum': return <CourseBuilder modules={data.modules} sessions={data.sessions} classes={data.classes} teachers={data.teachers} isCourse={isCourse} programId={programId} onRefresh={refreshData} />;
+      case 'recursos':   return <AdminResources programId={programId} programTitle={data.program?.title} programClasses={data.classes} onRefresh={refreshData} />;
       case 'alumnos':    return <AdminStudents enrolledStudents={data.enrolledStudents} programId={programId} programTitle={data.program?.title} onRefresh={refreshData} />;
       case 'profesores': return <AdminTeachers teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} programTitle={data.program?.title} />;
       case 'anuncios':   return <AdminAnnouncements programId={programId} onRefresh={refreshData} />;

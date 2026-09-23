@@ -939,16 +939,16 @@ export default function CourseResources() {
       <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Link
-            to={role === 'teacher' ? `/dashboard/profesor/${cleanProgramId}` : `/dashboard/${cleanProgramId}`}
+            to={role === 'admin' ? `/dashboard/admin/${cleanProgramId}?tab=recursos` : (role === 'teacher' ? `/dashboard/profesor/${cleanProgramId}` : `/dashboard/${cleanProgramId}`)}
             className="btn btn-outline"
             style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}
           >
-            <ArrowLeft size={14} /> {role === 'teacher' ? 'Volver al Panel Docente' : 'Volver al Inicio'}
+            <ArrowLeft size={14} /> {role === 'admin' ? 'Volver al Panel Administrador' : (role === 'teacher' ? 'Volver al Panel Docente' : 'Volver al Inicio')}
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>
             <ChevronRight size={14} />
             <Link
-              to={role === 'teacher' ? `/dashboard/profesor/${cleanProgramId}` : `/dashboard/${cleanProgramId}`}
+              to={role === 'admin' ? `/dashboard/admin/${cleanProgramId}?tab=recursos` : (role === 'teacher' ? `/dashboard/profesor/${cleanProgramId}` : `/dashboard/${cleanProgramId}`)}
               style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
               onMouseOver={e => e.currentTarget.style.color = 'var(--navy)'}
               onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -1058,7 +1058,7 @@ export default function CourseResources() {
         scrollbarWidth: 'none'
       }}>
         <Link
-          to={role === 'teacher' ? `/dashboard/profesor/${cleanProgramId}` : `/dashboard/${cleanProgramId}`}
+          to={role === 'admin' ? `/dashboard/admin/${cleanProgramId}?tab=recursos` : (role === 'teacher' ? `/dashboard/profesor/${cleanProgramId}` : `/dashboard/${cleanProgramId}`)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -1076,7 +1076,7 @@ export default function CourseResources() {
           onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
           onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
         >
-          <Home size={15} /> Resumen
+          <Home size={15} /> {role === 'admin' ? 'Panel Admin' : (role === 'teacher' ? 'Panel Docente' : 'Resumen')}
         </Link>
         <Link
           to={isCourse ? `/syllabus/${cleanProgramId}` : `/modules/${cleanProgramId}`}
