@@ -9821,11 +9821,28 @@ function RecursosTab() {
               </button>
             </div>
             <div style={{ flex: 1, position: 'relative', background: '#0F172A' }}>
+              {/* Bloqueador invisible sobre la esquina superior derecha para inhabilitar el botón de redirección/pop-out de Google Drive */}
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '80px',
+                  height: '60px',
+                  zIndex: 25,
+                  background: 'transparent',
+                  cursor: 'default'
+                }}
+                title=""
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              />
+
               <iframe
                 src={formatEmbedDocUrl(selectedDoc.url)}
-                title={selectedDoc.title}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                allowFullScreen
+                title={selectedDoc.title || 'Visor de Documento'}
+                style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                allow="autoplay"
               />
             </div>
           </div>
