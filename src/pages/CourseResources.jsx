@@ -1999,23 +1999,6 @@ export default function CourseResources() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                {selectedDoc.url && (
-                  <a
-                    href={selectedDoc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-outline"
-                    style={{
-                      fontSize: '0.78rem',
-                      padding: '0.4rem 0.8rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem'
-                    }}
-                  >
-                    <ExternalLink size={13} /> Abrir en pestaña nueva
-                  </a>
-                )}
                 <button
                   type="button"
                   onClick={() => setSelectedDoc(null)}
