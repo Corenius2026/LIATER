@@ -376,7 +376,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
     if (!matTitle.trim() || !matUrl.trim()) { setMatError('El título y el enlace son obligatorios.'); return; }
     setSubmitting(true); setMatError('');
     const targetType = sectionType === 'presentation' ? 'presentation' : (matType === 'presentation' ? 'file' : matType);
-    const payload = { class_id: selectedClass.id, title: matTitle.trim(), resource_type: targetType, provider: matProvider, url: matUrl.trim(), is_visible: true };
+    const payload = { class_id: selectedClass.id, program_id: selectedClass.program_id || currentProgram?.id, title: matTitle.trim(), resource_type: targetType, provider: matProvider, url: matUrl.trim(), is_visible: true };
     try {
       if (editId) {
         const { error } = await supabase.from('resources').update(payload).eq('id', editId).eq('class_id', selectedClass.id);
@@ -8878,15 +8878,27 @@ function RecursosTab() {
       });
       const classIds = Object.keys(classMap);
 
-      let q = supabase.from('resources').select('*');
-      if (classIds.length > 0) {
-        q = q.or(`program_id.eq.${programId},class_id.in.(${classIds.join(',')})`);
-      } else {
-        q = q.eq('program_id', programId);
-      }
+      const queryPromises = [];
 
-      const { data, error } = await q.order('created_at', { ascending: false });
-      if (error) throw error;
+      if (classIds.length > 0) {
+        queryPromises.push(
+          supabase.from('resources').select('*').in('class_id', classIds)
+        );
+      }
+      queryPromises.push(
+        supabase.from('resources').select('*').eq('program_id', programId)
+      );
+
+      const queryResults = await Promise.all(queryPromises);
+      const resMap = new Map();
+      queryResults.forEach(({ data, error }) => {
+        if (error) console.warn('Aviso al consultar recursos en TeacherPanel:', error);
+        (data || []).forEach(r => resMap.set(r.id, r));
+      });
+
+      const data = Array.from(resMap.values()).sort((a, b) => {
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
 
       const enriched = (data || []).map(r => {
         const isGen = !r.class_id || !classMap[r.class_id];

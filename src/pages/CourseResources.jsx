@@ -123,45 +123,55 @@ export default function CourseResources() {
       }
 
       // 2. Obtener todas las clases del programa con sus sesiones y módulos
-      const { data: classesData, error: classesErr } = await supabase
-        .from('class_sessions')
-        .select(`
-          id,
-          title,
-          class_date,
-          order_index,
-          session_id,
-          subtopic_id,
-          sessions (
-            id,
-            title,
-            order_index,
-            modules (
-              id,
-              title,
-              order_index
-            )
-          ),
-          subtopics (
-            id,
-            title,
-            order_index,
-            modules (
-              id,
-              title,
-              order_index
-            )
-          )
-        `)
-        .eq('program_id', cleanProgramId)
-        .order('order_index', { ascending: true, nullsFirst: false });
-
-      if (classesErr) throw classesErr;
-
+      let classesData = [];
       const classMap = {};
       const availableClasses = [];
 
-      (classesData || []).forEach(cls => {
+      try {
+        const { data: cData, error: cErr } = await supabase
+          .from('class_sessions')
+          .select(`
+            id,
+            title,
+            class_date,
+            order_index,
+            session_id,
+            subtopic_id,
+            sessions (
+              id,
+              title,
+              order_index,
+              modules (
+                id,
+                title,
+                order_index
+              )
+            )
+          `)
+          .eq('program_id', cleanProgramId)
+          .order('order_index', { ascending: true, nullsFirst: false });
+
+        if (cErr) {
+          const { data: fallbackData } = await supabase
+            .from('class_sessions')
+            .select('id, title, class_date, order_index')
+            .eq('program_id', cleanProgramId)
+            .order('order_index', { ascending: true, nullsFirst: false });
+          classesData = fallbackData || [];
+        } else {
+          classesData = cData || [];
+        }
+      } catch (e) {
+        console.warn('Aviso al consultar clases, usando fallback plano:', e);
+        const { data: fallbackData } = await supabase
+          .from('class_sessions')
+          .select('id, title, class_date, order_index')
+          .eq('program_id', cleanProgramId)
+          .order('order_index', { ascending: true, nullsFirst: false });
+        classesData = fallbackData || [];
+      }
+
+      classesData.forEach(cls => {
         const sesObj = cls.sessions || cls.subtopics;
         const modObj = sesObj?.modules;
 
@@ -186,24 +196,50 @@ export default function CourseResources() {
       setClassesList(availableClasses);
 
       // 3. Obtener tanto los recursos vinculados a las clases como los recursos generales del curso
+      // Se ejecutan en paralelo evitando .or() con in.() ya que la sintaxis de comas rompe el parser de PostgREST
       const classIds = Object.keys(classMap);
-      let resQuery = supabase.from('resources').select('*');
+      const queryPromises = [];
 
+      // A) Recursos de clases
       if (classIds.length > 0) {
-        resQuery = resQuery.or(`program_id.eq.${cleanProgramId},class_id.in.(${classIds.join(',')})`);
-      } else {
-        resQuery = resQuery.eq('program_id', cleanProgramId);
+        let qClasses = supabase
+          .from('resources')
+          .select('*')
+          .in('class_id', classIds);
+        if (!canManage) {
+          qClasses = qClasses.or('is_visible.is.null,is_visible.eq.true');
+        }
+        queryPromises.push(qClasses);
       }
 
+      // B) Recursos generales del programa
+      let qProgram = supabase
+        .from('resources')
+        .select('*')
+        .eq('program_id', cleanProgramId);
       if (!canManage) {
-        resQuery = resQuery.neq('is_visible', false);
+        qProgram = qProgram.or('is_visible.is.null,is_visible.eq.true');
       }
+      queryPromises.push(qProgram);
 
-      const { data: resData, error: resErr } = await resQuery.order('created_at', { ascending: false });
-      if (resErr) throw resErr;
+      const queryResults = await Promise.all(queryPromises);
+
+      const resourcesMap = new Map();
+      queryResults.forEach(({ data, error }) => {
+        if (error) {
+          console.warn('Aviso al consultar recursos:', error);
+        }
+        (data || []).forEach(r => {
+          resourcesMap.set(r.id, r);
+        });
+      });
+
+      const resData = Array.from(resourcesMap.values()).sort((a, b) => {
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
 
       // Enriquecer cada recurso con indicación de si es General o de Clase
-      const enriched = (resData || []).map(r => {
+      const enriched = resData.map(r => {
         const isGen = !r.class_id || !classMap[r.class_id];
         const cls = (!isGen && classMap[r.class_id]) ? classMap[r.class_id] : null;
 

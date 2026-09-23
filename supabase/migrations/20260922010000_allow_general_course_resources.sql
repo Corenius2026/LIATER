@@ -18,7 +18,19 @@ ALTER TABLE public.resources ADD CONSTRAINT resources_resource_type_check
 CREATE INDEX IF NOT EXISTS idx_resources_program_id ON public.resources(program_id);
 CREATE INDEX IF NOT EXISTS idx_resources_class_id ON public.resources(class_id);
 
--- 3. Actualizar política de profesores para gestionar tanto recursos de sus clases como recursos generales del programa donde enseñan
+-- 5. Poblar program_id en los recursos existentes donde sea nulo
+UPDATE public.resources r
+SET program_id = cs.program_id
+FROM public.class_sessions cs
+WHERE r.class_id = cs.id
+  AND r.program_id IS NULL;
+
+-- 6. Asegurar que is_visible no sea nulo en los registros existentes
+UPDATE public.resources
+SET is_visible = true
+WHERE is_visible IS NULL;
+
+-- 7. Actualizar política de profesores para gestionar tanto recursos de sus clases como recursos generales del programa donde enseñan
 DROP POLICY IF EXISTS "resources_teacher_manage" ON public.resources;
 CREATE POLICY "resources_teacher_manage"
   ON public.resources FOR ALL
@@ -53,12 +65,12 @@ CREATE POLICY "resources_teacher_manage"
     public.is_admin()
   );
 
--- 4. Actualizar política de lectura para estudiantes (incluyendo recursos generales)
+-- 8. Actualizar política de lectura para estudiantes (incluyendo recursos generales y por clase)
 DROP POLICY IF EXISTS "resources_student_read" ON public.resources;
 CREATE POLICY "resources_student_read"
   ON public.resources FOR SELECT
   USING (
-    is_visible = true
+    (is_visible IS NULL OR is_visible = true)
     AND (
       (program_id IS NOT NULL AND public.is_student_enrolled_in_program(program_id))
       OR
@@ -72,5 +84,5 @@ CREATE POLICY "resources_student_read"
     )
   );
 
--- 5. Recargar schema cache de PostgREST
+-- 9. Recargar schema cache de PostgREST
 NOTIFY pgrst, 'reload schema';

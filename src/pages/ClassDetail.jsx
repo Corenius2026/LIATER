@@ -396,6 +396,7 @@ export default function ClassDetail() {
         const provider = resFormUrl.includes('drive.google.com') ? 'drive' : (resFormUrl.includes('github.com') ? 'github' : 'link');
         const payload = {
           class_id: id,
+          program_id: clsData?.program_id || null,
           title: resFormTitle.trim(),
           resource_type: resFormType,
           provider: provider,
