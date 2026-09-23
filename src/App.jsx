@@ -50,6 +50,8 @@ const SyllabusRedirector = React.lazy(() => import('./pages/SyllabusRedirector')
 const UpcomingPrograms = React.lazy(() => import('./pages/UpcomingPrograms'));
 const PendingActivities = React.lazy(() => import('./pages/PendingActivities'));
 const MisResultados = React.lazy(() => import('./pages/MisResultados'));
+const Forum = React.lazy(() => import('./pages/Forum'));
+const ForumThread = React.lazy(() => import('./pages/ForumThread'));
 
 // --- Importación de Estilos Globales ---
 import './App.css';
@@ -117,6 +119,11 @@ function App() {
               <Route path="/classes/:programId" element={<ProtectedRoute allowedRoles={['teacher', 'admin']}><ClassesManagement /></ProtectedRoute>} />
               <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
               <Route path="/communications" element={<ProtectedRoute allowedRoles={['admin']}><Communications /></ProtectedRoute>} />
+              {/* --- RUTAS DEL FORO --- */}
+              {/* IMPORTANTE: /foro/soporte debe ir ANTES de /foro/:programId para evitar que "soporte" se trate como un programId */}
+              <Route path="/foro/soporte" element={<Forum isSupportForum={true} />} />
+              <Route path="/foro/:programId" element={<Forum />} />
+              <Route path="/foro/hilo/:threadId" element={<ForumThread />} />
             </Route>
             
             {/* Ruta por defecto */}

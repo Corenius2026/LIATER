@@ -10,7 +10,7 @@ import {
   Home, BookOpen, Users, LogOut, Settings, LayoutDashboard,
   GraduationCap, UserCircle, HelpCircle, ListTree, ArrowLeft,
   Video, FileText, Megaphone, CalendarDays, MessageSquare, BarChart2,
-  Paperclip
+  Paperclip, MessagesSquare
 } from 'lucide-react';
 import unalPillLogo from '../assets/unal-pill-logo.png';
 
@@ -40,7 +40,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
   }, [location.pathname]);
 
   // Lista de rutas donde NO se debe mostrar el menú específico del curso
-  const globalRoutes = ['/portal', '/perfil', '/soporte', '/users', '/communications'];
+  const globalRoutes = ['/portal', '/perfil', '/soporte', '/users', '/communications', '/foro/soporte'];
   const isGlobalRoute = globalRoutes.includes(location.pathname);
 
   const handleLogout = () => {
@@ -203,6 +203,15 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                   </NavLink>
 
                   <NavLink
+                    to={`/foro/${teacherProgId}`}
+                    className={() => location.pathname === `/foro/${teacherProgId}` || location.pathname.startsWith('/foro/hilo/') ? 'nav-item active' : 'nav-item'}
+                    aria-current={location.pathname === `/foro/${teacherProgId}` ? 'page' : undefined}
+                  >
+                    <MessagesSquare size={18} />
+                    <span>Foro del Programa</span>
+                  </NavLink>
+
+                  <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=estudiantes`}
                     className={() => currentTab === 'estudiantes' ? 'nav-item active' : 'nav-item'}
                     aria-current={currentTab === 'estudiantes' ? 'page' : undefined}
@@ -347,6 +356,14 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                       <Megaphone size={18} />
                       <span>Comunicaciones</span>
                     </NavLink>
+
+                    <NavLink
+                      to="/foro/soporte"
+                      className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}
+                    >
+                      <MessagesSquare size={18} />
+                      <span>Foro de Soporte</span>
+                    </NavLink>
                   </>
                 )}
 
@@ -400,6 +417,13 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                     <NavLink to={`/resultados/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                       <BarChart2 size={18} />
                       <span>Mis Resultados</span>
+                    </NavLink>
+                    <NavLink
+                      to={`/foro/${activeProgramId}`}
+                      className={({isActive}) => (isActive || location.pathname.startsWith('/foro/hilo/')) ? 'nav-item active' : 'nav-item'}
+                    >
+                      <MessagesSquare size={18} />
+                      <span>Foro del Programa</span>
                     </NavLink>
                     <NavLink to={`/teachers/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                       <Users size={18} />

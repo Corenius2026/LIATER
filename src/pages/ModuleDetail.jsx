@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle, CalendarPlus } from 'lucide-react';
+import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle, CalendarPlus, MessagesSquare } from 'lucide-react';
 import { getGoogleCalendarUrl, safeFormatDateTime } from '../utils/dateUtils';
+import ForumNewThreadModal from '../components/forum/ForumNewThreadModal';
 
 export default function ModuleDetail() {
   const { id } = useParams();
@@ -16,6 +17,14 @@ export default function ModuleDetail() {
 
   const [programType, setProgramType] = useState(null);
   const [programTitle, setProgramTitle] = useState('');
+  const [userProfileId, setUserProfileId] = useState(null);
+
+  // Estado para el modal del foro (abrir hilo vinculado a una clase)
+  const [forumModal, setForumModal] = useState({
+    open: false,
+    classId: null,
+    classTitle: '',
+  });
 
   useEffect(() => {
     async function fetchModuleData() {
@@ -134,6 +143,17 @@ export default function ModuleDetail() {
 
     fetchModuleData();
   }, [id]);
+
+  // Obtener el users_profile.id del usuario autenticado (para el modal del foro)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    supabase
+      .from('users_profile')
+      .select('id')
+      .eq('auth_user_id', currentUser.id)
+      .single()
+      .then(({ data }) => { if (data) setUserProfileId(data.id); });
+  }, [currentUser?.id]);
 
   const isCourse = programType === 'course' || moduleData?.order_index === 0;
 
@@ -344,6 +364,17 @@ export default function ModuleDetail() {
                         <Link to={`/class/${cls.id}`} className="btn btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                           <PlayCircle size={14} /> Ver Clase
                         </Link>
+
+                        <button
+                          onClick={() => setForumModal({ open: true, classId: cls.id, classTitle: cls.title })}
+                          title="Abrir hilo del foro para esta clase"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', borderRadius: 'var(--radius-md, 8px)', background: '#FFFFFF', border: '1.5px solid #CBD5E1', color: 'var(--navy, #14213D)', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+                          onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(37,99,235,0.5)'; e.currentTarget.style.background = 'rgba(37,99,235,0.05)'; }}
+                          onMouseOut={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.background = '#FFFFFF'; }}
+                        >
+                          <MessagesSquare size={13} color="#2563eb" />
+                          <span>Foro</span>
+                        </button>
                       </div>
                     </div>
                   )})
@@ -353,6 +384,16 @@ export default function ModuleDetail() {
           ))
         )}
       </div>
+
+      <ForumNewThreadModal
+        isOpen={forumModal.open}
+        onClose={() => setForumModal({ open: false, classId: null, classTitle: '' })}
+        programId={moduleData?.program_id || null}
+        userProfileId={userProfileId}
+        preTitle={forumModal.classTitle ? `Pregunta sobre: ${forumModal.classTitle}` : ''}
+        preClassId={forumModal.classId}
+        onCreated={() => {}}
+      />
     </div>
   );
 }

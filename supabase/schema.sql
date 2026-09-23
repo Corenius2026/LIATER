@@ -352,3 +352,65 @@ CREATE TABLE IF NOT EXISTS public.activity_drafts (
   CONSTRAINT activity_drafts_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id),
   CONSTRAINT activity_drafts_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users_profile(id)
 );
+
+-- 24. Hilos del Foro (forum_threads)
+-- program_id = null → hilo global de soporte (visible para todos los roles)
+-- class_id   = null → hilo no vinculado a una clase específica
+CREATE TABLE IF NOT EXISTS public.forum_threads (
+  id          uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id  uuid,
+  class_id    uuid,
+  author_id   uuid NOT NULL,
+  title       character varying(200) NOT NULL,
+  body        text NOT NULL,
+  category    character varying(30) NOT NULL DEFAULT 'academic'
+              CHECK (category IN ('academic', 'debate', 'support')),
+  is_pinned   boolean NOT NULL DEFAULT false,
+  is_locked   boolean NOT NULL DEFAULT false,
+  is_resolved boolean NOT NULL DEFAULT false,
+  views_count integer NOT NULL DEFAULT 0,
+  created_at  timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at  timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forum_threads_pkey PRIMARY KEY (id),
+  CONSTRAINT forum_threads_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE,
+  CONSTRAINT forum_threads_class_id_fkey   FOREIGN KEY (class_id)   REFERENCES public.class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT forum_threads_author_id_fkey  FOREIGN KEY (author_id)  REFERENCES public.users_profile(id) ON DELETE CASCADE
+);
+
+-- 25. Posts / Respuestas del Foro (forum_posts)
+CREATE TABLE IF NOT EXISTS public.forum_posts (
+  id          uuid NOT NULL DEFAULT uuid_generate_v4(),
+  thread_id   uuid NOT NULL,
+  author_id   uuid NOT NULL,
+  parent_id   uuid,
+  body        text NOT NULL,
+  is_solution boolean NOT NULL DEFAULT false,
+  is_deleted  boolean NOT NULL DEFAULT false,
+  created_at  timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at  timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forum_posts_pkey           PRIMARY KEY (id),
+  CONSTRAINT forum_posts_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE,
+  CONSTRAINT forum_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.users_profile(id) ON DELETE CASCADE,
+  CONSTRAINT forum_posts_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.forum_posts(id)   ON DELETE CASCADE
+);
+
+-- 26. Reacciones del Foro (forum_reactions)
+CREATE TABLE IF NOT EXISTS public.forum_reactions (
+  post_id       uuid NOT NULL,
+  user_id       uuid NOT NULL,
+  reaction_type character varying(20) NOT NULL DEFAULT 'useful',
+  created_at    timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forum_reactions_pkey         PRIMARY KEY (post_id, user_id),
+  CONSTRAINT forum_reactions_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id)    ON DELETE CASCADE,
+  CONSTRAINT forum_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users_profile(id) ON DELETE CASCADE
+);
+
+-- 27. Estado de Lectura del Foro (forum_read_status)
+CREATE TABLE IF NOT EXISTS public.forum_read_status (
+  user_id      uuid NOT NULL,
+  thread_id    uuid NOT NULL,
+  last_read_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forum_read_status_pkey           PRIMARY KEY (user_id, thread_id),
+  CONSTRAINT forum_read_status_user_id_fkey   FOREIGN KEY (user_id)   REFERENCES public.users_profile(id)   ON DELETE CASCADE,
+  CONSTRAINT forum_read_status_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE
+);
