@@ -71,12 +71,13 @@ export default function CourseResources() {
   const [programType, setProgramType] = useState('diplomado');
   const [resources, setResources] = useState([]);
   const [classesList, setClassesList] = useState([]);
+  const [sessionsList, setSessionsList] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
 
   // Filtros y Búsqueda
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'presentation' | 'file' | 'link' | 'code'
-  const [classFilter, setClassFilter] = useState('all'); // 'all' | 'general' | classId
+  const [sessionFilter, setSessionFilter] = useState('all'); // 'all' | 'general' | sessionId
   const [copiedId, setCopiedId] = useState(null);
 
   // Modal de Subida / Edición de Recursos
@@ -171,16 +172,58 @@ export default function CourseResources() {
         classesData = fallbackData || [];
       }
 
+      // 2.1 Obtener sesiones del programa para filtro por sesión
+      let sessionsData = [];
+      try {
+        const { data: sData, error: sErr } = await supabase
+          .from('sessions')
+          .select('id, title, order_index')
+          .eq('program_id', cleanProgramId)
+          .order('order_index', { ascending: true });
+        if (sErr || !sData || sData.length === 0) {
+          const { data: subData } = await supabase
+            .from('subtopics')
+            .select('id, title, order_index')
+            .eq('program_id', cleanProgramId)
+            .order('order_index', { ascending: true });
+          sessionsData = subData || [];
+        } else {
+          sessionsData = sData;
+        }
+      } catch {
+        try {
+          const { data: subData } = await supabase
+            .from('subtopics')
+            .select('id, title, order_index')
+            .eq('program_id', cleanProgramId)
+            .order('order_index', { ascending: true });
+          sessionsData = subData || [];
+        } catch {}
+      }
+
+      const sessionsMap = new Map();
+      (sessionsData || []).forEach(s => {
+        sessionsMap.set(String(s.id), {
+          id: String(s.id),
+          title: s.title || 'Sesión sin título',
+          orderIndex: s.order_index ?? 999,
+          classIds: new Set()
+        });
+      });
+
       classesData.forEach(cls => {
         const sesObj = cls.sessions || cls.subtopics;
         const modObj = sesObj?.modules;
+        const sId = sesObj?.id ? String(sesObj.id) : (cls.session_id ? String(cls.session_id) : (cls.subtopic_id ? String(cls.subtopic_id) : null));
+        const sTitle = sesObj?.title || null;
 
         classMap[cls.id] = {
           id: cls.id,
           title: cls.title || 'Clase sin título',
           class_date: cls.class_date,
           order_index: cls.order_index,
-          sessionTitle: sesObj?.title || null,
+          sessionId: sId,
+          sessionTitle: sTitle,
           moduleTitle: modObj?.title || null,
         };
 
@@ -189,11 +232,27 @@ export default function CourseResources() {
           title: cls.title || 'Clase sin título',
           date: cls.class_date,
           orderIndex: cls.order_index,
-          sessionTitle: sesObj?.title || null
+          sessionId: sId,
+          sessionTitle: sTitle
         });
+
+        if (sId) {
+          if (!sessionsMap.has(sId)) {
+            sessionsMap.set(sId, {
+              id: sId,
+              title: sTitle || 'Sesión',
+              orderIndex: sesObj?.order_index ?? 999,
+              classIds: new Set([cls.id])
+            });
+          } else {
+            sessionsMap.get(sId).classIds.add(cls.id);
+          }
+        }
       });
 
       setClassesList(availableClasses);
+      const availableSessions = Array.from(sessionsMap.values()).sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+      setSessionsList(availableSessions);
 
       // 3. Obtener tanto los recursos vinculados a las clases como los recursos generales del curso
       // Se ejecutan en paralelo evitando .or() con in.() ya que la sintaxis de comas rompe el parser de PostgREST
@@ -238,7 +297,7 @@ export default function CourseResources() {
         return new Date(b.created_at || 0) - new Date(a.created_at || 0);
       });
 
-      // Enriquecer cada recurso con indicación de si es General o de Clase
+      // Enriquecer cada recurso con indicación de si es General o de Clase y su Sesión
       const enriched = resData.map(r => {
         const isGen = !r.class_id || !classMap[r.class_id];
         const cls = (!isGen && classMap[r.class_id]) ? classMap[r.class_id] : null;
@@ -249,6 +308,7 @@ export default function CourseResources() {
           classId: isGen ? null : r.class_id,
           classTitle: isGen ? 'Contenido General del Curso' : (cls?.title || 'Clase'),
           classDate: cls?.class_date || null,
+          sessionId: cls?.sessionId || null,
           sessionTitle: cls?.sessionTitle || null,
           moduleTitle: cls?.moduleTitle || null,
         };
@@ -298,11 +358,16 @@ export default function CourseResources() {
         }
       }
 
-      // Filtro por clase o general
-      if (classFilter === 'general') {
+      // Filtro por sesión o general
+      if (sessionFilter === 'general') {
         if (!res.isGeneral) return false;
-      } else if (classFilter !== 'all') {
-        if (String(res.classId) !== String(classFilter)) return false;
+      } else if (sessionFilter !== 'all') {
+        const targetSession = sessionsList.find(s => String(s.id) === String(sessionFilter));
+        const matchesSessionId = res.sessionId && String(res.sessionId) === String(sessionFilter);
+        const matchesClassInSession = targetSession && targetSession.classIds && targetSession.classIds.has(res.classId);
+        if (!matchesSessionId && !matchesClassInSession) {
+          return false;
+        }
       }
 
       // Filtro por texto de búsqueda
@@ -320,7 +385,7 @@ export default function CourseResources() {
 
       return true;
     });
-  }, [resources, typeFilter, classFilter, searchQuery]);
+  }, [resources, typeFilter, sessionFilter, searchQuery, sessionsList]);
 
   const filteredGeneral = useMemo(() => filteredResources.filter(r => r.isGeneral), [filteredResources]);
   const filteredClass = useMemo(() => filteredResources.filter(r => !r.isGeneral), [filteredResources]);
@@ -1180,11 +1245,11 @@ export default function CourseResources() {
             )}
           </div>
 
-          {/* Selector de Ámbito / Clase */}
-          <div style={{ flex: '0 1 320px', minWidth: '240px' }}>
+          {/* Selector de Ámbito / Sesión */}
+          <div style={{ flex: '0 1 340px', minWidth: '240px' }}>
             <select
-              value={classFilter}
-              onChange={e => setClassFilter(e.target.value)}
+              value={sessionFilter}
+              onChange={e => setSessionFilter(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.65rem 0.85rem',
@@ -1200,13 +1265,16 @@ export default function CourseResources() {
             >
               <option value="all">Todo el Material ({resources.length})</option>
               <option value="general">Contenido General del Curso ({generalResources.length})</option>
-              {classesList.length > 0 && (
-                <optgroup label="Materiales por Clase">
-                  {classesList.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.title} {c.sessionTitle ? `(${c.sessionTitle})` : ''}
-                    </option>
-                  ))}
+              {sessionsList.length > 0 && (
+                <optgroup label="Filtrar por Sesión">
+                  {sessionsList.map(s => {
+                    const count = resources.filter(r => r.sessionId === s.id || (s.classIds && s.classIds.has(r.classId))).length;
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {s.title} ({count} {count === 1 ? 'material' : 'materiales'})
+                      </option>
+                    );
+                  })}
                 </optgroup>
               )}
             </select>
@@ -1267,7 +1335,12 @@ export default function CourseResources() {
             {canManage && (
               <button
                 type="button"
-                onClick={() => handleOpenUpload(classFilter === 'all' || classFilter === 'general' ? 'general' : classFilter)}
+                onClick={() => {
+                  const targetCls = sessionFilter !== 'all' && sessionFilter !== 'general'
+                    ? (classesList.find(c => String(c.sessionId) === String(sessionFilter))?.id || classesList[0]?.id || 'general')
+                    : 'general';
+                  handleOpenUpload(targetCls);
+                }}
                 className="btn btn-outline"
                 style={{ fontSize: '0.76rem', padding: '0.25rem 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
               >
@@ -1301,15 +1374,15 @@ export default function CourseResources() {
           <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: 0, maxWidth: '460px', marginInline: 'auto' }}>
             {resources.length === 0
               ? 'Los profesores y administradores publicarán las guías generales, lecturas y presentaciones a lo largo del curso.'
-              : 'Prueba buscando con otro término o seleccionando otra categoría o clase en los filtros superiores.'
+              : 'Prueba buscando con otro término o seleccionando otra categoría o sesión en los filtros superiores.'
             }
           </p>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginTop: '1.25rem' }}>
-            {(searchQuery || typeFilter !== 'all' || classFilter !== 'all') && (
+            {(searchQuery || typeFilter !== 'all' || sessionFilter !== 'all') && (
               <button
                 type="button"
-                onClick={() => { setSearchQuery(''); setTypeFilter('all'); setClassFilter('all'); }}
+                onClick={() => { setSearchQuery(''); setTypeFilter('all'); setSessionFilter('all'); }}
                 className="btn btn-outline"
                 style={{ fontSize: '0.8rem', padding: '0.45rem 1rem' }}
               >
@@ -1334,7 +1407,7 @@ export default function CourseResources() {
           {/* ═════════════════════════════════════════════════════════════
               SECCIÓN 1: CONTENIDO GENERAL DEL CURSO (DESTACADO)
              ═════════════════════════════════════════════════════════════ */}
-          {(classFilter === 'all' || classFilter === 'general') && (
+          {(sessionFilter === 'all' || sessionFilter === 'general') && (
             <div>
               <div style={{
                 display: 'flex',
@@ -1444,9 +1517,9 @@ export default function CourseResources() {
           )}
 
           {/* ═════════════════════════════════════════════════════════════
-              SECCIÓN 2: MATERIALES POR CLASE (SESIONES ESPECÍFICAS)
+              SECCIÓN 2: MATERIALES POR SESIÓN O CLASE
              ═════════════════════════════════════════════════════════════ */}
-          {classFilter !== 'general' && filteredClass.length > 0 && (
+          {sessionFilter !== 'general' && filteredClass.length > 0 && (
             <div>
               <div style={{
                 display: 'flex',
@@ -1464,11 +1537,15 @@ export default function CourseResources() {
                     background: '#F1F5F9',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy, #14213D)'
                   }}>
-                    <Video size={18} />
+                    <Layers size={18} />
                   </div>
                   <div>
                     <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, color: 'var(--navy, #14213D)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>Materiales por Clase</span>
+                      <span>
+                        {sessionFilter !== 'all'
+                          ? (sessionsList.find(s => String(s.id) === String(sessionFilter))?.title || 'Materiales de la Sesión')
+                          : 'Materiales por Sesión'}
+                      </span>
                       <span style={{
                         fontSize: '0.72rem',
                         padding: '2px 8px',
@@ -1481,7 +1558,9 @@ export default function CourseResources() {
                       </span>
                     </h2>
                     <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                      Presentaciones y lecturas asociadas a sesiones de clase específicas.
+                      {sessionFilter !== 'all'
+                        ? 'Presentaciones, lecturas y recursos asignados a esta sesión.'
+                        : 'Presentaciones y lecturas asociadas a sesiones de clase específicas.'}
                     </span>
                   </div>
                 </div>
@@ -1489,7 +1568,15 @@ export default function CourseResources() {
                 {canManage && (
                   <button
                     type="button"
-                    onClick={() => handleOpenUpload(classesList[0]?.id || 'general')}
+                    onClick={() => {
+                      if (sessionFilter !== 'all' && sessionFilter !== 'general') {
+                        const targetSession = sessionsList.find(s => String(s.id) === String(sessionFilter));
+                        const firstClassId = targetSession?.classIds ? Array.from(targetSession.classIds)[0] : null;
+                        handleOpenUpload(firstClassId || classesList[0]?.id || 'general');
+                      } else {
+                        handleOpenUpload(classesList[0]?.id || 'general');
+                      }
+                    }}
                     className="btn btn-outline"
                     style={{ fontSize: '0.78rem', padding: '0.35rem 0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
