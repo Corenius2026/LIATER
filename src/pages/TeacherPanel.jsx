@@ -8913,6 +8913,8 @@ function RecursosTab() {
 
   const generalResources = useMemo(() => resources.filter(r => r.isGeneral), [resources]);
   const classResources = useMemo(() => resources.filter(r => !r.isGeneral), [resources]);
+  const generalCount = generalResources.length;
+  const classCount = classResources.length;
 
   const filteredResources = useMemo(() => {
     return resources.filter(r => {
