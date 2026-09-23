@@ -75,7 +75,7 @@ export default function LiaterHeroAnimation() {
     logoRoot.rotation.x = 0.08;
     scene.add(logoRoot);
 
-    // ─── 5. MATERIALES FÍSICOS (PBR) PARA LIATER ──────────────────────────────
+    // ─── 5. MATERIALES FÍSICOS (PBR) RESPETANDO LOS COLORES ORIGINALES DEL MODELO ───
     // Oro metálico para el medallón y las letras "E" y "R"
     const goldMat = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color(0xf5b112),
@@ -89,25 +89,22 @@ export default function LiaterHeroAnimation() {
       side: THREE.DoubleSide,
     });
 
-    // Azul marino oscuro oficial para las letras "L", "I", "A", "T"
-    const navyLettersMat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0x14213d),
-      emissive: new THREE.Color(0x060c18),
-      emissiveIntensity: 0.2,
-      metalness: 0.68,
-      roughness: 0.28,
-      clearcoat: 0.65,
-      clearcoatRoughness: 0.15,
+    // Blanco brillante lacado para las letras "L", "I", "A", "T" y detalles blancos originales
+    const whiteMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0xffffff),
+      roughness: 0.14,
+      metalness: 0.05,
+      clearcoat: 0.88,
+      clearcoatRoughness: 0.08,
+      reflectivity: 0.9,
       side: THREE.DoubleSide,
     });
 
-    // Símbolo central en relieve dentro del emblema (azul marino profundo / negro satinado)
-    const waveReliefMat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0x0d1729),
-      emissive: new THREE.Color(0x040810),
-      emissiveIntensity: 0.1,
+    // Negro profundo satinado para el símbolo en relieve central (M000 y M312920)
+    const blackMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0x0a0a0a),
+      roughness: 0.22,
       metalness: 0.45,
-      roughness: 0.26,
       clearcoat: 0.75,
       clearcoatRoughness: 0.12,
       side: THREE.DoubleSide,
@@ -124,55 +121,26 @@ export default function LiaterHeroAnimation() {
 
         const model = gltf.scene;
 
-        // Asignar materiales PBR según la jerarquía de nodos del modelo
+        // Asignar materiales PBR respetando estrictamente los colores originales del modelo 3D
         model.traverse((child) => {
           if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
 
-            const parentName = child.parent?.name || '';
-            const meshName = child.name || '';
+            const matName = child.material?.name || '';
+            const origColorHex = child.material?.color?.getHexString()?.toLowerCase() || '';
 
-            // 1. Letras "L", "I", "A", "T" -> Azul Marino LIATER
-            if (
-              parentName.includes('Letra_L') ||
-              parentName.includes('Letra_I') ||
-              parentName.includes('Letra_A') ||
-              parentName.includes('Letra_T')
-            ) {
-              child.material = navyLettersMat;
+            // Si es blanco (#ffffff o M255255255) -> Mantener BLANCO puro
+            if (origColorHex === 'ffffff' || matName.includes('255255255')) {
+              child.material = whiteMat;
             }
-            // 2. Letras "E", "R" -> Oro Metálico
-            else if (
-              parentName.includes('Letra_E') ||
-              parentName.includes('Letra_R')
-            ) {
+            // Si es dorado (#f5b112 o M24517718) -> Oro metálico
+            else if (origColorHex === 'f5b112' || matName.includes('24517718')) {
               child.material = goldMat;
             }
-            // 3. Símbolo de onda en relieve central -> Azul marino profundo
-            else if (
-              parentName.includes('Simbolo_en_relieve') ||
-              parentName.includes('Pieza18') ||
-              meshName.includes('Simbolo')
-            ) {
-              child.material = waveReliefMat;
-            }
-            // 4. Medallón / Emblema dorado -> Oro Metálico
-            else if (
-              parentName.includes('Emblema_dorado') ||
-              meshName.includes('Emblema')
-            ) {
-              child.material = goldMat;
-            }
-            // 5. Por defecto (cualquier otro componente decorativo)
+            // Si es negro o grafito (#000000, M000, M312920) -> Negro satinado
             else {
-              if (child.material?.name?.includes('24517718')) {
-                child.material = goldMat;
-              } else if (child.material?.name?.includes('000') || child.material?.name?.includes('312920')) {
-                child.material = waveReliefMat;
-              } else {
-                child.material = navyLettersMat;
-              }
+              child.material = blackMat;
             }
           }
         });
@@ -321,8 +289,8 @@ export default function LiaterHeroAnimation() {
       envTexture.dispose();
       roomEnv.dispose();
       goldMat.dispose();
-      navyLettersMat.dispose();
-      waveReliefMat.dispose();
+      whiteMat.dispose();
+      blackMat.dispose();
 
       renderer.dispose();
       if (renderer.domElement.parentNode) {
