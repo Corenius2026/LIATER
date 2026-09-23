@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
@@ -18,7 +18,7 @@ import {
   ChevronLeft, ChevronRight, Award, GraduationCap, Percent,
   Calendar, FileSpreadsheet, Folder, Brain, BarChart3,
   TrendingUp, Target, Lightbulb, Activity, HelpCircle,
-  AlertTriangle, Star, Mail, Copy
+  AlertTriangle, Star, Mail, Copy, Paperclip, FolderDown
 } from 'lucide-react';
 
 import './TeacherPanel.css';
@@ -8837,9 +8837,994 @@ function AnunciosTab() {
   );
 }
 
+/* ─────────────────────────────────────────
+   PESTAÑA: RECURSOS Y MATERIALES DEL CURSO
+   Permite subir y organizar contenido general del curso (no por clase)
+   y materiales asociados a clases específicas.
+───────────────────────────────────────── */
+function RecursosTab() {
+  const { programId, currentProgram, programClasses } = useTeacherContext();
+  const [resources, setResources] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scopeFilter, setScopeFilter] = useState('all'); // 'all' | 'general' | 'classes'
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [selectedDoc, setSelectedDoc] = useState(null);
+
+  // Modal de Subida / Edición
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
+  const [editingResource, setEditingResource] = useState(null);
+  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'link'
+  const [targetDestination, setTargetDestination] = useState('general'); // 'general' | classId
+  const [formTitle, setFormTitle] = useState('');
+  const [formType, setFormType] = useState('file');
+  const [formUrl, setFormUrl] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [modalSuccess, setModalSuccess] = useState('');
+  const fileInputRef = useRef(null);
+
+  const fetchResources = async () => {
+    if (!programId) return;
+    try {
+      setLoading(true);
+      const classMap = {};
+      (programClasses || []).forEach(c => {
+        classMap[c.id] = c;
+      });
+      const classIds = Object.keys(classMap);
+
+      let q = supabase.from('resources').select('*');
+      if (classIds.length > 0) {
+        q = q.or(`program_id.eq.${programId},class_id.in.(${classIds.join(',')})`);
+      } else {
+        q = q.eq('program_id', programId);
+      }
+
+      const { data, error } = await q.order('created_at', { ascending: false });
+      if (error) throw error;
+
+      const enriched = (data || []).map(r => {
+        const isGen = !r.class_id || !classMap[r.class_id];
+        const cls = !isGen ? classMap[r.class_id] : null;
+        return {
+          ...r,
+          isGeneral: isGen,
+          classTitle: isGen ? 'Contenido General del Curso' : (cls?.title || 'Clase'),
+          classDate: cls?.class_date || null
+        };
+      });
+
+      setResources(enriched);
+    } catch (err) {
+      console.error('Error al cargar recursos en TeacherPanel:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchResources();
+  }, [programId, programClasses]);
+
+  const generalResources = useMemo(() => resources.filter(r => r.isGeneral), [resources]);
+  const classResources = useMemo(() => resources.filter(r => !r.isGeneral), [resources]);
+
+  const filteredResources = useMemo(() => {
+    return resources.filter(r => {
+      if (scopeFilter === 'general' && !r.isGeneral) return false;
+      if (scopeFilter === 'classes' && r.isGeneral) return false;
+
+      if (typeFilter !== 'all') {
+        const t = r.resource_type || r.type;
+        if (typeFilter === 'file') {
+          if (t !== 'file' && t !== 'pdf' && t !== 'document') return false;
+        } else if (t !== typeFilter) {
+          return false;
+        }
+      }
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = (r.title || '').toLowerCase().includes(q);
+        const descMatch = (r.description || '').toLowerCase().includes(q);
+        const classMatch = (r.classTitle || '').toLowerCase().includes(q);
+        if (!titleMatch && !descMatch && !classMatch) return false;
+      }
+
+      return true;
+    });
+  }, [resources, scopeFilter, typeFilter, searchQuery]);
+
+  const filteredGeneral = useMemo(() => filteredResources.filter(r => r.isGeneral), [filteredResources]);
+  const filteredClass = useMemo(() => filteredResources.filter(r => !r.isGeneral), [filteredResources]);
+
+  const handleOpenUpload = (defaultTarget = 'general') => {
+    setModalMode('create');
+    setEditingResource(null);
+    setTargetDestination(defaultTarget);
+    setUploadMode('file');
+    setFormTitle('');
+    setFormType('file');
+    setFormUrl('');
+    setFormDescription('');
+    setSelectedFile(null);
+    setModalError('');
+    setModalSuccess('');
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (r) => {
+    setModalMode('edit');
+    setEditingResource(r);
+    setTargetDestination(r.class_id ? String(r.class_id) : 'general');
+    setUploadMode('link');
+    setFormTitle(r.title || '');
+    setFormType(r.resource_type || r.type || 'file');
+    setFormUrl(r.url || '');
+    setFormDescription(r.description || '');
+    setSelectedFile(null);
+    setModalError('');
+    setModalSuccess('');
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setModalError('');
+    setModalSuccess('');
+
+    if (modalMode === 'edit') {
+      if (!formTitle.trim()) {
+        setModalError('El título es requerido.');
+        return;
+      }
+      if (!formUrl.trim()) {
+        setModalError('La URL es requerida.');
+        return;
+      }
+      try {
+        setIsSubmitting(true);
+        const { error } = await supabase
+          .from('resources')
+          .update({
+            title: formTitle.trim(),
+            resource_type: formType,
+            url: formUrl.trim(),
+            description: formDescription ? formDescription.trim() : null,
+            class_id: targetDestination === 'general' ? null : targetDestination,
+            program_id: programId
+          })
+          .eq('id', editingResource.id);
+
+        if (error) throw error;
+        setModalSuccess('Material actualizado correctamente.');
+        await fetchResources();
+        setTimeout(() => setShowModal(false), 1200);
+      } catch (err) {
+        setModalError(err.message || 'Error al actualizar');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    if (uploadMode === 'file') {
+      if (!selectedFile) {
+        setModalError('Selecciona un archivo PDF para subir a Google Drive.');
+        return;
+      }
+      try {
+        setIsSubmitting(true);
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('programId', programId);
+        formData.append('classId', targetDestination === 'general' ? 'general' : targetDestination);
+        formData.append('resourceType', formType === 'presentation' ? 'presentation' : 'file');
+        if (formTitle.trim()) formData.append('customTitle', formTitle.trim());
+
+        const { data, error } = await supabase.functions.invoke('upload-pdf-drive', {
+          body: formData,
+        });
+
+        if (error) {
+          let msg = error.message;
+          try {
+            if (error.context && typeof error.context.json === 'function') {
+              const body = await error.context.json();
+              if (body?.error) msg = body.error;
+            }
+          } catch (_) {}
+          throw new Error(msg);
+        }
+        if (data?.error) throw new Error(data.error);
+
+        if (formDescription && data?.resource?.id) {
+          await supabase.from('resources').update({ description: formDescription.trim() }).eq('id', data.resource.id);
+        }
+
+        setModalSuccess(`✓ Subido a Google Drive: "${data.formattedFileName || selectedFile.name}"`);
+        await fetchResources();
+        setTimeout(() => setShowModal(false), 1400);
+      } catch (err) {
+        setModalError('Error al subir a Google Drive: ' + (err.message || String(err)));
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      if (!formTitle.trim()) {
+        setModalError('El título es requerido.');
+        return;
+      }
+      if (!formUrl.trim()) {
+        setModalError('La URL es requerida.');
+        return;
+      }
+      try {
+        setIsSubmitting(true);
+        const urlLower = formUrl.toLowerCase();
+        let provider = 'external';
+        if (urlLower.includes('drive.google.com')) provider = 'drive';
+        else if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) provider = 'youtube';
+
+        const { error } = await supabase.from('resources').insert([{
+          title: formTitle.trim(),
+          resource_type: formType,
+          url: formUrl.trim(),
+          description: formDescription ? formDescription.trim() : null,
+          class_id: targetDestination === 'general' ? null : targetDestination,
+          program_id: programId,
+          provider,
+          is_visible: true
+        }]);
+
+        if (error) throw error;
+        setModalSuccess('Material añadido exitosamente.');
+        await fetchResources();
+        setTimeout(() => setShowModal(false), 1200);
+      } catch (err) {
+        setModalError(err.message || 'Error al guardar');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleDelete = async (r) => {
+    const isDrive = r.provider === 'drive' || r.url?.includes('drive.google.com');
+    const confirmMsg = isDrive
+      ? `¿Eliminar permanentemente "${r.title}"? También se eliminará el archivo en Google Drive.`
+      : `¿Eliminar "${r.title}"?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      if (isDrive && r.url) {
+        try {
+          await supabase.functions.invoke('upload-pdf-drive', {
+            body: { action: 'delete', fileUrl: r.url, resourceId: r.id }
+          });
+        } catch (_) {}
+      }
+      const { error } = await supabase.from('resources').delete().eq('id', r.id);
+      if (error) throw error;
+      await fetchResources();
+    } catch (err) {
+      alert('Error eliminando: ' + err.message);
+    }
+  };
+
+  const handleToggleVis = async (r) => {
+    try {
+      const nextVis = !(r.is_visible ?? true);
+      const { error } = await supabase.from('resources').update({ is_visible: nextVis }).eq('id', r.id);
+      if (error) throw error;
+      await fetchResources();
+    } catch (err) {
+      alert('Error cambiando visibilidad: ' + err.message);
+    }
+  };
+
+  return (
+    <div style={{ padding: '0.5rem 0' }}>
+      {/* ── ENCABEZADO DE PESTAÑA ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '1.5rem',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        <div>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0 }}>
+            Material y Contenido del Curso
+          </h2>
+          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.86rem', color: '#64748B' }}>
+            Gestiona el contenido general que aplica a todo el programa (guías, software, bibliografía) y las presentaciones por clase.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => handleOpenUpload('general')}
+            style={{
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.84rem',
+              padding: '0.55rem 1.15rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              boxShadow: '0 2px 8px rgba(252, 163, 17, 0.3)'
+            }}
+          >
+            <Plus size={16} />
+            <span>+ Subir Contenido General</span>
+          </button>
+
+          <Link
+            to={`/resources/${programId}`}
+            className="btn btn-outline"
+            style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Eye size={14} />
+            <span>Ver Vista de Estudiantes</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* ── RESUMEN MÉTRICAS ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div style={{ background: '#FFFFFF', padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(252, 163, 17, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold-dark, #b45309)' }}>
+            <Paperclip size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>{resources.length}</div>
+            <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>Total de Materiales</div>
+          </div>
+        </div>
+
+        <div style={{ background: '#FFFFFF', padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+            <FolderDown size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#2563eb' }}>{generalCount}</div>
+            <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>⭐ Contenido General</div>
+          </div>
+        </div>
+
+        <div style={{ background: '#FFFFFF', padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy, #14213D)' }}>
+            <Video size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>{classCount}</div>
+            <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>Materiales por Clase</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── BARRA DE BÚSQUEDA Y FILTROS ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '12px',
+        padding: '1rem 1.25rem',
+        border: '1px solid #E2E8F0',
+        marginBottom: '1.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.85rem'
+      }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: '1 1 260px' }}>
+            <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar por título, contenido o clase..."
+              style={{
+                width: '100%',
+                padding: '0.55rem 0.85rem 0.55rem 2.25rem',
+                borderRadius: '8px',
+                border: '1px solid #CBD5E1',
+                fontSize: '0.84rem',
+                outline: 'none',
+                background: '#FAFBFD'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'all', label: 'Todo' },
+              { id: 'general', label: `⭐ General (${generalCount})` },
+              { id: 'classes', label: `Por Clases (${classCount})` }
+            ].map(f => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setScopeFilter(f.id)}
+                style={{
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '0.45rem 0.85rem',
+                  fontSize: '0.78rem',
+                  fontWeight: scopeFilter === f.id ? 700 : 500,
+                  background: scopeFilter === f.id ? 'var(--navy, #14213D)' : '#F1F5F9',
+                  color: scopeFilter === f.id ? '#FFFFFF' : 'var(--navy, #14213D)',
+                  cursor: 'pointer'
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── LISTADO DE RECURSOS ── */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748B' }}>
+          <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 0.5rem' }} />
+          <span>Cargando materiales del curso...</span>
+        </div>
+      ) : filteredResources.length === 0 ? (
+        <div style={{
+          textAlign: 'center', padding: '3rem 1.5rem', background: '#FFFFFF',
+          borderRadius: '14px', border: '1px dashed #CBD5E1'
+        }}>
+          <FolderDown size={36} color="#94A3B8" style={{ margin: '0 auto 0.5rem' }} />
+          <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--navy, #14213D)', fontWeight: 700 }}>
+            {resources.length === 0 ? 'No has subido ningún material aún' : 'No hay recursos con los filtros aplicados'}
+          </h3>
+          <p style={{ margin: '0.3rem 0 1.25rem 0', fontSize: '0.84rem', color: '#64748B' }}>
+            Comienza subiendo la guía docente, bibliografía general o presentaciones de las sesiones.
+          </p>
+          <button
+            type="button"
+            onClick={() => handleOpenUpload('general')}
+            className="btn btn-primary"
+            style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem' }}
+          >
+            <Plus size={14} /> Subir Contenido General
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+
+          {/* BLOQUE: CONTENIDO GENERAL */}
+          {(scopeFilter === 'all' || scopeFilter === 'general') && (
+            <div>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: '0.85rem', paddingBottom: '0.4rem', borderBottom: '2px solid rgba(252, 163, 17, 0.4)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FolderDown size={18} color="var(--gold-dark, #b45309)" />
+                  <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                    ⭐ Contenido General del Curso ({filteredGeneral.length})
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenUpload('general')}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.76rem', padding: '0.25rem 0.65rem' }}
+                >
+                  <Plus size={13} /> Agregar
+                </button>
+              </div>
+
+              {filteredGeneral.length === 0 ? (
+                <div style={{ padding: '1.25rem', background: '#FAFBFD', borderRadius: '10px', border: '1px dashed #CBD5E1', fontSize: '0.84rem', color: '#64748B' }}>
+                  No hay contenido general registrado. Sube guías, enlaces de software o bibliografía transversal.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '1rem' }}>
+                  {filteredGeneral.map(r => (
+                    <div
+                      key={r.id}
+                      style={{
+                        background: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0',
+                        padding: '1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '0.85rem'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', background: '#FEF3C7', color: '#B45309' }}>
+                            ⭐ GENERAL
+                          </span>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748B' }}>
+                            {r.resource_type || r.type}
+                          </span>
+                        </div>
+                        <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '0.94rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                          {r.title}
+                        </h4>
+                        {r.description && (
+                          <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B', lineHeight: 1.4 }}>
+                            {r.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid #F1F5F9' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (r.url?.includes('drive.google.com') || r.provider === 'drive') {
+                              setSelectedDoc(r);
+                            } else {
+                              window.open(r.url, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
+                          style={{
+                            background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                            borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.76rem', fontWeight: 700,
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+                          }}
+                        >
+                          <Eye size={13} color="#FCA311" /> Abrir
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleVis(r)}
+                            title={r.is_visible !== false ? 'Ocultar a estudiantes' : 'Hacer visible'}
+                            style={{ background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', color: '#64748B' }}
+                          >
+                            {r.is_visible !== false ? <Eye size={13} /> : <EyeOff size={13} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(r)}
+                            title="Editar"
+                            style={{ background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', color: 'var(--navy)' }}
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(r)}
+                            title="Eliminar"
+                            style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', color: '#DC2626' }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* BLOQUE: MATERIALES POR CLASE */}
+          {(scopeFilter === 'all' || scopeFilter === 'classes') && (
+            <div>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: '0.85rem', paddingBottom: '0.4rem', borderBottom: '1px solid #E2E8F0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Video size={18} color="var(--navy, #14213D)" />
+                  <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                    Materiales por Clase ({filteredClass.length})
+                  </h3>
+                </div>
+              </div>
+
+              {filteredClass.length === 0 ? (
+                <div style={{ padding: '1.25rem', background: '#FAFBFD', borderRadius: '10px', border: '1px dashed #CBD5E1', fontSize: '0.84rem', color: '#64748B' }}>
+                  No hay materiales asignados a clases específicas.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '1rem' }}>
+                  {filteredClass.map(r => (
+                    <div
+                      key={r.id}
+                      style={{
+                        background: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0',
+                        padding: '1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '0.85rem'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', background: '#EFF6FF', color: '#1D4ED8' }}>
+                            {r.classTitle}
+                          </span>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748B' }}>
+                            {r.resource_type || r.type}
+                          </span>
+                        </div>
+                        <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '0.94rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                          {r.title}
+                        </h4>
+                        {r.description && (
+                          <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B', lineHeight: 1.4 }}>
+                            {r.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid #F1F5F9' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (r.url?.includes('drive.google.com') || r.provider === 'drive') {
+                              setSelectedDoc(r);
+                            } else {
+                              window.open(r.url, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
+                          style={{
+                            background: 'var(--navy, #14213D)', color: '#FFFFFF', border: 'none',
+                            borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.76rem', fontWeight: 700,
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+                          }}
+                        >
+                          <Eye size={13} color="#FCA311" /> Abrir
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleVis(r)}
+                            title={r.is_visible !== false ? 'Ocultar a estudiantes' : 'Hacer visible'}
+                            style={{ background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', color: '#64748B' }}
+                          >
+                            {r.is_visible !== false ? <Eye size={13} /> : <EyeOff size={13} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(r)}
+                            title="Editar"
+                            style={{ background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', color: 'var(--navy)' }}
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(r)}
+                            title="Eliminar"
+                            style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', color: '#DC2626' }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ── MODAL DE SUBIDA / EDICIÓN ── */}
+      {showModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '540px',
+            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', animation: 'fadeSlideUp 0.2s ease-out'
+          }}>
+            <div style={{
+              padding: '1.1rem 1.4rem', borderBottom: '1px solid #E2E8F0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAFBFD'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{ padding: '6px', borderRadius: '8px', background: 'rgba(252, 163, 17, 0.15)', color: 'var(--gold-dark, #b45309)' }}>
+                  {modalMode === 'edit' ? <Edit3 size={18} /> : <Plus size={18} />}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                    {modalMode === 'edit' ? 'Editar Material' : 'Subir Contenido al Curso'}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                    {targetDestination === 'general' ? 'Se publicará en Contenido General del Curso' : 'Se vinculará a la clase seleccionada'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} style={{ padding: '1.4rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              {modalError && (
+                <div style={{ padding: '0.75rem', borderRadius: '8px', background: '#FEE2E2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: '0.82rem' }}>
+                  {modalError}
+                </div>
+              )}
+              {modalSuccess && (
+                <div style={{ padding: '0.75rem', borderRadius: '8px', background: '#DCFCE7', border: '1px solid #BBF7D0', color: '#15803D', fontSize: '0.82rem' }}>
+                  {modalSuccess}
+                </div>
+              )}
+
+              {/* DESTINO */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                  Destino del Material <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <select
+                  value={targetDestination}
+                  onChange={e => setTargetDestination(e.target.value)}
+                  style={{
+                    width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #CBD5E1',
+                    fontSize: '0.84rem', fontWeight: 600, background: targetDestination === 'general' ? '#FFFBEB' : '#FAFBFD',
+                    color: 'var(--navy, #14213D)', outline: 'none'
+                  }}
+                >
+                  <option value="general">⭐ Contenido General del Curso (Aplica a todo el programa)</option>
+                  {(programClasses || []).length > 0 && (
+                    <optgroup label="Clases Específicas">
+                      {programClasses.map(c => (
+                        <option key={c.id} value={c.id}>
+                          Clase: {c.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              {/* MODO (CREACIÓN) */}
+              {modalMode === 'create' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                    Método de Publicación
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('file')}
+                      style={{
+                        padding: '0.6rem', borderRadius: '8px',
+                        border: uploadMode === 'file' ? '2px solid var(--gold, #FCA311)' : '1px solid #CBD5E1',
+                        background: uploadMode === 'file' ? 'rgba(252, 163, 17, 0.08)' : '#FAFBFD',
+                        fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem'
+                      }}
+                    >
+                      <Upload size={14} /> Subir PDF a Drive
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('link')}
+                      style={{
+                        padding: '0.6rem', borderRadius: '8px',
+                        border: uploadMode === 'link' ? '2px solid var(--gold, #FCA311)' : '1px solid #CBD5E1',
+                        background: uploadMode === 'link' ? 'rgba(252, 163, 17, 0.08)' : '#FAFBFD',
+                        fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem'
+                      }}
+                    >
+                      <LinkIcon size={14} /> Enlace o URL
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* CATEGORÍA */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                  Categoría
+                </label>
+                <select
+                  value={formType}
+                  onChange={e => setFormType(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.84rem', background: '#FAFBFD', outline: 'none' }}
+                >
+                  <option value="file">📄 Documento / Lectura / Guía (PDF)</option>
+                  <option value="presentation">📊 Presentación / Diapositivas</option>
+                  <option value="link">🔗 Enlace de Interés / Plataforma</option>
+                  <option value="code">💻 Código / Repositorio / Software</option>
+                </select>
+              </div>
+
+              {/* DROPZONE ARCHIVO */}
+              {modalMode === 'create' && uploadMode === 'file' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                    Archivo PDF <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
+                  <div
+                    onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={e => {
+                      e.preventDefault(); setIsDragOver(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) {
+                        setSelectedFile(f);
+                        if (!formTitle.trim()) setFormTitle(f.name.replace(/\.[^/.]+$/, ''));
+                      }
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      border: isDragOver ? '2px dashed var(--gold, #FCA311)' : '2px dashed #CBD5E1',
+                      background: isDragOver ? 'rgba(252, 163, 17, 0.05)' : '#F8FAFC',
+                      borderRadius: '10px', padding: '1.4rem', textAlign: 'center', cursor: 'pointer'
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.ppt,.pptx,.zip"
+                      style={{ display: 'none' }}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          setSelectedFile(f);
+                          if (!formTitle.trim()) setFormTitle(f.name.replace(/\.[^/.]+$/, ''));
+                        }
+                      }}
+                    />
+                    <Upload size={24} color={selectedFile ? 'var(--gold, #FCA311)' : '#94A3B8'} style={{ margin: '0 auto 0.4rem' }} />
+                    {selectedFile ? (
+                      <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                        {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.82rem', color: '#64748B' }}>
+                        Haz clic o arrastra un archivo PDF aquí
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TÍTULO */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                  Título del Material {uploadMode === 'link' && <span style={{ color: '#DC2626' }}>*</span>}
+                </label>
+                <input
+                  type="text"
+                  value={formTitle}
+                  onChange={e => setFormTitle(e.target.value)}
+                  placeholder={uploadMode === 'file' ? 'Opcional (toma el nombre del archivo)' : 'Ej: Guía docente del curso, Enlace a Google Colab...'}
+                  style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.84rem', outline: 'none', background: '#FAFBFD' }}
+                />
+              </div>
+
+              {/* URL */}
+              {(modalMode === 'edit' || uploadMode === 'link') && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                    URL / Enlace Web <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={formUrl}
+                    onChange={e => setFormUrl(e.target.value)}
+                    placeholder="https://..."
+                    style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.84rem', outline: 'none', background: '#FAFBFD' }}
+                  />
+                </div>
+              )}
+
+              {/* DESCRIPCIÓN */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #14213D)', marginBottom: '0.4rem' }}>
+                  Descripción o Notas (Opcional)
+                </label>
+                <textarea
+                  value={formDescription}
+                  onChange={e => setFormDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Instrucciones breves sobre cómo utilizar este material..."
+                  style={{ width: '100%', padding: '0.55rem 0.85rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.82rem', outline: 'none', background: '#FAFBFD' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setShowModal(false)}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>{uploadMode === 'file' ? 'Subiendo a Drive...' : 'Guardando...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>{modalMode === 'edit' ? 'Guardar Cambios' : 'Publicar Material'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL VISOR ── */}
+      {selectedDoc && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(5px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '1050px',
+            height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '0.85rem 1.25rem', borderBottom: '1px solid #E2E8F0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAFBFD'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                  {selectedDoc.title}
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                  {selectedDoc.isGeneral ? '⭐ Contenido General del Curso' : selectedDoc.classTitle}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDoc(null)}
+                style={{ background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <div style={{ flex: 1, position: 'relative', background: '#0F172A' }}>
+              <iframe
+                src={formatEmbedDocUrl(selectedDoc.url)}
+                title={selectedDoc.title}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'resumen',      label: 'Panorama del Curso',        icon: <BookOpen size={16} />,        component: ResumenTab },
   { id: 'clases',       label: 'Mis Clases',                icon: <Video size={16} />,           component: ClasesTab },
+  { id: 'recursos',     label: 'Material del Curso',        icon: <Paperclip size={16} />,       component: RecursosTab },
   { id: 'reforzamiento',label: 'Reforzamiento IA',          icon: <Brain size={16} />,           component: ReforzamientoIATab },
   { id: 'dudas',        label: 'Dudas',                     icon: <MessageSquare size={16} />,   component: DudasTab },
   { id: 'anuncios',     label: 'Anuncios',                  icon: <Megaphone size={16} />,       component: AnunciosTab },

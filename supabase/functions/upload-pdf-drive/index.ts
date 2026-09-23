@@ -201,10 +201,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const resourceType = (formData.get("resourceType") as string) || "presentation";
     const customTitle = formData.get("customTitle") as string | null;
 
+    const isGeneralCourseResource = !classId || classId === "general" || classId === "null";
+
     if (!file) {
       return jsonResponse({ error: "No se proporcionó ningún archivo." }, 400);
     }
-    if (!classId) {
+    if (isGeneralCourseResource && !programId) {
+      return jsonResponse({ error: "El parámetro 'programId' es requerido para subir material general del curso." }, 400);
+    }
+    if (!isGeneralCourseResource && !classId) {
       return jsonResponse({ error: "El parámetro 'classId' es requerido." }, 400);
     }
 
@@ -213,42 +218,73 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 4. Consultar datos de la clase y del programa para armar nomenclatura y buscar carpeta
-    const { data: classData, error: classErr } = await supabase
-      .from("class_sessions")
-      .select("id, title, order_index, drive_folder_id, program_id")
-      .eq("id", classId)
-      .single();
+    let targetFolderId: string | null = null;
+    let formattedFileName = "";
+    let effectiveProgramId = programId;
+    let resolvedClassId: string | null = classId;
 
-    if (classErr || !classData) {
-      return jsonResponse(
-        { error: `No se encontró la clase: ${classErr?.message || "ID no existe"}` },
-        404,
-      );
-    }
-
-    // Consultar programa para obtener drive_folder_id global si la clase no tiene uno específico
-    let programDriveFolderId: string | null = null;
-    const effectiveProgramId = classData.program_id || programId;
-    if (effectiveProgramId) {
-      const { data: progData } = await supabase
+    if (isGeneralCourseResource) {
+      resolvedClassId = null;
+      const { data: progData, error: progErr } = await supabase
         .from("diploma_programs")
         .select("id, title, drive_folder_id")
-        .eq("id", effectiveProgramId)
-        .maybeSingle();
-      if (progData) {
-        programDriveFolderId = progData.drive_folder_id;
+        .eq("id", programId)
+        .single();
+
+      if (progErr || !progData) {
+        return jsonResponse(
+          { error: `No se encontró el curso: ${progErr?.message || "ID no existe"}` },
+          404,
+        );
       }
+
+      effectiveProgramId = progData.id;
+      targetFolderId = normalizeDriveFolderId(progData.drive_folder_id);
+
+      const progTitle = (progData.title || "Curso").trim().replace(/[\\/:*?"<>|]/g, "-");
+      const originalFileName = file.name || "documento.pdf";
+      formattedFileName = `[General - ${progTitle}] ${originalFileName}`;
+    } else {
+      // 4. Consultar datos de la clase y del programa para armar nomenclatura y buscar carpeta
+      const { data: classData, error: classErr } = await supabase
+        .from("class_sessions")
+        .select("id, title, order_index, drive_folder_id, program_id")
+        .eq("id", classId)
+        .single();
+
+      if (classErr || !classData) {
+        return jsonResponse(
+          { error: `No se encontró la clase: ${classErr?.message || "ID no existe"}` },
+          404,
+        );
+      }
+
+      // Consultar programa para obtener drive_folder_id global si la clase no tiene uno específico
+      let programDriveFolderId: string | null = null;
+      effectiveProgramId = classData.program_id || programId;
+      if (effectiveProgramId) {
+        const { data: progData } = await supabase
+          .from("diploma_programs")
+          .select("id, title, drive_folder_id")
+          .eq("id", effectiveProgramId)
+          .maybeSingle();
+        if (progData) {
+          programDriveFolderId = progData.drive_folder_id;
+        }
+      }
+
+      const orderNum = classData.order_index ?? 1;
+      const classTitle = (classData.title || "Clase").trim();
+      const originalFileName = file.name || "documento.pdf";
+
+      targetFolderId =
+        normalizeDriveFolderId(classData.drive_folder_id) ||
+        normalizeDriveFolderId(programDriveFolderId);
+
+      const formattedOrder = String(orderNum).padStart(2, "0");
+      const sanitizedClassTitle = classTitle.replace(/[\\/:*?"<>|]/g, "-");
+      formattedFileName = `[Clase ${formattedOrder} - ${sanitizedClassTitle}] ${originalFileName}`;
     }
-
-    const orderNum = classData.order_index ?? 1;
-    const classTitle = (classData.title || "Clase").trim();
-    const originalFileName = file.name || "documento.pdf";
-
-    // 5. Determinar la carpeta de destino en Google Drive
-    const targetFolderId =
-      normalizeDriveFolderId(classData.drive_folder_id) ||
-      normalizeDriveFolderId(programDriveFolderId);
 
     if (!targetFolderId) {
       return jsonResponse(
@@ -259,12 +295,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         400,
       );
     }
-
-    // 6. Armar Nomenclatura Estandarizada
-    // Ej: [Clase 01 - Fundamentos de Robótica] Presentacion_Intro.pdf
-    const formattedOrder = String(orderNum).padStart(2, "0");
-    const sanitizedClassTitle = classTitle.replace(/[\\/:*?"<>|]/g, "-");
-    const formattedFileName = `[Clase ${formattedOrder} - ${sanitizedClassTitle}] ${originalFileName}`;
 
     // 8. Subida Multipart a Google Drive API v3 (usando el accessToken obtenido arriba)
     const metadata: Record<string, unknown> = {
@@ -357,8 +387,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // 10. Guardar en la tabla 'resources' de Supabase
     const resourcePayload = {
-      class_id: classId,
-      program_id: programId || classData.program_id,
+      class_id: resolvedClassId,
+      program_id: effectiveProgramId,
       title: (customTitle && customTitle.trim()) || formattedFileName,
       resource_type: resourceType === "presentation" ? "presentation" : "pdf",
       provider: "drive",
@@ -376,12 +406,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.error("Error guardando en tabla resources:", insertErr);
     }
 
-    // Si es presentación principal, también actualizar presentation_url en class_sessions
-    if (resourceType === "presentation") {
+    // Si es presentación principal y pertenece a una clase, también actualizar presentation_url en class_sessions
+    if (resolvedClassId && resourceType === "presentation") {
       await supabase
         .from("class_sessions")
         .update({ presentation_url: previewUrl })
-        .eq("id", classId);
+        .eq("id", resolvedClassId);
     }
 
     return jsonResponse({

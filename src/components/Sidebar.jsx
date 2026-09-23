@@ -167,6 +167,15 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                   </NavLink>
 
                   <NavLink
+                    to={`/dashboard/profesor/${teacherProgId}?tab=recursos`}
+                    className={() => currentTab === 'recursos' ? 'nav-item active' : 'nav-item'}
+                    aria-current={currentTab === 'recursos' ? 'page' : undefined}
+                  >
+                    <Paperclip size={18} />
+                    <span>Material del Curso</span>
+                  </NavLink>
+
+                  <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=reforzamiento`}
                     className={() => currentTab === 'reforzamiento' ? 'nav-item active' : 'nav-item'}
                     aria-current={currentTab === 'reforzamiento' ? 'page' : undefined}

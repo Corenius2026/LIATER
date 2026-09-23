@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS public.class_sessions (
 -- 7. Recursos (resources)
 CREATE TABLE IF NOT EXISTS public.resources (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  class_id uuid NOT NULL,
+  class_id uuid,
   program_id uuid,
   title character varying NOT NULL,
   resource_type character varying NOT NULL CHECK (resource_type::text = ANY (ARRAY['presentation'::character varying, 'pdf'::character varying, 'link'::character varying, 'video'::character varying, 'file'::character varying]::text[])),
