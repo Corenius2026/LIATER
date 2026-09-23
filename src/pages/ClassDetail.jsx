@@ -1804,9 +1804,9 @@ export default function ClassDetail() {
                           <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 600, textTransform: 'uppercase' }}>
                             {res.resource_type || res.type || 'archivo'}
                           </span>
-                          {res.provider && (
+                          {res.provider && res.provider !== 'drive' && (
                             <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
-                              • {res.provider === 'drive' ? 'Google Drive' : res.provider}
+                              • {res.provider}
                             </span>
                           )}
                         </div>

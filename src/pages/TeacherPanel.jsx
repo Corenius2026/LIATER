@@ -9214,7 +9214,7 @@ function RecursosTab() {
           </div>
           <div>
             <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#2563eb' }}>{generalCount}</div>
-            <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>⭐ Contenido General</div>
+            <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>Contenido General</div>
           </div>
         </div>
 
@@ -9263,7 +9263,7 @@ function RecursosTab() {
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
             {[
               { id: 'all', label: 'Todo' },
-              { id: 'general', label: `⭐ General (${generalCount})` },
+              { id: 'general', label: `General (${generalCount})` },
               { id: 'classes', label: `Por Clases (${classCount})` }
             ].map(f => (
               <button
@@ -9328,7 +9328,7 @@ function RecursosTab() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <FolderDown size={18} color="var(--gold-dark, #b45309)" />
                   <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
-                    ⭐ Contenido General del Curso ({filteredGeneral.length})
+                    Contenido General del Curso ({filteredGeneral.length})
                   </h3>
                 </div>
                 <button
@@ -9358,7 +9358,7 @@ function RecursosTab() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                           <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', background: '#FEF3C7', color: '#B45309' }}>
-                            ⭐ GENERAL
+                            GENERAL
                           </span>
                           <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748B' }}>
                             {r.resource_type || r.type}
@@ -9594,7 +9594,7 @@ function RecursosTab() {
                     color: 'var(--navy, #14213D)', outline: 'none'
                   }}
                 >
-                  <option value="general">⭐ Contenido General del Curso (Aplica a todo el programa)</option>
+                  <option value="general">Contenido General del Curso (Aplica a todo el programa)</option>
                   {(programClasses || []).length > 0 && (
                     <optgroup label="Clases Específicas">
                       {programClasses.map(c => (
@@ -9624,7 +9624,7 @@ function RecursosTab() {
                         fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem'
                       }}
                     >
-                      <Upload size={14} /> Subir PDF a Drive
+                      <Upload size={14} /> Subir PDF
                     </button>
                     <button
                       type="button"
@@ -9652,10 +9652,10 @@ function RecursosTab() {
                   onChange={e => setFormType(e.target.value)}
                   style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.84rem', background: '#FAFBFD', outline: 'none' }}
                 >
-                  <option value="file">📄 Documento / Lectura / Guía (PDF)</option>
-                  <option value="presentation">📊 Presentación / Diapositivas</option>
-                  <option value="link">🔗 Enlace de Interés / Plataforma</option>
-                  <option value="code">💻 Código / Repositorio / Software</option>
+                  <option value="file">Documento / Lectura / Guía (PDF)</option>
+                  <option value="presentation">Presentación / Diapositivas</option>
+                  <option value="link">Enlace de Interés / Plataforma</option>
+                  <option value="code">Código / Repositorio / Software</option>
                 </select>
               </div>
 
@@ -9809,7 +9809,7 @@ function RecursosTab() {
                   {selectedDoc.title}
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                  {selectedDoc.isGeneral ? '⭐ Contenido General del Curso' : selectedDoc.classTitle}
+                  {selectedDoc.isGeneral ? 'Contenido General del Curso' : selectedDoc.classTitle}
                 </span>
               </div>
               <button

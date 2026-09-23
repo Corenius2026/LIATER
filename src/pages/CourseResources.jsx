@@ -633,7 +633,7 @@ export default function CourseResources() {
                 }}
               >
                 <FolderDown size={13} color="var(--gold-dark, #b45309)" />
-                <span>⭐ Contenido General del Curso</span>
+                <span>Contenido General del Curso</span>
               </span>
             ) : (
               <Link
@@ -742,11 +742,11 @@ export default function CourseResources() {
                 </p>
               )}
 
-              {/* DETALLES DE SESIÓN / FECHA / DRIVE */}
+              {/* DETALLES DE SESIÓN / FECHA */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', fontSize: '0.74rem', color: '#64748B', marginTop: '0.35rem' }}>
                 {res.isGeneral ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: 'var(--gold-dark, #b45309)', fontWeight: 600 }}>
-                    <Sparkles size={11} /> Material transversal
+                  <span style={{ color: 'var(--gold-dark, #b45309)', fontWeight: 600 }}>
+                    Material transversal
                   </span>
                 ) : (
                   <>
@@ -761,14 +761,6 @@ export default function CourseResources() {
                       </span>
                     )}
                   </>
-                )}
-                {isDrive && (
-                  <span style={{
-                    fontSize: '0.7rem', color: '#0369A1', background: '#F0F9FF',
-                    padding: '1px 6px', borderRadius: '4px', fontWeight: 600
-                  }}>
-                    Google Drive
-                  </span>
                 )}
               </div>
             </div>
@@ -1241,7 +1233,7 @@ export default function CourseResources() {
               }}
             >
               <option value="all">Todo el Material ({resources.length})</option>
-              <option value="general">⭐ Contenido General del Curso ({generalResources.length})</option>
+              <option value="general">Contenido General del Curso ({generalResources.length})</option>
               {classesList.length > 0 && (
                 <optgroup label="Materiales por Clase">
                   {classesList.map(c => (
@@ -1653,7 +1645,7 @@ export default function CourseResources() {
                     outline: 'none'
                   }}
                 >
-                  <option value="general">⭐ Contenido General del Curso (Aplica a todo el programa)</option>
+                  <option value="general">Contenido General del Curso (Aplica a todo el programa)</option>
                   {classesList.length > 0 && (
                     <optgroup label="Clases Específicas">
                       {classesList.map(c => (
@@ -1698,7 +1690,7 @@ export default function CourseResources() {
                       }}
                     >
                       <Upload size={15} />
-                      <span>Subir PDF a Drive</span>
+                      <span>Subir PDF</span>
                     </button>
 
                     <button
@@ -1745,10 +1737,10 @@ export default function CourseResources() {
                     outline: 'none'
                   }}
                 >
-                  <option value="file">📄 Documento / Lectura / Guía (PDF)</option>
-                  <option value="presentation">📊 Presentación / Diapositivas</option>
-                  <option value="link">🔗 Enlace de Interés / Plataforma</option>
-                  <option value="code">💻 Código / Repositorio / Software</option>
+                  <option value="file">Documento / Lectura / Guía (PDF)</option>
+                  <option value="presentation">Presentación / Diapositivas</option>
+                  <option value="link">Enlace de Interés / Plataforma</option>
+                  <option value="code">Código / Repositorio / Software</option>
                 </select>
               </div>
 
@@ -1989,7 +1981,7 @@ export default function CourseResources() {
                   <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#64748B' }}>
                     {selectedDoc.isGeneral ? (
                       <span style={{ color: 'var(--gold-dark, #b45309)', fontWeight: 700 }}>
-                        ⭐ Contenido General del Curso
+                        Contenido General del Curso
                       </span>
                     ) : (
                       <>Clase: <strong>{selectedDoc.classTitle}</strong></>
