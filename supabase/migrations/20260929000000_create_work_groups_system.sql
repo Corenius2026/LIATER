@@ -131,5 +131,51 @@ USING (
   uploaded_by = public.get_auth_profile_id()
 );
 
+-- ========================================================================================
+-- 4. FUNCIÓN RPC SECURITY DEFINER: OBTENER PERFILES POR IDS
+-- ========================================================================================
+-- Permite que los estudiantes en un grupo de trabajo visualicen los nombres y teléfonos
+-- de sus compañeros de equipo sin ser bloqueados por el RLS de users_profile.
+CREATE OR REPLACE FUNCTION public.get_profiles_by_ids(p_user_ids uuid[])
+RETURNS TABLE (
+  id uuid,
+  full_name character varying,
+  email character varying,
+  role character varying,
+  phone text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT up.id, up.full_name, up.email, up.role, up.phone
+  FROM public.users_profile up
+  WHERE up.id = ANY(p_user_ids);
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_profiles_by_ids(uuid[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_profiles_by_ids(uuid[]) TO anon;
+
+-- ========================================================================================
+-- 5. POLÍTICA RLS COMPLEMENTARIA: users_profile (LECTURA ENTRE COMPAÑEROS DE GRUPO)
+-- ========================================================================================
+DROP POLICY IF EXISTS "users_profile_read_team_members" ON public.users_profile;
+
+CREATE POLICY "users_profile_read_team_members"
+ON public.users_profile FOR SELECT
+TO authenticated
+USING (
+  public.is_admin()
+  OR
+  EXISTS (
+    SELECT 1 FROM public.work_group_members wgm_peer
+    JOIN public.work_group_members wgm_me ON wgm_me.group_id = wgm_peer.group_id
+    WHERE wgm_peer.student_id = users_profile.id
+      AND wgm_me.student_id = public.get_auth_profile_id()
+  )
+);
+
 -- Notificar recarga de schema a PostgREST
 NOTIFY pgrst, 'reload schema';
+

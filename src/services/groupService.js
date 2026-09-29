@@ -20,6 +20,65 @@ export const isTableMissingError = (err) => {
 };
 
 /**
+ * Obtiene perfiles de usuarios de forma segura y tolerante a fallos.
+ * Intenta primero mediante la función RPC 'get_profiles_by_ids' (que cuenta con SECURITY DEFINER
+ * para permitir que los estudiantes vean los nombres, emails y teléfonos de sus compañeros de grupo sin
+ * ser bloqueados por el RLS de users_profile). Si la función no existe o faltan registros, recurre a select directo.
+ */
+export async function fetchProfilesSafe(userIds) {
+  if (!userIds || !Array.isArray(userIds) || userIds.length === 0) return new Map();
+  const cleanIds = [...new Set(userIds.filter(Boolean))];
+  if (cleanIds.length === 0) return new Map();
+
+  const profilesMap = new Map();
+
+  // 1. Intento con función RPC SECURITY DEFINER (elude bloqueo de RLS entre estudiantes)
+  try {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('get_profiles_by_ids', {
+      p_user_ids: cleanIds
+    });
+
+    if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+      rpcData.forEach(p => {
+        if (p && p.id) {
+          profilesMap.set(p.id, p);
+        }
+      });
+
+      // Si obtuvimos todos los perfiles requeridos, retornamos
+      if (profilesMap.size === cleanIds.length) {
+        return profilesMap;
+      }
+    }
+  } catch (e) {
+    // Si la función RPC no existe en la base de datos aún, continuamos con select directo
+  }
+
+  // 2. Consulta directa sobre users_profile (para roles admin/teacher o si la política RLS está activa)
+  try {
+    const missingIds = cleanIds.filter(id => !profilesMap.has(id));
+    if (missingIds.length > 0) {
+      const { data: directProfiles, error: directErr } = await supabase
+        .from('users_profile')
+        .select('id, full_name, email, role, phone')
+        .in('id', missingIds);
+
+      if (!directErr && Array.isArray(directProfiles)) {
+        directProfiles.forEach(p => {
+          if (p && p.id) {
+            profilesMap.set(p.id, p);
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('Aviso en consulta directa de perfiles:', e);
+  }
+
+  return profilesMap;
+}
+
+/**
  * Obtiene todos los grupos de trabajo de un programa con sus integrantes y materiales.
  */
 export async function getProgramWorkGroups(programId) {
@@ -82,20 +141,7 @@ export async function getProgramWorkGroups(programId) {
       ].filter(Boolean))
     ];
 
-    const profilesMap = new Map();
-    if (allUserIds.length > 0) {
-      try {
-        const { data: profiles, error: profErr } = await supabase
-          .from('users_profile')
-          .select('id, full_name, email, role, phone')
-          .in('id', allUserIds);
-
-        if (profErr) console.warn('Aviso al obtener perfiles:', profErr);
-        (profiles || []).forEach(p => profilesMap.set(p.id, p));
-      } catch (e) {
-        console.warn('Excepción al obtener perfiles:', e);
-      }
-    }
+    const profilesMap = await fetchProfilesSafe(allUserIds);
 
     // 5. Ensamblar estructura completa de cada grupo
     const membersByGroup = new Map();
@@ -202,17 +248,7 @@ export async function getStudentWorkGroup(programId, studentId) {
       ].filter(Boolean))
     ];
 
-    const profilesMap = new Map();
-    if (userIds.length > 0) {
-      try {
-        const { data: profiles } = await supabase
-          .from('users_profile')
-          .select('id, full_name, email, role, phone')
-          .in('id', userIds);
-
-        (profiles || []).forEach(p => profilesMap.set(p.id, p));
-      } catch {}
-    }
+    const profilesMap = await fetchProfilesSafe(userIds);
 
     const enrichedMembers = groupMembers.map(m => ({
       ...m,

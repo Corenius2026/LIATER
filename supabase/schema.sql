@@ -438,3 +438,42 @@ CREATE POLICY "work_group_materials_select" ON public.work_group_materials FOR S
 CREATE POLICY "work_group_materials_member_insert" ON public.work_group_materials FOR INSERT TO authenticated WITH CHECK (public.is_admin() OR EXISTS (SELECT 1 FROM public.work_group_members wgm WHERE wgm.group_id = work_group_materials.group_id AND wgm.student_id = public.get_auth_profile_id()));
 CREATE POLICY "work_group_materials_owner_delete" ON public.work_group_materials FOR DELETE TO authenticated USING (public.is_admin() OR uploaded_by = public.get_auth_profile_id());
 
+-- Función RPC SECURITY DEFINER para lectura segura de perfiles de compañeros de grupo
+CREATE OR REPLACE FUNCTION public.get_profiles_by_ids(p_user_ids uuid[])
+RETURNS TABLE (
+  id uuid,
+  full_name character varying,
+  email character varying,
+  role character varying,
+  phone text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT up.id, up.full_name, up.email, up.role, up.phone
+  FROM public.users_profile up
+  WHERE up.id = ANY(p_user_ids);
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_profiles_by_ids(uuid[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_profiles_by_ids(uuid[]) TO anon;
+
+-- Política RLS complementaria para users_profile
+DROP POLICY IF EXISTS "users_profile_read_team_members" ON public.users_profile;
+CREATE POLICY "users_profile_read_team_members"
+ON public.users_profile FOR SELECT
+TO authenticated
+USING (
+  public.is_admin()
+  OR
+  EXISTS (
+    SELECT 1 FROM public.work_group_members wgm_peer
+    JOIN public.work_group_members wgm_me ON wgm_me.group_id = wgm_peer.group_id
+    WHERE wgm_peer.student_id = users_profile.id
+      AND wgm_me.student_id = public.get_auth_profile_id()
+  )
+);
+
+
