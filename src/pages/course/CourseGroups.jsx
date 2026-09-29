@@ -6,7 +6,7 @@ import {
   Users, Home, ListTree, BookOpen, Paperclip, BarChart2,
   ArrowLeft, ChevronRight, Plus, ExternalLink, Download,
   FileText, Trash2, Code, HardDrive, Archive, AlertCircle,
-  X, CheckCircle, Info, Sparkles, UserCheck, Shield
+  X, CheckCircle, Info, Sparkles, UserCheck, Shield, Eye, Lock
 } from 'lucide-react';
 import {
   getStudentWorkGroup,
@@ -14,7 +14,7 @@ import {
   addGroupMaterial,
   deleteGroupMaterial
 } from '@/services/groupService';
-import { triggerResourceDownload } from '@/utils/resourceUtils';
+import MaterialFrameViewerModal from '@/components/common/MaterialFrameViewerModal';
 
 export default function CourseGroups() {
   const { programId } = useParams();
@@ -27,6 +27,7 @@ export default function CourseGroups() {
   const [myGroup, setMyGroup] = useState(null);
   const [allGroups, setAllGroups] = useState([]);
   const [tableExists, setTableExists] = useState(true);
+  const [viewingMaterial, setViewingMaterial] = useState(null);
 
   // Modal para subir material / entregable
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -600,8 +601,8 @@ export default function CourseGroups() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
                           <button
                             type="button"
-                            onClick={() => triggerResourceDownload(mat.url, mat.title)}
-                            title="Abrir o descargar archivo"
+                            onClick={() => setViewingMaterial({ ...mat, groupName: myGroup?.name })}
+                            title="Visualizar documento en visor seguro (solo lectura)"
                             style={{
                               background: '#FFFFFF',
                               border: '1px solid #CBD5E1',
@@ -616,8 +617,8 @@ export default function CourseGroups() {
                               gap: '0.3rem'
                             }}
                           >
-                            <ExternalLink size={12} />
-                            <span>Abrir</span>
+                            <Eye size={13} color="var(--gold-dark, #b45309)" />
+                            <span>Visualizar</span>
                           </button>
 
                           {isUploader && (
@@ -859,6 +860,15 @@ export default function CourseGroups() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL VISOR SEGURO DE DOCUMENTOS EN FRAME (SOLO LECTURA, SIN DESCARGA) ── */}
+      {viewingMaterial && (
+        <MaterialFrameViewerModal
+          material={viewingMaterial}
+          groupName={viewingMaterial.groupName || ''}
+          onClose={() => setViewingMaterial(null)}
+        />
       )}
 
     </div>

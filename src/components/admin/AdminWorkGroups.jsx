@@ -5,7 +5,7 @@ import {
   Users, Plus, Trash2, Edit3, UserPlus, X, FileText, Download,
   ExternalLink, CheckCircle, AlertCircle, Copy, FolderPlus,
   Paperclip, Search, ChevronRight, UserMinus, ShieldAlert,
-  Code, HardDrive, FileCode, Archive, Sparkles
+  Code, HardDrive, FileCode, Archive, Sparkles, Eye, Lock
 } from 'lucide-react';
 import {
   getProgramWorkGroups,
@@ -17,7 +17,7 @@ import {
   addGroupMaterial,
   deleteGroupMaterial
 } from '@/services/groupService';
-import { triggerResourceDownload } from '@/utils/resourceUtils';
+import MaterialFrameViewerModal from '@/components/common/MaterialFrameViewerModal';
 
 export default function AdminWorkGroups({ programId, programTitle, enrolledStudents = [], onRefresh }) {
   const { currentUser } = useAuth();
@@ -26,6 +26,7 @@ export default function AdminWorkGroups({ programId, programTitle, enrolledStude
   const [tableExists, setTableExists] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [copiedSql, setCopiedSql] = useState(false);
+  const [viewingMaterial, setViewingMaterial] = useState(null);
 
   // Modales
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -945,24 +946,24 @@ NOTIFY pgrst, 'reload schema';`;
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
                               <button
                                 type="button"
-                                onClick={() => triggerResourceDownload(mat.url, mat.title)}
-                                title="Abrir o descargar material"
+                                onClick={() => setViewingMaterial({ ...mat, groupName: group.name })}
+                                title="Visualizar documento en visor seguro (solo lectura)"
                                 style={{
                                   background: '#FFFFFF',
                                   border: '1px solid #CBD5E1',
                                   color: 'var(--navy)',
                                   borderRadius: '6px',
-                                  padding: '0.3rem 0.55rem',
+                                  padding: '0.3rem 0.6rem',
                                   fontSize: '0.74rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '0.25rem'
+                                  gap: '0.3rem'
                                 }}
                               >
-                                <ExternalLink size={12} />
-                                <span>Abrir</span>
+                                <Eye size={13} color="var(--gold-dark, #b45309)" />
+                                <span>Visualizar</span>
                               </button>
                               <button
                                 type="button"
@@ -1459,6 +1460,15 @@ NOTIFY pgrst, 'reload schema';`;
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL VISOR SEGURO DE DOCUMENTOS EN FRAME (SOLO LECTURA, SIN DESCARGA) ── */}
+      {viewingMaterial && (
+        <MaterialFrameViewerModal
+          material={viewingMaterial}
+          groupName={viewingMaterial.groupName || ''}
+          onClose={() => setViewingMaterial(null)}
+        />
       )}
 
     </div>

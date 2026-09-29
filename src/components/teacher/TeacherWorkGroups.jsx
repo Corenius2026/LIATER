@@ -4,10 +4,10 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Users, Search, ExternalLink, Download, FileText,
   Paperclip, Code, HardDrive, Archive, Plus, X,
-  CheckCircle, AlertCircle, MessageSquare
+  CheckCircle, AlertCircle, MessageSquare, Eye, Lock
 } from 'lucide-react';
 import { getProgramWorkGroups, addGroupMaterial } from '@/services/groupService';
-import { triggerResourceDownload } from '@/utils/resourceUtils';
+import MaterialFrameViewerModal from '@/components/common/MaterialFrameViewerModal';
 
 export default function TeacherWorkGroups({ programId, programTitle }) {
   const { currentUser } = useAuth();
@@ -15,6 +15,7 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
   const [loading, setLoading] = useState(true);
   const [tableExists, setTableExists] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewingMaterial, setViewingMaterial] = useState(null);
 
   // Modal para adjuntar material / retroalimentación del docente
   const [showAttachModal, setShowAttachModal] = useState(false);
@@ -394,8 +395,8 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
 
                             <button
                               type="button"
-                              onClick={() => triggerResourceDownload(mat.url, mat.title)}
-                              title="Abrir o descargar entregable"
+                              onClick={() => setViewingMaterial({ ...mat, groupName: group.name })}
+                              title="Visualizar documento en visor seguro (solo lectura)"
                               style={{
                                 background: '#FFFFFF',
                                 border: '1px solid #CBD5E1',
@@ -407,12 +408,12 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.25rem',
+                                gap: '0.3rem',
                                 flexShrink: 0
                               }}
                             >
-                              <ExternalLink size={12} />
-                              <span>Revisar</span>
+                              <Eye size={13} color="var(--gold-dark, #b45309)" />
+                              <span>Visualizar</span>
                             </button>
                           </div>
                         );
@@ -555,6 +556,15 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL VISOR SEGURO DE DOCUMENTOS EN FRAME (SOLO LECTURA, SIN DESCARGA) ── */}
+      {viewingMaterial && (
+        <MaterialFrameViewerModal
+          material={viewingMaterial}
+          groupName={viewingMaterial.groupName || ''}
+          onClose={() => setViewingMaterial(null)}
+        />
       )}
 
     </div>
