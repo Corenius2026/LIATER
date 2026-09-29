@@ -393,7 +393,7 @@ export default function CourseGroups() {
                 </h2>
                 {myGroup.project_topic && (
                   <p style={{ margin: '0 0 0.65rem 0', fontSize: '1.05rem', color: 'var(--gold)', fontWeight: 700 }}>
-                    🎯 Tema: {myGroup.project_topic}
+                    Tema: {myGroup.project_topic}
                   </p>
                 )}
                 {myGroup.description && (
@@ -705,7 +705,7 @@ export default function CourseGroups() {
                     </div>
                     {g.project_topic && (
                       <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 600 }}>
-                        🎯 {g.project_topic}
+                        {g.project_topic}
                       </p>
                     )}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>

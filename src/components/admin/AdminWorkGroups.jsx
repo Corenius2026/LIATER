@@ -726,7 +726,7 @@ NOTIFY pgrst, 'reload schema';`;
                           padding: '0.2rem 0.55rem',
                           borderRadius: '6px'
                         }}>
-                          🎯 {group.project_topic}
+                          {group.project_topic}
                         </span>
                       )}
                     </div>
