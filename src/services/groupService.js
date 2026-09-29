@@ -24,50 +24,13 @@ export const isTableMissingError = (err) => {
  */
 export async function getProgramWorkGroups(programId) {
   if (!programId) return { data: [], tableExists: true, error: null };
-  const cleanId = String(programId).trim();
+  const cleanId = decodeURIComponent(String(programId || '')).trim();
 
   try {
+    // 1. Obtener grupos del programa de forma directa
     const { data: groups, error: groupsErr } = await supabase
       .from('work_groups')
-      .select(`
-        id,
-        program_id,
-        name,
-        project_topic,
-        description,
-        created_by,
-        created_at,
-        updated_at,
-        work_group_members (
-          id,
-          student_id,
-          assigned_at,
-          users_profile (
-            id,
-            full_name,
-            email,
-            role,
-            phone
-          )
-        ),
-        work_group_materials (
-          id,
-          uploaded_by,
-          title,
-          description,
-          material_type,
-          url,
-          file_name,
-          file_size,
-          provider,
-          created_at,
-          users_profile:uploaded_by (
-            id,
-            full_name,
-            email
-          )
-        )
-      `)
+      .select('*')
       .eq('program_id', cleanId)
       .order('created_at', { ascending: true });
 
@@ -78,7 +41,88 @@ export async function getProgramWorkGroups(programId) {
       throw groupsErr;
     }
 
-    return { data: groups || [], tableExists: true, error: null };
+    if (!groups || groups.length === 0) {
+      return { data: [], tableExists: true, error: null };
+    }
+
+    const groupIds = groups.map(g => g.id);
+
+    // 2. Obtener miembros de estos grupos
+    let members = [];
+    try {
+      const { data: memData, error: memErr } = await supabase
+        .from('work_group_members')
+        .select('*')
+        .in('group_id', groupIds);
+      if (memErr) console.warn('Aviso al obtener miembros:', memErr);
+      members = memData || [];
+    } catch (e) {
+      console.warn('Excepción al obtener miembros:', e);
+    }
+
+    // 3. Obtener materiales de estos grupos
+    let materials = [];
+    try {
+      const { data: matData, error: matErr } = await supabase
+        .from('work_group_materials')
+        .select('*')
+        .in('group_id', groupIds)
+        .order('created_at', { ascending: false });
+      if (matErr) console.warn('Aviso al obtener materiales:', matErr);
+      materials = matData || [];
+    } catch (e) {
+      console.warn('Excepción al obtener materiales:', e);
+    }
+
+    // 4. Obtener perfiles de los usuarios involucrados
+    const allUserIds = [
+      ...new Set([
+        ...members.map(m => m.student_id),
+        ...materials.map(m => m.uploaded_by)
+      ].filter(Boolean))
+    ];
+
+    const profilesMap = new Map();
+    if (allUserIds.length > 0) {
+      try {
+        const { data: profiles, error: profErr } = await supabase
+          .from('users_profile')
+          .select('id, full_name, email, role, phone')
+          .in('id', allUserIds);
+
+        if (profErr) console.warn('Aviso al obtener perfiles:', profErr);
+        (profiles || []).forEach(p => profilesMap.set(p.id, p));
+      } catch (e) {
+        console.warn('Excepción al obtener perfiles:', e);
+      }
+    }
+
+    // 5. Ensamblar estructura completa de cada grupo
+    const membersByGroup = new Map();
+    members.forEach(m => {
+      if (!membersByGroup.has(m.group_id)) membersByGroup.set(m.group_id, []);
+      membersByGroup.get(m.group_id).push({
+        ...m,
+        users_profile: profilesMap.get(m.student_id) || { id: m.student_id, full_name: 'Estudiante', email: '' }
+      });
+    });
+
+    const materialsByGroup = new Map();
+    materials.forEach(mat => {
+      if (!materialsByGroup.has(mat.group_id)) materialsByGroup.set(mat.group_id, []);
+      materialsByGroup.get(mat.group_id).push({
+        ...mat,
+        users_profile: profilesMap.get(mat.uploaded_by) || { id: mat.uploaded_by, full_name: 'Miembro' }
+      });
+    });
+
+    const enrichedGroups = groups.map(g => ({
+      ...g,
+      work_group_members: membersByGroup.get(g.id) || [],
+      work_group_materials: materialsByGroup.get(g.id) || []
+    }));
+
+    return { data: enrichedGroups, tableExists: true, error: null };
   } catch (err) {
     if (isTableMissingError(err)) {
       return { data: [], tableExists: false, error: 'Tabla work_groups no creada aún.' };
@@ -93,15 +137,14 @@ export async function getProgramWorkGroups(programId) {
  */
 export async function getStudentWorkGroup(programId, studentId) {
   if (!programId || !studentId) return { data: null, tableExists: true, error: null };
-  const cleanId = String(programId).trim();
+  const cleanId = decodeURIComponent(String(programId || '')).trim();
 
   try {
-    // 1. Buscar membresía del estudiante en el programa
+    // 1. Buscar membresía del estudiante en cualquier grupo
     const { data: memberRecords, error: memErr } = await supabase
       .from('work_group_members')
-      .select('group_id, work_groups!inner(*)')
-      .eq('student_id', studentId)
-      .eq('work_groups.program_id', cleanId);
+      .select('group_id')
+      .eq('student_id', studentId);
 
     if (memErr) {
       if (isTableMissingError(memErr)) {
@@ -114,56 +157,82 @@ export async function getStudentWorkGroup(programId, studentId) {
       return { data: null, tableExists: true, error: null };
     }
 
-    const targetGroupId = memberRecords[0].group_id;
+    const groupIds = memberRecords.map(m => m.group_id);
 
-    // 2. Traer el grupo completo con todos los miembros y materiales
-    const { data: fullGroup, error: fullErr } = await supabase
+    // 2. Traer el grupo que pertenece a este program_id
+    const { data: matchedGroups, error: groupErr } = await supabase
       .from('work_groups')
-      .select(`
-        id,
-        program_id,
-        name,
-        project_topic,
-        description,
-        created_by,
-        created_at,
-        updated_at,
-        work_group_members (
-          id,
-          student_id,
-          assigned_at,
-          users_profile (
-            id,
-            full_name,
-            email,
-            role,
-            phone
-          )
-        ),
-        work_group_materials (
-          id,
-          uploaded_by,
-          title,
-          description,
-          material_type,
-          url,
-          file_name,
-          file_size,
-          provider,
-          created_at,
-          users_profile:uploaded_by (
-            id,
-            full_name,
-            email
-          )
-        )
-      `)
-      .eq('id', targetGroupId)
-      .maybeSingle();
+      .select('*')
+      .in('id', groupIds)
+      .eq('program_id', cleanId);
 
-    if (fullErr) throw fullErr;
+    if (groupErr) throw groupErr;
+    if (!matchedGroups || matchedGroups.length === 0) {
+      return { data: null, tableExists: true, error: null };
+    }
 
-    return { data: fullGroup || null, tableExists: true, error: null };
+    const targetGroup = matchedGroups[0];
+
+    // 3. Traer los miembros del grupo
+    let groupMembers = [];
+    try {
+      const { data: memData } = await supabase
+        .from('work_group_members')
+        .select('*')
+        .eq('group_id', targetGroup.id);
+      groupMembers = memData || [];
+    } catch {}
+
+    // 4. Traer los materiales del grupo
+    let groupMaterials = [];
+    try {
+      const { data: matData } = await supabase
+        .from('work_group_materials')
+        .select('*')
+        .eq('group_id', targetGroup.id)
+        .order('created_at', { ascending: false });
+      groupMaterials = matData || [];
+    } catch {}
+
+    // 5. Perfiles
+    const userIds = [
+      ...new Set([
+        ...groupMembers.map(m => m.student_id),
+        ...groupMaterials.map(m => m.uploaded_by)
+      ].filter(Boolean))
+    ];
+
+    const profilesMap = new Map();
+    if (userIds.length > 0) {
+      try {
+        const { data: profiles } = await supabase
+          .from('users_profile')
+          .select('id, full_name, email, role, phone')
+          .in('id', userIds);
+
+        (profiles || []).forEach(p => profilesMap.set(p.id, p));
+      } catch {}
+    }
+
+    const enrichedMembers = groupMembers.map(m => ({
+      ...m,
+      users_profile: profilesMap.get(m.student_id) || { id: m.student_id, full_name: 'Estudiante', email: '' }
+    }));
+
+    const enrichedMaterials = groupMaterials.map(m => ({
+      ...m,
+      users_profile: profilesMap.get(m.uploaded_by) || { id: m.uploaded_by, full_name: 'Miembro' }
+    }));
+
+    return {
+      data: {
+        ...targetGroup,
+        work_group_members: enrichedMembers,
+        work_group_materials: enrichedMaterials
+      },
+      tableExists: true,
+      error: null
+    };
   } catch (err) {
     if (isTableMissingError(err)) {
       return { data: null, tableExists: false, error: 'Tabla no existe aún.' };
@@ -178,11 +247,12 @@ export async function getStudentWorkGroup(programId, studentId) {
  */
 export async function createWorkGroup({ programId, name, projectTopic = '', description = '', memberIds = [], createdBy = null }) {
   if (!programId || !name) throw new Error('El ID de programa y el nombre del grupo son obligatorios.');
+  const cleanProgramId = decodeURIComponent(String(programId || '')).trim();
 
   const { data: newGroup, error: groupErr } = await supabase
     .from('work_groups')
     .insert([{
-      program_id: String(programId).trim(),
+      program_id: cleanProgramId,
       name: name.trim(),
       project_topic: projectTopic ? projectTopic.trim() : null,
       description: description ? description.trim() : null,

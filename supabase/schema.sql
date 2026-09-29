@@ -402,3 +402,39 @@ CREATE TABLE IF NOT EXISTS public.work_group_materials (
   CONSTRAINT work_group_materials_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users_profile(id) ON DELETE SET NULL
 );
 
+-- Índices de Rendimiento para Grupos
+CREATE INDEX IF NOT EXISTS idx_work_groups_program_id ON public.work_groups(program_id);
+CREATE INDEX IF NOT EXISTS idx_work_group_members_group_id ON public.work_group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_work_group_members_student_id ON public.work_group_members(student_id);
+CREATE INDEX IF NOT EXISTS idx_work_group_materials_group_id ON public.work_group_materials(group_id);
+
+-- RLS para Grupos de Trabajo
+ALTER TABLE public.work_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.work_group_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.work_group_materials ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "work_groups_admin_all" ON public.work_groups;
+DROP POLICY IF EXISTS "work_groups_auth_select" ON public.work_groups;
+DROP POLICY IF EXISTS "work_groups_select" ON public.work_groups;
+
+DROP POLICY IF EXISTS "work_group_members_admin_all" ON public.work_group_members;
+DROP POLICY IF EXISTS "work_group_members_auth_select" ON public.work_group_members;
+DROP POLICY IF EXISTS "work_group_members_select" ON public.work_group_members;
+
+DROP POLICY IF EXISTS "work_group_materials_admin_all" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_auth_select" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_select" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_member_insert" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_owner_delete" ON public.work_group_materials;
+
+CREATE POLICY "work_groups_admin_all" ON public.work_groups FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "work_groups_select" ON public.work_groups FOR SELECT USING (true);
+
+CREATE POLICY "work_group_members_admin_all" ON public.work_group_members FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "work_group_members_select" ON public.work_group_members FOR SELECT USING (true);
+
+CREATE POLICY "work_group_materials_admin_all" ON public.work_group_materials FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "work_group_materials_select" ON public.work_group_materials FOR SELECT USING (true);
+CREATE POLICY "work_group_materials_member_insert" ON public.work_group_materials FOR INSERT TO authenticated WITH CHECK (public.is_admin() OR EXISTS (SELECT 1 FROM public.work_group_members wgm WHERE wgm.group_id = work_group_materials.group_id AND wgm.student_id = public.get_auth_profile_id()));
+CREATE POLICY "work_group_materials_owner_delete" ON public.work_group_materials FOR DELETE TO authenticated USING (public.is_admin() OR uploaded_by = public.get_auth_profile_id());
+

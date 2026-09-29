@@ -66,12 +66,15 @@ ALTER TABLE public.work_group_materials ENABLE ROW LEVEL SECURITY;
 -- Limpiar políticas antiguas si existen
 DROP POLICY IF EXISTS "work_groups_admin_all" ON public.work_groups;
 DROP POLICY IF EXISTS "work_groups_auth_select" ON public.work_groups;
+DROP POLICY IF EXISTS "work_groups_select" ON public.work_groups;
 
 DROP POLICY IF EXISTS "work_group_members_admin_all" ON public.work_group_members;
 DROP POLICY IF EXISTS "work_group_members_auth_select" ON public.work_group_members;
+DROP POLICY IF EXISTS "work_group_members_select" ON public.work_group_members;
 
 DROP POLICY IF EXISTS "work_group_materials_admin_all" ON public.work_group_materials;
 DROP POLICY IF EXISTS "work_group_materials_auth_select" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_select" ON public.work_group_materials;
 DROP POLICY IF EXISTS "work_group_materials_member_insert" ON public.work_group_materials;
 DROP POLICY IF EXISTS "work_group_materials_owner_delete" ON public.work_group_materials;
 
@@ -82,9 +85,8 @@ TO authenticated
 USING (public.is_admin())
 WITH CHECK (public.is_admin());
 
-CREATE POLICY "work_groups_auth_select"
+CREATE POLICY "work_groups_select"
 ON public.work_groups FOR SELECT
-TO authenticated
 USING (true);
 
 -- Políticas para work_group_members
@@ -94,9 +96,8 @@ TO authenticated
 USING (public.is_admin())
 WITH CHECK (public.is_admin());
 
-CREATE POLICY "work_group_members_auth_select"
+CREATE POLICY "work_group_members_select"
 ON public.work_group_members FOR SELECT
-TO authenticated
 USING (true);
 
 -- Políticas para work_group_materials
@@ -106,9 +107,8 @@ TO authenticated
 USING (public.is_admin())
 WITH CHECK (public.is_admin());
 
-CREATE POLICY "work_group_materials_auth_select"
+CREATE POLICY "work_group_materials_select"
 ON public.work_group_materials FOR SELECT
-TO authenticated
 USING (true);
 
 CREATE POLICY "work_group_materials_member_insert"

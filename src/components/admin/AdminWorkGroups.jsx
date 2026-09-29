@@ -64,6 +64,9 @@ export default function AdminWorkGroups({ programId, programTitle, enrolledStude
       } else {
         setTableExists(true);
         setGroups(res.data || []);
+        if (res.error) {
+          setErrorMsg(res.error);
+        }
       }
     } catch (err) {
       console.error('Error cargando grupos de trabajo:', err);
@@ -365,12 +368,28 @@ ALTER TABLE public.work_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.work_group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.work_group_materials ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "work_groups_admin_all" ON public.work_groups;
+DROP POLICY IF EXISTS "work_groups_auth_select" ON public.work_groups;
+DROP POLICY IF EXISTS "work_groups_select" ON public.work_groups;
+
+DROP POLICY IF EXISTS "work_group_members_admin_all" ON public.work_group_members;
+DROP POLICY IF EXISTS "work_group_members_auth_select" ON public.work_group_members;
+DROP POLICY IF EXISTS "work_group_members_select" ON public.work_group_members;
+
+DROP POLICY IF EXISTS "work_group_materials_admin_all" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_auth_select" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_select" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_member_insert" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_owner_delete" ON public.work_group_materials;
+
 CREATE POLICY "work_groups_admin_all" ON public.work_groups FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
-CREATE POLICY "work_groups_auth_select" ON public.work_groups FOR SELECT TO authenticated USING (true);
+CREATE POLICY "work_groups_select" ON public.work_groups FOR SELECT USING (true);
+
 CREATE POLICY "work_group_members_admin_all" ON public.work_group_members FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
-CREATE POLICY "work_group_members_auth_select" ON public.work_group_members FOR SELECT TO authenticated USING (true);
+CREATE POLICY "work_group_members_select" ON public.work_group_members FOR SELECT USING (true);
+
 CREATE POLICY "work_group_materials_admin_all" ON public.work_group_materials FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
-CREATE POLICY "work_group_materials_auth_select" ON public.work_group_materials FOR SELECT TO authenticated USING (true);
+CREATE POLICY "work_group_materials_select" ON public.work_group_materials FOR SELECT USING (true);
 CREATE POLICY "work_group_materials_member_insert" ON public.work_group_materials FOR INSERT TO authenticated WITH CHECK (public.is_admin() OR EXISTS (SELECT 1 FROM public.work_group_members wgm WHERE wgm.group_id = work_group_materials.group_id AND wgm.student_id = public.get_auth_profile_id()));
 CREATE POLICY "work_group_materials_owner_delete" ON public.work_group_materials FOR DELETE TO authenticated USING (public.is_admin() OR uploaded_by = public.get_auth_profile_id());
 
@@ -433,6 +452,34 @@ NOTIFY pgrst, 'reload schema';`;
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── ALERTA DE ERROR SI LA CONSULTA FALLA ── */}
+      {errorMsg && (
+        <div style={{
+          background: '#FEF2F2',
+          border: '1px solid #FCA5A5',
+          borderRadius: '12px',
+          padding: '1rem 1.25rem',
+          marginBottom: '1.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          color: '#991B1B'
+        }}>
+          <AlertCircle size={20} color="#DC2626" style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: '0.88rem' }}>
+            <strong>Nota del sistema:</strong> {errorMsg}
+          </div>
+          <button
+            type="button"
+            onClick={fetchGroups}
+            className="btn btn-outline"
+            style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', borderColor: '#FCA5A5', color: '#991B1B' }}
+          >
+            Reintentar
+          </button>
         </div>
       )}
 
