@@ -827,6 +827,27 @@ export default function Dashboard() {
           <Paperclip size={15} color="var(--gold-dark, #b45309)" /> Recursos y Materiales
         </Link>
         <Link
+          to={`/grupos/${cleanProgramId}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.55rem 1rem',
+            borderRadius: '8px 8px 0 0',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            textDecoration: 'none',
+            background: '#F1F5F9',
+            color: 'var(--navy)',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
+          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
+        >
+          <Users size={15} /> Grupos de Trabajo
+        </Link>
+        <Link
           to={`/resultados/${cleanProgramId}`}
           style={{
             display: 'inline-flex',

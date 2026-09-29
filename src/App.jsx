@@ -48,6 +48,7 @@ const ModuleDetail = React.lazy(() => import('./pages/course/ModuleDetail'));
 const ClassDetail = React.lazy(() => import('./pages/course/ClassDetail'));
 const Teachers = React.lazy(() => import('./pages/course/Teachers'));
 const CourseResources = React.lazy(() => import('./pages/course/CourseResources'));
+const CourseGroups = React.lazy(() => import('./pages/course/CourseGroups'));
 const SyllabusRedirector = React.lazy(() => import('./pages/course/SyllabusRedirector'));
 const PendingActivities = React.lazy(() => import('./pages/course/PendingActivities'));
 const MisResultados = React.lazy(() => import('./pages/course/MisResultados'));
@@ -119,6 +120,7 @@ function App() {
               <Route path="/teachers/:programId" element={<Teachers />} />
               <Route path="/resources/:programId" element={<CourseResources />} />
               <Route path="/recursos/:programId" element={<CourseResources />} />
+              <Route path="/grupos/:programId" element={<CourseGroups />} />
               <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
               <Route path="/communications" element={<ProtectedRoute allowedRoles={['admin']}><Communications /></ProtectedRoute>} />
             </Route>

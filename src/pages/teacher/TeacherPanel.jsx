@@ -26,6 +26,7 @@ import { triggerResourceDownload } from '@/utils/resourceUtils';
 import './TeacherPanel.css';
 import AdminClassReinforcement from '@/components/admin/AdminClassReinforcement';
 import DeleteAnnouncementModal from '@/components/common/DeleteAnnouncementModal';
+import TeacherWorkGroups from '@/components/teacher/TeacherWorkGroups';
 
 const TeacherContext = React.createContext(null);
 const useTeacherContext = () => React.useContext(TeacherContext);
@@ -10026,10 +10027,16 @@ function RecursosTab() {
   );
 }
 
+function GruposTab() {
+  const { programId, currentProgram } = useTeacherContext();
+  return <TeacherWorkGroups programId={programId} programTitle={currentProgram?.title} />;
+}
+
 const TABS = [
   { id: 'resumen',      label: 'Panorama del Curso',        icon: <BookOpen size={16} />,        component: ResumenTab },
   { id: 'clases',       label: 'Mis Clases',                icon: <Video size={16} />,           component: ClasesTab },
   { id: 'recursos',     label: 'Material del Curso',        icon: <Paperclip size={16} />,       component: RecursosTab },
+  { id: 'grupos',       label: 'Grupos de Trabajo',         icon: <Users size={16} />,           component: GruposTab },
   { id: 'reforzamiento',label: 'Reforzamiento IA',          icon: <Brain size={16} />,           component: ReforzamientoIATab },
   { id: 'dudas',        label: 'Dudas',                     icon: <MessageSquare size={16} />,   component: DudasTab },
   { id: 'anuncios',     label: 'Anuncios',                  icon: <Megaphone size={16} />,       component: AnunciosTab },

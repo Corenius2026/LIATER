@@ -176,6 +176,15 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                   </NavLink>
 
                   <NavLink
+                    to={`/dashboard/profesor/${teacherProgId}?tab=grupos`}
+                    className={() => currentTab === 'grupos' ? 'nav-item active' : 'nav-item'}
+                    aria-current={currentTab === 'grupos' ? 'page' : undefined}
+                  >
+                    <Users size={18} />
+                    <span>Grupos de Trabajo</span>
+                  </NavLink>
+
+                  <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=reforzamiento`}
                     className={() => currentTab === 'reforzamiento' ? 'nav-item active' : 'nav-item'}
                     aria-current={currentTab === 'reforzamiento' ? 'page' : undefined}
@@ -396,6 +405,10 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                     <NavLink to={`/resources/${activeProgramId}`} className={({isActive}) => (isActive || location.pathname.startsWith('/resources/') || location.pathname.startsWith('/recursos/')) ? 'nav-item active' : 'nav-item'}>
                       <Paperclip size={18} />
                       <span>Recursos de Estudio</span>
+                    </NavLink>
+                    <NavLink to={`/grupos/${activeProgramId}`} className={({isActive}) => (isActive || location.pathname.startsWith('/grupos/')) ? 'nav-item active' : 'nav-item'}>
+                      <Users size={18} />
+                      <span>Grupos de Trabajo</span>
                     </NavLink>
                     <NavLink to={`/resultados/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                       <BarChart2 size={18} />
