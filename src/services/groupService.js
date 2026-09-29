@@ -359,10 +359,12 @@ export async function removeMemberFromGroup(groupId, studentId) {
 
 /**
  * Sube o registra un material / entregable en un grupo de trabajo.
- * Soporta enlace web o archivo físico mediante Supabase Storage.
+ * Guarda los archivos físicos directamente en la carpeta general de Google Drive del curso
+ * a través de la función del sistema 'upload-pdf-drive'.
  */
 export async function addGroupMaterial({
   groupId,
+  programId = null,
   uploadedBy,
   title,
   description = '',
@@ -381,12 +383,12 @@ export async function addGroupMaterial({
   let finalProvider = provider;
   let finalType = materialType;
 
-  // Si se adjuntó un archivo físico, intentar subirlo a Supabase Storage
+  // Si se adjuntó un archivo físico, subir a la carpeta general de Google Drive del curso
   if (file) {
     finalFileName = file.name;
     finalFileSize = file.size;
-    finalProvider = 'storage';
-    
+    finalProvider = 'drive';
+
     // Deducir tipo
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'pdf') finalType = 'pdf';
@@ -394,34 +396,75 @@ export async function addGroupMaterial({
     else if (['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)) finalType = 'document';
     else finalType = 'file';
 
-    const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const storagePath = `groups/${groupId}/${safeName}`;
-
-    try {
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from('work-group-materials')
-        .upload(storagePath, file, { cacheControl: '3600', upsert: true });
-
-      if (!uploadErr && uploadData?.path) {
-        const { data: publicUrlData } = supabase.storage
-          .from('work-group-materials')
-          .getPublicUrl(storagePath);
-        finalUrl = publicUrlData?.publicUrl || storagePath;
-      } else {
-        console.warn('Aviso: Bucket work-group-materials no configurado o protegido, guardando referencia.');
-        if (!finalUrl) {
-          finalUrl = URL.createObjectURL(file);
+    // Resolver program_id y nombre del grupo si no fueron provistos
+    let resolvedProgramId = programId;
+    let resolvedGroupName = '';
+    if (!resolvedProgramId || !resolvedGroupName) {
+      try {
+        const { data: g } = await supabase
+          .from('work_groups')
+          .select('program_id, name')
+          .eq('id', groupId)
+          .maybeSingle();
+        if (g) {
+          if (!resolvedProgramId) resolvedProgramId = g.program_id;
+          resolvedGroupName = g.name || '';
         }
+      } catch (err) {
+        console.warn('Aviso obteniendo datos del grupo para subida:', err);
       }
-    } catch (sErr) {
-      console.warn('Error al subir a Supabase Storage:', sErr);
-      if (!finalUrl) {
-        throw new Error('No se pudo subir el archivo. Por favor proporciona un enlace web directo (Drive, Dropbox, etc.).');
-      }
+    }
+
+    if (!resolvedProgramId) {
+      throw new Error('No se pudo identificar el programa/curso asociado al grupo para guardar el archivo.');
+    }
+
+    const cleanProgramId = decodeURIComponent(String(resolvedProgramId || '')).trim();
+
+    // Invocar Edge Function para subir a la carpeta general de Google Drive del curso
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('programId', cleanProgramId);
+    formData.append('classId', 'general'); // Carpeta general de Google Drive del curso
+    formData.append('resourceType', 'file');
+    formData.append('allowDownload', 'true');
+    const groupPrefix = resolvedGroupName ? `[${resolvedGroupName}]` : '[Grupo]';
+    formData.append('customTitle', `${groupPrefix} ${title.trim()}`);
+
+    const { data: driveData, error: driveErr } = await supabase.functions.invoke('upload-pdf-drive', {
+      body: formData
+    });
+
+    if (driveErr) {
+      let msg = driveErr.message;
+      try {
+        if (driveErr.context && typeof driveErr.context.json === 'function') {
+          const body = await driveErr.context.json();
+          if (body?.error) msg = body.error;
+        }
+      } catch (_) {}
+      throw new Error(msg || 'Error al subir archivo a la carpeta general del curso en Google Drive.');
+    }
+
+    if (driveData?.error) {
+      throw new Error(driveData.error);
+    }
+
+    finalUrl = driveData?.previewUrl || (driveData?.driveFileId ? `https://drive.google.com/file/d/${driveData.driveFileId}/preview` : '');
+    if (!finalUrl) {
+      throw new Error('Google Drive no devolvió un enlace válido para el archivo subido.');
+    }
+
+    // Para evitar que el archivo de trabajo del grupo aparezca en la lista general de recursos de clase,
+    // limpiamos el registro creado automáticamente en resources
+    if (driveData?.resource?.id) {
+      try {
+        await supabase.from('resources').delete().eq('id', driveData.resource.id);
+      } catch (_) {}
     }
   }
 
-  // Deducir proveedor si es enlace
+  // Deducir proveedor si es enlace web
   if (!file && finalUrl) {
     const low = finalUrl.toLowerCase();
     if (low.includes('drive.google.com')) {
@@ -451,14 +494,7 @@ export async function addGroupMaterial({
   const { data, error } = await supabase
     .from('work_group_materials')
     .insert([payload])
-    .select(`
-      *,
-      users_profile:uploaded_by (
-        id,
-        full_name,
-        email
-      )
-    `)
+    .select('*')
     .single();
 
   if (error) throw error;
@@ -466,10 +502,30 @@ export async function addGroupMaterial({
 }
 
 /**
- * Elimina un material de grupo.
+ * Elimina un material de grupo y remueve su archivo de Google Drive si fue subido allí.
  */
 export async function deleteGroupMaterial(materialId) {
   if (!materialId) throw new Error('ID de material requerido');
+
+  // Intentar eliminar de Google Drive si fue subido allí
+  try {
+    const { data: mat } = await supabase
+      .from('work_group_materials')
+      .select('url, provider')
+      .eq('id', materialId)
+      .maybeSingle();
+
+    if (mat && (mat.provider === 'drive' || mat.url?.includes('drive.google.com'))) {
+      try {
+        await supabase.functions.invoke('upload-pdf-drive', {
+          body: { action: 'delete', fileUrl: mat.url }
+        });
+      } catch (dErr) {
+        console.warn('Aviso al eliminar de Google Drive:', dErr);
+      }
+    }
+  } catch (_) {}
+
   const { error } = await supabase
     .from('work_group_materials')
     .delete()

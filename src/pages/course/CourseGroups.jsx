@@ -119,6 +119,7 @@ export default function CourseGroups() {
     try {
       await addGroupMaterial({
         groupId: myGroup.id,
+        programId: cleanProgramId || myGroup.program_id,
         uploadedBy: currentUser?.id,
         title: matTitle,
         description: matDesc,
@@ -784,7 +785,7 @@ export default function CourseGroups() {
                     boxShadow: matType === 'file' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
                   }}
                 >
-                  📄 Archivo / PDF / ZIP
+                  📄 Subir a Google Drive del Curso
                 </button>
               </div>
 
@@ -827,6 +828,10 @@ export default function CourseGroups() {
                     onChange={(e) => setMatFile(e.target.files?.[0] || null)}
                     style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px dashed var(--border-color)', fontSize: '0.85rem' }}
                   />
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.78rem', color: '#0F9D58', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
+                    <HardDrive size={13} color="#0F9D58" />
+                    <span>Se guardará automáticamente en la carpeta general de Google Drive del curso.</span>
+                  </div>
                 </div>
               )}
 
@@ -848,7 +853,7 @@ export default function CourseGroups() {
                   Cancelar
                 </button>
                 <button type="submit" disabled={submitting} className="btn btn-primary" style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                  {submitting ? 'Guardando...' : 'Subir al Grupo'}
+                  {submitting ? 'Subiendo a Google Drive...' : 'Subir al Grupo'}
                 </button>
               </div>
             </form>
