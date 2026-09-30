@@ -505,13 +505,23 @@ export async function markPostSolution(postId, threadId, isSolution) {
 }
 
 /**
- * Soft delete de un post (mantiene árbol de respuestas intacto).
+ * Elimina un post definitivamente de la base de datos de Supabase.
+ * Gracias a las foreign keys con ON DELETE CASCADE, las reacciones asociadas
+ * y réplicas se limpian de manera consistente en la BD.
  */
-export async function softDeletePost(postId) {
-  if (!postId) return;
+export async function deletePostFromDb(postId) {
+  if (!postId) return false;
   const { error } = await supabase
     .from('forum_posts')
-    .update({ is_deleted: true })
+    .delete()
     .eq('id', postId);
   if (error) throw error;
+  return true;
+}
+
+/**
+ * Soft delete de un post (mantenido por compatibilidad, redirige a eliminación real en BD).
+ */
+export async function softDeletePost(postId) {
+  return deletePostFromDb(postId);
 }

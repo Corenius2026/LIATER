@@ -35,24 +35,14 @@ export default function ForumPostCard({
   const [reactLoading, setReactLoading]     = useState(false);
 
   if (post.is_deleted) {
-    return (
-      <div style={{
-        padding: isNested ? '0.55rem 0.85rem' : '0.75rem 1rem',
-        marginLeft: isNested ? '2rem' : 0,
-        background: 'var(--bg-light, #f8fafc)',
-        borderRadius: '8px',
-        border: '1px solid var(--border-color, #e2e8f0)',
-        fontSize: '0.8rem',
-        color: 'var(--text-muted, #94a3b8)',
-        fontStyle: 'italic',
-      }}>
-        [Este mensaje fue eliminado]
-      </div>
-    );
+    return null;
   }
 
   const effectiveUserId = userProfileId || currentUser?.id;
   const isOwnPost = effectiveUserId && post.author_id === effectiveUserId;
+  const isAdmin = currentUser?.role === 'admin';
+  // REGLA: Admin elimina cualquier mensaje; Profesor y Estudiante solo los suyos propios
+  const canDelete = isAdmin || isOwnPost;
   const authorName = post.author?.full_name || 'Usuario';
   const authorRole = post.author?.role;
 
@@ -223,12 +213,13 @@ export default function ForumPostCard({
           </button>
         )}
 
-        {/* Eliminar (propio post o moderador) */}
-        {(isOwnPost || canModerate) && onDelete && (
+        {/* Eliminar (Admin cualquier post, o autor del propio post) */}
+        {canDelete && onDelete && (
           <button
-            onClick={() => onDelete(post.id)}
+            type="button"
+            onClick={() => onDelete(post)}
             style={{
-              display: 'flex', alignItems: 'center', gap: '0.3rem',
+              display: 'flex', alignItems: 'center', gap: '0.35rem',
               fontSize: '0.78rem', fontWeight: 600, color: '#dc2626',
               background: 'transparent',
               border: '1px solid rgba(220,38,38,0.2)',
@@ -236,7 +227,15 @@ export default function ForumPostCard({
               cursor: 'pointer', transition: 'all 0.15s ease',
               marginLeft: 'auto',
             }}
-            title="Eliminar post"
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'rgba(220,38,38,0.06)';
+              e.currentTarget.style.borderColor = 'rgba(220,38,38,0.4)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderColor = 'rgba(220,38,38,0.2)';
+            }}
+            title="Eliminar mensaje de la discusión"
           >
             <Trash2 size={13} /> Eliminar
           </button>

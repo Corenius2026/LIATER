@@ -14,10 +14,11 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import {
   getThreadDetail, createPost, markPostSolution,
-  softDeletePost, updateThreadStatus
+  deletePostFromDb, updateThreadStatus
 } from '@/services/forumService';
 import ForumCategoryBadge from '@/components/forum/ForumCategoryBadge';
 import ForumPostCard from '@/components/forum/ForumPostCard';
+import ConfirmModal from '@/components/common/ConfirmModal';
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -48,6 +49,11 @@ export default function ForumThread() {
   const [replyBody, setReplyBody]       = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError]     = useState('');
+
+  // Estados de eliminación y feedback
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [toastFeedback, setToastFeedback] = useState(null);
 
   const replyBoxRef = useRef(null);
 
@@ -128,14 +134,32 @@ export default function ForumThread() {
     }
   };
 
-  // Eliminar post (soft delete)
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm('¿Eliminar este mensaje?')) return;
+  // Iniciar flujo de eliminación (abre modal de confirmación con diseño LIATER)
+  const handleDeletePost = (postOrId) => {
+    const postObj = typeof postOrId === 'object' && postOrId !== null
+      ? postOrId
+      : posts.find(p => p.id === postOrId);
+    setPostToDelete(postObj || { id: postOrId });
+  };
+
+  // Confirmar y ejecutar eliminación real de la base de datos
+  const handleConfirmDeletePost = async () => {
+    if (!postToDelete?.id) return;
+    setDeletingPost(true);
     try {
-      await softDeletePost(postId);
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, is_deleted: true } : p));
+      await deletePostFromDb(postToDelete.id);
+
+      // Eliminar del estado inmediatamente para que no haya ruido visual ni residuos
+      setPosts(prev => prev.filter(p => p.id !== postToDelete.id && p.parent_id !== postToDelete.id));
+      setPostToDelete(null);
+
+      setToastFeedback('Mensaje eliminado permanentemente de la discusión.');
+      setTimeout(() => setToastFeedback(null), 3500);
     } catch (err) {
-      console.error('Error eliminando post:', err);
+      console.error('Error eliminando mensaje de la base de datos:', err);
+      alert('Error al eliminar el mensaje: ' + (err.message || 'Intenta de nuevo.'));
+    } finally {
+      setDeletingPost(false);
     }
   };
 
@@ -427,6 +451,48 @@ export default function ForumThread() {
         </div>
       )}
 
+      {/* Modal de confirmación de eliminación con diseño del LMS LIATER */}
+      <ConfirmModal
+        isOpen={Boolean(postToDelete)}
+        onClose={() => !deletingPost && setPostToDelete(null)}
+        onConfirm={handleConfirmDeletePost}
+        title="Eliminar mensaje"
+        message={
+          postToDelete?.author?.full_name
+            ? `¿Estás seguro de que deseas eliminar este mensaje publicado por "${postToDelete.author.full_name}"?`
+            : '¿Estás seguro de que deseas eliminar este mensaje?'
+        }
+        note="Esta acción borrará el mensaje de forma permanente en la base de datos de la plataforma."
+        confirmText="Eliminar definitivamente"
+        cancelText="Cancelar"
+        isDanger={true}
+        loading={deletingPost}
+      />
+
+      {/* Notificación toast elegante en paleta LIATER (Navy + Dorado) */}
+      {toastFeedback && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          background: 'var(--navy, #0b1528)',
+          color: '#ffffff',
+          padding: '0.8rem 1.35rem',
+          borderRadius: '10px',
+          boxShadow: '0 10px 25px -5px rgba(11, 21, 40, 0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          zIndex: 9999,
+          border: '1.5px solid rgba(204, 163, 82, 0.4)',
+          animation: 'fadeSlideUp 0.25s ease-out',
+        }}>
+          <CheckCircle2 size={17} color="var(--gold, #cca352)" />
+          <span>{toastFeedback}</span>
+        </div>
+      )}
     </div>
   );
 }
