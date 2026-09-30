@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS public.resources (
   provider text DEFAULT 'external'::text CHECK (provider = ANY (ARRAY['drive'::text, 'youtube'::text, 'supabase'::text, 'external'::text])),
   file_path text,
   is_visible boolean DEFAULT true,
+  allow_download boolean NOT NULL DEFAULT false,
   CONSTRAINT resources_pkey PRIMARY KEY (id),
   CONSTRAINT resources_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.class_sessions(id),
   CONSTRAINT resources_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id)
@@ -353,64 +354,126 @@ CREATE TABLE IF NOT EXISTS public.activity_drafts (
   CONSTRAINT activity_drafts_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users_profile(id)
 );
 
--- 24. Hilos del Foro (forum_threads)
--- program_id = null → hilo global de soporte (visible para todos los roles)
--- class_id   = null → hilo no vinculado a una clase específica
-CREATE TABLE IF NOT EXISTS public.forum_threads (
-  id          uuid NOT NULL DEFAULT uuid_generate_v4(),
-  program_id  uuid,
-  class_id    uuid,
-  author_id   uuid NOT NULL,
-  title       character varying(200) NOT NULL,
-  body        text NOT NULL,
-  category    character varying(30) NOT NULL DEFAULT 'academic'
-              CHECK (category IN ('academic', 'debate', 'support')),
-  is_pinned   boolean NOT NULL DEFAULT false,
-  is_locked   boolean NOT NULL DEFAULT false,
-  is_resolved boolean NOT NULL DEFAULT false,
-  views_count integer NOT NULL DEFAULT 0,
-  created_at  timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at  timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT forum_threads_pkey PRIMARY KEY (id),
-  CONSTRAINT forum_threads_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE,
-  CONSTRAINT forum_threads_class_id_fkey   FOREIGN KEY (class_id)   REFERENCES public.class_sessions(id) ON DELETE SET NULL,
-  CONSTRAINT forum_threads_author_id_fkey  FOREIGN KEY (author_id)  REFERENCES public.users_profile(id) ON DELETE CASCADE
+-- 24. Grupos de Trabajo por Programa (work_groups)
+CREATE TABLE IF NOT EXISTS public.work_groups (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  program_id uuid NOT NULL,
+  name character varying NOT NULL,
+  project_topic character varying,
+  description text,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT work_groups_pkey PRIMARY KEY (id),
+  CONSTRAINT work_groups_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.diploma_programs(id) ON DELETE CASCADE,
+  CONSTRAINT work_groups_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users_profile(id) ON DELETE SET NULL
 );
 
--- 25. Posts / Respuestas del Foro (forum_posts)
-CREATE TABLE IF NOT EXISTS public.forum_posts (
-  id          uuid NOT NULL DEFAULT uuid_generate_v4(),
-  thread_id   uuid NOT NULL,
-  author_id   uuid NOT NULL,
-  parent_id   uuid,
-  body        text NOT NULL,
-  is_solution boolean NOT NULL DEFAULT false,
-  is_deleted  boolean NOT NULL DEFAULT false,
-  created_at  timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at  timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT forum_posts_pkey           PRIMARY KEY (id),
-  CONSTRAINT forum_posts_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE,
-  CONSTRAINT forum_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.users_profile(id) ON DELETE CASCADE,
-  CONSTRAINT forum_posts_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.forum_posts(id)   ON DELETE CASCADE
+-- 25. Integrantes de Grupos de Trabajo (work_group_members)
+CREATE TABLE IF NOT EXISTS public.work_group_members (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  group_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  assigned_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  assigned_by uuid,
+  CONSTRAINT work_group_members_pkey PRIMARY KEY (id),
+  CONSTRAINT work_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.work_groups(id) ON DELETE CASCADE,
+  CONSTRAINT work_group_members_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users_profile(id) ON DELETE CASCADE,
+  CONSTRAINT work_group_members_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users_profile(id) ON DELETE SET NULL,
+  CONSTRAINT work_group_members_group_student_unique UNIQUE (group_id, student_id)
 );
 
--- 26. Reacciones del Foro (forum_reactions)
-CREATE TABLE IF NOT EXISTS public.forum_reactions (
-  post_id       uuid NOT NULL,
-  user_id       uuid NOT NULL,
-  reaction_type character varying(20) NOT NULL DEFAULT 'useful',
-  created_at    timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT forum_reactions_pkey         PRIMARY KEY (post_id, user_id),
-  CONSTRAINT forum_reactions_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id)    ON DELETE CASCADE,
-  CONSTRAINT forum_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users_profile(id) ON DELETE CASCADE
+-- 26. Materiales y Entregables de Grupos (work_group_materials)
+CREATE TABLE IF NOT EXISTS public.work_group_materials (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  group_id uuid NOT NULL,
+  uploaded_by uuid,
+  title character varying NOT NULL,
+  description text,
+  material_type character varying NOT NULL DEFAULT 'file',
+  url text NOT NULL,
+  file_name text,
+  file_size bigint,
+  provider character varying DEFAULT 'external',
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT work_group_materials_pkey PRIMARY KEY (id),
+  CONSTRAINT work_group_materials_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.work_groups(id) ON DELETE CASCADE,
+  CONSTRAINT work_group_materials_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users_profile(id) ON DELETE SET NULL
 );
 
--- 27. Estado de Lectura del Foro (forum_read_status)
-CREATE TABLE IF NOT EXISTS public.forum_read_status (
-  user_id      uuid NOT NULL,
-  thread_id    uuid NOT NULL,
-  last_read_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT forum_read_status_pkey           PRIMARY KEY (user_id, thread_id),
-  CONSTRAINT forum_read_status_user_id_fkey   FOREIGN KEY (user_id)   REFERENCES public.users_profile(id)   ON DELETE CASCADE,
-  CONSTRAINT forum_read_status_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE
+-- Índices de Rendimiento para Grupos
+CREATE INDEX IF NOT EXISTS idx_work_groups_program_id ON public.work_groups(program_id);
+CREATE INDEX IF NOT EXISTS idx_work_group_members_group_id ON public.work_group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_work_group_members_student_id ON public.work_group_members(student_id);
+CREATE INDEX IF NOT EXISTS idx_work_group_materials_group_id ON public.work_group_materials(group_id);
+
+-- RLS para Grupos de Trabajo
+ALTER TABLE public.work_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.work_group_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.work_group_materials ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "work_groups_admin_all" ON public.work_groups;
+DROP POLICY IF EXISTS "work_groups_auth_select" ON public.work_groups;
+DROP POLICY IF EXISTS "work_groups_select" ON public.work_groups;
+
+DROP POLICY IF EXISTS "work_group_members_admin_all" ON public.work_group_members;
+DROP POLICY IF EXISTS "work_group_members_auth_select" ON public.work_group_members;
+DROP POLICY IF EXISTS "work_group_members_select" ON public.work_group_members;
+
+DROP POLICY IF EXISTS "work_group_materials_admin_all" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_auth_select" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_select" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_member_insert" ON public.work_group_materials;
+DROP POLICY IF EXISTS "work_group_materials_owner_delete" ON public.work_group_materials;
+
+CREATE POLICY "work_groups_admin_all" ON public.work_groups FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "work_groups_select" ON public.work_groups FOR SELECT USING (true);
+
+CREATE POLICY "work_group_members_admin_all" ON public.work_group_members FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "work_group_members_select" ON public.work_group_members FOR SELECT USING (true);
+
+CREATE POLICY "work_group_materials_admin_all" ON public.work_group_materials FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "work_group_materials_select" ON public.work_group_materials FOR SELECT USING (true);
+CREATE POLICY "work_group_materials_member_insert" ON public.work_group_materials FOR INSERT TO authenticated WITH CHECK (public.is_admin() OR EXISTS (SELECT 1 FROM public.work_group_members wgm WHERE wgm.group_id = work_group_materials.group_id AND wgm.student_id = public.get_auth_profile_id()));
+CREATE POLICY "work_group_materials_owner_delete" ON public.work_group_materials FOR DELETE TO authenticated USING (public.is_admin() OR uploaded_by = public.get_auth_profile_id());
+
+-- Función RPC SECURITY DEFINER para lectura segura de perfiles de compañeros de grupo
+CREATE OR REPLACE FUNCTION public.get_profiles_by_ids(p_user_ids uuid[])
+RETURNS TABLE (
+  id uuid,
+  full_name character varying,
+  email character varying,
+  role character varying,
+  phone text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT up.id, up.full_name, up.email, up.role, up.phone
+  FROM public.users_profile up
+  WHERE up.id = ANY(p_user_ids);
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_profiles_by_ids(uuid[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_profiles_by_ids(uuid[]) TO anon;
+
+-- Política RLS complementaria para users_profile
+DROP POLICY IF EXISTS "users_profile_read_team_members" ON public.users_profile;
+CREATE POLICY "users_profile_read_team_members"
+ON public.users_profile FOR SELECT
+TO authenticated
+USING (
+  public.is_admin()
+  OR
+  EXISTS (
+    SELECT 1 FROM public.work_group_members wgm_peer
+    JOIN public.work_group_members wgm_me ON wgm_me.group_id = wgm_peer.group_id
+    WHERE wgm_peer.student_id = users_profile.id
+      AND wgm_me.student_id = public.get_auth_profile_id()
+  )
 );
+
+
