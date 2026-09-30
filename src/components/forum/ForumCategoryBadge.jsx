@@ -6,15 +6,15 @@
 const CATEGORY_CONFIG = {
   academic: {
     label: 'Dudas Académicas',
-    color: '#2563eb',
-    bg: 'rgba(37, 99, 235, 0.12)',
-    border: 'rgba(37, 99, 235, 0.3)',
+    color: '#92400e',
+    bg: 'rgba(252, 163, 17, 0.12)',
+    border: 'rgba(252, 163, 17, 0.35)',
   },
   debate: {
     label: 'Debate',
-    color: '#7c3aed',
-    bg: 'rgba(124, 58, 237, 0.12)',
-    border: 'rgba(124, 58, 237, 0.3)',
+    color: '#1e3a8a',
+    bg: 'rgba(30, 58, 138, 0.08)',
+    border: 'rgba(30, 58, 138, 0.25)',
   },
 };
 

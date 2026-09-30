@@ -1,15 +1,19 @@
 /**
  * ForumThread.jsx
- * Vista de detalle de un hilo del foro.
- * Muestra: encabezado del hilo, botones de moderación, y todos los posts con sus replies.
- * Permite: responder, reaccionar 👍, marcar solución, eliminar, pinear, cerrar, resolver.
- * Conectado con forumService.js.
+ * Vista detallada de un hilo del foro académico LIATER.
+ * Diseño LMS profesional:
+ * - Navegación contextual y migas de pan limpias
+ * - Tarjeta principal del hilo con avatar del autor, rol, badges y tipografía de lectura
+ * - Barra de herramientas de moderación para docentes y administradores
+ * - Listado de respuestas con destacado de Solución (Verde UNAL) y respuestas anidadas
+ * - Compositor de respuestas enriquecido con foco dorado y botón Navy institucional
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Pin, PinOff, Lock, Unlock, CheckCircle2,
-  Send, Loader2, AlertCircle, MessageSquare, Trash2
+  Send, Loader2, AlertCircle, MessageSquare, Trash2,
+  BookOpen, CornerDownRight
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -30,6 +34,23 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function getInitials(name) {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function getRoleBadge(role) {
+  if (role === 'admin') {
+    return { label: 'Admin', color: '#b45309', bg: 'rgba(180, 83, 9, 0.08)', border: 'rgba(180, 83, 9, 0.22)' };
+  }
+  if (role === 'teacher') {
+    return { label: 'Docente', color: '#1e3a8a', bg: 'rgba(30, 58, 138, 0.08)', border: 'rgba(30, 58, 138, 0.22)' };
+  }
+  return { label: 'Estudiante', color: '#475569', bg: 'rgba(71, 85, 105, 0.06)', border: 'rgba(71, 85, 105, 0.16)' };
+}
+
 export default function ForumThread() {
   const { threadId } = useParams();
   const navigate = useNavigate();
@@ -40,11 +61,10 @@ export default function ForumThread() {
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
 
-  // currentUser.id YA ES users_profile.id
   const userProfileId = currentUser?.id ?? null;
   const userRole      = currentUser?.role ?? 'student';
 
-  // Respuesta
+  // Estados de respuesta
   const [replyingTo, setReplyingTo]     = useState(null);
   const [replyBody, setReplyBody]       = useState('');
   const [sendingReply, setSendingReply] = useState(false);
@@ -136,7 +156,7 @@ export default function ForumThread() {
     }
   };
 
-  // Iniciar flujo de eliminación (abre modal de confirmación con diseño LIATER)
+  // Iniciar flujo de eliminación de mensaje
   const handleDeletePost = (postOrId) => {
     const postObj = typeof postOrId === 'object' && postOrId !== null
       ? postOrId
@@ -144,17 +164,14 @@ export default function ForumThread() {
     setPostToDelete(postObj || { id: postOrId });
   };
 
-  // Confirmar y ejecutar eliminación real de la base de datos
+  // Confirmar y ejecutar eliminación de mensaje de la base de datos
   const handleConfirmDeletePost = async () => {
     if (!postToDelete?.id) return;
     setDeletingPost(true);
     try {
       await deletePostFromDb(postToDelete.id);
-
-      // Eliminar del estado inmediatamente para que no haya ruido visual ni residuos
       setPosts(prev => prev.filter(p => p.id !== postToDelete.id && p.parent_id !== postToDelete.id));
       setPostToDelete(null);
-
       setToastFeedback('Mensaje eliminado permanentemente de la discusión.');
       setTimeout(() => setToastFeedback(null), 3500);
     } catch (err) {
@@ -229,134 +246,375 @@ export default function ForumThread() {
     }, 50);
   };
 
-  const modBtnStyle = {
-    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-    padding: '0.3rem 0.65rem', borderRadius: '6px',
-    border: '1px solid var(--border-color, #e2e8f0)', background: 'transparent',
-    color: 'var(--text-muted, #64748b)', fontSize: '0.75rem', fontWeight: 600,
+  const modBtnBase = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    padding: '0.35rem 0.75rem',
+    borderRadius: '7px',
+    border: '1px solid #cbd5e1',
+    background: '#ffffff',
+    color: '#475569',
+    fontSize: '0.78rem',
+    fontWeight: 600,
     cursor: 'pointer',
+    transition: 'all 0.15s ease',
   };
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', gap: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
-        <Loader2 size={22} style={{ animation: 'liaterSpin 0.75s linear infinite' }} />
+      <div style={{
+        maxWidth: '1040px',
+        margin: '0 auto',
+        padding: '5rem 1rem',
+        textAlign: 'center',
+      }}>
+        <div style={{
+          width: '36px',
+          height: '36px',
+          border: '3px solid #e2e8f0',
+          borderTopColor: 'var(--gold, #cca352)',
+          borderRadius: '50%',
+          animation: 'liaterSpin 0.75s linear infinite',
+          margin: '0 auto 0.85rem',
+        }} />
         <style>{`@keyframes liaterSpin { to { transform: rotate(360deg); } }`}</style>
-        Cargando hilo...
+        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#64748b' }}>
+          Cargando discusión académica...
+        </span>
       </div>
     );
   }
 
   if (error || !thread) {
     return (
-      <div style={{ maxWidth: '820px', margin: '2rem auto', padding: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626', fontSize: '0.9rem' }}>
-          <AlertCircle size={18} />
-          {error || 'Hilo no encontrado.'}
+      <div style={{ maxWidth: '1040px', margin: '2rem auto', padding: '1rem' }}>
+        <div style={{
+          padding: '1.25rem 1.5rem',
+          borderRadius: '12px',
+          background: 'rgba(220, 38, 38, 0.05)',
+          border: '1px solid rgba(220, 38, 38, 0.25)',
+          color: '#dc2626',
+          fontSize: '0.9rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.6rem',
+        }}>
+          <AlertCircle size={20} />
+          <span>{error || 'Hilo de discusión no encontrado.'}</span>
         </div>
-        <button onClick={() => navigate(-1)} style={{ marginTop: '1rem', cursor: 'pointer', background: 'none', border: 'none', color: 'var(--navy, #0b1528)', fontWeight: 700, fontSize: '0.88rem' }}>
-          ← Volver
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            marginTop: '1.25rem',
+            cursor: 'pointer',
+            background: 'none',
+            border: 'none',
+            color: 'var(--navy, #0b1528)',
+            fontWeight: 700,
+            fontSize: '0.88rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+          }}
+        >
+          <ArrowLeft size={16} /> Volver
         </button>
       </div>
     );
   }
 
+  const threadAuthorName = thread.author?.full_name || 'Usuario';
+  const threadAuthorRole = thread.author?.role || 'student';
+  const threadRoleBadge  = getRoleBadge(threadAuthorRole);
+  const threadInitials   = getInitials(threadAuthorName);
+
   return (
-    <div style={{ maxWidth: '820px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+    <div style={{
+      maxWidth: '1040px',
+      margin: '0 auto',
+      padding: '1.75rem 1.25rem 3.5rem',
+    }}>
 
-      {/* Botón volver */}
-      <button
-        onClick={() => navigate(-1)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '1.25rem',
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: 'var(--text-muted, #64748b)', fontSize: '0.83rem', fontWeight: 600,
-          padding: 0,
-        }}
-      >
-        <ArrowLeft size={15} /> Volver al foro
-      </button>
-
-      {/* Encabezado del hilo */}
+      {/* ── BARRA DE NAVEGACIÓN SUPERIOR / BREADCRUMB ── */}
       <div style={{
-        padding: '1.25rem 1.5rem',
-        background: 'var(--white, #fff)',
-        border: '1px solid var(--border-color, #e2e8f0)',
-        borderRadius: '12px', marginBottom: '1.25rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
+        marginBottom: '1.25rem',
       }}>
-        {/* Badges de estado */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
-          <ForumCategoryBadge category={thread.category} />
-          {thread.is_pinned && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem', fontWeight: 600, color: '#b45309' }}>
-              <Pin size={12} /> Fijado
-            </span>
-          )}
-          {thread.is_resolved && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem', fontWeight: 600, color: '#15803d' }}>
-              <CheckCircle2 size={12} /> Resuelto
-            </span>
-          )}
-          {thread.is_locked && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>
-              <Lock size={12} /> Cerrado
-            </span>
-          )}
+        <button
+          onClick={() => navigate(`/foro/${thread.program_id || ''}`)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '8px',
+            padding: '0.42rem 0.85rem',
+            cursor: 'pointer',
+            color: 'var(--navy, #0b1528)',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            transition: 'all 0.15s ease',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+          }}
+          onMouseOver={e => {
+            e.currentTarget.style.borderColor = 'var(--gold, #cca352)';
+            e.currentTarget.style.background = '#f8fafc';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.borderColor = '#e2e8f0';
+            e.currentTarget.style.background = '#ffffff';
+          }}
+        >
+          <ArrowLeft size={15} />
+          <span>Volver al listado de discusiones</span>
+        </button>
+
+        <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 500 }}>
+          ID de discusión: #{thread.id?.slice(0, 8)}
+        </span>
+      </div>
+
+      {/* ── TARJETA PRINCIPAL DEL HILO (PREGUNTA / TEMA) ── */}
+      <div style={{
+        padding: '1.6rem 1.85rem',
+        background: '#ffffff',
+        border: thread.is_pinned
+          ? '1.5px solid rgba(252, 163, 17, 0.45)'
+          : '1px solid #e2e8f0',
+        borderRadius: '14px',
+        marginBottom: '1.75rem',
+        boxShadow: thread.is_pinned
+          ? '0 3px 12px rgba(252, 163, 17, 0.08)'
+          : '0 1px 4px rgba(11, 21, 40, 0.03)',
+      }}>
+        {/* Metadatos del Autor y Badges Superiores */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          paddingBottom: '1rem',
+          marginBottom: '1rem',
+          borderBottom: '1px solid #f1f5f9',
+        }}>
+          {/* Bloque del Autor */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              background: threadAuthorRole === 'admin'
+                ? 'linear-gradient(135deg, #14213d, #2d3748)'
+                : threadAuthorRole === 'teacher'
+                  ? 'linear-gradient(135deg, #1e3a8a, #3b82f6)'
+                  : 'linear-gradient(135deg, #334155, #64748b)',
+              color: '#ffffff',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}>
+              {threadInitials}
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--navy, #0b1528)' }}>
+                  {threadAuthorName}
+                </span>
+                <span style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 600,
+                  color: threadRoleBadge.color,
+                  background: threadRoleBadge.bg,
+                  border: `1px solid ${threadRoleBadge.border}`,
+                  borderRadius: '999px',
+                  padding: '0.1rem 0.45rem',
+                }}>
+                  {threadRoleBadge.label}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#64748b', marginTop: '0.15rem' }}>
+                <span>Publicado {timeAgo(thread.created_at)}</span>
+                {thread.class_session?.title && (
+                  <>
+                    <span style={{ color: '#cbd5e1' }}>·</span>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      color: '#4f46e5',
+                      fontWeight: 600,
+                    }}>
+                      <BookOpen size={12} /> {thread.class_session.title}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Badges de Categoría y Estado */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+            <ForumCategoryBadge category={thread.category} />
+
+            {thread.is_pinned && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: '#92400e',
+                background: 'rgba(252, 163, 17, 0.14)',
+                border: '1px solid rgba(252, 163, 17, 0.35)',
+                borderRadius: '999px',
+                padding: '0.2rem 0.6rem',
+              }}>
+                <Pin size={12} /> Fijado
+              </span>
+            )}
+
+            {thread.is_resolved && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: '#007a2e',
+                background: 'rgba(0, 122, 46, 0.1)',
+                border: '1px solid rgba(0, 122, 46, 0.25)',
+                borderRadius: '999px',
+                padding: '0.2rem 0.6rem',
+              }}>
+                <CheckCircle2 size={12} /> Resuelto
+              </span>
+            )}
+
+            {thread.is_locked && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                color: '#64748b',
+                background: 'rgba(100, 116, 139, 0.08)',
+                border: '1px solid rgba(100, 116, 139, 0.2)',
+                borderRadius: '999px',
+                padding: '0.2rem 0.6rem',
+              }}>
+                <Lock size={12} /> Cerrado
+              </span>
+            )}
+          </div>
         </div>
 
-        <h1 style={{ margin: '0 0 0.6rem', fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #0b1528)', lineHeight: 1.3 }}>
+        {/* Título de la discusión */}
+        <h1 style={{
+          margin: '0 0 0.85rem',
+          fontSize: '1.35rem',
+          fontWeight: 800,
+          color: 'var(--navy, #0b1528)',
+          lineHeight: 1.35,
+          letterSpacing: '-0.01em',
+        }}>
           {thread.title}
         </h1>
 
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', marginBottom: '1rem' }}>
-          Publicado por <strong style={{ color: 'var(--text-dark, #0b1528)' }}>{thread.author?.full_name}</strong>
-          {' · '}{timeAgo(thread.created_at)}
-          {thread.class_session?.title && (
-            <span style={{ marginLeft: '0.5rem', color: '#7c3aed', fontWeight: 600 }}>
-              · 📚 {thread.class_session.title}
-            </span>
-          )}
-        </div>
-
-        <div style={{ fontSize: '0.9rem', color: 'var(--text-body, #334155)', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        {/* Cuerpo del hilo */}
+        <div style={{
+          fontSize: '0.92rem',
+          color: '#334155',
+          lineHeight: 1.7,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}>
           {thread.body}
         </div>
 
-        {/* Acciones de moderación */}
+        {/* ── BARRA DE HERRAMIENTAS DE MODERACIÓN (DOCENTE Y ADMIN) ── */}
         {canModerate && (
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
-            <button onClick={handleTogglePin} style={modBtnStyle}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.55rem',
+            flexWrap: 'wrap',
+            marginTop: '1.35rem',
+            paddingTop: '1rem',
+            borderTop: '1px solid #f1f5f9',
+          }}>
+            <span style={{ fontSize: '0.73rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '0.2rem' }}>
+              Herramientas de Cátedra:
+            </span>
+
+            <button
+              onClick={handleTogglePin}
+              style={modBtnBase}
+              onMouseOver={e => e.currentTarget.style.borderColor = 'var(--gold, #cca352)'}
+              onMouseOut={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+            >
               {thread.is_pinned ? <><PinOff size={13} /> Desfijar</> : <><Pin size={13} /> Fijar</>}
             </button>
-            <button onClick={handleToggleLock} style={modBtnStyle}>
-              {thread.is_locked ? <><Unlock size={13} /> Reabrir</> : <><Lock size={13} /> Cerrar</>}
-            </button>
-            <button onClick={handleToggleResolved} style={modBtnStyle}>
-              <CheckCircle2 size={13} color={thread.is_resolved ? '#15803d' : undefined} />
-              {thread.is_resolved ? 'Reabrir duda' : 'Marcar como resuelta'}
+
+            <button
+              onClick={handleToggleLock}
+              style={modBtnBase}
+              onMouseOver={e => e.currentTarget.style.borderColor = 'var(--gold, #cca352)'}
+              onMouseOut={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+            >
+              {thread.is_locked ? <><Unlock size={13} /> Reabrir</> : <><Lock size={13} /> Cerrar discusión</>}
             </button>
 
-            {/* Eliminar hilo definitivamente (Admin) */}
+            <button
+              onClick={handleToggleResolved}
+              style={{
+                ...modBtnBase,
+                color: thread.is_resolved ? '#007a2e' : '#475569',
+                borderColor: thread.is_resolved ? 'rgba(0, 122, 46, 0.35)' : '#cbd5e1',
+                background: thread.is_resolved ? 'rgba(0, 122, 46, 0.05)' : '#ffffff',
+              }}
+              onMouseOver={e => e.currentTarget.style.borderColor = 'var(--gold, #cca352)'}
+              onMouseOut={e => e.currentTarget.style.borderColor = thread.is_resolved ? 'rgba(0, 122, 46, 0.35)' : '#cbd5e1'}
+            >
+              <CheckCircle2 size={13} color={thread.is_resolved ? '#007a2e' : undefined} />
+              <span>{thread.is_resolved ? 'Reabrir duda' : 'Marcar resuelta'}</span>
+            </button>
+
+            {/* Eliminar hilo definitivamente (Exclusivo Admin) */}
             {userRole === 'admin' && (
               <button
                 type="button"
                 onClick={() => setShowDeleteThreadModal(true)}
                 style={{
-                  ...modBtnStyle,
+                  ...modBtnBase,
                   color: '#dc2626',
-                  borderColor: 'rgba(220, 38, 38, 0.3)',
+                  borderColor: 'rgba(220, 38, 38, 0.25)',
                   background: 'rgba(220, 38, 38, 0.04)',
                   marginLeft: 'auto',
                 }}
                 onMouseOver={(e) => {
                   e.currentTarget.style.background = '#dc2626';
                   e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.borderColor = '#dc2626';
                 }}
                 onMouseOut={(e) => {
                   e.currentTarget.style.background = 'rgba(220, 38, 38, 0.04)';
                   e.currentTarget.style.color = '#dc2626';
+                  e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.25)';
                 }}
-                title="Eliminar este hilo definitivamente"
+                title="Eliminar este hilo definitivamente (Solo Admin)"
               >
                 <Trash2 size={13} />
                 <span>Eliminar hilo</span>
@@ -366,25 +624,58 @@ export default function ForumThread() {
         )}
       </div>
 
-      {/* Lista de respuestas */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy, #0b1528)', marginBottom: '0.85rem' }}>
-          Respuestas ({posts.filter(p => !p.is_deleted).length})
-        </h2>
+      {/* ── SECCIÓN DE RESPUESTAS ── */}
+      <div style={{ marginBottom: '1.85rem' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '1rem',
+        }}>
+          <h2 style={{
+            margin: 0,
+            fontSize: '1.08rem',
+            fontWeight: 800,
+            color: 'var(--navy, #0b1528)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+          }}>
+            <span>Respuestas a la discusión</span>
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '0.15rem 0.55rem',
+              borderRadius: '999px',
+              background: 'rgba(20, 33, 61, 0.08)',
+              color: 'var(--navy, #0b1528)',
+            }}>
+              {posts.filter(p => !p.is_deleted).length}
+            </span>
+          </h2>
+        </div>
 
         {topLevelPosts.length === 0 ? (
           <div style={{
-            textAlign: 'center', padding: '2rem',
-            background: 'var(--white, #fff)', border: '1px solid var(--border-color, #e2e8f0)',
-            borderRadius: '10px', color: 'var(--text-muted, #94a3b8)', fontSize: '0.85rem',
+            textAlign: 'center',
+            padding: '2.75rem 1.5rem',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            color: '#64748b',
           }}>
-            <MessageSquare size={30} style={{ margin: '0 auto 0.5rem', opacity: 0.4 }} />
-            <p style={{ margin: 0 }}>Aún no hay respuestas. ¡Sé el primero en responder!</p>
+            <MessageSquare size={32} style={{ margin: '0 auto 0.6rem', opacity: 0.3 }} />
+            <p style={{ margin: '0 0 0.3rem', fontWeight: 600, fontSize: '0.92rem' }}>
+              Aún no hay respuestas en esta discusión
+            </p>
+            <p style={{ margin: 0, fontSize: '0.82rem', color: '#94a3b8' }}>
+              Aporta una respuesta técnica o formula una consulta adicional abajo.
+            </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             {topLevelPosts.map(post => (
-              <div key={post.id}>
+              <div key={post.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <ForumPostCard
                   post={post}
                   userProfileId={userProfileId}
@@ -397,11 +688,19 @@ export default function ForumThread() {
 
                 {/* Respuestas anidadas (segundo nivel) */}
                 {(repliesMap[post.id] || []).length > 0 && (
-                  <div style={{ marginLeft: '1.75rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderLeft: '2px solid var(--border-color, #e2e8f0)', paddingLeft: '0.75rem' }}>
+                  <div style={{
+                    marginLeft: '2rem',
+                    paddingLeft: '0.9rem',
+                    borderLeft: '2px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem',
+                  }}>
                     {repliesMap[post.id].map(reply => (
                       <ForumPostCard
                         key={reply.id}
                         post={reply}
+                        isNested={true}
                         userProfileId={userProfileId}
                         canModerate={canModerate}
                         isThreadAuthor={isThreadAuthor}
@@ -418,83 +717,154 @@ export default function ForumThread() {
         )}
       </div>
 
-      {/* Caja de respuesta */}
+      {/* ── CAJA DE RESPUESTA / COMPOSITOR ── */}
       {thread.is_locked ? (
         <div style={{
-          padding: '1rem', borderRadius: '10px', textAlign: 'center',
-          background: 'rgba(100,116,139,0.08)', color: 'var(--text-muted, #64748b)',
-          fontSize: '0.85rem', fontWeight: 600,
+          padding: '1.25rem',
+          borderRadius: '12px',
+          textAlign: 'center',
+          background: 'rgba(100, 116, 139, 0.08)',
+          border: '1px solid rgba(100, 116, 139, 0.2)',
+          color: '#475569',
+          fontSize: '0.86rem',
+          fontWeight: 600,
         }}>
-          🔒 Este hilo está cerrado. No se admiten nuevas respuestas.
+          🔒 Este hilo ha sido cerrado por la moderación. No se admiten nuevas intervenciones.
         </div>
       ) : (
         <div style={{
-          padding: '1.25rem', background: 'var(--white, #fff)',
-          border: '1.5px solid var(--border-color, #e2e8f0)',
-          borderRadius: '12px',
+          padding: '1.4rem 1.6rem',
+          background: '#ffffff',
+          border: '1px solid #cbd5e1',
+          borderRadius: '14px',
+          boxShadow: '0 2px 8px rgba(11, 21, 40, 0.04)',
         }}>
           {replyingTo && (
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              marginBottom: '0.75rem', padding: '0.4rem 0.75rem',
-              background: 'rgba(124, 58, 237, 0.08)', borderRadius: '6px',
-              fontSize: '0.78rem', color: '#7c3aed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '0.85rem',
+              padding: '0.45rem 0.85rem',
+              background: 'rgba(30, 58, 138, 0.06)',
+              border: '1px solid rgba(30, 58, 138, 0.15)',
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              color: '#1e3a8a',
             }}>
-              <span>
-                Respondiendo a <strong>{replyingTo.author?.full_name || 'un mensaje'}</strong>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <CornerDownRight size={14} />
+                <span>Respondiendo directamente al comentario de <strong>{replyingTo.author?.full_name || 'un participante'}</strong></span>
               </span>
               <button
+                type="button"
                 onClick={() => setReplyingTo(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7c3aed', fontWeight: 700 }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#1e3a8a',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                }}
               >
                 ✕ Cancelar
               </button>
             </div>
           )}
 
-          <textarea
-            ref={replyBoxRef}
-            rows={3}
-            value={replyBody}
-            onChange={e => setReplyBody(e.target.value)}
-            placeholder={replyingTo ? 'Escribe tu respuesta a este comentario...' : 'Escribe tu respuesta a esta discusión...'}
-            disabled={sendingReply}
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              padding: '0.65rem 0.85rem', borderRadius: '8px',
-              border: '1px solid var(--border-color, #cbd5e1)',
-              fontSize: '0.88rem', fontFamily: 'inherit', resize: 'vertical',
-              outline: 'none', marginBottom: '0.65rem',
-            }}
-          />
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              color: 'var(--navy, #0b1528)',
+              marginBottom: '0.4rem',
+            }}>
+              {replyingTo ? 'Tu réplica al comentario:' : 'Publicar una respuesta:'}
+            </label>
+            <textarea
+              ref={replyBoxRef}
+              rows={3}
+              value={replyBody}
+              onChange={e => setReplyBody(e.target.value)}
+              placeholder={replyingTo ? 'Escribe tu respuesta a este comentario académico...' : 'Escribe tu respuesta técnica o comentario aquí...'}
+              disabled={sendingReply}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '0.75rem 0.95rem',
+                borderRadius: '9px',
+                border: '1px solid #cbd5e1',
+                fontSize: '0.88rem',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                lineHeight: 1.6,
+                color: 'var(--navy, #0b1528)',
+                background: '#f8fafc',
+                transition: 'all 0.15s ease',
+              }}
+              onFocus={e => {
+                e.target.style.borderColor = 'var(--gold, #cca352)';
+                e.target.style.background = '#ffffff';
+                e.target.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.15)';
+              }}
+              onBlur={e => {
+                e.target.style.borderColor = '#cbd5e1';
+                e.target.style.background = '#f8fafc';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+          </div>
 
           {replyError && (
-            <div style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+            <div style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
               {replyError}
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.65rem' }}>
             <button
               onClick={handleSendReply}
               disabled={sendingReply || !replyBody.trim()}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                padding: '0.55rem 1.25rem', borderRadius: '8px',
-                background: 'var(--navy, #0b1528)', color: 'white',
-                border: 'none', fontWeight: 700, fontSize: '0.85rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.6rem 1.35rem',
+                borderRadius: '8px',
+                background: 'var(--navy, #0b1528)',
+                color: '#ffffff',
+                border: '1.5px solid rgba(252, 163, 17, 0.45)',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                boxShadow: '0 2px 8px rgba(11, 21, 40, 0.15)',
                 cursor: sendingReply || !replyBody.trim() ? 'not-allowed' : 'pointer',
                 opacity: sendingReply || !replyBody.trim() ? 0.6 : 1,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseOver={e => {
+                if (!sendingReply && replyBody.trim()) {
+                  e.currentTarget.style.borderColor = 'var(--gold, #cca352)';
+                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(252, 163, 17, 0.25)';
+                }
+              }}
+              onMouseOut={e => {
+                if (!sendingReply && replyBody.trim()) {
+                  e.currentTarget.style.borderColor = 'rgba(252, 163, 17, 0.45)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(11, 21, 40, 0.15)';
+                }
               }}
             >
-              {sendingReply ? <Loader2 size={15} style={{ animation: 'liaterSpin 0.75s linear infinite' }} /> : <Send size={15} />}
-              {sendingReply ? 'Publicando...' : 'Publicar respuesta'}
+              {sendingReply ? <Loader2 size={15} style={{ animation: 'liaterSpin 0.75s linear infinite' }} /> : <Send size={15} color="var(--gold, #cca352)" />}
+              <span>{sendingReply ? 'Publicando...' : 'Publicar respuesta'}</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Modal de confirmación de eliminación con diseño del LMS LIATER */}
+      {/* Modal de confirmación para eliminar post (Admin o autor) */}
       <ConfirmModal
         isOpen={Boolean(postToDelete)}
         onClose={() => !deletingPost && setPostToDelete(null)}
@@ -502,7 +872,7 @@ export default function ForumThread() {
         title="Eliminar mensaje"
         message={
           postToDelete?.author?.full_name
-            ? `¿Estás seguro de que deseas eliminar este mensaje publicado por "${postToDelete.author.full_name}"?`
+            ? `¿Estás seguro de que deseas eliminar permanentemente este mensaje publicado por "${postToDelete.author.full_name}"?`
             : '¿Estás seguro de que deseas eliminar este mensaje?'
         }
         note="Esta acción borrará el mensaje de forma permanente en la base de datos de la plataforma."
@@ -538,7 +908,7 @@ export default function ForumThread() {
           right: '2rem',
           background: 'var(--navy, #0b1528)',
           color: '#ffffff',
-          padding: '0.8rem 1.35rem',
+          padding: '0.85rem 1.45rem',
           borderRadius: '10px',
           boxShadow: '0 10px 25px -5px rgba(11, 21, 40, 0.4)',
           display: 'flex',

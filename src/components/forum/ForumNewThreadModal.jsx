@@ -1,14 +1,16 @@
 /**
- * ForumNewThreadModal
- * Modal para crear un nuevo hilo en el foro.
- * Acepta props opcionales: preTitle y preClassId para pre-rellenar
- * cuando se abre desde la página de una clase (ModuleDetail).
+ * ForumNewThreadModal.jsx
+ * Modal para crear un nuevo hilo de discusión académica en el foro LIATER.
+ * Diseño institucional pulido:
+ * - Paleta Navy (#14213D) y Gold (#FCA311)
+ * - Foco con resplandor dorado
+ * - Píldoras de categoría semánticas
+ * - Totalmente integrado con Supabase y validaciones de rol
  */
 import { useState } from 'react';
-import { X, Send, MessageSquarePlus } from 'lucide-react';
+import { X, Send, MessageSquarePlus, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { createThread, isForumTableMissingError } from '@/services/forumService';
-import ForumCategoryBadge from './ForumCategoryBadge';
 
 const CATEGORIES = [
   { value: 'academic', label: 'Dudas Académicas' },
@@ -18,11 +20,11 @@ const CATEGORIES = [
 export default function ForumNewThreadModal({
   isOpen,
   onClose,
-  programId,        // id del programa
+  programId,
   userProfileId,
-  preTitle = '',    // título pre-rellenado (desde ModuleDetail)
-  preClassId = null, // class_id pre-rellenado
-  onCreated,        // callback (newThread) => void
+  preTitle = '',
+  preClassId = null,
+  onCreated,
 }) {
   const { currentUser } = useAuth();
   const effectiveUserId = userProfileId || currentUser?.id;
@@ -75,145 +77,260 @@ export default function ForumNewThreadModal({
 
   return (
     <>
-      {/* Overlay */}
+      {/* Overlay con desenfoque elegante */}
       <div
         onClick={onClose}
         style={{
-          position: 'fixed', inset: 0, zIndex: 1000,
-          background: 'rgba(11, 21, 40, 0.55)',
-          backdropFilter: 'blur(3px)',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          background: 'rgba(11, 21, 40, 0.6)',
+          backdropFilter: 'blur(4px)',
+          animation: 'fadeIn 0.2s ease-out',
         }}
       />
 
-      {/* Modal */}
+      {/* Contenedor Modal */}
       <div style={{
-        position: 'fixed', zIndex: 1001,
-        top: '50%', left: '50%',
+        position: 'fixed',
+        zIndex: 1001,
+        top: '50%',
+        left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: 'min(560px, 95vw)',
-        background: 'var(--white, #fff)',
-        borderRadius: '14px',
-        boxShadow: '0 20px 40px rgba(11, 21, 40, 0.25)',
-        display: 'flex', flexDirection: 'column',
+        width: 'min(600px, 94vw)',
+        background: '#ffffff',
+        borderRadius: '16px',
+        boxShadow: '0 25px 50px -12px rgba(11, 21, 40, 0.35)',
+        display: 'flex',
+        flexDirection: 'column',
         maxHeight: '90vh',
         overflow: 'hidden',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        animation: 'modalSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
       }}>
-        {/* Cabecera */}
+        {/* Cabecera Institucional Navy */}
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '1.1rem 1.4rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '1.25rem 1.6rem',
           background: 'var(--navy, #0b1528)',
-          color: 'white',
+          color: '#ffffff',
+          borderBottom: '1px solid rgba(204, 163, 82, 0.2)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <MessageSquarePlus size={18} color="var(--gold, #cca352)" />
-            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Nuevo hilo</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'rgba(252, 163, 17, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <MessageSquarePlus size={18} color="var(--gold, #cca352)" />
+            </div>
+            <div>
+              <span style={{ fontWeight: 800, fontSize: '1rem', display: 'block', letterSpacing: '-0.01em' }}>
+                Nueva Discusión Académica
+              </span>
+              <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                Foro LIATER · Universidad Nacional de Colombia
+              </span>
+            </div>
           </div>
+
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(255,255,255,0.1)', border: 'none',
-              borderRadius: '6px', cursor: 'pointer', padding: '0.3rem',
-              color: 'white', display: 'flex', alignItems: 'center',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              padding: '0.4rem',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.15s ease',
             }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
           >
-            <X size={16} />
+            <X size={17} />
           </button>
         </div>
 
         {/* Formulario */}
-        <form onSubmit={handleSubmit} style={{ padding: '1.25rem 1.4rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={handleSubmit} style={{
+          padding: '1.4rem 1.6rem',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.15rem',
+        }}>
           {error && (
             <div style={{
-              padding: '0.65rem 0.85rem', borderRadius: '8px',
-              background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)',
-              color: '#dc2626', fontSize: '0.82rem',
+              padding: '0.75rem 1rem',
+              borderRadius: '9px',
+              background: 'rgba(220, 38, 38, 0.06)',
+              border: '1px solid rgba(220, 38, 38, 0.25)',
+              color: '#dc2626',
+              fontSize: '0.84rem',
+              fontWeight: 500,
             }}>
               {error}
             </div>
           )}
 
-          {/* Categoría */}
+          {/* Selector de Categoría */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-dark, #0b1528)', marginBottom: '0.4rem' }}>
-              Categoría
+            <label style={{
+              display: 'block',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              color: 'var(--navy, #0b1528)',
+              marginBottom: '0.45rem',
+            }}>
+              Categoría de la discusión
             </label>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat.value}
-                  type="button"
-                  onClick={() => setCategory(cat.value)}
-                  style={{
-                    padding: '0.35rem 0.85rem',
-                    borderRadius: '999px',
-                    border: `1.5px solid ${category === cat.value ? 'var(--gold, #cca352)' : 'var(--border-color, #e2e8f0)'}`,
-                    background: category === cat.value ? 'rgba(204,163,82,0.12)' : 'transparent',
-                    fontSize: '0.8rem', fontWeight: 600,
-                    color: category === cat.value ? 'var(--gold-dark, #b8820a)' : 'var(--text-muted, #64748b)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {cat.label}
-                </button>
-              ))}
+              {CATEGORIES.map(cat => {
+                const isSelected = category === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setCategory(cat.value)}
+                    style={{
+                      padding: '0.42rem 0.95rem',
+                      borderRadius: '999px',
+                      border: `1.5px solid ${isSelected ? 'var(--gold, #cca352)' : '#e2e8f0'}`,
+                      background: isSelected ? 'rgba(252, 163, 17, 0.12)' : '#f8fafc',
+                      fontSize: '0.82rem',
+                      fontWeight: isSelected ? 700 : 500,
+                      color: isSelected ? '#92400e' : '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Título */}
+          {/* Campo Título */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-dark, #0b1528)', marginBottom: '0.4rem' }}>
-              Título del hilo *
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy, #0b1528)' }}>
+                Título del hilo *
+              </label>
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                {title.length}/200
+              </span>
+            </div>
             <input
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="Escribe una pregunta o tema de debate claro..."
+              placeholder="Escribe una pregunta o tema conciso..."
               maxLength={200}
               style={{
-                width: '100%', boxSizing: 'border-box',
-                padding: '0.6rem 0.85rem', borderRadius: '8px',
-                border: '1.5px solid var(--border-color, #cbd5e1)',
-                fontSize: '0.88rem', outline: 'none',
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '0.65rem 0.95rem',
+                borderRadius: '9px',
+                border: '1px solid #cbd5e1',
+                fontSize: '0.88rem',
+                outline: 'none',
+                color: 'var(--navy, #0b1528)',
+                background: '#f8fafc',
+                transition: 'all 0.15s ease',
+              }}
+              onFocus={e => {
+                e.target.style.borderColor = 'var(--gold, #cca352)';
+                e.target.style.background = '#ffffff';
+                e.target.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.15)';
+              }}
+              onBlur={e => {
+                e.target.style.borderColor = '#cbd5e1';
+                e.target.style.background = '#f8fafc';
+                e.target.style.boxShadow = 'none';
               }}
             />
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)', float: 'right', marginTop: '0.2rem' }}>
-              {title.length}/200
-            </span>
           </div>
 
-          {/* Cuerpo */}
+          {/* Campo Contenido */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-dark, #0b1528)', marginBottom: '0.4rem' }}>
-              Contenido *
+            <label style={{
+              display: 'block',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              color: 'var(--navy, #0b1528)',
+              marginBottom: '0.4rem',
+            }}>
+              Cuerpo o detalles de la pregunta *
             </label>
             <textarea
               rows={5}
               value={body}
               onChange={e => setBody(e.target.value)}
-              placeholder="Explica tu duda o comparte el punto que deseas debatir con tus compañeros y docentes..."
+              placeholder="Explica detalladamente tu duda o comparte el punto que deseas debatir con tus compañeros y el equipo docente..."
               style={{
-                width: '100%', boxSizing: 'border-box',
-                padding: '0.65rem 0.85rem', borderRadius: '8px',
-                border: '1.5px solid var(--border-color, #cbd5e1)',
-                fontSize: '0.88rem', fontFamily: 'inherit', resize: 'vertical',
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '0.75rem 0.95rem',
+                borderRadius: '9px',
+                border: '1px solid #cbd5e1',
+                fontSize: '0.88rem',
+                fontFamily: 'inherit',
+                resize: 'vertical',
                 outline: 'none',
+                lineHeight: 1.6,
+                color: 'var(--navy, #0b1528)',
+                background: '#f8fafc',
+                transition: 'all 0.15s ease',
+              }}
+              onFocus={e => {
+                e.target.style.borderColor = 'var(--gold, #cca352)';
+                e.target.style.background = '#ffffff';
+                e.target.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.15)';
+              }}
+              onBlur={e => {
+                e.target.style.borderColor = '#cbd5e1';
+                e.target.style.background = '#f8fafc';
+                e.target.style.boxShadow = 'none';
               }}
             />
           </div>
 
-          {/* Pie */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '0.5rem' }}>
+          {/* Botones de acción */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: '0.65rem',
+            paddingTop: '0.65rem',
+            borderTop: '1px solid #f1f5f9',
+          }}>
             <button
               type="button"
               onClick={onClose}
               style={{
-                padding: '0.55rem 1.1rem', borderRadius: '8px',
-                border: '1px solid var(--border-color, #e2e8f0)',
-                background: 'transparent', color: 'var(--text-muted, #64748b)',
-                fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                padding: '0.55rem 1.15rem',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#475569',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
+              onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+              onMouseOut={e => e.currentTarget.style.background = '#ffffff'}
             >
               Cancelar
             </button>
@@ -221,16 +338,36 @@ export default function ForumNewThreadModal({
               type="submit"
               disabled={saving}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                padding: '0.55rem 1.25rem', borderRadius: '8px',
-                background: 'var(--navy, #0b1528)', color: 'white',
-                border: 'none', fontSize: '0.85rem', fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.58rem 1.35rem',
+                borderRadius: '8px',
+                background: 'var(--navy, #0b1528)',
+                color: '#ffffff',
+                border: '1.5px solid rgba(252, 163, 17, 0.45)',
+                fontSize: '0.85rem',
+                fontWeight: 700,
                 cursor: saving ? 'not-allowed' : 'pointer',
                 opacity: saving ? 0.7 : 1,
+                boxShadow: '0 2px 8px rgba(11, 21, 40, 0.15)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseOver={e => {
+                if (!saving) {
+                  e.currentTarget.style.borderColor = 'var(--gold, #cca352)';
+                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(252, 163, 17, 0.25)';
+                }
+              }}
+              onMouseOut={e => {
+                if (!saving) {
+                  e.currentTarget.style.borderColor = 'rgba(252, 163, 17, 0.45)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(11, 21, 40, 0.15)';
+                }
               }}
             >
-              <Send size={15} />
-              {saving ? 'Publicando...' : 'Publicar hilo'}
+              {saving ? <Loader2 size={15} style={{ animation: 'liaterSpin 0.75s linear infinite' }} /> : <Send size={15} color="var(--gold, #cca352)" />}
+              <span>{saving ? 'Publicando...' : 'Publicar hilo'}</span>
             </button>
           </div>
         </form>
