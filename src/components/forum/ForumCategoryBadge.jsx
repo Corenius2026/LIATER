@@ -16,12 +16,6 @@ const CATEGORY_CONFIG = {
     bg: 'rgba(124, 58, 237, 0.12)',
     border: 'rgba(124, 58, 237, 0.3)',
   },
-  support: {
-    label: 'Soporte Técnico',
-    color: '#d97706',
-    bg: 'rgba(217, 119, 6, 0.12)',
-    border: 'rgba(217, 119, 6, 0.3)',
-  },
 };
 
 export default function ForumCategoryBadge({ category, size = 'sm' }) {

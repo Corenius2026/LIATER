@@ -10,10 +10,10 @@ import {
   ArrowLeft, Pin, PinOff, Lock, Unlock, CheckCircle2,
   Send, Loader2, AlertCircle, MessageSquare
 } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
-import { useAuth } from '../context/AuthContext';
-import ForumCategoryBadge from '../components/forum/ForumCategoryBadge';
-import ForumPostCard from '../components/forum/ForumPostCard';
+import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../context/AuthContext';
+import ForumCategoryBadge from '../../components/forum/ForumCategoryBadge';
+import ForumPostCard from '../../components/forum/ForumPostCard';
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;

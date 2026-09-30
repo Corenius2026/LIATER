@@ -12,7 +12,6 @@ import ForumCategoryBadge from './ForumCategoryBadge';
 const CATEGORIES = [
   { value: 'academic', label: 'Dudas Académicas' },
   { value: 'debate',   label: 'Debate / Participación' },
-  { value: 'support',  label: 'Soporte Técnico' },
 ];
 
 export default function ForumNewThreadModal({
@@ -26,7 +25,7 @@ export default function ForumNewThreadModal({
 }) {
   const [title, setTitle]       = useState(preTitle);
   const [body, setBody]         = useState('');
-  const [category, setCategory] = useState(programId ? 'academic' : 'support');
+  const [category, setCategory] = useState('academic');
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
 
@@ -69,7 +68,7 @@ export default function ForumNewThreadModal({
       // Reset form
       setTitle('');
       setBody('');
-      setCategory(programId ? 'academic' : 'support');
+      setCategory('academic');
     } catch (err) {
       console.error('Error creando hilo:', err);
       setError('No se pudo crear el hilo. Intenta de nuevo.');
@@ -148,27 +147,24 @@ export default function ForumNewThreadModal({
               Categoría
             </label>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {CATEGORIES
-                .filter(c => programId ? c.value !== 'support' : c.value === 'support')
-                .concat(programId ? [{ value: 'support', label: 'Soporte Técnico' }] : [])
-                .map(cat => (
-                  <button
-                    key={cat.value}
-                    type="button"
-                    onClick={() => setCategory(cat.value)}
-                    style={{
-                      padding: '0.35rem 0.85rem',
-                      borderRadius: '999px',
-                      border: `1.5px solid ${category === cat.value ? 'var(--gold, #cca352)' : 'var(--border-color, #e2e8f0)'}`,
-                      background: category === cat.value ? 'rgba(204,163,82,0.12)' : 'transparent',
-                      fontSize: '0.8rem', fontWeight: 600,
-                      color: category === cat.value ? 'var(--gold-dark, #b8820a)' : 'var(--text-muted, #64748b)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setCategory(cat.value)}
+                  style={{
+                    padding: '0.35rem 0.85rem',
+                    borderRadius: '999px',
+                    border: `1.5px solid ${category === cat.value ? 'var(--gold, #cca352)' : 'var(--border-color, #e2e8f0)'}`,
+                    background: category === cat.value ? 'rgba(204,163,82,0.12)' : 'transparent',
+                    fontSize: '0.8rem', fontWeight: 600,
+                    color: category === cat.value ? 'var(--gold-dark, #b8820a)' : 'var(--text-muted, #64748b)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {cat.label}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -40,7 +40,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
   }, [location.pathname]);
 
   // Lista de rutas donde NO se debe mostrar el menú específico del curso
-  const globalRoutes = ['/portal', '/perfil', '/soporte', '/users', '/communications', '/foro/soporte'];
+  const globalRoutes = ['/portal', '/perfil', '/soporte', '/users', '/communications'];
   const isGlobalRoute = globalRoutes.includes(location.pathname);
 
   const handleLogout = () => {
@@ -364,14 +364,6 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                     >
                       <Megaphone size={18} />
                       <span>Comunicaciones</span>
-                    </NavLink>
-
-                    <NavLink
-                      to="/foro/soporte"
-                      className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}
-                    >
-                      <MessagesSquare size={18} />
-                      <span>Foro de Soporte</span>
                     </NavLink>
                   </>
                 )}

@@ -58,6 +58,10 @@ const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
 const UserManagement = React.lazy(() => import('./pages/admin/UserManagement'));
 const TeacherPanel = React.lazy(() => import('./pages/teacher/TeacherPanel'));
 
+// 5. Foro
+const Forum       = React.lazy(() => import('./pages/forum/Forum'));
+const ForumThread = React.lazy(() => import('./pages/forum/ForumThread'));
+
 // --- Importación de Estilos Globales ---
 import './App.css';
 
@@ -123,6 +127,10 @@ function App() {
               <Route path="/grupos/:programId" element={<CourseGroups />} />
               <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
               <Route path="/communications" element={<ProtectedRoute allowedRoles={['admin']}><Communications /></ProtectedRoute>} />
+
+              {/* --- RUTAS DEL FORO POR PROGRAMA --- */}
+              <Route path="/foro/:programId" element={<Forum />} />
+              <Route path="/foro/hilo/:threadId" element={<ForumThread />} />
             </Route>
             
             {/* Ruta por defecto */}
