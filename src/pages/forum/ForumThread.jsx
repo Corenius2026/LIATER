@@ -33,33 +33,18 @@ export default function ForumThread() {
   const [posts, setPosts]               = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
-  const [userProfileId, setUserProfileId] = useState(null);
-  const [userRole, setUserRole]         = useState('student');
+
+  // FIX: currentUser.id YA ES users_profile.id (AuthContext.jsx L24)
+  const userProfileId = currentUser?.id ?? null;
+  const userRole      = currentUser?.role ?? 'student';
 
   // Respuesta
-  const [replyingTo, setReplyingTo]     = useState(null); // null = responder al hilo
+  const [replyingTo, setReplyingTo]     = useState(null);
   const [replyBody, setReplyBody]       = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError]     = useState('');
 
   const replyBoxRef = useRef(null);
-
-  // Obtener perfil del usuario
-  useEffect(() => {
-    if (!currentUser?.id) return;
-    const fetchProfile = async () => {
-      const { data } = await supabase
-        .from('users_profile')
-        .select('id, role')
-        .eq('auth_user_id', currentUser.id)
-        .single();
-      if (data) {
-        setUserProfileId(data.id);
-        setUserRole(data.role);
-      }
-    };
-    fetchProfile();
-  }, [currentUser?.id]);
 
   // Cargar hilo y posts
   const fetchThread = useCallback(async () => {

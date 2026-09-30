@@ -1,7 +1,8 @@
 /**
  * Forum.jsx — Página principal del foro del programa.
- * Muestra la lista de hilos con filtros por categoría (Académica / Debate).
- * Solo accesible para usuarios inscritos al programa (o admin/docente).
+ * Categorías: Dudas Académicas / Debate.
+ * FIX: currentUser.id ya ES users_profile.id (ver AuthContext.jsx L24).
+ *      Se eliminó la query redundante que causaba "Debes iniciar sesión".
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
@@ -26,20 +27,11 @@ export default function Forum() {
   const [error, setError]                   = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showModal, setShowModal]           = useState(false);
-  const [userProfileId, setUserProfileId]   = useState(null);
   const [readMap, setReadMap]               = useState({});
   const [programTitle, setProgramTitle]     = useState('');
 
-  // Obtener users_profile.id del usuario autenticado
-  useEffect(() => {
-    if (!currentUser?.id) return;
-    supabase
-      .from('users_profile')
-      .select('id')
-      .eq('auth_user_id', currentUser.id)
-      .single()
-      .then(({ data }) => { if (data) setUserProfileId(data.id); });
-  }, [currentUser?.id]);
+  // currentUser.id YA ES users_profile.id (definido en AuthContext.jsx L24)
+  const userProfileId = currentUser?.id ?? null;
 
   // Obtener título del programa
   useEffect(() => {
@@ -52,7 +44,7 @@ export default function Forum() {
       .then(({ data }) => { if (data) setProgramTitle(data.title); });
   }, [programId]);
 
-  // Cargar estado de lectura
+  // Cargar estado de lectura (no-leído badge)
   const fetchReadStatus = useCallback(async (uid) => {
     if (!uid) return;
     const { data } = await supabase
@@ -66,7 +58,7 @@ export default function Forum() {
     }
   }, []);
 
-  // Cargar hilos
+  // Cargar hilos del foro
   const fetchThreads = useCallback(async () => {
     if (!programId) return;
     setLoading(true);
@@ -92,7 +84,7 @@ export default function Forum() {
       const { data, error: fetchErr } = await query;
       if (fetchErr) throw fetchErr;
 
-      // Contar respuestas por hilo
+      // Contar replies por hilo
       const threadIds = (data || []).map(t => t.id);
       let countMap = {};
       if (threadIds.length > 0) {
@@ -145,7 +137,7 @@ export default function Forum() {
             💬 Foro — {programTitle || 'Programa'}
           </h1>
           <p style={{ margin: '0.3rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted, #64748b)' }}>
-            Espacio de discusión del programa. Resuelve dudas académicas, comparte ideas y participa en debates.
+            Espacio de discusión del programa. Resuelve dudas académicas y participa en debates.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -175,7 +167,7 @@ export default function Forum() {
         </div>
       </div>
 
-      {/* Filtros de categoría */}
+      {/* Filtros */}
       <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
         <Filter size={14} style={{ color: 'var(--text-muted, #94a3b8)', alignSelf: 'center', flexShrink: 0 }} />
         {CATEGORY_OPTIONS.map(opt => (
@@ -195,7 +187,7 @@ export default function Forum() {
         ))}
       </div>
 
-      {/* Lista / estados */}
+      {/* Contenido */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted, #94a3b8)' }}>
           <div style={{

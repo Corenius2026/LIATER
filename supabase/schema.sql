@@ -476,4 +476,70 @@ USING (
   )
 );
 
+-- 27. Hilos del Foro (forum_threads)
+CREATE TABLE IF NOT EXISTS public.forum_threads (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id uuid REFERENCES public.diploma_programs(id) ON DELETE CASCADE,
+  class_id uuid REFERENCES public.class_sessions(id) ON DELETE SET NULL,
+  author_id uuid NOT NULL REFERENCES public.users_profile(id) ON DELETE CASCADE,
+  title character varying(200) NOT NULL,
+  body text NOT NULL,
+  category character varying(30) NOT NULL DEFAULT 'academic' CHECK (category IN ('academic', 'debate')),
+  is_pinned boolean NOT NULL DEFAULT false,
+  is_locked boolean NOT NULL DEFAULT false,
+  is_resolved boolean NOT NULL DEFAULT false,
+  views_count integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 28. Posts del Foro (forum_posts)
+CREATE TABLE IF NOT EXISTS public.forum_posts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_id uuid NOT NULL REFERENCES public.forum_threads(id) ON DELETE CASCADE,
+  author_id uuid NOT NULL REFERENCES public.users_profile(id) ON DELETE CASCADE,
+  parent_id uuid REFERENCES public.forum_posts(id) ON DELETE CASCADE,
+  body text NOT NULL,
+  is_solution boolean NOT NULL DEFAULT false,
+  is_deleted boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 29. Reacciones a Posts (forum_reactions)
+CREATE TABLE IF NOT EXISTS public.forum_reactions (
+  post_id uuid NOT NULL REFERENCES public.forum_posts(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users_profile(id) ON DELETE CASCADE,
+  reaction_type character varying(20) NOT NULL DEFAULT 'useful',
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT forum_reactions_pkey PRIMARY KEY (post_id, user_id)
+);
+
+-- 30. Estado de Lectura del Foro (forum_read_status)
+CREATE TABLE IF NOT EXISTS public.forum_read_status (
+  user_id uuid NOT NULL REFERENCES public.users_profile(id) ON DELETE CASCADE,
+  thread_id uuid NOT NULL REFERENCES public.forum_threads(id) ON DELETE CASCADE,
+  last_read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT forum_read_status_pkey PRIMARY KEY (user_id, thread_id)
+);
+
+-- RLS y Políticas de Foro
+ALTER TABLE public.forum_threads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.forum_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.forum_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.forum_read_status ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "forum_threads_read"   ON public.forum_threads FOR SELECT TO authenticated USING (true);
+CREATE POLICY "forum_threads_create" ON public.forum_threads FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "forum_threads_modify" ON public.forum_threads FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "forum_threads_remove" ON public.forum_threads FOR DELETE TO authenticated USING (true);
+
+CREATE POLICY "forum_posts_read"   ON public.forum_posts FOR SELECT TO authenticated USING (true);
+CREATE POLICY "forum_posts_create" ON public.forum_posts FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "forum_posts_modify" ON public.forum_posts FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "forum_posts_remove" ON public.forum_posts FOR DELETE TO authenticated USING (true);
+
+CREATE POLICY "forum_reactions_all"   ON public.forum_reactions   FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "forum_read_status_all" ON public.forum_read_status FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 
