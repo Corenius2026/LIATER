@@ -2813,7 +2813,7 @@ function AnnouncementModal({ announcement, onClose, onRefresh }) {
     }
     setSubmitting(true);
     setError('');
-    const payload = { teacher_id: teacherId, program_id: programId, title: title.trim(), body: body.trim(), tag };
+    const payload = { teacher_id: teacherId, program_id: programId, title: title.trim(), body: body.trim(), tag, target_role: 'all' };
     try {
       if (announcement?.id) {
         const { error: updateError } = await supabase.from('announcements').update(payload).eq('id', announcement.id).eq('teacher_id', teacherId);
@@ -3202,7 +3202,7 @@ function ResumenTab({ onChangeTab }) {
         .order('class_date', { ascending: true });
         
       const pAnnouncements = supabase.from('announcements')
-        .select('*', { count: 'exact', head: true })
+        .select('id, teacher_id, target_role')
         .eq('program_id', programId);
         
       const pStudents = supabase.from('enrollments')
@@ -3310,11 +3310,16 @@ function ResumenTab({ onChangeTab }) {
       }
       setUrgentAlerts(alerts);
 
+      const visibleAnnouncementsCount = (resAnn.data || []).filter(a => {
+        if (a.teacher_id !== null) return true;
+        return a.target_role === 'teacher' || a.target_role === 'all' || !a.target_role;
+      }).length;
+
       setStats({
         totalClasses: classes.length,
         completed,
         upcoming: upcomingList.length,
-        announcements: resAnn.count || 0,
+        announcements: visibleAnnouncementsCount,
         students: resStudents.count || 0,
         pendingDoubts: resUnreviewed.count || 0,
         pendingDrafts: (resDrafts.data || []).length,
@@ -8289,7 +8294,17 @@ function AnunciosTab() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      setAnnouncements(data || []);
+
+      // Filtrar estrictamente para el profesor:
+      // 1. Anuncios creados por el profesor en este curso (teacher_id !== null)
+      // 2. Anuncios institucionales de administración para este curso (teacher_id === null) dirigidos a docentes o toda la escuela
+      // NUNCA incluir anuncios institucionales dirigidos exclusivamente a estudiantes ('student')
+      const validAnnouncements = (data || []).filter(ann => {
+        if (ann.teacher_id !== null) return true; // Creado por docente propio
+        return ann.target_role === 'teacher' || ann.target_role === 'all' || !ann.target_role;
+      });
+
+      setAnnouncements(validAnnouncements);
     } catch (err) {
       console.error('Error fetching announcements:', err);
     } finally {

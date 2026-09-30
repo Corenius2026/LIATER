@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
-import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Clock, Sparkles, Layers, Bell, ExternalLink, ShieldCheck, AlertCircle, ArrowUpRight, CalendarPlus } from 'lucide-react';
+import { BookOpen, User, Users, GraduationCap, Plus, X, Upload, Trash2, Eye, EyeOff, MessageSquareText, CalendarClock, ChevronRight, CalendarDays, CheckCircle2, Archive, RefreshCw, MessageSquare, ArrowRight, Video, Clock, Sparkles, Layers, Bell, ExternalLink, ShieldCheck, AlertCircle, ArrowUpRight, CalendarPlus, Megaphone } from 'lucide-react';
 import { formatShortDate, isClassLiveOrSoon, getGoogleCalendarUrl } from '@/utils/dateUtils';
 import { uploadProgramCover, fetchUpcomingPrograms, calculateProgramProgress } from '@/services/programService';
 import { updateDoubtStatus } from '@/services/doubtService';
@@ -579,6 +579,7 @@ function TeacherPortal({ getDiplomadoLink }) {
   const [loading, setLoading] = useState(true);
   const [adminAnnouncements, setAdminAnnouncements] = useState([]);
   const [showAllAdminAnn, setShowAllAdminAnn] = useState(false);
+  const [readingAnnouncement, setReadingAnnouncement] = useState(null);
 
   // Estados para filtro en "Mis programas" y "Bandeja de consultas"
   const [activeFilter, setActiveFilter] = useState('Todos');
@@ -611,6 +612,8 @@ function TeacherPortal({ getDiplomadoLink }) {
         const name = profileData?.name || currentUser?.full_name || currentUser?.name || currentUser?.user_metadata?.full_name || 'Profesor';
         setTeacherName(name);
 
+        const teacherIds = [profileData?.id, profileData?.user_id, currentUser?.id].filter(Boolean);
+
         let teacherDiplomas = [];
         const { data: enrollData } = await supabase
           .from('enrollments')
@@ -621,11 +624,11 @@ function TeacherPortal({ getDiplomadoLink }) {
         let fetchedDiplomas = (enrollData || []).map(enr => enr.diploma_programs).filter(Boolean);
 
         // Incluir programas donde el profesor tiene clases asignadas directamente
-        if (profileData?.id) {
+        if (teacherIds.length > 0) {
           const { data: classRows } = await supabase
             .from('class_sessions')
             .select('program_id, diploma_programs(*)')
-            .eq('teacher_id', profileData.id);
+            .in('teacher_id', teacherIds);
 
           const classDiplomas = (classRows || []).map(r => r.diploma_programs).filter(Boolean);
           const seenProgIds = new Set(fetchedDiplomas.map(d => d.id));
@@ -663,7 +666,6 @@ function TeacherPortal({ getDiplomadoLink }) {
         let doubtsCount = 0;
         let doubtsData = [];
 
-        const teacherIds = [profileData?.id, profileData?.user_id, currentUser?.id].filter(Boolean);
         const teacherProgramIds = teacherDiplomas.map(p => p.id).filter(Boolean);
 
         let classQuery = supabase
@@ -751,24 +753,23 @@ function TeacherPortal({ getDiplomadoLink }) {
         setQuestions(doubtsData);
 
         try {
-          const oneWeekAgo = new Date();
-          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-          
           const { data: annData, error: annErr } = await supabase
             .from('announcements')
             .select('*, diploma_programs(id, title), teacher_profiles(id, name)')
             .is('teacher_id', null)
-            .gte('created_at', oneWeekAgo.toISOString())
             .order('created_at', { ascending: false });
             
           if (!annErr && annData) {
             const filtered = annData.filter(ann => {
-              if (ann.is_global || !ann.program_id) return true; // Global
-              // Si es de un programa, validar que el profesor pertenezca a el y el rol destino
-              if (teacherProgramIds.includes(ann.program_id)) {
-                return ann.target_role === 'teacher' || ann.target_role === 'all';
-              }
-              return false;
+              // 1. Debe ser un anuncio dirigido a profesores o a todos (NUNCA mostrar avisos exclusivos para estudiantes)
+              const isTargetTeacher = ann.target_role === 'teacher' || ann.target_role === 'all' || !ann.target_role;
+              if (!isTargetTeacher) return false;
+
+              // 2. Si es institucional global (sin program_id o is_global), es visible para todos los profesores
+              if (ann.is_global || !ann.program_id) return true;
+
+              // 3. Si pertenece a un programa específico, validar que el profesor pertenezca a dicho programa
+              return teacherProgramIds.includes(ann.program_id);
             });
             setAdminAnnouncements(filtered);
           }
@@ -2780,9 +2781,14 @@ function TeacherPortal({ getDiplomadoLink }) {
       {/* ── BLOQUE 5: AVISOS DE ADMINISTRACIÓN ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-          <h2 style={{ color: 'var(--navy, #14213D)', fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Bell size={18} color="var(--gold, #FCA311)" /> Avisos de Administración
-          </h2>
+          <div>
+            <h2 style={{ color: 'var(--navy, #14213D)', fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Bell size={18} color="var(--gold, #FCA311)" /> Avisos de Administración
+            </h2>
+            <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted, #64748B)' }}>
+              Comunicados oficiales de la dirección académica y avisos importantes para docentes.
+            </p>
+          </div>
           {adminAnnouncements.length > 3 && (
             <button 
               onClick={() => setShowAllAdminAnn(!showAllAdminAnn)}
@@ -2797,29 +2803,24 @@ function TeacherPortal({ getDiplomadoLink }) {
         {loading ? (
           <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem' }}>Cargando avisos...</p>
         ) : adminAnnouncements.length === 0 ? (
-          <div style={{ padding: '2rem 1.5rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '14px', border: '1px dashed #CBD5E1' }}>
-            <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-muted, #64748B)', margin: 0 }}>
-              No hay avisos recientes de la administración académica.
+          <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', background: '#FFFFFF', borderRadius: '14px', border: '1px dashed #CBD5E1' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem', color: '#64748B' }}>
+              <Bell size={20} />
+            </div>
+            <p style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '0 0 0.25rem 0' }}>
+              Sin avisos recientes
+            </p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted, #64748B)', margin: 0 }}>
+              No hay comunicados pendientes de la administración académica para tus cursos o claustro docente.
             </p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
             {(showAllAdminAnn ? adminAnnouncements : adminAnnouncements.slice(0, 3)).map(ann => {
               const dateObj = new Date(ann.created_at);
-              const isGlobal = ann.is_global || (!ann.program_id && !ann.teacher_id);
-              
-              let scopeLabel = 'Toda la Institución';
-              if (ann.program_id) {
-                if (ann.target_role === 'student') scopeLabel = 'Estudiantes del Programa';
-                else if (ann.target_role === 'teacher') scopeLabel = 'Profesores del Programa';
-                else scopeLabel = 'Todos en el Programa';
-              } else {
-                if (ann.target_role === 'student') scopeLabel = 'Todos los Estudiantes';
-                else if (ann.target_role === 'teacher') scopeLabel = 'Todos los Profesores';
-              }
-
-              const programName = ann.diploma_programs?.title || 'Anuncio Global';
-              const programLink = ann.program_id ? getDiplomadoLink(ann.program_id) : '#';
+              const isProgramSpecific = Boolean(ann.program_id);
+              const programName = ann.diploma_programs?.title || 'Programa académico';
+              const courseLink = `/dashboard/profesor/${ann.program_id}?tab=anuncios`;
 
               let tagStyle = { color: 'var(--navy, #14213D)', bg: '#F1F5F9', icon: '📢', label: 'General' };
               if (ann.tag === 'urgent') tagStyle = { color: '#991B1B', bg: '#FEE2E2', icon: '🔴', label: 'Urgente' };
@@ -2831,52 +2832,124 @@ function TeacherPortal({ getDiplomadoLink }) {
                   style={{
                     padding: '1.35rem',
                     borderRadius: '14px',
-                    border: '1px solid #E2E8F0',
+                    border: isProgramSpecific ? '1.5px solid rgba(20, 33, 61, 0.12)' : '1px solid #E2E8F0',
+                    borderLeft: isProgramSpecific ? '4px solid var(--navy, #14213D)' : '4px solid #007A2E',
                     background: '#FFFFFF',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.85rem',
-                    boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
-                    transition: 'all 0.15s ease'
+                    boxShadow: '0 2px 8px rgba(20, 33, 61, 0.04)',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {/* Badges de cabecera */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: '0.7rem', fontWeight: 700, padding: '2px 7px', borderRadius: '6px',
-                        background: isGlobal ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.12)',
-                        color: isGlobal ? '#DC2626' : '#D97706', textTransform: 'uppercase'
-                      }}>
-                        {scopeLabel}
-                      </span>
+                      {/* Distinción Institucional vs Programa */}
+                      {isProgramSpecific ? (
+                        <span style={{
+                          fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px',
+                          background: 'rgba(20, 33, 61, 0.07)', color: 'var(--navy, #14213D)',
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          border: '1px solid rgba(20, 33, 61, 0.15)'
+                        }}>
+                          <BookOpen size={12} color="var(--navy, #14213D)" /> Programa Específico
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px',
+                          background: 'rgba(0, 122, 46, 0.08)', color: '#007A2E',
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          border: '1px solid rgba(0, 122, 46, 0.2)'
+                        }}>
+                          🏛️ Toda la Institución
+                        </span>
+                      )}
+
+                      {/* Etiqueta de prioridad */}
                       {ann.tag && (
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', background: tagStyle.bg, color: tagStyle.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
                           {tagStyle.icon} {tagStyle.label}
                         </span>
                       )}
+
+                      {/* Audiencia */}
+                      <span style={{ fontSize: '0.68rem', fontWeight: 600, padding: '2px 6px', borderRadius: '5px', background: '#F8FAFC', color: '#64748B', border: '1px solid #E2E8F0' }}>
+                        {ann.target_role === 'teacher' ? 'Docentes' : 'Toda la Escuela'}
+                      </span>
                     </div>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)' }}>
+
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', whiteSpace: 'nowrap' }}>
                       {dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
                     </span>
                   </div>
                   
+                  {/* Título y extracto del mensaje */}
                   <div>
-                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                    <h4 
+                      onClick={() => setReadingAnnouncement(ann)}
+                      style={{ 
+                        margin: '0 0 0.35rem 0', fontSize: '0.98rem', fontWeight: 800, 
+                        color: 'var(--navy, #14213D)', cursor: 'pointer',
+                        lineHeight: 1.3
+                      }}
+                      onMouseOver={e => e.currentTarget.style.color = 'var(--gold-dark, #cca352)'}
+                      onMouseOut={e => e.currentTarget.style.color = 'var(--navy, #14213D)'}
+                    >
                       {ann.title}
                     </h4>
-                    <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {ann.body}
                     </p>
                   </div>
                   
-                  <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem' }}>
-                    <span style={{ color: 'var(--text-muted, #64748B)', fontWeight: 600, maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {programName}
-                    </span>
-                    {ann.program_id && (
-                      <Link to={`${programLink}?tab=anuncios`} style={{ color: 'var(--gold-dark, #d4a017)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        Ver <ArrowRight size={12} />
-                      </Link>
+                  {/* Footer con distinción y redirección directa */}
+                  <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {isProgramSpecific ? (
+                      <>
+                        <span 
+                          title={programName}
+                          style={{ color: 'var(--navy, #14213D)', fontWeight: 700, fontSize: '0.76rem', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--gold, #FCA311)', flexShrink: 0 }} />
+                          {programName}
+                        </span>
+                        <Link 
+                          to={courseLink}
+                          style={{ 
+                            display: 'inline-flex', alignItems: 'center', gap: '5px',
+                            padding: '0.35rem 0.75rem', borderRadius: '6px',
+                            background: 'rgba(252, 163, 17, 0.12)', color: 'var(--navy, #14213D)',
+                            fontSize: '0.76rem', fontWeight: 700, textDecoration: 'none',
+                            border: '1px solid rgba(252, 163, 17, 0.35)', transition: 'all 0.15s ease'
+                          }}
+                          onMouseOver={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.borderColor = 'var(--gold, #FCA311)'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = 'rgba(252, 163, 17, 0.12)'; e.currentTarget.style.borderColor = 'rgba(252, 163, 17, 0.35)'; }}
+                        >
+                          <span>Ir al programa</span>
+                          <ArrowRight size={13} />
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ color: 'var(--text-muted, #64748B)', fontWeight: 600, fontSize: '0.74rem' }}>
+                          Alcance Global UNAL
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setReadingAnnouncement(ann)}
+                          style={{
+                            background: 'none', border: 'none', color: 'var(--gold-dark, #d4a017)',
+                            fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '0.35rem 0'
+                          }}
+                          onMouseOver={e => e.currentTarget.style.textDecoration = 'underline'}
+                          onMouseOut={e => e.currentTarget.style.textDecoration = 'none'}
+                        >
+                          <Eye size={13} /> Leer comunicado
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -2885,6 +2958,135 @@ function TeacherPortal({ getDiplomadoLink }) {
           </div>
         )}
       </div>
+
+      {/* ── MODAL PARA LEER COMUNICADO COMPLETO ── */}
+      {readingAnnouncement && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          backgroundColor: 'rgba(14, 21, 50, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99999, padding: '1rem',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            maxWidth: '560px',
+            width: '100%',
+            boxShadow: '0 20px 48px rgba(20, 33, 61, 0.2)',
+            border: '1px solid #E2E8F0',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '90vh'
+          }}>
+            {/* Header del modal */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#FAFBFD'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '8px',
+                  background: readingAnnouncement.program_id ? 'rgba(20, 33, 61, 0.08)' : 'rgba(0, 122, 46, 0.1)',
+                  color: readingAnnouncement.program_id ? 'var(--navy, #14213D)' : '#007A2E',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {readingAnnouncement.program_id ? <BookOpen size={16} /> : <Bell size={16} />}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                    Comunicado Oficial
+                  </h3>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)' }}>
+                    {readingAnnouncement.program_id ? `Programa: ${readingAnnouncement.diploma_programs?.title || 'Específico'}` : 'Institucional · Toda la Institución'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReadingAnnouncement(null)}
+                style={{
+                  background: 'none', border: 'none', color: '#64748B', cursor: 'pointer',
+                  padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Contenido del modal */}
+            <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
+                    background: readingAnnouncement.program_id ? 'rgba(20, 33, 61, 0.08)' : 'rgba(0, 122, 46, 0.1)',
+                    color: readingAnnouncement.program_id ? 'var(--navy, #14213D)' : '#007A2E'
+                  }}>
+                    {readingAnnouncement.program_id ? 'Programa Específico' : 'Global UNAL'}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: '6px', background: '#F1F5F9', color: '#64748B' }}>
+                    {readingAnnouncement.target_role === 'teacher' ? 'Para Profesores' : 'Para Toda la Escuela'}
+                  </span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', marginLeft: 'auto' }}>
+                    {new Date(readingAnnouncement.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </span>
+                </div>
+
+                <h2 style={{ margin: '0 0 0.75rem 0', fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1.3 }}>
+                  {readingAnnouncement.title}
+                </h2>
+              </div>
+
+              <div style={{
+                fontSize: '0.9rem', color: '#334155', lineHeight: 1.6,
+                background: '#FAFBFD', padding: '1.15rem', borderRadius: '10px',
+                border: '1px solid #E2E8F0', whiteSpace: 'pre-wrap'
+              }}>
+                {readingAnnouncement.body}
+              </div>
+            </div>
+
+            {/* Footer del modal */}
+            <div style={{
+              padding: '1rem 1.5rem', borderTop: '1px solid #E2E8F0',
+              display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', background: '#FFFFFF'
+            }}>
+              {readingAnnouncement.program_id && (
+                <Link
+                  to={`/dashboard/profesor/${readingAnnouncement.program_id}?tab=anuncios`}
+                  onClick={() => setReadingAnnouncement(null)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '0.55rem 1.15rem', borderRadius: '8px',
+                    background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)',
+                    fontWeight: 700, fontSize: '0.84rem', textDecoration: 'none'
+                  }}
+                >
+                  <Megaphone size={14} /> Ir a Anuncios del Curso
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setReadingAnnouncement(null)}
+                style={{
+                  padding: '0.55rem 1.15rem', borderRadius: '8px',
+                  background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0',
+                  fontWeight: 600, fontSize: '0.84rem', cursor: 'pointer'
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

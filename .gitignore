@@ -38,4 +38,8 @@ serviceAccount*.json
 *.njsproj
 *.sln
 *.sw?
+
+# Agent files
+.agents/
+
 supabase/.temp/

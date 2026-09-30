@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS public.announcements (
   title character varying NOT NULL,
   body text NOT NULL,
   tag character varying DEFAULT 'general'::character varying CHECK (tag::text = ANY (ARRAY['general'::character varying, 'urgent'::character varying, 'info'::character varying]::text[])),
+  target_role character varying(20) DEFAULT 'all' CHECK (target_role::text = ANY (ARRAY['all'::character varying, 'student'::character varying, 'teacher'::character varying]::text[])),
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT announcements_pkey PRIMARY KEY (id),
   CONSTRAINT announcements_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(id),
@@ -541,5 +542,38 @@ CREATE POLICY "forum_posts_remove" ON public.forum_posts FOR DELETE TO authentic
 
 CREATE POLICY "forum_reactions_all"   ON public.forum_reactions   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "forum_read_status_all" ON public.forum_read_status FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- RLS y Políticas de Anuncios (announcements)
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "announcements_admin_all" ON public.announcements;
+CREATE POLICY "announcements_admin_all"
+  ON public.announcements FOR ALL TO authenticated
+  USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "announcements_teacher_manage" ON public.announcements;
+CREATE POLICY "announcements_teacher_manage"
+  ON public.announcements FOR ALL TO authenticated
+  USING (public.get_auth_user_role() = 'teacher' AND teacher_id IS NOT NULL AND teacher_id = public.get_auth_teacher_id())
+  WITH CHECK (public.get_auth_user_role() = 'teacher' AND teacher_id IS NOT NULL AND teacher_id = public.get_auth_teacher_id());
+
+DROP POLICY IF EXISTS "announcements_student_read" ON public.announcements;
+CREATE POLICY "announcements_student_read"
+  ON public.announcements FOR SELECT TO authenticated
+  USING (
+    public.get_auth_user_role() = 'student'
+    AND (target_role IS NULL OR target_role = 'all' OR target_role = 'student')
+    AND (program_id IS NULL OR public.is_student_enrolled_in_program(program_id))
+  );
+
+DROP POLICY IF EXISTS "announcements_teacher_read" ON public.announcements;
+CREATE POLICY "announcements_teacher_read"
+  ON public.announcements FOR SELECT TO authenticated
+  USING (
+    public.get_auth_user_role() = 'teacher'
+    AND (target_role IS NULL OR target_role = 'all' OR target_role = 'teacher')
+    AND (program_id IS NULL OR public.is_teacher_in_program(program_id))
+  );
+
 
 

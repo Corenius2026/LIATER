@@ -426,7 +426,9 @@ export default function Dashboard() {
               && diplomaData.status !== 'draft'
               && diplomaData.status !== 'disabled')
           : true;
-        const freshAnnouncements = isPublished ? (announcementsData || []) : [];
+        const freshAnnouncements = isPublished 
+          ? (announcementsData || []).filter(a => a.target_role === 'student' || a.target_role === 'all' || !a.target_role)
+          : [];
 
         // Conteo y mapeo de sesiones
         let programSessions = sessionsRes?.data || [];
