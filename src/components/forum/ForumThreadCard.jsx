@@ -5,7 +5,7 @@
  * badges de resuelto/pineado/cerrado, e indicador de no leído.
  */
 import { useNavigate } from 'react-router-dom';
-import { Pin, CheckCircle2, Lock, MessageCircle, Eye } from 'lucide-react';
+import { Pin, CheckCircle2, Lock, MessageCircle, Eye, Trash2 } from 'lucide-react';
 import ForumCategoryBadge from './ForumCategoryBadge';
 
 function timeAgo(dateStr) {
@@ -17,7 +17,7 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 }
 
-export default function ForumThreadCard({ thread, isUnread = false }) {
+export default function ForumThreadCard({ thread, isUnread = false, canDelete = false, onDelete = null }) {
   const navigate = useNavigate();
 
   const handleClick = () => {
@@ -132,6 +132,43 @@ export default function ForumThreadCard({ thread, isUnread = false }) {
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
             <Eye size={13} /> {views}
           </span>
+          {canDelete && onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(thread);
+              }}
+              title="Eliminar hilo de discusión"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: '#dc2626',
+                background: 'rgba(220, 38, 38, 0.05)',
+                border: '1px solid rgba(220, 38, 38, 0.25)',
+                borderRadius: '6px',
+                padding: '0.25rem 0.55rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#dc2626';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#dc2626';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(220, 38, 38, 0.05)';
+                e.currentTarget.style.color = '#dc2626';
+                e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.25)';
+              }}
+            >
+              <Trash2 size={12} />
+              <span>Eliminar</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -525,3 +525,18 @@ export async function deletePostFromDb(postId) {
 export async function softDeletePost(postId) {
   return deletePostFromDb(postId);
 }
+
+/**
+ * Elimina un hilo definitivamente de la base de datos de Supabase.
+ * Gracias a las foreign keys con ON DELETE CASCADE, todas sus respuestas,
+ * reacciones y estados de lectura se eliminan automáticamente.
+ */
+export async function deleteThreadFromDb(threadId) {
+  if (!threadId) return false;
+  const { error } = await supabase
+    .from('forum_threads')
+    .delete()
+    .eq('id', threadId);
+  if (error) throw error;
+  return true;
+}

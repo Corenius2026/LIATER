@@ -11,9 +11,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
-import { getProgramThreads, FORUM_SQL_MIGRATION } from '@/services/forumService';
+import { getProgramThreads, FORUM_SQL_MIGRATION, deleteThreadFromDb } from '@/services/forumService';
 import ForumThreadCard from '@/components/forum/ForumThreadCard';
 import ForumNewThreadModal from '@/components/forum/ForumNewThreadModal';
+import ConfirmModal from '@/components/common/ConfirmModal';
 
 const CATEGORY_OPTIONS = [
   { value: 'all',      label: 'Todos' },
@@ -37,6 +38,29 @@ export default function Forum() {
 
   // currentUser.id YA ES users_profile.id (AuthContext.jsx L24)
   const userProfileId = currentUser?.id ?? null;
+  const isAdmin = currentUser?.role === 'admin';
+
+  // Estados de eliminación de hilos (Admin)
+  const [threadToDelete, setThreadToDelete] = useState(null);
+  const [deletingThread, setDeletingThread] = useState(false);
+  const [toastFeedback, setToastFeedback]   = useState(null);
+
+  const handleConfirmDeleteThread = async () => {
+    if (!threadToDelete?.id) return;
+    setDeletingThread(true);
+    try {
+      await deleteThreadFromDb(threadToDelete.id);
+      setThreads(prev => prev.filter(t => t.id !== threadToDelete.id));
+      setThreadToDelete(null);
+      setToastFeedback('Hilo de discusión eliminado correctamente de la base de datos.');
+      setTimeout(() => setToastFeedback(null), 3500);
+    } catch (err) {
+      console.error('Error eliminando hilo:', err);
+      alert('Error al eliminar el hilo: ' + (err.message || 'Intenta de nuevo.'));
+    } finally {
+      setDeletingThread(false);
+    }
+  };
 
   // Obtener título del programa
   useEffect(() => {
@@ -287,7 +311,13 @@ export default function Forum() {
       ) : tableExists ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
           {threads.map(thread => (
-            <ForumThreadCard key={thread.id} thread={thread} isUnread={isUnread(thread)} />
+            <ForumThreadCard
+              key={thread.id}
+              thread={thread}
+              isUnread={isUnread(thread)}
+              canDelete={isAdmin}
+              onDelete={(t) => setThreadToDelete(t)}
+            />
           ))}
         </div>
       ) : null}
@@ -299,6 +329,49 @@ export default function Forum() {
         userProfileId={userProfileId}
         onCreated={handleThreadCreated}
       />
+
+      {/* Modal de confirmación para eliminar hilo (Admin) */}
+      <ConfirmModal
+        isOpen={Boolean(threadToDelete)}
+        onClose={() => !deletingThread && setThreadToDelete(null)}
+        onConfirm={handleConfirmDeleteThread}
+        title="Eliminar hilo de discusión"
+        message={
+          threadToDelete?.title
+            ? `¿Estás seguro de que deseas eliminar permanentemente el hilo "${threadToDelete.title}"?`
+            : '¿Estás seguro de que deseas eliminar este hilo de discusión?'
+        }
+        note="Esta acción borrará de forma irreversible el hilo junto con todas sus respuestas y reacciones de la base de datos."
+        confirmText="Eliminar hilo definitivamente"
+        cancelText="Cancelar"
+        isDanger={true}
+        loading={deletingThread}
+      />
+
+      {/* Notificación toast elegante en paleta LIATER (Navy + Dorado) */}
+      {toastFeedback && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          background: 'var(--navy, #0b1528)',
+          color: '#ffffff',
+          padding: '0.8rem 1.35rem',
+          borderRadius: '10px',
+          boxShadow: '0 10px 25px -5px rgba(11, 21, 40, 0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          zIndex: 9999,
+          border: '1.5px solid rgba(204, 163, 82, 0.4)',
+          animation: 'fadeSlideUp 0.25s ease-out',
+        }}>
+          <CheckCircle size={17} color="var(--gold, #cca352)" />
+          <span>{toastFeedback}</span>
+        </div>
+      )}
     </div>
   );
 }

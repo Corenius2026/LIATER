@@ -9,12 +9,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Pin, PinOff, Lock, Unlock, CheckCircle2,
-  Send, Loader2, AlertCircle, MessageSquare
+  Send, Loader2, AlertCircle, MessageSquare, Trash2
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
   getThreadDetail, createPost, markPostSolution,
-  deletePostFromDb, updateThreadStatus
+  deletePostFromDb, deleteThreadFromDb, updateThreadStatus
 } from '@/services/forumService';
 import ForumCategoryBadge from '@/components/forum/ForumCategoryBadge';
 import ForumPostCard from '@/components/forum/ForumPostCard';
@@ -53,6 +53,8 @@ export default function ForumThread() {
   // Estados de eliminación y feedback
   const [postToDelete, setPostToDelete] = useState(null);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [showDeleteThreadModal, setShowDeleteThreadModal] = useState(false);
+  const [deletingThread, setDeletingThread] = useState(false);
   const [toastFeedback, setToastFeedback] = useState(null);
 
   const replyBoxRef = useRef(null);
@@ -160,6 +162,20 @@ export default function ForumThread() {
       alert('Error al eliminar el mensaje: ' + (err.message || 'Intenta de nuevo.'));
     } finally {
       setDeletingPost(false);
+    }
+  };
+
+  // Confirmar y eliminar el hilo completo (Admin)
+  const handleConfirmDeleteThread = async () => {
+    if (!thread?.id) return;
+    setDeletingThread(true);
+    try {
+      await deleteThreadFromDb(thread.id);
+      navigate(`/foro/${thread.program_id || ''}`, { replace: true });
+    } catch (err) {
+      console.error('Error eliminando hilo:', err);
+      alert('Error al eliminar el hilo: ' + (err.message || 'Intenta de nuevo.'));
+      setDeletingThread(false);
     }
   };
 
@@ -319,6 +335,33 @@ export default function ForumThread() {
               <CheckCircle2 size={13} color={thread.is_resolved ? '#15803d' : undefined} />
               {thread.is_resolved ? 'Reabrir duda' : 'Marcar como resuelta'}
             </button>
+
+            {/* Eliminar hilo definitivamente (Admin) */}
+            {userRole === 'admin' && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteThreadModal(true)}
+                style={{
+                  ...modBtnStyle,
+                  color: '#dc2626',
+                  borderColor: 'rgba(220, 38, 38, 0.3)',
+                  background: 'rgba(220, 38, 38, 0.04)',
+                  marginLeft: 'auto',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = '#dc2626';
+                  e.currentTarget.style.color = '#ffffff';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'rgba(220, 38, 38, 0.04)';
+                  e.currentTarget.style.color = '#dc2626';
+                }}
+                title="Eliminar este hilo definitivamente"
+              >
+                <Trash2 size={13} />
+                <span>Eliminar hilo</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -467,6 +510,24 @@ export default function ForumThread() {
         cancelText="Cancelar"
         isDanger={true}
         loading={deletingPost}
+      />
+
+      {/* Modal de confirmación para eliminar hilo completo (Admin) */}
+      <ConfirmModal
+        isOpen={showDeleteThreadModal}
+        onClose={() => !deletingThread && setShowDeleteThreadModal(false)}
+        onConfirm={handleConfirmDeleteThread}
+        title="Eliminar hilo de discusión"
+        message={
+          thread?.title
+            ? `¿Estás seguro de que deseas eliminar permanentemente el hilo "${thread.title}"?`
+            : '¿Estás seguro de que deseas eliminar este hilo de discusión?'
+        }
+        note="Esta acción es irreversible y eliminará el hilo junto con todas sus respuestas y reacciones de la base de datos."
+        confirmText="Eliminar hilo definitivamente"
+        cancelText="Cancelar"
+        isDanger={true}
+        loading={deletingThread}
       />
 
       {/* Notificación toast elegante en paleta LIATER (Navy + Dorado) */}
