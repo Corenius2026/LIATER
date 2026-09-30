@@ -51,12 +51,13 @@ export default function ForumPostCard({
     );
   }
 
-  const isOwnPost = userProfileId && post.author_id === userProfileId;
+  const effectiveUserId = userProfileId || currentUser?.id;
+  const isOwnPost = effectiveUserId && post.author_id === effectiveUserId;
   const authorName = post.author?.full_name || 'Usuario';
   const authorRole = post.author?.role;
 
   const handleReaction = async () => {
-    if (reactLoading || !userProfileId) return;
+    if (reactLoading || !effectiveUserId) return;
     setReactLoading(true);
     try {
       if (userReacted) {
@@ -65,14 +66,14 @@ export default function ForumPostCard({
           .from('forum_reactions')
           .delete()
           .eq('post_id', post.id)
-          .eq('user_id', userProfileId);
+          .eq('user_id', effectiveUserId);
         setReactionCount(c => Math.max(0, c - 1));
         setUserReacted(false);
       } else {
         // Agregar reacción
         await supabase
           .from('forum_reactions')
-          .insert({ post_id: post.id, user_id: userProfileId, reaction_type: 'useful' });
+          .insert({ post_id: post.id, user_id: effectiveUserId, reaction_type: 'useful' });
         setReactionCount(c => c + 1);
         setUserReacted(true);
       }

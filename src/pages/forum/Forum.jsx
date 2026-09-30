@@ -1,16 +1,19 @@
 /**
  * Forum.jsx — Página principal del foro del programa.
  * Categorías: Dudas Académicas / Debate.
- * FIX: currentUser.id ya ES users_profile.id (ver AuthContext.jsx L24).
- *      Se eliminó la query redundante que causaba "Debes iniciar sesión".
+ * Conectado a forumService.js con desacoplamiento total y soporte para migración pendiente.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { MessageSquarePlus, Filter, RefreshCw, MessagesSquare } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
-import { useAuth } from '../../context/AuthContext';
-import ForumThreadCard from '../../components/forum/ForumThreadCard';
-import ForumNewThreadModal from '../../components/forum/ForumNewThreadModal';
+import {
+  MessageSquarePlus, Filter, RefreshCw, MessagesSquare,
+  AlertCircle, Copy, CheckCircle
+} from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
+import { getProgramThreads, FORUM_SQL_MIGRATION } from '@/services/forumService';
+import ForumThreadCard from '@/components/forum/ForumThreadCard';
+import ForumNewThreadModal from '@/components/forum/ForumNewThreadModal';
 
 const CATEGORY_OPTIONS = [
   { value: 'all',      label: 'Todos' },
@@ -25,12 +28,14 @@ export default function Forum() {
   const [threads, setThreads]               = useState([]);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState('');
+  const [tableExists, setTableExists]       = useState(true);
+  const [copiedSql, setCopiedSql]           = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showModal, setShowModal]           = useState(false);
   const [readMap, setReadMap]               = useState({});
   const [programTitle, setProgramTitle]     = useState('');
 
-  // currentUser.id YA ES users_profile.id (definido en AuthContext.jsx L24)
+  // currentUser.id YA ES users_profile.id (AuthContext.jsx L24)
   const userProfileId = currentUser?.id ?? null;
 
   // Obtener título del programa
@@ -44,61 +49,41 @@ export default function Forum() {
       .then(({ data }) => { if (data) setProgramTitle(data.title); });
   }, [programId]);
 
-  // Cargar estado de lectura (no-leído badge)
+  // Cargar estado de lectura
   const fetchReadStatus = useCallback(async (uid) => {
-    if (!uid) return;
-    const { data } = await supabase
-      .from('forum_read_status')
-      .select('thread_id, last_read_at')
-      .eq('user_id', uid);
-    if (data) {
-      const map = {};
-      data.forEach(r => { map[r.thread_id] = r.last_read_at; });
-      setReadMap(map);
+    if (!uid || !tableExists) return;
+    try {
+      const { data } = await supabase
+        .from('forum_read_status')
+        .select('thread_id, last_read_at')
+        .eq('user_id', uid);
+      if (data) {
+        const map = {};
+        data.forEach(r => { map[r.thread_id] = r.last_read_at; });
+        setReadMap(map);
+      }
+    } catch {
+      // Ignorar fallo de lectura silenciosamente si tabla aún no migrada
     }
-  }, []);
+  }, [tableExists]);
 
-  // Cargar hilos del foro
+  // Cargar hilos del foro mediante servicio seguro
   const fetchThreads = useCallback(async () => {
     if (!programId) return;
     setLoading(true);
     setError('');
     try {
-      let query = supabase
-        .from('forum_threads')
-        .select(`
-          id, title, body, category,
-          is_pinned, is_locked, is_resolved,
-          views_count, created_at, updated_at,
-          author:author_id ( id, full_name, role ),
-          class_session:class_id ( id, title )
-        `)
-        .eq('program_id', programId)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (categoryFilter !== 'all') {
-        query = query.eq('category', categoryFilter);
+      const res = await getProgramThreads(programId, categoryFilter);
+      if (!res.tableExists) {
+        setTableExists(false);
+        setThreads([]);
+      } else {
+        setTableExists(true);
+        setThreads(res.data || []);
+        if (res.error) {
+          setError(res.error);
+        }
       }
-
-      const { data, error: fetchErr } = await query;
-      if (fetchErr) throw fetchErr;
-
-      // Contar replies por hilo
-      const threadIds = (data || []).map(t => t.id);
-      let countMap = {};
-      if (threadIds.length > 0) {
-        const { data: postCounts } = await supabase
-          .from('forum_posts')
-          .select('thread_id')
-          .in('thread_id', threadIds)
-          .eq('is_deleted', false);
-        (postCounts || []).forEach(p => {
-          countMap[p.thread_id] = (countMap[p.thread_id] || 0) + 1;
-        });
-      }
-
-      setThreads((data || []).map(t => ({ ...t, reply_count: countMap[t.id] || 0 })));
     } catch (err) {
       console.error('Error cargando hilos del foro:', err);
       setError('No se pudieron cargar los hilos. Intenta de nuevo.');
@@ -109,6 +94,12 @@ export default function Forum() {
 
   useEffect(() => { fetchThreads(); }, [fetchThreads]);
   useEffect(() => { if (userProfileId) fetchReadStatus(userProfileId); }, [userProfileId, fetchReadStatus]);
+
+  const copySql = () => {
+    navigator.clipboard.writeText(FORUM_SQL_MIGRATION);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 3000);
+  };
 
   const isUnread = (thread) => {
     const lastRead = readMap[thread.id];
@@ -155,10 +146,12 @@ export default function Forum() {
           </button>
           <button
             onClick={() => setShowModal(true)}
+            disabled={!tableExists}
             style={{
               display: 'flex', alignItems: 'center', gap: '0.45rem',
               padding: '0.55rem 1.1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem',
-              background: 'var(--navy, #0b1528)', color: 'white', border: 'none', cursor: 'pointer',
+              background: tableExists ? 'var(--navy, #0b1528)' : '#94a3b8',
+              color: 'white', border: 'none', cursor: tableExists ? 'pointer' : 'not-allowed',
             }}
           >
             <MessageSquarePlus size={16} />
@@ -167,25 +160,91 @@ export default function Forum() {
         </div>
       </div>
 
+      {/* ── BANNER GUÍA SI LAS TABLAS ESTÁN PENDIENTES DE MIGRACIÓN ── */}
+      {!tableExists && (
+        <div style={{
+          background: '#FFFBEB',
+          border: '1px solid #FCD34D',
+          borderRadius: '12px',
+          padding: '1.25rem 1.5rem',
+          marginBottom: '1.75rem',
+          boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+            <AlertCircle size={22} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: '0 0 0.4rem 0', color: '#92400E', fontSize: '1rem', fontWeight: 800 }}>
+                Tablas del Foro pendientes de migración en Supabase
+              </h3>
+              <p style={{ margin: '0 0 0.85rem 0', color: '#B45309', fontSize: '0.88rem', lineHeight: 1.5 }}>
+                Para habilitar las discusiones, respuestas y reacciones en el LMS, ejecuta el script en el <strong>SQL Editor</strong> de tu proyecto Supabase:
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={copySql}
+                  className="btn btn-primary"
+                  style={{
+                    fontSize: '0.82rem',
+                    padding: '0.45rem 1rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    background: '#D97706',
+                    borderColor: '#B45309',
+                    color: '#fff',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700
+                  }}
+                >
+                  {copiedSql ? <CheckCircle size={15} /> : <Copy size={15} />}
+                  <span>{copiedSql ? '¡SQL Copiado!' : 'Copiar Script SQL de Migración'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={fetchThreads}
+                  style={{
+                    fontSize: '0.82rem',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid #D97706',
+                    background: 'transparent',
+                    color: '#92400E',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Verificar nuevamente
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filtros */}
-      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-        <Filter size={14} style={{ color: 'var(--text-muted, #94a3b8)', alignSelf: 'center', flexShrink: 0 }} />
-        {CATEGORY_OPTIONS.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => setCategoryFilter(opt.value)}
-            style={{
-              padding: '0.3rem 0.85rem', borderRadius: '999px', fontWeight: 600, fontSize: '0.78rem',
-              border: `1.5px solid ${categoryFilter === opt.value ? 'var(--navy, #0b1528)' : 'var(--border-color, #e2e8f0)'}`,
-              background: categoryFilter === opt.value ? 'var(--navy, #0b1528)' : 'transparent',
-              color: categoryFilter === opt.value ? 'white' : 'var(--text-muted, #64748b)',
-              cursor: 'pointer', transition: 'all 0.15s ease',
-            }}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {tableExists && (
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+          <Filter size={14} style={{ color: 'var(--text-muted, #94a3b8)', alignSelf: 'center', flexShrink: 0 }} />
+          {CATEGORY_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setCategoryFilter(opt.value)}
+              style={{
+                padding: '0.3rem 0.85rem', borderRadius: '999px', fontWeight: 600, fontSize: '0.78rem',
+                border: `1.5px solid ${categoryFilter === opt.value ? 'var(--navy, #0b1528)' : 'var(--border-color, #e2e8f0)'}`,
+                background: categoryFilter === opt.value ? 'var(--navy, #0b1528)' : 'transparent',
+                color: categoryFilter === opt.value ? 'white' : 'var(--text-muted, #64748b)',
+                cursor: 'pointer', transition: 'all 0.15s ease',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Contenido */}
       {loading ? (
@@ -198,7 +257,7 @@ export default function Forum() {
           <style>{`@keyframes liaterSpin { to { transform: rotate(360deg); } }`}</style>
           Cargando hilos...
         </div>
-      ) : error ? (
+      ) : error && tableExists ? (
         <div style={{
           padding: '1.25rem', borderRadius: '10px', textAlign: 'center',
           background: 'rgba(220,38,38,0.05)', border: '1px solid rgba(220,38,38,0.2)',
@@ -209,7 +268,7 @@ export default function Forum() {
             Reintentar
           </button>
         </div>
-      ) : threads.length === 0 ? (
+      ) : tableExists && threads.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted, #94a3b8)' }}>
           <MessagesSquare size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.35 }} />
           <p style={{ margin: 0, fontWeight: 600, fontSize: '0.95rem' }}>Aún no hay hilos en este foro</p>
@@ -225,13 +284,13 @@ export default function Forum() {
             <MessageSquarePlus size={15} /> Crear primer hilo
           </button>
         </div>
-      ) : (
+      ) : tableExists ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
           {threads.map(thread => (
             <ForumThreadCard key={thread.id} thread={thread} isUnread={isUnread(thread)} />
           ))}
         </div>
-      )}
+      ) : null}
 
       <ForumNewThreadModal
         isOpen={showModal}
