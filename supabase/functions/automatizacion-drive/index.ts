@@ -248,6 +248,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     video_url?: unknown;
     video_file_id?: unknown;
     questionCount?: unknown;
+    program_name?: unknown;
+    program_folder_id?: unknown;
+    program_type?: unknown;
+    program_year?: unknown;
   };
 
   try {
@@ -274,6 +278,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const folderId = normalizeDriveFolderId(rawFolderId);
   const folderName = typeof body.folder_name === "string" ? body.folder_name.trim() : "";
   const docName = typeof body.doc_name === "string" ? body.doc_name.trim() : "";
+  const programName = typeof body.program_name === "string" ? body.program_name.trim() : "";
+  const programFolderId = typeof body.program_folder_id === "string" ? normalizeDriveFolderId(body.program_folder_id) : "";
+  const programType = typeof body.program_type === "string" ? body.program_type.trim() : "";
+  const programYear = typeof body.program_year === "string" ? body.program_year.trim() : "";
 
   // Normalizar URL del video de la clase si viene en el payload
   let videoUrl = typeof body.video_url === "string" ? body.video_url.trim() : "";
@@ -340,6 +348,91 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.warn("Búsqueda por drive_folder_id falló:", err);
   }
 
+  // ── Si no se encontró por folderId directo, intentar resolver por Programa ──
+  if (!session && (programFolderId || programName)) {
+    try {
+      let matchedProg: { id: string; title: string; drive_folder_id?: string | null } | null = null;
+
+      if (programFolderId) {
+        const { data: pMatch } = await supabaseAdmin
+          .from("diploma_programs")
+          .select("id, title, drive_folder_id")
+          .or(`drive_folder_id.eq.${programFolderId},drive_folder_id.ilike.%${programFolderId}%`)
+          .maybeSingle();
+        if (pMatch) matchedProg = pMatch;
+      }
+
+      if (!matchedProg && programName) {
+        const { data: progs } = await supabaseAdmin
+          .from("diploma_programs")
+          .select("id, title, drive_folder_id");
+
+        if (progs && progs.length > 0) {
+          const normProg = programName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          for (const p of progs) {
+            const normTitle = (p.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (normTitle && (normProg.includes(normTitle) || normTitle.includes(normProg))) {
+              matchedProg = p;
+              break;
+            }
+            // Buscar palabras clave significativas (ej. "deportiva", "hospitalaria")
+            const words = normProg.split(/[\s\-_]+/).filter((w: string) => w.length > 3 && !['cur', 'dip', 'ilum', 'liater', 'curso', 'diplomado', '2026', '2025'].includes(w));
+            for (const w of words) {
+              if (normTitle.includes(w)) {
+                matchedProg = p;
+                break;
+              }
+            }
+            if (matchedProg) break;
+          }
+        }
+      }
+
+      if (matchedProg) {
+        // Si el programa no tenía vinculado su drive_folder_id, asociarlo automáticamente
+        if (programFolderId && (!matchedProg.drive_folder_id || !matchedProg.drive_folder_id.includes(programFolderId))) {
+          await supabaseAdmin
+            .from("diploma_programs")
+            .update({ drive_folder_id: `https://drive.google.com/drive/folders/${programFolderId}` })
+            .eq("id", matchedProg.id);
+        }
+
+        // Buscar clases dentro de este programa
+        const { data: pClasses } = await supabaseAdmin
+          .from("class_sessions")
+          .select("id, title, video_url, drive_folder_id, order_index")
+          .eq("program_id", matchedProg.id)
+          .order("order_index", { ascending: true });
+
+        if (pClasses && pClasses.length > 0) {
+          // Intentar coincidencia por número de orden en el nombre de la carpeta o archivo
+          const numMatch = (folderName + " " + docName).match(/(?:clase|sesion|session|modulo|c|s)\s*#?\s*(\d+)/i) || (folderName + " " + docName).match(/\b(\d+)\b/);
+          if (numMatch) {
+            const num = parseInt(numMatch[1], 10);
+            session = pClasses.find(c => c.order_index === num) || null;
+          }
+
+          // Si el programa tiene exactamente 1 clase y no hay número explícito
+          if (!session && pClasses.length === 1) {
+            session = pClasses[0];
+          }
+
+          // Si aún no, buscar coincidencia por título
+          if (!session) {
+            const normF = (folderName + " " + docName).toLowerCase();
+            session = pClasses.find(c => normF.includes((c.title || "").toLowerCase())) || null;
+          }
+
+          if (session) {
+            console.log(`Clase '${session.title}' vinculada por contexto de programa '${matchedProg.title}'.`);
+          }
+        }
+      }
+    } catch (errP) {
+      console.warn("Resolución por contexto de programa falló:", errP);
+    }
+  }
+
   // Si la carpeta de Google Drive NO está asignada a ninguna clase en la base de datos
   if (!session) {
     const { data: sampleClasses } = await supabaseAdmin
@@ -361,6 +454,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         drive_folder_id: folderId,
         doc_name: docName,
         folder_name: folderName,
+        program_name: programName || null,
+        program_folder_id: programFolderId || null
       },
       404,
     );
