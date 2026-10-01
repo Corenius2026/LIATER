@@ -2188,26 +2188,6 @@ function ClasesTab() {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <Video size={12} /> Gestión de Sesiones
-            </span>
-            <span style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.78rem' }}>
-              {currentProgram?.title || 'Curso'}
-            </span>
-          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Mis Clases y Sesiones
           </h2>
@@ -3409,24 +3389,6 @@ function ResumenTab({ onChangeTab }) {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <BookOpen size={12} /> {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'} · Panorama General
-            </span>
-          </div>
-
           <h1 style={{ fontSize: '1.35rem', color: 'var(--navy, #14213D)', margin: '0 0 0.35rem 0', fontWeight: 800, letterSpacing: '-0.01em' }}>
             {currentProgram?.title || 'Cargando programa...'}
           </h1>
@@ -3436,7 +3398,7 @@ function ResumenTab({ onChangeTab }) {
             <span>·</span>
             <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{stats.students}</strong> estudiante{stats.students === 1 ? '' : 's'} inscrito{stats.students === 1 ? '' : 's'}</span>
             <span>·</span>
-            <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{stats.totalClasses}</strong> sesione{stats.totalClasses === 1 ? '' : 's'} programada{stats.totalClasses === 1 ? '' : 's'}</span>
+            <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{stats.totalClasses}</strong> {stats.totalClasses === 1 ? 'sesión programada' : 'sesiones programadas'}</span>
           </div>
         </div>
 
@@ -4048,26 +4010,6 @@ function DudasTab() {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <MessageSquare size={12} /> Consultas Académicas
-            </span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
-              {currentProgram?.title || 'Programa'}
-            </span>
-          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Bandeja de Consultas y Dudas
           </h2>
@@ -5327,26 +5269,6 @@ function EstudiantesTab() {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <Users size={12} /> Gestión de Cohorte
-            </span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
-              {currentProgram?.title || 'Programa Activo'}
-            </span>
-          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Estudiantes Inscritos ({totalCount})
           </h2>
@@ -7838,26 +7760,6 @@ function ReforzamientoIATab({ onChangeTab }) {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <Brain size={12} /> Inteligencia Pedagógica
-            </span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
-              {currentProgram?.title || 'Programa'}
-            </span>
-          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Seguimiento de Reforzamiento IA
           </h2>
@@ -8442,7 +8344,7 @@ function ReforzamientoIATab({ onChangeTab }) {
    TAB — Anuncios (Premium Rewrite)
 ───────────────────────────────────────── */
 function AnunciosTab() {
-  const { id: teacherId, profile, programId } = useTeacherContext();
+  const { id: teacherId, profile, programId, currentProgram } = useTeacherContext();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -8571,26 +8473,6 @@ function AnunciosTab() {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <Megaphone size={12} /> Comunicaciones Oficiales
-            </span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
-              {currentProgram?.title || 'Programa'}
-            </span>
-          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Anuncios del Curso
           </h2>
@@ -9479,26 +9361,6 @@ function RecursosTab() {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <Paperclip size={12} /> Recursos Académicos
-            </span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
-              {currentProgram?.title || 'Programa'}
-            </span>
-          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Material y Contenido del Curso
           </h2>

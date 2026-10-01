@@ -150,26 +150,6 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.73rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              <Users size={12} /> Colaboración y Equipos
-            </span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
-              {programTitle || 'Programa'}
-            </span>
-          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Grupos de Trabajo del Programa
           </h2>

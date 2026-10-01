@@ -193,26 +193,6 @@ export default function Forum() {
         }}>
           {/* Título y Contexto Académico */}
           <div style={{ maxWidth: '680px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-              <span style={{
-                background: '#F1F5F9',
-                color: 'var(--navy, #14213D)',
-                fontSize: '0.73rem',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '6px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}>
-                <MessagesSquare size={12} /> Comunidad Académica
-              </span>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
-                {programTitle || 'Programa'}
-              </span>
-            </div>
 
             <h1 style={{
               margin: '0 0 0.35rem 0',
