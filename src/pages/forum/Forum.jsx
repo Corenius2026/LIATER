@@ -175,27 +175,48 @@ export default function Forum() {
   return (
     <div style={{ width: '100%', animation: 'fadeSlideUp 0.35s ease-out' }}>
 
-      {/* ── ENCABEZADO MINIMALISTA INSTITUCIONAL ── */}
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
       <div style={{
         background: '#ffffff',
         border: '1px solid #e2e8f0',
-        borderRadius: '14px',
+        borderRadius: '16px',
         padding: '1.4rem 1.75rem',
         marginBottom: '1.5rem',
         boxShadow: '0 1px 3px rgba(11, 21, 40, 0.03)',
       }}>
         <div style={{
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '1.25rem',
         }}>
           {/* Título y Contexto Académico */}
           <div style={{ maxWidth: '680px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+              <span style={{
+                background: '#F1F5F9',
+                color: 'var(--navy, #14213D)',
+                fontSize: '0.73rem',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <MessagesSquare size={12} /> Comunidad Académica
+              </span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
+                {programTitle || 'Programa'}
+              </span>
+            </div>
+
             <h1 style={{
               margin: '0 0 0.35rem 0',
-              fontSize: '1.25rem',
+              fontSize: '1.35rem',
               fontWeight: 800,
               color: 'var(--navy, #14213D)',
               letterSpacing: '-0.01em',

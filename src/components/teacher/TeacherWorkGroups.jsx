@@ -4,7 +4,8 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Users, Search, ExternalLink, Download, FileText,
   Paperclip, Code, HardDrive, Archive, Plus, X,
-  CheckCircle, AlertCircle, MessageSquare, Eye, Lock
+  CheckCircle, AlertCircle, MessageSquare, Eye, Lock,
+  RefreshCw
 } from 'lucide-react';
 import { getProgramWorkGroups, addGroupMaterial } from '@/services/groupService';
 import MaterialFrameViewerModal from '@/components/common/MaterialFrameViewerModal';
@@ -133,6 +134,82 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.4rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        marginBottom: '1.5rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <Users size={12} /> Colaboración y Equipos
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
+              {programTitle || 'Programa'}
+            </span>
+          </div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
+            Grupos de Trabajo del Programa
+          </h2>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
+            Supervisa los equipos de estudiantes, revisa entregables de proyectos y comparte retroalimentación académica.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button 
+            type="button"
+            onClick={fetchGroups} 
+            title="Actualizar grupos"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} /> <span>Actualizar</span>
+          </button>
+        </div>
+      </div>
 
       {/* Banner si la tabla no existe aún */}
       {!tableExists && (

@@ -2174,11 +2174,11 @@ function ClasesTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       
-      {/* ── HERO HEADER DE SECCIÓN ── */}
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
       <div style={{
         background: '#FFFFFF',
         borderRadius: '16px',
-        padding: '1.5rem 1.75rem',
+        padding: '1.4rem 1.75rem',
         border: '1px solid #E2E8F0',
         display: 'flex',
         justifyContent: 'space-between',
@@ -2195,21 +2195,58 @@ function ClasesTab() {
               fontSize: '0.73rem',
               fontWeight: 700,
               padding: '2px 8px',
-              borderRadius: '12px',
-              textTransform: 'uppercase'
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
             }}>
-              📚 Gestión Académica
+              <Video size={12} /> Gestión de Sesiones
             </span>
-            <span style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.8rem' }}>
+            <span style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.78rem' }}>
               {currentProgram?.title || 'Curso'}
             </span>
           </div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0 }}>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Mis Clases y Sesiones
           </h2>
           <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
             Administra los contenidos de tus clases, materiales de apoyo, grabaciones y actividades de reforzamiento IA.
           </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button
+            type="button"
+            onClick={fetchMyClasses}
+            title="Actualizar listado de clases"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} />
+            <span>Actualizar</span>
+          </button>
         </div>
       </div>
 
@@ -3358,77 +3395,78 @@ function ResumenTab({ onChangeTab }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* ── ENCABEZADO DEL PROGRAMA ── */}
-      {/* ── HERO BANNER DEL CURSO (Rediseño limpio 60-30-10) ── */}
-      <div className="card teacher-course-hero" style={{
-        padding: '1.75rem 2rem',
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.4rem 1.75rem',
+        border: '1px solid #E2E8F0',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: '#FFFFFF',
-        border: '1px solid var(--border-color, #E2E8F0)',
-        borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(20, 33, 61, 0.04)',
         flexWrap: 'wrap',
-        gap: '1.25rem'
+        gap: '1.25rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
             <span style={{
-              fontSize: '0.72rem',
-              color: 'var(--navy, #14213D)',
               background: '#F1F5F9',
-              padding: '0.2rem 0.6rem',
-              borderRadius: '4px',
-              textTransform: 'uppercase',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
               fontWeight: 700,
-              letterSpacing: '0.06em'
-            }}>
-              {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'} · Panel Docente
-            </span>
-            <span style={{
+              padding: '2px 8px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.35rem',
-              background: 'rgba(0, 122, 46, 0.08)',
-              color: '#007A2E',
-              padding: '0.2rem 0.6rem',
-              borderRadius: '9999px',
-              fontSize: '0.75rem',
-              fontWeight: 700
+              gap: '4px'
             }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#007A2E' }} />
-              Programa activo
+              <BookOpen size={12} /> {currentProgram?.program_type === 'curso' ? 'Curso Corto' : 'Diplomado'} · Panorama General
             </span>
           </div>
 
-          <h1 style={{ fontSize: '1.5rem', color: 'var(--navy, #14213D)', margin: '0 0 0.4rem 0', fontWeight: 800, letterSpacing: '-0.01em' }}>
+          <h1 style={{ fontSize: '1.35rem', color: 'var(--navy, #14213D)', margin: '0 0 0.35rem 0', fontWeight: 800, letterSpacing: '-0.01em' }}>
             {currentProgram?.title || 'Cargando programa...'}
           </h1>
 
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem', fontSize: '0.84rem', color: 'var(--text-muted, #64748B)' }}>
-            <span>Prof. <strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{profile.name}</strong></span>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', fontSize: '0.86rem', color: '#64748B' }}>
+            <span>Docente: <strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{profile.name}</strong></span>
             <span>·</span>
-            <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{stats.students}</strong> estudiantes inscritos</span>
+            <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{stats.students}</strong> estudiante{stats.students === 1 ? '' : 's'} inscrito{stats.students === 1 ? '' : 's'}</span>
+            <span>·</span>
+            <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{stats.totalClasses}</strong> sesione{stats.totalClasses === 1 ? '' : 's'} programada{stats.totalClasses === 1 ? '' : 's'}</span>
           </div>
         </div>
 
-        <button
-          className="btn"
-          onClick={() => onChangeTab('anuncios')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none',
-            fontWeight: 700, fontSize: '0.85rem', padding: '0.65rem 1.35rem',
-            borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap',
-            boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-        >
-          <Megaphone size={16} /> Crear anuncio
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => onChangeTab('anuncios')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              padding: '0.6rem 1.25rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.25)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <Megaphone size={16} /> <span>Crear anuncio</span>
+          </button>
+        </div>
       </div>
 
       {/* ── KPI CARDS (4 indicadores limpios y estandarizados) ── */}
@@ -3996,23 +4034,79 @@ function DudasTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       
-      {/* ENCABEZADO DE SECCIÓN */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.4rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+      }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <MessageSquare size={24} color="var(--gold-dark)" /> Bandeja de Consultas
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <MessageSquare size={12} /> Consultas Académicas
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
+              {currentProgram?.title || 'Programa'}
+            </span>
+          </div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
+            Bandeja de Consultas y Dudas
           </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
-            Revisa y gestiona las dudas enviadas por los estudiantes del programa <strong>{currentProgram?.title}</strong> para atenderlas durante las sesiones de clase.
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
+            Revisa, clasifica y atiende las inquietudes enviadas por tus estudiantes para responderlas en clase.
           </p>
         </div>
-        <button 
-          onClick={fetchDoubtsAndClasses} 
-          className="btn btn-outline" 
-          style={{ fontSize: '0.82rem', padding: '0.45rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
-        >
-          <RefreshCw size={14} /> Actualizar
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button 
+            type="button"
+            onClick={fetchDoubtsAndClasses} 
+            title="Actualizar consultas"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} /> <span>Actualizar</span>
+          </button>
+        </div>
       </div>
 
       {/* 3 STATS KPI CARDS ESTILO STITCH */}
@@ -5003,6 +5097,7 @@ function EstudiantesTab() {
   const [selectedStudentForModal, setSelectedStudentForModal] = useState(null);
   const [contactingStudent, setContactingStudent] = useState(null);
   const [totalPublishedActivities, setTotalPublishedActivities] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     async function fetchStudentAnalytics() {
@@ -5181,7 +5276,7 @@ function EstudiantesTab() {
       }
     }
     fetchStudentAnalytics();
-  }, [programId]);
+  }, [programId, refreshTrigger]);
 
   if (loading) {
     return (
@@ -5218,11 +5313,11 @@ function EstudiantesTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       
-      {/* ── HEADER DE SECCIÓN ── */}
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
       <div style={{
         background: '#FFFFFF',
         borderRadius: '16px',
-        padding: '1.5rem 1.75rem',
+        padding: '1.4rem 1.75rem',
         border: '1px solid #E2E8F0',
         display: 'flex',
         justifyContent: 'space-between',
@@ -5239,7 +5334,9 @@ function EstudiantesTab() {
               fontSize: '0.73rem',
               fontWeight: 700,
               padding: '2px 8px',
-              borderRadius: '12px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px'
@@ -5253,9 +5350,42 @@ function EstudiantesTab() {
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Estudiantes Inscritos ({totalCount})
           </h2>
-          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
             Monitorea el progreso, rendimiento académico en reforzamiento IA y estado pedagógico de cada alumno.
           </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button
+            type="button"
+            onClick={() => setRefreshTrigger(prev => prev + 1)}
+            title="Actualizar listado de estudiantes"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} />
+            <span>Actualizar</span>
+          </button>
         </div>
       </div>
 
@@ -7694,65 +7824,103 @@ function ReforzamientoIATab({ onChangeTab }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* ── HEADER DEL MÓDULO ── */}
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
       <div style={{
         background: '#FFFFFF',
         borderRadius: '16px',
-        padding: '1.75rem 2rem',
-        border: '1px solid #E5E5E5',
+        padding: '1.4rem 1.75rem',
+        border: '1px solid #E2E8F0',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '1rem',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
             <span style={{
-              background: 'rgba(252, 163, 17, 0.15)',
-              color: '#B45309',
-              padding: '3px 10px',
-              borderRadius: '8px',
-              fontSize: '0.75rem',
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
               fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px'
             }}>
-              <Brain size={13} /> Inteligencia Pedagógica
+              <Brain size={12} /> Inteligencia Pedagógica
             </span>
-            <span style={{ fontSize: '0.8rem', color: '#6C757D', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
               {currentProgram?.title || 'Programa'}
             </span>
           </div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#14213D' }}>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Seguimiento de Reforzamiento IA
-          </h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#6C757D' }}>
-            Monitorea el impacto de las actividades de reforzamiento generadas por IA y el nivel de comprensión de tus estudiantes.
+          </h2>
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
+            Monitorea el impacto de las actividades pedagógicas generadas por IA y el nivel de comprensión de tus estudiantes.
           </p>
         </div>
 
-        <button
-          onClick={() => onChangeTab && onChangeTab('clases')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: '#14213D',
-            color: '#FFFFFF',
-            border: 'none',
-            padding: '10px 18px',
-            borderRadius: '10px',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(20, 33, 61, 0.2)'
-          }}
-        >
-          <Video size={16} /> Ir a Mis Clases
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={loadData}
+            title="Actualizar analítica"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} /> <span>Actualizar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeTab && onChangeTab('clases')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'var(--navy, #14213D)',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '0.55rem 1.15rem',
+              borderRadius: '8px',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(20, 33, 61, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => { e.currentTarget.style.background = '#000000'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'var(--navy, #14213D)'; }}
+          >
+            <Video size={16} /> <span>Ir a Mis Clases</span>
+          </button>
+        </div>
       </div>
 
       {/* ── 4 KPIS BLACK & GOLD ── */}
@@ -8389,49 +8557,105 @@ function AnunciosTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       
-      {/* ── ENCABEZADO Y ACCIÓN PRINCIPAL ── */}
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
       <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.4rem 1.75rem',
+        border: '1px solid #E2E8F0',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '1rem',
-        paddingBottom: '1rem',
-        borderBottom: '1px solid var(--border-color, #E2E8F0)'
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <Megaphone size={12} /> Comunicaciones Oficiales
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
+              {currentProgram?.title || 'Programa'}
+            </span>
+          </div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Anuncios del Curso
           </h2>
-          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-            Publica avisos, recordatorios y comunicados a los estudiantes inscritos.
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
+            Publica avisos oficiales, recordatorios y comunicados dirigidos a los estudiantes del programa.
           </p>
         </div>
 
-        <button
-          className="btn"
-          onClick={() => { setSelectedAnnouncement(null); setShowModal(true); }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: 'var(--gold, #FCA311)',
-            color: 'var(--navy, #14213D)',
-            border: 'none',
-            fontWeight: 700,
-            fontSize: '0.86rem',
-            padding: '0.65rem 1.35rem',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-        >
-          <Megaphone size={16} /> Crear Anuncio
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={fetchAnnouncements}
+            title="Actualizar avisos"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} /> <span>Actualizar</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => { setSelectedAnnouncement(null); setShowModal(true); }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              padding: '0.6rem 1.25rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.25)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <Megaphone size={16} /> <span>Crear Anuncio</span>
+          </button>
+        </div>
       </div>
 
       {/* ── BARRA DE HERRAMIENTAS: FILTROS SEGMENTADOS Y BÚSQUEDA ── */}
@@ -9240,25 +9464,80 @@ function RecursosTab() {
 
   return (
     <div style={{ padding: '0.5rem 0' }}>
-      {/* ── ENCABEZADO DE PESTAÑA ── */}
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
       <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.4rem 1.75rem',
+        border: '1px solid #E2E8F0',
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: '1.5rem',
         flexWrap: 'wrap',
-        gap: '1rem'
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+            <span style={{
+              background: '#F1F5F9',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.73rem',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <Paperclip size={12} /> Recursos Académicos
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748B)' }}>
+              {currentProgram?.title || 'Programa'}
+            </span>
+          </div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0, letterSpacing: '-0.01em' }}>
             Material y Contenido del Curso
           </h2>
-          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.86rem', color: '#64748B' }}>
-            Gestiona el contenido general que aplica a todo el programa (guías, software, bibliografía) y las presentaciones por clase.
+          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
+            Gestiona el material de apoyo general, presentaciones por sesión y recursos de estudio.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={fetchResources}
+            title="Actualizar recursos"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} /> <span>Actualizar</span>
+          </button>
+
           <button
             type="button"
             onClick={() => handleOpenUpload('general')}
@@ -9274,20 +9553,43 @@ function RecursosTab() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.45rem',
-              boxShadow: '0 2px 8px rgba(252, 163, 17, 0.3)'
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.25)',
+              transition: 'all 0.15s ease'
             }}
+            onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
           >
             <Plus size={16} />
-            <span>+ Subir Contenido General</span>
+            <span>+ Subir Contenido</span>
           </button>
 
           <Link
             to={`/resources/${programId}`}
-            className="btn btn-outline"
-            style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            style={{
+              fontSize: '0.82rem',
+              padding: '0.55rem 0.95rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              color: 'var(--navy, #14213D)',
+              borderRadius: '8px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
           >
             <Eye size={14} />
-            <span>Ver Vista de Estudiantes</span>
+            <span>Vista Alumnos</span>
           </Link>
         </div>
       </div>
