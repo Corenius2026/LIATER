@@ -972,13 +972,15 @@ export default function CourseResources() {
               {getResourceIcon(resType, 22)}
             </div>
 
-            <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
               <h3 style={{
                 fontSize: '0.98rem',
                 fontWeight: 700,
                 color: 'var(--navy, #14213D)',
                 margin: '0 0 0.35rem 0',
-                lineHeight: 1.35
+                lineHeight: 1.35,
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere'
               }}>
                 {res.title}
               </h3>
@@ -1267,14 +1269,19 @@ export default function CourseResources() {
           borderRadius: '12px',
           border: isHidden ? '1.5px dashed #CBD5E1' : '1.5px solid #E2E8F0',
           borderLeft: res.isGeneral ? '5px solid var(--gold, #FCA311)' : '5px solid var(--navy, #14213D)',
-          padding: '0.85rem 1.15rem',
+          padding: '0.9rem 1.15rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '1rem',
           boxShadow: isHidden ? 'none' : '0 1px 4px rgba(20,33,61,0.03)',
           transition: 'all 0.15s ease',
-          opacity: isHidden ? 0.8 : 1
+          opacity: isHidden ? 0.8 : 1,
+          width: '100%',
+          boxSizing: 'border-box',
+          minWidth: 0,
+          overflow: 'hidden',
+          flexWrap: 'wrap'
         }}
         onMouseOver={e => {
           if (!isHidden) {
@@ -1292,7 +1299,15 @@ export default function CourseResources() {
         }}
       >
         {/* LADO IZQUIERDO: ÍCONO + INFO PRINCIPAL */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: '1 1 360px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.85rem',
+          minWidth: 0,
+          flex: '1 1 260px',
+          maxWidth: '100%',
+          overflow: 'hidden'
+        }}>
           {/* Contenedor del ícono por tipo */}
           <div style={{
             width: '40px',
@@ -1303,30 +1318,45 @@ export default function CourseResources() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            flexShrink: 0
+            flexShrink: 0,
+            marginTop: '2px'
           }}>
             {getResourceIcon(resType, 20)}
           </div>
 
           {/* Bloque de Título y Metadatos */}
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+            {/* TÍTULO CON SALTO DE LÍNEA AUTOMÁTICO - NUNCA FUERZA SCROLL HORIZONTAL */}
+            <div style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
               <span
+                title={res.title}
                 style={{
                   fontWeight: 700,
-                  fontSize: '0.92rem',
+                  fontSize: '0.94rem',
+                  lineHeight: 1.35,
                   color: 'var(--navy, #14213D)',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: '100%'
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere'
                 }}
-                title={res.title}
               >
                 {res.title}
               </span>
+            </div>
 
-              {/* Badges de contexto en la misma línea */}
+            {/* Badges de contexto organizados debajo del título */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              flexWrap: 'wrap',
+              marginTop: '0.35rem',
+              minWidth: 0
+            }}>
+              {/* Badge de tipo de recurso */}
               <span style={{
                 fontSize: '0.68rem',
                 fontWeight: 700,
@@ -1340,6 +1370,7 @@ export default function CourseResources() {
                 {meta.label}
               </span>
 
+              {/* Badge General o Clase */}
               {res.isGeneral ? (
                 <span style={{
                   fontSize: '0.68rem',
@@ -1356,7 +1387,7 @@ export default function CourseResources() {
                 }}>
                   <FolderDown size={11} /> General
                 </span>
-              ) : res.sessionTitle || res.classTitle ? (
+              ) : (res.sessionTitle || res.classTitle) ? (
                 <Link
                   to={`/class/${res.classId}`}
                   title={`Ir a la clase: ${res.classTitle || res.sessionTitle}`}
@@ -1372,6 +1403,10 @@ export default function CourseResources() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '3px',
+                    maxWidth: '240px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                     flexShrink: 0,
                     transition: 'all 0.15s ease'
                   }}
@@ -1385,7 +1420,9 @@ export default function CourseResources() {
                   }}
                 >
                   <Video size={10} color="var(--gold, #FCA311)" />
-                  <span>{formatSessionAndClass(res.sessionTitle, res.classTitle)}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formatSessionAndClass(res.sessionTitle, res.classTitle)}
+                  </span>
                 </Link>
               ) : null}
 
@@ -1445,12 +1482,16 @@ export default function CourseResources() {
             {/* Subtítulo / Descripción corta si existe */}
             {res.description && (
               <p style={{
-                margin: '0.2rem 0 0 0',
+                margin: '0.25rem 0 0 0',
                 fontSize: '0.78rem',
+                lineHeight: 1.35,
                 color: '#64748B',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere'
               }}>
                 {res.description}
               </p>
@@ -1459,7 +1500,14 @@ export default function CourseResources() {
         </div>
 
         {/* LADO DERECHO: BOTONES DE ACCIÓN COMPACTOS Y ALINEADOS */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.45rem',
+          flexWrap: 'wrap',
+          flexShrink: 0,
+          marginLeft: 'auto'
+        }}>
           {/* Botón Ver Material */}
           <button
             type="button"
@@ -2143,7 +2191,11 @@ export default function CourseResources() {
               borderRadius: '16px',
               border: '1.5px solid rgba(252, 163, 17, 0.45)',
               padding: '1.5rem',
-              boxShadow: '0 4px 16px rgba(252, 163, 17, 0.06)'
+              boxShadow: '0 4px 16px rgba(252, 163, 17, 0.06)',
+              width: '100%',
+              boxSizing: 'border-box',
+              minWidth: 0,
+              overflow: 'hidden'
             }}>
               <div style={{
                 display: 'flex',
@@ -2247,7 +2299,7 @@ export default function CourseResources() {
                   )}
                 </div>
               ) : viewMode === 'list' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', width: '100%', minWidth: 0, overflow: 'hidden' }}>
                   {filteredGeneral.map(res => renderResourceListItem(res))}
                 </div>
               ) : (
@@ -2267,7 +2319,11 @@ export default function CourseResources() {
               borderRadius: '16px',
               border: '1.5px solid #CBD5E1',
               padding: '1.5rem',
-              boxShadow: '0 4px 16px rgba(20, 33, 61, 0.04)'
+              boxShadow: '0 4px 16px rgba(20, 33, 61, 0.04)',
+              width: '100%',
+              boxSizing: 'border-box',
+              minWidth: 0,
+              overflow: 'hidden'
             }}>
               <div style={{
                 display: 'flex',
@@ -2336,7 +2392,7 @@ export default function CourseResources() {
               </div>
 
               {viewMode === 'list' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', width: '100%', minWidth: 0, overflow: 'hidden' }}>
                   {filteredClass.map(res => renderResourceListItem(res))}
                 </div>
               ) : (
