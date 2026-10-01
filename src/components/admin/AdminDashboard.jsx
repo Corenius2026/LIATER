@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Users, GraduationCap, BookOpen, ListTree, Video,
-  LayoutDashboard, Clock, Zap, UserPlus, Megaphone,
+  LayoutDashboard, Clock, Zap, UserPlus,
   CalendarPlus, Settings, CheckCircle, EyeOff, AlertCircle,
   Radio, Paperclip
 } from "lucide-react";
@@ -23,12 +23,11 @@ export default function AdminDashboard({
   ];
   if (isCourse) stats = stats.filter(s => s.label !== "Módulos");
 
-  // ACCESOS RAPIDOS (6)
+  // ACCESOS RAPIDOS (5)
   const quickActions = [
     { label: "Añadir Alumno",     desc: "Inscribir nuevo estudiante",   icon: <UserPlus      size={20} color="var(--navy)"      />, bg: "rgba(20,33,61,0.07)",  tab: "alumnos"       },
     { label: "Asignar Profesor",  desc: "Vincular docente al programa", icon: <GraduationCap size={20} color="var(--gold-dark)" />, bg: "var(--gold-subtle)",   tab: "profesores"    },
     { label: "Material del Curso", desc: "Recursos y guías",            icon: <Paperclip     size={20} color="var(--gold-dark)" />, bg: "var(--gold-subtle)",   tab: "recursos"      },
-    { label: "Nuevo Anuncio",     desc: "Comunicar al programa",        icon: <Megaphone     size={20} color="#0284c7"          />, bg: "#eff6ff",              tab: "anuncios"      },
     { label: "Ir al Constructor", desc: "Gestionar contenidos",         icon: <CalendarPlus  size={20} color="#16a34a"          />, bg: "#f0fdf4",              tab: "curriculum"    },
     { label: "Configuracion",     desc: "Editar datos del programa",    icon: <Settings      size={20} color="#7c3aed"          />, bg: "#f5f3ff",              tab: "configuracion" },
   ];

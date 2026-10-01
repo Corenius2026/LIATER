@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
-  ListTree, Video, FileText, Settings, ShieldAlert, ArrowLeft, Megaphone, Paperclip, MessagesSquare
+  ListTree, Video, FileText, Settings, ShieldAlert, ArrowLeft, Paperclip, MessagesSquare
 } from 'lucide-react';
 import Forum from '@/pages/forum/Forum';
 import { isClassLiveOrSoon, isClassActiveOrUpcoming } from '@/utils/dateUtils';
@@ -12,7 +12,6 @@ import { isClassLiveOrSoon, isClassActiveOrUpcoming } from '@/utils/dateUtils';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import AdminStudents from '@/components/admin/AdminStudents';
 import AdminTeachers from '@/components/admin/AdminTeachers';
-import AdminAnnouncements from '@/components/admin/AdminAnnouncements';
 import AdminSettingsTab from '@/components/admin/AdminSettingsTab';
 import CourseBuilder from '@/components/admin/CourseBuilder';
 import AdminResources from '@/components/admin/AdminResources';
@@ -26,7 +25,6 @@ const TABS = [
   { id: 'grupos',     label: 'Grupos de Trabajo',  icon: <Users size={16} /> },
   { id: 'alumnos',    label: 'Alumnos',       icon: <Users size={16} /> },
   { id: 'profesores', label: 'Profesores',    icon: <GraduationCap size={16} /> },
-  { id: 'anuncios',   label: 'Anuncios',      icon: <Megaphone size={16} /> },
   { id: 'foro',       label: 'Foro del Curso', icon: <MessagesSquare size={16} /> },
   { id: 'configuracion', label: 'Configuración', icon: <Settings size={16} /> },
 ];
@@ -253,7 +251,6 @@ export default function AdminPanel() {
       case 'grupos':     return <AdminWorkGroups programId={programId} programTitle={data.program?.title} enrolledStudents={data.enrolledStudents} onRefresh={refreshData} />;
       case 'alumnos':    return <AdminStudents enrolledStudents={data.enrolledStudents} programId={programId} programTitle={data.program?.title} onRefresh={refreshData} />;
       case 'profesores': return <AdminTeachers teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} programTitle={data.program?.title} />;
-      case 'anuncios':   return <AdminAnnouncements programId={programId} onRefresh={refreshData} />;
       case 'foro':       return <Forum />;
       case 'configuracion': return <AdminSettingsTab />;
       default:           return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
