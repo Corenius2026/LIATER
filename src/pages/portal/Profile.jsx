@@ -539,95 +539,162 @@ export default function Profile() {
   return (
     <div style={{ padding: '1.5rem 2rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeSlideUp 0.35s ease-out' }}>
       
-      {/* ── HERO BANNER INSTITUCIONAL ── */}
+      {/* ── HERO BANNER DE IDENTIDAD (UNIFICADO EN AZUL MARINO INSTITUCIONAL) ── */}
       <div style={{
-        background: '#FFFFFF',
+        background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
         borderRadius: '16px',
-        padding: '1.75rem 2rem',
-        border: '1px solid #E2E8F0',
+        padding: '1.35rem 1.75rem',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '1.5rem',
         flexWrap: 'wrap',
-        gap: '1.25rem',
-        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
-        marginBottom: '1.75rem'
+        marginBottom: '1.75rem',
+        boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+        color: '#FFFFFF',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              padding: '3px 10px',
-              borderRadius: '12px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em'
-            }}>
-              {role === 'admin' 
-                ? '🏛️ CONFIGURACIÓN DE CUENTA · PANEL ADMINISTRADOR UNAL' 
-                : role === 'teacher' 
-                  ? '🏛️ CONFIGURACIÓN DE CUENTA · PORTAL DOCENTE UNAL' 
-                  : '🏛️ CONFIGURACIÓN DE CUENTA · PORTAL ESTUDIANTE UNAL'}
-            </span>
-            <span style={{
-              background: isEmailVerified ? '#DCFCE7' : '#FEF3C7',
-              color: isEmailVerified ? '#007A2E' : '#92400E',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '10px'
-            }}>
-              {isEmailVerified ? '● Cuenta Verificada' : '● Verificación Pendiente'}
-            </span>
-          </div>
-
-          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
-            {role === 'admin' 
-              ? 'Mi Perfil de Administrador' 
-              : role === 'teacher' 
-                ? 'Mi Perfil Docente' 
-                : 'Mi Perfil de Estudiante'}
-          </h1>
-          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
-            {role === 'teacher'
-              ? 'Actualiza tus datos de contacto, personaliza tu presentación pública académica y administra la seguridad de tu cuenta.'
-              : role === 'admin'
-                ? 'Gestiona tus datos de acceso, credenciales institucionales y seguridad de la cuenta administrativa.'
-                : 'Actualiza tus datos personales, información de contacto y administra la seguridad de tu cuenta.'}
-          </p>
-        </div>
-
+        {/* Glow sutil de acento dorado */}
         <div style={{
-          background: '#F8FAFC',
-          padding: '0.75rem 1.15rem',
-          borderRadius: '12px',
-          border: '1px solid #E2E8F0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.85rem'
-        }}>
+          position: 'absolute',
+          top: '-40px',
+          right: '-40px',
+          width: '180px',
+          height: '180px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        {/* Lado izquierdo: Avatar + Datos de Identidad */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+          {/* Avatar circular */}
           <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '10px',
-            background: 'rgba(20,33,61,0.06)',
-            color: 'var(--navy, #14213D)',
+            width: '68px',
+            height: '68px',
+            borderRadius: '50%',
+            background: 'rgba(252, 163, 17, 0.15)',
+            border: '2px solid rgba(252, 163, 17, 0.6)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            color: 'var(--gold, #FCA311)',
+            fontWeight: 800,
+            fontSize: '1.85rem',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
+            flexShrink: 0
           }}>
-            <Shield size={18} />
+            {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : (role === 'admin' ? 'A' : role === 'teacher' ? 'P' : 'E')}
           </div>
+
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Rol en el Portal
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', margin: 0, textTransform: 'capitalize', letterSpacing: '-0.01em' }}>
+                {personalData.full_name || (role === 'admin' ? 'Administrador LIATER' : role === 'teacher' ? 'Docente UNAL' : 'Estudiante LIATER')}
+              </h1>
+              <span style={{
+                background: role === 'teacher' 
+                  ? 'rgba(34, 197, 94, 0.18)' 
+                  : role === 'admin' 
+                    ? 'rgba(252, 163, 17, 0.18)' 
+                    : 'rgba(59, 130, 246, 0.2)',
+                color: role === 'teacher' 
+                  ? '#86EFAC' 
+                  : role === 'admin' 
+                    ? '#FDE047' 
+                    : '#93C5FD',
+                border: `1px solid ${role === 'teacher' ? 'rgba(134, 239, 172, 0.3)' : role === 'admin' ? 'rgba(253, 224, 71, 0.3)' : 'rgba(147, 197, 253, 0.3)'}`,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '2.5px 9px',
+                borderRadius: '9999px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}>
+                <span style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: role === 'teacher' ? '#86EFAC' : role === 'admin' ? '#FDE047' : '#93C5FD'
+                }} />
+                {role === 'teacher' ? 'Docente UNAL Activo' : role === 'admin' ? 'Administrador LIATER' : 'Estudiante LIATER'}
+              </span>
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
-              {role === 'admin' ? 'Administrador' : role === 'teacher' ? 'Docente Titular' : 'Estudiante'}
-            </div>
+
+            <p style={{ color: 'rgba(255, 255, 255, 0.85)', display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '4px 0 0 0', fontSize: '0.85rem' }}>
+              <Mail size={14} color="var(--gold, #FCA311)" /> {personalData.email || currentUser?.email}
+            </p>
+
+            {isTeacher && academicData.title_role && (
+              <div style={{ fontSize: '0.8rem', color: 'var(--gold, #FCA311)', fontWeight: 700, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span>🏛️ {academicData.title_role} {academicData.area ? `· ${academicData.area}` : ''}</span>
+              </div>
+            )}
+
+            {!isTeacher && personalData.profession && (
+              <div style={{ fontSize: '0.8rem', color: 'var(--gold, #FCA311)', fontWeight: 700, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span>💼 {personalData.profession}</span>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Lado derecho: Acciones o Validación */}
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+          {isTeacher ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab('academic')}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                color: '#FFFFFF',
+                padding: '0.55rem 1.1rem',
+                borderRadius: '10px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
+                transition: 'all 0.18s ease'
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                e.currentTarget.style.color = 'var(--gold, #FCA311)';
+                e.currentTarget.style.background = 'rgba(252, 163, 17, 0.12)';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.18)';
+                e.currentTarget.style.color = '#FFFFFF';
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+              }}
+            >
+              <Eye size={15} /> Vista Pública
+            </button>
+          ) : (
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '10px',
+              padding: '0.55rem 0.95rem',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              color: '#FFFFFF',
+              fontSize: '0.8rem',
+              fontWeight: 700
+            }}>
+              <CheckCircle2 size={16} color="var(--gold, #FCA311)" />
+              <span>{role === 'admin' ? 'Acceso Administrativo' : (isEmailVerified ? 'Cuenta Verificada' : 'Cuenta LIATER')}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -644,97 +711,6 @@ export default function Profile() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
         }}>
           {msg.text}
-        </div>
-      )}
-
-      {/* ── TARJETA PRINCIPAL DE IDENTIDAD DOCENTE (SOLO PROFESORES) ── */}
-      {isTeacher && (
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '16px',
-          padding: '1.5rem 1.75rem',
-          border: '1px solid #E2E8F0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1.5rem',
-          flexWrap: 'wrap',
-          marginBottom: '1.75rem',
-          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-            <div style={{
-              width: '76px',
-              height: '76px',
-              borderRadius: '50%',
-              background: 'var(--navy, #14213D)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--gold, #FCA311)',
-              fontWeight: 800,
-              fontSize: '2rem',
-              border: '3px solid #FFFFFF',
-              boxShadow: '0 4px 14px rgba(20, 33, 61, 0.15)',
-              flexShrink: 0
-            }}>
-              {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : 'P'}
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0 }}>
-                  {personalData.full_name || 'Profesor LIATER'}
-                </h2>
-                <span style={{
-                  background: '#DCFCE7',
-                  color: '#007A2E',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  padding: '3px 9px',
-                  borderRadius: '9999px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#007A2E' }}></span>
-                  Docente UNAL Activo
-                </span>
-              </div>
-              <p style={{ color: 'var(--text-muted, #64748B)', display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '4px 0 0 0', fontSize: '0.86rem' }}>
-                <Mail size={14} /> {personalData.email}
-              </p>
-              {academicData.title_role && (
-                <div style={{ fontSize: '0.8rem', color: 'var(--gold-dark, #b45309)', fontWeight: 700, marginTop: '4px' }}>
-                  🏛️ {academicData.title_role} {academicData.area ? `· ${academicData.area}` : ''}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => setActiveTab('academic')}
-              style={{
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                color: 'var(--navy, #14213D)',
-                padding: '0.45rem 0.95rem',
-                borderRadius: '8px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseOver={e => e.currentTarget.style.borderColor = 'var(--gold, #FCA311)'}
-              onMouseOut={e => e.currentTarget.style.borderColor = '#E2E8F0'}
-            >
-              <Eye size={14} /> Vista Pública
-            </button>
-          </div>
         </div>
       )}
 
@@ -1336,38 +1312,7 @@ export default function Profile() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
-          {/* 1. HERO BANNER DE IDENTIDAD Y ROL */}
-          <div className="card static-card" style={{ padding: '1.5rem 1.75rem', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', borderTop: '4px solid var(--navy)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-              <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: 800, fontSize: '1.8rem', boxShadow: '0 6px 18px rgba(20, 33, 61, 0.15)', border: '2.5px solid #ffffff', flexShrink: 0 }}>
-                {personalData.full_name ? personalData.full_name.charAt(0).toUpperCase() : (role === 'admin' ? 'A' : 'E')}
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
-                    {personalData.full_name || (role === 'admin' ? 'Administrador' : 'Estudiante')}
-                  </h2>
-                  <span className="badge badge-navy" style={{ padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: 700 }}>
-                    {role === 'admin' ? 'ADMINISTRADOR LIATER' : 'ESTUDIANTE LIATER'}
-                  </span>
-                </div>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.35rem', flexWrap: 'wrap', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Mail size={14} color="var(--navy)" /> {personalData.email}
-                  </span>
-                  {personalData.profession && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--navy)', fontWeight: 700, background: 'rgba(252, 163, 17, 0.14)', padding: '0.15rem 0.6rem', borderRadius: '999px', fontSize: '0.78rem' }}>
-                      <Briefcase size={13} color="var(--gold-dark)" /> {personalData.profession}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. FORMULARIO UNIFICADO DE EDICIÓN DIVIDIDO EN SECCIONES LIMPIAS */}
+          {/* FORMULARIO UNIFICADO DE EDICIÓN DIVIDIDO EN SECCIONES LIMPIAS */}
           <form onSubmit={handleSavePersonal} className="card static-card" style={{ padding: '2rem' }}>
             
             {/* SECCIÓN A: INFORMACIÓN DE CONTACTO */}
