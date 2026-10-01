@@ -972,26 +972,20 @@ export default function CourseResources() {
               )}
 
               {/* DETALLES DE SESIÓN / FECHA */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', fontSize: '0.74rem', color: '#64748B', marginTop: '0.35rem' }}>
-                {res.isGeneral ? (
-                  <span style={{ color: 'var(--gold-dark, #b45309)', fontWeight: 600 }}>
-                    Material transversal
-                  </span>
-                ) : (
-                  <>
-                    {res.sessionTitle && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <Layers size={11} color="#94A3B8" /> {res.sessionTitle}
-                      </span>
-                    )}
-                    {res.classDate && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <Calendar size={11} color="#94A3B8" /> {new Date(res.classDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
+              {!res.isGeneral && (res.sessionTitle || res.classDate) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', fontSize: '0.74rem', color: '#64748B', marginTop: '0.35rem' }}>
+                  {res.sessionTitle && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Layers size={11} color="#94A3B8" /> {res.sessionTitle}
+                    </span>
+                  )}
+                  {res.classDate && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Calendar size={11} color="#94A3B8" /> {new Date(res.classDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
