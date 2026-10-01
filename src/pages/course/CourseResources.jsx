@@ -793,6 +793,27 @@ export default function CourseResources() {
     };
     const meta = getTypeMeta();
 
+    const getFormatTag = () => {
+      if (res.title) {
+        const m = res.title.trim().match(/\.([a-zA-Z0-9]{2,5})(?:\?|$)/);
+        if (m && m[1]) {
+          const ext = m[1].toUpperCase();
+          if (ext.length <= 4) return ext;
+        }
+      }
+      switch (resType) {
+        case 'presentation': return 'PPT';
+        case 'file':
+        case 'pdf':
+        case 'document': return 'PDF';
+        case 'link': return 'LINK';
+        case 'code': return 'CODE';
+        case 'video': return 'VIDEO';
+        default: return 'FILE';
+      }
+    };
+    const formatTag = getFormatTag();
+
     return (
       <div
         key={res.id}
@@ -943,33 +964,41 @@ export default function CourseResources() {
                 </span>
               )}
 
-              {/* TIPO DE RECURSO BADGE */}
-              <span style={{
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '6px',
-                textTransform: 'uppercase',
-                background: meta.bg,
-                color: meta.text,
-                border: `1px solid ${meta.border}`
-              }}>
-                {meta.label}
-              </span>
             </div>
           </div>
 
           {/* CUERPO: TÍTULO Y DESCRIPCIÓN */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '10px',
-              background: meta.bg,
-              border: `1px solid ${meta.border}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, marginTop: '2px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-            }}>
-              {getResourceIcon(resType, 22)}
+            <div
+              style={{
+                width: '46px',
+                minHeight: '48px',
+                borderRadius: '10px',
+                background: meta.bg,
+                border: `1.5px solid ${meta.border}`,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: '2px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                padding: '3px 4px'
+              }}
+              title={meta.label}
+            >
+              {getResourceIcon(resType, 18)}
+              <span style={{
+                fontSize: '0.56rem',
+                fontWeight: 800,
+                color: meta.text,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                lineHeight: 1,
+                marginTop: '2px'
+              }}>
+                {formatTag}
+              </span>
             </div>
 
             <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
@@ -1127,29 +1156,6 @@ export default function CourseResources() {
             </Link>
           )}
 
-          {/* Copiar Enlace */}
-          {res.url && (
-            <button
-              type="button"
-              onClick={() => handleCopyLink(res.url, res.id)}
-              title="Copiar enlace del recurso"
-              style={{
-                background: '#FFFFFF',
-                color: copiedId === res.id ? '#16A34A' : '#64748B',
-                border: `1px solid ${copiedId === res.id ? '#86EFAC' : '#E2E8F0'}`,
-                borderRadius: '8px',
-                padding: '0.5rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              {copiedId === res.id ? <Check size={14} /> : <Copy size={14} />}
-            </button>
-          )}
-
           {/* ACCIONES DE GESTIÓN PARA DOCENTES Y ADMINS */}
           {canManage && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto' }}>
@@ -1261,6 +1267,27 @@ export default function CourseResources() {
     };
     const meta = getTypeMeta();
 
+    const getFormatTag = () => {
+      if (res.title) {
+        const m = res.title.trim().match(/\.([a-zA-Z0-9]{2,5})(?:\?|$)/);
+        if (m && m[1]) {
+          const ext = m[1].toUpperCase();
+          if (ext.length <= 4) return ext;
+        }
+      }
+      switch (resType) {
+        case 'presentation': return 'PPT';
+        case 'file':
+        case 'pdf':
+        case 'document': return 'PDF';
+        case 'link': return 'LINK';
+        case 'code': return 'CODE';
+        case 'video': return 'VIDEO';
+        default: return 'FILE';
+      }
+    };
+    const formatTag = getFormatTag();
+
     return (
       <div
         key={res.id}
@@ -1308,20 +1335,37 @@ export default function CourseResources() {
           maxWidth: '100%',
           overflow: 'hidden'
         }}>
-          {/* Contenedor del ícono por tipo */}
-          <div style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
-            background: meta.bg,
-            border: `1px solid ${meta.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            marginTop: '2px'
-          }}>
-            {getResourceIcon(resType, 20)}
+          {/* Contenedor del ícono por tipo con formato visible */}
+          <div
+            style={{
+              width: '44px',
+              minHeight: '46px',
+              borderRadius: '9px',
+              background: meta.bg,
+              border: `1.5px solid ${meta.border}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginTop: '1px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              padding: '3px 4px'
+            }}
+            title={meta.label}
+          >
+            {getResourceIcon(resType, 18)}
+            <span style={{
+              fontSize: '0.56rem',
+              fontWeight: 800,
+              color: meta.text,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              lineHeight: 1,
+              marginTop: '2px'
+            }}>
+              {formatTag}
+            </span>
           </div>
 
           {/* Bloque de Título y Metadatos */}
@@ -1356,19 +1400,6 @@ export default function CourseResources() {
               marginTop: '0.35rem',
               minWidth: 0
             }}>
-              {/* Badge de tipo de recurso */}
-              <span style={{
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                padding: '2px 7px',
-                borderRadius: '6px',
-                background: meta.bg,
-                color: meta.text,
-                border: `1px solid ${meta.border}`,
-                flexShrink: 0
-              }}>
-                {meta.label}
-              </span>
 
               {/* Badge General o Clase */}
               {res.isGeneral ? (
@@ -1601,29 +1632,6 @@ export default function CourseResources() {
               <Video size={12} color="var(--gold-dark, #B45309)" />
               <span>Clase</span>
             </Link>
-          )}
-
-          {/* Copiar Enlace */}
-          {res.url && (
-            <button
-              type="button"
-              onClick={() => handleCopyLink(res.url, res.id)}
-              title="Copiar enlace"
-              style={{
-                background: '#FFFFFF',
-                color: copiedId === res.id ? '#16A34A' : '#64748B',
-                border: `1px solid ${copiedId === res.id ? '#86EFAC' : '#CBD5E1'}`,
-                borderRadius: '7px',
-                padding: '0.42rem 0.5rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              {copiedId === res.id ? <Check size={13} /> : <Copy size={13} />}
-            </button>
           )}
 
           {/* Acciones de gestión para Docente / Admin */}
