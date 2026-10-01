@@ -8,23 +8,35 @@
  * [Nivel 0: Carpeta Raíz] ➔ "PROGRAMAS - LIATER" (Configurada en ROOT_FOLDER_ID)
  *    ├── [Nivel 1: Categorías y Año] ➔ "LIATER - Cursos 2026", "LIATER - Diplomados 2026"
  *    │      ├── [Nivel 2: Cursos / Diplomados] ➔ "CUR-ILUM-2026-2 - Deportiva", "CUR-ILUM-2026-2 - Hospitalaria"
- *    │      │      └── [Nivel 3: Clases / Sesiones] ➔ "Clase 1", grabaciones (.mp4), transcripciones (.gdoc, .txt)
+ *    │      │      └── [Nivel 3: Clases / Sesiones] ➔ "Clase 4", grabaciones (.mp4), transcripciones (.gdoc, .txt)
  *    │      └── ℹ [Carpetas de utilería] ➔ "material", "plantillas", etc. (se ignoran automáticamente)
  * 
+ * [Carpeta Origen Meet] ➔ "Meet Recordings" / "Grabaciones de Meet" (o MEET_RECORDINGS_FOLDER_ID)
+ * 
+ * NOMENCLATURA RECONOCIDA:
+ *    [2026-2-CUR-ILUM-S04] Hospitalaria - 2026/09/30 17:54 GMT-05:00 - Recording 3
+ *    - [2026-2-CUR-ILUM-S04] : Año (2026), Semestre (2), Tipo (CUR=Curso), Código (ILUM), Sesión (S04 = Clase 4)
+ *    - Hospitalaria          : Nombre / Tema del curso (ubica la carpeta "CUR-ILUM-2026-2 - Hospitalaria")
+ *    - 2026/09/30 17:54 GMT-05:00 : Fecha, hora exacta y zona horaria de la grabación de Meet
+ *    - Recording 3           : Parte o fragmento de la grabación
+ * 
  * FUNCIONES DISPONIBLES:
- * 1. `diagnosticarEstructura()`: Muestra en la consola de Apps Script todo el árbol detectado
+ * 1. `organizarGrabacionesDeMeet()`: Mueve automáticamente las grabaciones desde la carpeta de Google Meet
+ *    ("Meet Recordings") hacia la carpeta correspondiente del curso y clase dentro de "PROGRAMAS - LIATER".
+ * 2. `sincronizarSoloVideos()`: Organiza grabaciones pendientes y vincula las URLs de video en Supabase.
+ * 3. `procesarTranscripcionesEIA()`: Lee transcripciones y genera cuestionarios con Gemini.
+ * 4. `ejecutarTodo()`: Ejecuta en orden: Organizar Meet ➔ Sincronizar Videos ➔ Transcripciones IA.
+ * 5. `diagnosticarEstructura()`: Muestra en la consola de Apps Script todo el árbol detectado
  *    (Cursos, Diplomados, Años, Videos y Transcripciones) SIN hacer cambios en Supabase.
- * 2. `ejecutarTodo()`: Ejecuta sincronización de videos y procesamiento de IA en un solo clic.
- * 3. `sincronizarSoloVideos()`: Escanea grabaciones y vincula URLs a Supabase.
- * 4. `procesarTranscripcionesEIA()`: Lee transcripciones y genera cuestionarios con Gemini.
- * 5. `configurarActivadores()`: Programa las ejecuciones automáticas (videos cada 30 min, IA cada 2 horas).
- * 6. `eliminarActivadores()`: Limpia los temporizadores automáticos.
+ * 6. `configurarActivadores()`: Programa las ejecuciones automáticas (videos cada 30 min, IA cada 2 horas).
+ * 7. `eliminarActivadores()`: Limpia los temporizadores automáticos.
  * 
  * ----------------------------------------------------------------------------
  * CONFIGURACIÓN EN GOOGLE APPS SCRIPT:
  * (⚙️ Configuración del proyecto -> Propiedades del script)
  *   - ROOT_FOLDER_ID: ID o enlace de la carpeta raíz "PROGRAMAS - LIATER"
  *   - DRIVE_AUTOMATION_SECRET: Secreto configurado en Supabase Edge Functions
+ *   - MEET_RECORDINGS_FOLDER_ID: (Opcional) ID de carpeta "Meet Recordings" (se auto-detecta si no se especifica)
  *   - LOG_SHEET_ID: (Opcional) ID o enlace del Google Sheet para bitácora
  * ============================================================================
  */
@@ -33,12 +45,12 @@ var EDGE_FUNCTION_URL = "https://dbxkmasucybamylpkndm.supabase.co/functions/v1/a
 var QUESTION_COUNT = 5;
 
 // ============================================================================
-// 1. DIAGNÓSTICO PREVIO DE ESTRUCTURA
+// 1. DIAGNÓSTICO PREVIO DE ESTRUCTURA Y NOMENCLATURA
 // ============================================================================
 
 /**
  * Muestra en la consola la estructura jerárquica detectada sin alterar datos en Supabase.
- * Ejecuta esta función primero para verificar que reconozca correctamente los Cursos, Diplomados y Años.
+ * Inspecciona tanto "Meet Recordings" como las carpetas de "PROGRAMAS - LIATER".
  */
 function diagnosticarEstructura() {
   console.log("=================================================");
@@ -51,6 +63,37 @@ function diagnosticarEstructura() {
   var rootFolder = abrirCarpetaRaiz(config.rootFolderId);
   if (!rootFolder) return;
 
+  // 1. Diagnosticar carpeta de Google Meet
+  var meetFolder = buscarCarpetaMeetRecordings(config.meetFolderId);
+  console.log("\n-------------------------------------------------");
+  console.log("📹 CARPETA DE GRABACIONES GOOGLE MEET:");
+  if (meetFolder) {
+    console.log("  Nombre: '" + meetFolder.getName() + "' (ID: " + meetFolder.getId() + ")");
+    var meetFiles = meetFolder.getFiles();
+    var countMeet = 0;
+    while (meetFiles.hasNext() && countMeet < 20) {
+      countMeet++;
+      var mf = meetFiles.next();
+      var infoM = parseNomenclaturaGrabacion(mf.getName());
+      var descM = "";
+      if (infoM && (infoM.sessionNumber || infoM.topic)) {
+        descM = " ➔ [Sesión " + (infoM.sessionNumber || "?") + 
+          (infoM.topic ? " | Tema: " + infoM.topic : "") + 
+          (infoM.formattedDate ? " | Fecha: " + infoM.formattedDate : "") + 
+          (infoM.recordingPart > 1 ? " | Parte: " + infoM.recordingPart : "") + "]";
+      } else {
+        descM = " (Sin nomenclatura de sesión detectada)";
+      }
+      console.log("  [" + countMeet + "] " + mf.getName() + descM);
+    }
+    if (countMeet === 0) {
+      console.log("  ℹ No hay archivos pendientes en la carpeta Meet.");
+    }
+  } else {
+    console.log("  ℹ No se encontró la carpeta 'Meet Recordings'. Si está en otra ubicación, añade MEET_RECORDINGS_FOLDER_ID en Propiedades del script.");
+  }
+
+  // 2. Diagnosticar árbol de programas
   var programas = descubrirProgramas(rootFolder);
   console.log("\n=================================================");
   console.log("📊 RESUMEN: " + programas.length + " PROGRAMA(S) IDENTIFICADO(S)");
@@ -68,12 +111,29 @@ function diagnosticarEstructura() {
 
     console.log("    - Videos detectados: " + videos.length);
     for (var v = 0; v < videos.length; v++) {
-      console.log("       🎥 [" + videos[v].nombreCarpeta + "] " + videos[v].nombreArchivo);
+      var itemV = videos[v];
+      var nomV = itemV.nomenclatura;
+      var descV = "";
+      if (nomV && nomV.sessionNumber) {
+        descV = " ➔ [Sesión " + nomV.sessionNumber + 
+          (nomV.topic ? " | Tema: " + nomV.topic : "") + 
+          (nomV.formattedDate ? " | Fecha: " + nomV.formattedDate : "") + 
+          (nomV.recordingPart > 1 ? " | Parte: " + nomV.recordingPart : "") + "]";
+      }
+      console.log("       🎥 [" + itemV.nombreCarpeta + "] " + itemV.nombreArchivo + descV);
     }
 
     console.log("    - Transcripciones detectadas: " + transcripciones.length);
     for (var t = 0; t < transcripciones.length; t++) {
-      console.log("       📝 [" + transcripciones[t].nombreCarpeta + "] " + transcripciones[t].nombreArchivo);
+      var itemT = transcripciones[t];
+      var nomT = itemT.nomenclatura;
+      var descT = "";
+      if (nomT && nomT.sessionNumber) {
+        descT = " ➔ [Sesión " + nomT.sessionNumber + 
+          (nomT.topic ? " | Tema: " + nomT.topic : "") + 
+          (nomT.formattedDate ? " | Fecha: " + nomT.formattedDate : "") + "]";
+      }
+      console.log("       📝 [" + itemT.nombreCarpeta + "] " + itemT.nombreArchivo + descT);
     }
   }
 
@@ -83,11 +143,118 @@ function diagnosticarEstructura() {
 }
 
 // ============================================================================
-// 2. FLUJO PRINCIPAL: SINCRONIZACIÓN DE VIDEOS / GRABACIONES
+// 2. ORGANIZADOR: MOVER GRABACIONES DE MEET ➔ CARPETAS DE CURSOS EN DRIVE
 // ============================================================================
 
 /**
- * Escanea Drive navegando desde PROGRAMAS - LIATER y actualiza grabaciones en Supabase
+ * Escanea la carpeta "Meet Recordings" / "Grabaciones de Meet", interpreta
+ * la nomenclatura:
+ *   [2026-2-CUR-ILUM-S04] Hospitalaria - 2026/09/30 17:54 GMT-05:00 - Recording 3
+ * y mueve los archivos a su curso y sesión correspondiente dentro de "PROGRAMAS - LIATER".
+ */
+function organizarGrabacionesDeMeet() {
+  console.log("=================================================");
+  console.log("📂 INICIANDO: Organización y Movimiento de Grabaciones de Meet");
+  console.log("=================================================");
+
+  var config = obtenerConfiguracion();
+  if (!config) return;
+
+  var rootFolder = abrirCarpetaRaiz(config.rootFolderId);
+  if (!rootFolder) return;
+
+  var meetFolder = buscarCarpetaMeetRecordings(config.meetFolderId);
+  if (!meetFolder) {
+    console.log("ℹ Carpeta de Meet no encontrada o no configurada. Continuando con las carpetas existentes...");
+    return;
+  }
+
+  console.log("Carpeta Meet origen: '" + meetFolder.getName() + "' (ID: " + meetFolder.getId() + ")");
+
+  var programas = descubrirProgramas(rootFolder);
+  if (programas.length === 0) {
+    console.warn("⚠️ No se encontraron programas en la carpeta raíz para mover grabaciones.");
+    return;
+  }
+
+  var archivosMeet = [];
+  var iter = meetFolder.getFiles();
+  while (iter.hasNext()) {
+    archivosMeet.push(iter.next());
+  }
+
+  console.log("Total de archivos en carpeta Meet: " + archivosMeet.length);
+
+  var movidos = 0;
+  var noCoincidentes = 0;
+  var errores = 0;
+
+  for (var i = 0; i < archivosMeet.length; i++) {
+    var file = archivosMeet[i];
+    var fileName = file.getName();
+
+    var info = parseNomenclaturaGrabacion(fileName);
+    if (!info || !info.esGrabacionMeet) {
+      noCoincidentes++;
+      continue;
+    }
+
+    console.log("\n-> Grabación detectada: '" + fileName + "'");
+    console.log("   - Tag: " + (info.tag || "N/A"));
+    console.log("   - Sesión: " + (info.sessionNumber || "N/A"));
+    console.log("   - Tema/Curso: " + (info.topic || "N/A"));
+    console.log("   - Fecha grabación: " + (info.formattedDate || "N/A") + (info.rawDateStr ? " (" + info.rawDateStr + ")" : ""));
+    console.log("   - Parte: " + (info.recordingPart || 1));
+
+    var programaDestino = encontrarProgramaParaGrabacion(programas, info);
+
+    if (!programaDestino) {
+      console.warn("   ⚠️ No se encontró la carpeta del programa para el tema: '" + info.topic + "' (Código: " + info.programCode + "). Se conserva en Meet.");
+      noCoincidentes++;
+      continue;
+    }
+
+    console.log("   ✓ Programa destino identificado: '" + programaDestino.nombre + "' (" + programaDestino.tipo.toUpperCase() + ")");
+
+    var carpetaDestino = encontrarOCrearCarpetaSesion(programaDestino.carpeta, info.sessionNumber);
+    console.log("   ✓ Carpeta destino: '" + carpetaDestino.getName() + "'");
+
+    var exito = moverArchivo(file, carpetaDestino);
+    if (exito) {
+      movidos++;
+      garantizarPermisosDeLectura(file);
+      console.log("   ✓ Archivo movido con éxito a: '" + programaDestino.nombre + " / " + carpetaDestino.getName() + "'");
+
+      if (config.logSheet) {
+        registrarEnLog(
+          config.logSheet,
+          file.getId(),
+          fileName,
+          carpetaDestino.getId(),
+          carpetaDestino.getName(),
+          "MOVIMIENTO_OK",
+          "Movido desde Meet a [" + programaDestino.nombre + " / " + carpetaDestino.getName() + "]" + (info.formattedDate ? " Fecha: " + info.formattedDate : ""),
+          programaDestino.nombre,
+          programaDestino.tipo,
+          programaDestino.anio
+        );
+      }
+    } else {
+      errores++;
+    }
+  }
+
+  console.log("\n=================================================");
+  console.log("Resumen Organización -> Movidos: " + movidos + " | No coincidentes: " + noCoincidentes + " | Errores: " + errores);
+  console.log("=================================================");
+}
+
+// ============================================================================
+// 3. FLUJO PRINCIPAL: SINCRONIZACIÓN DE VIDEOS / GRABACIONES
+// ============================================================================
+
+/**
+ * Organiza grabaciones de Meet pendientes y actualiza enlaces de video en Supabase
  */
 function sincronizarSoloVideos() {
   console.log("=================================================");
@@ -99,6 +266,13 @@ function sincronizarSoloVideos() {
 
   var rootFolder = abrirCarpetaRaiz(config.rootFolderId);
   if (!rootFolder) return;
+
+  // Paso previo automático: Organizar archivos pendientes en Meet Recordings
+  try {
+    organizarGrabacionesDeMeet();
+  } catch (eMeet) {
+    console.warn("Aviso en organización previa de Meet: " + eMeet.message);
+  }
 
   var programas = descubrirProgramas(rootFolder);
   console.log("Total de programas a procesar: " + programas.length);
@@ -128,11 +302,19 @@ function sincronizarSoloVideos() {
       var videoFile = item.archivo;
       var folderId = item.idCarpeta;
       var folderName = item.nombreCarpeta;
+      var nom = item.nomenclatura;
 
       try {
         garantizarPermisosDeLectura(videoFile);
         var videoUrl = "https://drive.google.com/file/d/" + videoFile.getId() + "/preview";
         console.log("   -> Video detectado: '" + videoFile.getName() + "' en carpeta '" + folderName + "'");
+
+        if (nom && nom.sessionNumber) {
+          console.log("      Información: Sesión " + nom.sessionNumber + 
+            (nom.topic ? " | Tema: " + nom.topic : "") + 
+            (nom.formattedDate ? " | Fecha: " + nom.formattedDate : "") + 
+            (nom.recordingPart > 1 ? " | Parte: " + nom.recordingPart : ""));
+        }
 
         var res = llamarEdgeFunction({
           drive_folder_id: folderId,
@@ -145,7 +327,14 @@ function sincronizarSoloVideos() {
           program_folder_id: prog.id,
           program_type: prog.tipo,
           program_year: prog.anio,
-          category_name: prog.categoriaNombre
+          category_name: prog.categoriaNombre,
+          // Metadatos precisos extraídos de la nomenclatura de Meet
+          session_number: nom ? nom.sessionNumber : null,
+          class_date: nom ? nom.isoDateString : null,
+          recording_date: nom ? nom.formattedDate : null,
+          recording_part: nom ? nom.recordingPart : 1,
+          program_topic: nom ? nom.topic : null,
+          nomenclature_tag: nom ? nom.tag : null
         }, config.cronSecret);
 
         if (res && res.ok) {
@@ -166,7 +355,7 @@ function sincronizarSoloVideos() {
               folderId,
               folderName,
               res.already_synced ? "VIDEO_EXISTENTE" : "VIDEO_OK",
-              "[" + prog.nombre + "] " + (res.class_title ? "Clase: '" + res.class_title + "' | " : "") + (res.video_url || videoUrl),
+              "[" + prog.nombre + "] " + (res.class_title ? "Clase: '" + res.class_title + "' | " : "") + (res.video_url || videoUrl) + (nom && nom.formattedDate ? " | Fecha: " + nom.formattedDate : ""),
               prog.nombre,
               prog.tipo,
               prog.anio
@@ -203,7 +392,7 @@ function sincronizarSoloVideos() {
 }
 
 // ============================================================================
-// 3. FLUJO PRINCIPAL: PROCESAMIENTO DE TRANSCRIPCIONES E IA
+// 4. FLUJO PRINCIPAL: PROCESAMIENTO DE TRANSCRIPCIONES E IA
 // ============================================================================
 
 /**
@@ -248,6 +437,7 @@ function procesarTranscripcionesEIA() {
       var fileName = transFile.getName();
       var folderId = item.idCarpeta;
       var folderName = item.nombreCarpeta;
+      var nom = item.nomenclatura;
 
       if (config.logSheet && yaFueProcesado(config.logSheet, fileId)) {
         console.log("   -> Transcripción ya procesada anteriormente según Log: '" + fileName + "'");
@@ -283,7 +473,14 @@ function procesarTranscripcionesEIA() {
           program_folder_id: prog.id,
           program_type: prog.tipo,
           program_year: prog.anio,
-          category_name: prog.categoriaNombre
+          category_name: prog.categoriaNombre,
+          // Metadatos precisos extraídos de la nomenclatura de Meet
+          session_number: nom ? nom.sessionNumber : null,
+          class_date: nom ? nom.isoDateString : null,
+          recording_date: nom ? nom.formattedDate : null,
+          recording_part: nom ? nom.recordingPart : 1,
+          program_topic: nom ? nom.topic : null,
+          nomenclature_tag: nom ? nom.tag : null
         }, config.cronSecret);
 
         if (resultado.ok && resultado.draft_id && !resultado.already_processed) {
@@ -321,16 +518,20 @@ function procesarTranscripcionesEIA() {
 }
 
 // ============================================================================
-// 4. EJECUCIÓN COMBINADA Y ACTIVADORES
+// 5. EJECUCIÓN COMBINADA Y ACTIVADORES AUTOMÁTICOS
 // ============================================================================
 
 /**
- * Ejecuta ambas sincronizaciones de forma secuencial
+ * Ejecuta en orden secuencial:
+ * 1. Organizar grabaciones de Google Meet a sus carpetas en Drive
+ * 2. Sincronizar grabaciones de video con Supabase
+ * 3. Procesar transcripciones con Gemini IA
  */
 function ejecutarTodo() {
   console.log("=================================================");
-  console.log("🚀 EJECUCIÓN TOTAL: Videos + Transcripciones");
+  console.log("🚀 EJECUCIÓN TOTAL: Organizar Meet + Videos + Transcripciones");
   console.log("=================================================");
+  organizarGrabacionesDeMeet();
   sincronizarSoloVideos();
   procesarTranscripcionesEIA();
 }
@@ -341,7 +542,7 @@ function ejecutarTodo() {
 function configurarActivadores() {
   eliminarActivadores();
 
-  // 1. Sincronizar videos cada 30 minutos
+  // 1. Sincronizar videos y organizar grabaciones de Meet cada 30 minutos
   ScriptApp.newTrigger("sincronizarSoloVideos")
     .timeBased()
     .everyMinutes(30)
@@ -354,7 +555,7 @@ function configurarActivadores() {
     .create();
 
   console.log("✓ Activadores configurados con éxito:");
-  console.log("  - sincronizarSoloVideos: Cada 30 minutos");
+  console.log("  - sincronizarSoloVideos: Cada 30 minutos (organiza y vincula)");
   console.log("  - procesarTranscripcionesEIA: Cada 2 horas");
 }
 
@@ -370,7 +571,126 @@ function eliminarActivadores() {
 }
 
 // ============================================================================
-// 5. NAVEGACIÓN Y DETECCIÓN JERÁRQUICA (PROGRAMAS ➔ CURSOS / DIPLOMADOS)
+// 6. PARSER DE NOMENCLATURA DE MEET Y CLASES
+// ============================================================================
+
+/**
+ * Decodifica nombres como:
+ *   [2026-2-CUR-ILUM-S04] Hospitalaria - 2026/09/30 17:54 GMT-05:00 - Recording 3
+ * 
+ * Retorna un objeto estructurado con:
+ *   - tag: '2026-2-CUR-ILUM-S04'
+ *   - sessionNumber: 4
+ *   - topic: 'Hospitalaria'
+ *   - isoDateString: '2026-09-30T17:54:00-05:00'
+ *   - formattedDate: '2026-09-30 17:54'
+ *   - rawDateStr: '2026/09/30 17:54 GMT-05:00'
+ *   - recordingPart: 3
+ *   - anio: '2026'
+ *   - tipo: 'curso'
+ *   - programCode: '2026-2-CUR-ILUM'
+ */
+function parseNomenclaturaGrabacion(str) {
+  if (!str) return null;
+
+  var tagMatch = str.match(/\[([^\]]+)\]/);
+  var tag = tagMatch ? tagMatch[1].trim() : "";
+
+  // 1. Extraer número de sesión / clase (ej: S04, S4, Sesion 4, Clase 4, C04)
+  var sessionNumber = null;
+  var sMatch = tag.match(/-S0*(\d+)\b/i) || 
+               str.match(/\bS0*(\d+)\b/i) || 
+               str.match(/(?:sesi[oó]n|session|clase|class|m[oó]dulo)\s*#?\s*0*(\d+)/i) ||
+               str.match(/\bC0*(\d+)\b/i);
+  if (sMatch) {
+    sessionNumber = parseInt(sMatch[1], 10);
+  }
+
+  // 2. Extraer fecha, hora y zona horaria (ej: '2026/09/30 17:54 GMT-05:00' o '2026-09-30 17:54')
+  var dateMatch = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?:\s*(GMT[+-]\d{1,2}(?::\d{2})?|[+-]\d{2}:?\d{2}))?/i);
+  var isoDateString = null;
+  var formattedDate = null;
+  var rawDateStr = null;
+
+  if (dateMatch) {
+    var y = dateMatch[1];
+    var m = dateMatch[2].length === 1 ? "0" + dateMatch[2] : dateMatch[2];
+    var d = dateMatch[3].length === 1 ? "0" + dateMatch[3] : dateMatch[3];
+    var hh = dateMatch[4].length === 1 ? "0" + dateMatch[4] : dateMatch[4];
+    var mi = dateMatch[5].length === 1 ? "0" + dateMatch[5] : dateMatch[5];
+    var rawTz = dateMatch[6] || "";
+    rawDateStr = dateMatch[0];
+
+    // Normalizar zona horaria (predeterminada -05:00 para Colombia)
+    var tz = "-05:00";
+    if (rawTz) {
+      var cleanTz = rawTz.replace(/GMT/i, "").trim();
+      if (/^[+-]\d{2}:\d{2}$/.test(cleanTz)) {
+        tz = cleanTz;
+      } else if (/^[+-]\d{1,2}$/.test(cleanTz)) {
+        var sign = cleanTz.charAt(0);
+        var num = cleanTz.substring(1);
+        tz = sign + (num.length === 1 ? "0" + num : num) + ":00";
+      }
+    }
+    isoDateString = y + "-" + m + "-" + d + "T" + hh + ":" + mi + ":00" + tz;
+    formattedDate = y + "-" + m + "-" + d + " " + hh + ":" + mi;
+  }
+
+  // 3. Extraer año
+  var anio = null;
+  var anioMatch = (tag || str).match(/\b(20\d{2})\b/);
+  if (anioMatch) anio = anioMatch[1];
+
+  // 4. Extraer tipo de programa
+  var tipo = null;
+  if (/CUR/i.test(tag) || /CURSO/i.test(str)) {
+    tipo = "curso";
+  } else if (/DIP/i.test(tag) || /DIPLOMAD/i.test(str)) {
+    tipo = "diplomado";
+  }
+
+  // 5. Extraer número de parte de la grabación (ej: 'Recording 3' -> 3)
+  var partMatch = str.match(/Recording\s*(\d+)/i) || 
+                  str.match(/Grabaci[oó]n\s*(\d+)/i) || 
+                  str.match(/Parte\s*(\d+)/i);
+  var recordingPart = partMatch ? parseInt(partMatch[1], 10) : 1;
+
+  // 6. Extraer tema / nombre del programa (ej: 'Hospitalaria')
+  var topic = "";
+  var cleanName = str.replace(/\[[^\]]+\]/, "");
+  cleanName = cleanName.replace(/-?\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}.*$/, "");
+  cleanName = cleanName.replace(/-?\s*(?:recording|grabaci[oó]n|transcript|transcripci[oó]n|parte|part)\b.*$/i, "");
+  cleanName = cleanName.replace(/\.(mp4|mov|mkv|avi|webm|m4v|gdoc|txt|doc|docx)$/i, "");
+  cleanName = cleanName.replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "").trim();
+  topic = cleanName;
+
+  // 7. Código de programa base (ej. 'CUR-ILUM' o '2026-2-CUR-ILUM')
+  var programCode = "";
+  if (tag) {
+    programCode = tag.replace(/-S0*\d+$/i, "").trim();
+  }
+
+  var esGrabacionMeet = Boolean(tag || dateMatch || /Recording|Grabaci[oó]n/i.test(str));
+
+  return {
+    raw: str,
+    tag: tag,
+    programCode: programCode,
+    topic: topic,
+    sessionNumber: sessionNumber,
+    isoDateString: isoDateString,
+    formattedDate: formattedDate,
+    rawDateStr: rawDateStr,
+    recordingPart: recordingPart,
+    anio: anio,
+    tipo: tipo,
+    esGrabacionMeet: esGrabacionMeet
+  };
+}
+
+// ============================================================================
+// 7. NAVEGACIÓN Y DETECCIÓN JERÁRQUICA (PROGRAMAS ➔ CURSOS / DIPLOMADOS)
 // ============================================================================
 
 /**
@@ -442,7 +762,7 @@ function descubrirProgramas(rootFolder) {
         console.log("      🎓 Programa identificado: '" + nombreProg + "' [" + tipoProg.toUpperCase() + (anioProg ? " " + anioProg : "") + "]");
       }
     } else {
-      // Si la carpeta directa en la raíz ya es un programa (ej. si ROOT_FOLDER_ID apunta directamente a una categoría o curso)
+      // Si la carpeta directa en la raíz ya es un programa (ej. si ROOT_FOLDER_ID apunta directamente a un curso)
       var tipoDirecto = "curso";
       if (limpiarTexto(nombreN1).indexOf("DIP") !== -1) tipoDirecto = "diplomado";
 
@@ -484,6 +804,92 @@ function descubrirProgramas(rootFolder) {
 }
 
 /**
+ * Busca dentro de la lista de programas aquel que coincida con el tema y/o código de la grabación
+ */
+function encontrarProgramaParaGrabacion(programas, infoNom) {
+  if (!infoNom) return null;
+
+  var normTopic = limpiarTexto(infoNom.topic);
+  var normCode = limpiarTexto(infoNom.programCode);
+
+  // 1. Coincidencia exacta por Tema y Código simultáneos
+  for (var i = 0; i < programas.length; i++) {
+    var p = programas[i];
+    var normP = limpiarTexto(p.nombre);
+
+    var coincideTema = normTopic && normP.indexOf(normTopic) !== -1;
+    var coincideCodigo = normCode && (normP.indexOf(normCode) !== -1 || (infoNom.tag && normP.indexOf(limpiarTexto(infoNom.tag.replace(/-S0*\d+$/i, ""))) !== -1));
+
+    if (coincideTema && coincideCodigo) {
+      return p;
+    }
+  }
+
+  // 2. Coincidencia por Tema específico (ej. "HOSPITALARIA" en "CUR-ILUM-2026-2 - Hospitalaria")
+  if (normTopic) {
+    for (var j = 0; j < programas.length; j++) {
+      var prog = programas[j];
+      var normProg = limpiarTexto(prog.nombre);
+      if (normProg.indexOf(normTopic) !== -1) {
+        if (infoNom.anio && prog.anio && infoNom.anio !== prog.anio) continue;
+        return prog;
+      }
+    }
+  }
+
+  // 3. Coincidencia por código de programa
+  if (normCode) {
+    for (var k = 0; k < programas.length; k++) {
+      var pr = programas[k];
+      var normPr = limpiarTexto(pr.nombre);
+      if (normPr.indexOf(normCode) !== -1) {
+        return pr;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Ubica la subcarpeta de la sesión (ej. "Clase 4") dentro del programa o usa la carpeta del curso
+ */
+function encontrarOCrearCarpetaSesion(carpetaPrograma, sessionNumber) {
+  if (!sessionNumber) {
+    return carpetaPrograma;
+  }
+
+  var subfolders = carpetaPrograma.getFolders();
+  var subcarpetasExistentes = [];
+  while (subfolders.hasNext()) {
+    subcarpetasExistentes.push(subfolders.next());
+  }
+
+  var haySubcarpetasClase = false;
+  for (var i = 0; i < subcarpetasExistentes.length; i++) {
+    var f = subcarpetasExistentes[i];
+    var fn = f.getName();
+    var matchSesion = fn.match(/(?:clase|sesi[oó]n|session|modulo|c|s)\s*#?\s*0*(\d+)/i);
+    if (matchSesion) {
+      haySubcarpetasClase = true;
+      if (parseInt(matchSesion[1], 10) === sessionNumber) {
+        return f;
+      }
+    }
+  }
+
+  // Si el curso maneja carpetas individuales por clase pero aún no existe la de esta sesión
+  if (haySubcarpetasClase) {
+    var nuevoNombre = "Clase " + sessionNumber;
+    console.log("   + Creando carpeta para la sesión: '" + nuevoNombre + "' en '" + carpetaPrograma.getName() + "'");
+    return carpetaPrograma.createFolder(nuevoNombre);
+  }
+
+  // Si las grabaciones se almacenan directamente en la carpeta del curso
+  return carpetaPrograma;
+}
+
+/**
  * Analiza el nombre de una carpeta para extraer Tipo (curso / diplomado) y Año
  */
 function analizarCategoriaAnio(nombreCarpeta) {
@@ -507,7 +913,7 @@ function analizarCategoriaAnio(nombreCarpeta) {
 }
 
 /**
- * Filtro de carpetas utilitarias o de material que NO deben ser tratadas como programas académicos
+ * Filtro de carpetas utilitarias que NO deben ser tratadas como programas académicos
  */
 function esCarpetaExcluida(nombreCarpeta) {
   var norm = limpiarTexto(nombreCarpeta);
@@ -546,22 +952,26 @@ function recolectarVideosDePrograma(programa) {
     var folder = carpetas[i];
     var folderName = folder.getName();
 
-    // Evitar carpetas de material genérico dentro del curso
     if (esCarpetaExcluida(folderName) && folder.getId() !== programa.id) {
       continue;
     }
 
-    var videoFile = encontrarArchivoVideo(folder);
-    if (videoFile) {
-      itemsVideo.push({
-        archivo: videoFile,
-        nombreArchivo: videoFile.getName(),
-        idArchivo: videoFile.getId(),
-        carpeta: folder,
-        nombreCarpeta: folderName,
-        idCarpeta: folder.getId(),
-        programa: programa
-      });
+    var files = folder.getFiles();
+    while (files.hasNext()) {
+      var file = files.next();
+      if (esArchivoVideo(file)) {
+        var nom = parseNomenclaturaGrabacion(file.getName()) || parseNomenclaturaGrabacion(folderName);
+        itemsVideo.push({
+          archivo: file,
+          nombreArchivo: file.getName(),
+          idArchivo: file.getId(),
+          carpeta: folder,
+          nombreCarpeta: folderName,
+          idCarpeta: folder.getId(),
+          programa: programa,
+          nomenclatura: nom
+        });
+      }
     }
   }
 
@@ -581,22 +991,26 @@ function recolectarTranscripcionesDePrograma(programa) {
     var folder = carpetas[i];
     var folderName = folder.getName();
 
-    // Evitar carpetas de material genérico dentro del curso
     if (esCarpetaExcluida(folderName) && folder.getId() !== programa.id) {
       continue;
     }
 
-    var transFile = encontrarArchivoTranscripcion(folder);
-    if (transFile) {
-      itemsTranscripcion.push({
-        archivo: transFile,
-        nombreArchivo: transFile.getName(),
-        idArchivo: transFile.getId(),
-        carpeta: folder,
-        nombreCarpeta: folderName,
-        idCarpeta: folder.getId(),
-        programa: programa
-      });
+    var files = folder.getFiles();
+    while (files.hasNext()) {
+      var file = files.next();
+      if (esArchivoTranscripcion(file.getName())) {
+        var nom = parseNomenclaturaGrabacion(file.getName()) || parseNomenclaturaGrabacion(folderName);
+        itemsTranscripcion.push({
+          archivo: file,
+          nombreArchivo: file.getName(),
+          idArchivo: file.getId(),
+          carpeta: folder,
+          nombreCarpeta: folderName,
+          idCarpeta: folder.getId(),
+          programa: programa,
+          nomenclatura: nom
+        });
+      }
     }
   }
 
@@ -604,7 +1018,7 @@ function recolectarTranscripcionesDePrograma(programa) {
 }
 
 // ============================================================================
-// 6. FUNCIONES AUXILIARES, DETECCIÓN Y RED
+// 8. FUNCIONES AUXILIARES DE DRIVE, RED Y UTILIDADES
 // ============================================================================
 
 function obtenerConfiguracion() {
@@ -612,9 +1026,11 @@ function obtenerConfiguracion() {
   var rawRootId = props.getProperty("ROOT_FOLDER_ID");
   var cronSecret = props.getProperty("DRIVE_AUTOMATION_SECRET") || props.getProperty("DRIVE_CRON_SECRET");
   var rawSheetId = props.getProperty("LOG_SHEET_ID");
+  var rawMeetId = props.getProperty("MEET_RECORDINGS_FOLDER_ID") || props.getProperty("MEET_FOLDER_ID");
 
   var rootFolderId = extraerIdDeDrive(rawRootId);
   var logSheetId = extraerIdDeDrive(rawSheetId);
+  var meetFolderId = extraerIdDeDrive(rawMeetId);
 
   if (!rootFolderId || !cronSecret) {
     console.error("ERROR: Faltan propiedades del script. Configura ROOT_FOLDER_ID y DRIVE_AUTOMATION_SECRET en Configuración del Proyecto -> Propiedades del script.");
@@ -634,6 +1050,7 @@ function obtenerConfiguracion() {
     rootFolderId: rootFolderId,
     cronSecret: cronSecret,
     logSheet: logSheet,
+    meetFolderId: meetFolderId
   };
 }
 
@@ -645,6 +1062,72 @@ function abrirCarpetaRaiz(folderId) {
   } catch (err) {
     console.error("ERROR: No se pudo acceder a la carpeta de Drive con ID '" + folderId + "'. Verifica permisos: " + err.message);
     return null;
+  }
+}
+
+/**
+ * Busca la carpeta "Meet Recordings" en Google Drive
+ */
+function buscarCarpetaMeetRecordings(customId) {
+  if (customId) {
+    try {
+      return DriveApp.getFolderById(extraerIdDeDrive(customId));
+    } catch (e) {
+      console.warn("Aviso: No se pudo abrir la carpeta configurada en MEET_RECORDINGS_FOLDER_ID: " + e.message);
+    }
+  }
+
+  var nombresPosibles = [
+    "Meet Recordings",
+    "Grabaciones de Meet",
+    "Meet recordings",
+    "Grabaciones de meet"
+  ];
+
+  for (var i = 0; i < nombresPosibles.length; i++) {
+    var folders = DriveApp.getFoldersByName(nombresPosibles[i]);
+    if (folders.hasNext()) {
+      return folders.next();
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Mueve un archivo a una carpeta destino de Drive de forma compatible
+ */
+function moverArchivo(file, targetFolder) {
+  try {
+    var currentParents = file.getParents();
+    var yaEstaEnDestino = false;
+    while (currentParents.hasNext()) {
+      if (currentParents.next().getId() === targetFolder.getId()) {
+        yaEstaEnDestino = true;
+        break;
+      }
+    }
+
+    if (yaEstaEnDestino) {
+      return true;
+    }
+
+    if (typeof file.moveTo === "function") {
+      file.moveTo(targetFolder);
+    } else {
+      targetFolder.addFile(file);
+      var parents = file.getParents();
+      while (parents.hasNext()) {
+        var p = parents.next();
+        if (p.getId() !== targetFolder.getId()) {
+          p.removeFile(file);
+        }
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error("Error al mover archivo '" + file.getName() + "': " + err.message);
+    return false;
   }
 }
 
@@ -700,28 +1183,6 @@ function esArchivoVideo(file) {
   }
 
   return false;
-}
-
-function encontrarArchivoTranscripcion(folder) {
-  var files = folder.getFiles();
-  while (files.hasNext()) {
-    var file = files.next();
-    if (esArchivoTranscripcion(file.getName())) {
-      return file;
-    }
-  }
-  return null;
-}
-
-function encontrarArchivoVideo(folder) {
-  var files = folder.getFiles();
-  while (files.hasNext()) {
-    var file = files.next();
-    if (esArchivoVideo(file)) {
-      return file;
-    }
-  }
-  return null;
 }
 
 function buscarCarpetasRecursivas(folder, lista) {
@@ -835,10 +1296,10 @@ function llamarEdgeFunction(payloadObj, cronSecret) {
     headers: {
       "x-automation-secret": cronSecret ? cronSecret.trim() : "",
       "x-cron-secret": cronSecret ? cronSecret.trim() : "",
-      "Authorization": "Bearer " + (cronSecret ? cronSecret.trim() : ""),
+      "Authorization": "Bearer " + (cronSecret ? cronSecret.trim() : "")
     },
     payload: payload,
-    muteHttpExceptions: true,
+    muteHttpExceptions: true
   };
 
   var response = UrlFetchApp.fetch(EDGE_FUNCTION_URL, options);
@@ -879,7 +1340,6 @@ function obtenerHojaDeLog(sheetId) {
 function yaFueProcesado(sheet, fileId) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    // Si tiene 10 columnas o 7 columnas, buscar el fileId
     for (var col = 1; col <= 4; col++) {
       if (data[i][col] === fileId && (data[i][8] === "IA_OK" || data[i][5] === "IA_OK" || data[i][8] === "OK" || data[i][5] === "OK")) {
         return true;
