@@ -314,6 +314,7 @@ export default function ModuleDetail() {
                     <div key={cls.id} style={{
                       padding: '0.9rem 1.15rem',
                       border: '1px solid #E2E8F0',
+                      borderLeft: '4.5px solid var(--gold, #FCA311)',
                       borderRadius: '10px',
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -321,21 +322,24 @@ export default function ModuleDetail() {
                       background: '#F8FAFC',
                       gap: '1rem',
                       flexWrap: 'wrap',
-                      transition: 'all 0.15s ease'
+                      boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+                      transition: 'all 0.2s ease'
                     }}
                     onMouseOver={e => {
                       e.currentTarget.style.borderColor = '#CBD5E1';
+                      e.currentTarget.style.borderLeftColor = 'var(--gold, #FCA311)';
                       e.currentTarget.style.background = '#FFFFFF';
-                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.03)';
+                      e.currentTarget.style.boxShadow = '0 3px 10px rgba(252, 163, 17, 0.12)';
                     }}
                     onMouseOut={e => {
                       e.currentTarget.style.borderColor = '#E2E8F0';
+                      e.currentTarget.style.borderLeftColor = 'var(--gold, #FCA311)';
                       e.currentTarget.style.background = '#F8FAFC';
-                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
                     }}
                     >
                       <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-                        <h4 style={{ fontWeight: 600, color: 'var(--navy)', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                        <h4 style={{ fontWeight: 700, color: 'var(--navy)', fontSize: '0.92rem', marginBottom: '0.25rem' }}>
                           {cls.title}
                         </h4>
                         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
