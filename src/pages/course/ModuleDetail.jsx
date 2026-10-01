@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
-import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle, CalendarPlus, MessagesSquare } from 'lucide-react';
+import { BookOpen, PlayCircle, Clock, Video, User, ArrowLeft, CheckCircle2, AlertCircle, CalendarPlus } from 'lucide-react';
 import { getGoogleCalendarUrl, safeFormatDateTime } from '@/utils/dateUtils';
 
 export default function ModuleDetail() {
@@ -344,33 +344,6 @@ export default function ModuleDetail() {
                         <Link to={`/class/${cls.id}`} className="btn btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                           <PlayCircle size={14} /> Ver Clase
                         </Link>
-
-                        {/* Ícono-chip del foro: navega al foro del programa */}
-                        {moduleData?.program_id && (
-                          <Link
-                            to={`/foro/${moduleData.program_id}`}
-                            title="Ir al foro del programa"
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                              padding: '0.38rem 0.6rem', borderRadius: '8px',
-                              background: 'rgba(37,99,235,0.07)', border: '1.5px solid rgba(37,99,235,0.2)',
-                              color: '#2563eb', fontSize: '0.75rem', fontWeight: 600,
-                              textDecoration: 'none', transition: 'all 0.15s ease',
-                              whiteSpace: 'nowrap',
-                            }}
-                            onMouseOver={e => {
-                              e.currentTarget.style.background = 'rgba(37,99,235,0.14)';
-                              e.currentTarget.style.borderColor = 'rgba(37,99,235,0.4)';
-                            }}
-                            onMouseOut={e => {
-                              e.currentTarget.style.background = 'rgba(37,99,235,0.07)';
-                              e.currentTarget.style.borderColor = 'rgba(37,99,235,0.2)';
-                            }}
-                          >
-                            <MessagesSquare size={13} />
-                            <span>Foro</span>
-                          </Link>
-                        )}
                       </div>
                     </div>
                   )})
