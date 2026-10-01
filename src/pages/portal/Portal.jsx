@@ -115,62 +115,97 @@ function StudentPortal({ getDiplomadoLink }) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches';
-  const todayLabel = now.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+  const todayFormatted = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const programWithClassToday = diplomas.find(d => d.liveUrl);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-      {/* ══ SALUDO CONTEXTUAL HERO ══ */}
+      {/* ══ SALUDO CONTEXTUAL HERO EN AZUL OSCURO (#14213D) ══ */}
       <div style={{
-        background: 'linear-gradient(135deg, var(--navy) 0%, #1e2e52 100%)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '1.5rem 2rem',
-        marginBottom: '1.75rem',
         display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '1rem',
-        boxShadow: '0 4px 20px rgba(20,33,61,0.12)'
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1.25rem',
+        padding: '1.75rem 2rem',
+        marginBottom: '1.75rem',
+        background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+        color: '#FFFFFF',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        <div>
-          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 0.2rem 0' }}>
-            {todayLabel}
-          </p>
-          <h1 style={{ color: '#ffffff', fontSize: '1.75rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
+        {/* Glow sutil de acento */}
+        <div style={{
+          position: 'absolute',
+          top: '-40px',
+          right: '-40px',
+          width: '180px',
+          height: '180px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'capitalize' }}>
             {greeting}, {firstName}
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.88rem', margin: '0.4rem 0 0 0' }}>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
             {diplomas.length > 0
               ? `Tienes ${diplomas.length} ${diplomas.length === 1 ? 'programa activo' : 'programas activos'}.`
               : 'No tienes programas activos aún.'}
           </p>
         </div>
-        {programWithClassToday && (
-          <a
-            href={programWithClassToday.liveUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'var(--gold)',
-              color: 'var(--navy)',
-              padding: '0.65rem 1.25rem',
-              borderRadius: '999px',
-              fontWeight: 800,
-              fontSize: '0.88rem',
-              textDecoration: 'none',
-              boxShadow: '0 4px 16px rgba(252,163,17,0.35)',
-              flexShrink: 0,
-              animation: 'pulse 2s ease-in-out infinite'
-            }}
-          >
-            <Video size={16} /> Clase en vivo hoy · Unirse
-          </a>
-        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+          {programWithClassToday && (
+            <a
+              href={programWithClassToday.liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                background: 'var(--gold, #FCA311)',
+                color: 'var(--navy, #14213D)',
+                padding: '0.65rem 1.25rem',
+                borderRadius: '999px',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                textDecoration: 'none',
+                boxShadow: '0 4px 16px rgba(252,163,17,0.35)',
+                flexShrink: 0,
+                animation: 'pulse 2s ease-in-out infinite'
+              }}
+            >
+              <Video size={16} /> Clase en vivo hoy · Unirse
+            </a>
+          )}
+
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.08)',
+            backdropFilter: 'blur(8px)',
+            padding: '0.65rem 1rem',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            color: '#FFFFFF',
+            fontSize: '0.82rem',
+            fontWeight: 600,
+            textTransform: 'capitalize',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)'
+          }}>
+            <CalendarDays size={15} color="var(--gold, #FCA311)" />
+            <span>{todayFormatted}</span>
+          </div>
+        </div>
       </div>
 
       <div className="portal-layout">
