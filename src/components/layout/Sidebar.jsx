@@ -365,16 +365,6 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                       <Megaphone size={18} />
                       <span>Comunicaciones</span>
                     </NavLink>
-
-                    {activeProgramId && (
-                      <NavLink
-                        to={`/foro/${activeProgramId}`}
-                        className={({isActive}) => (isActive || location.pathname.startsWith('/foro/hilo/')) ? 'nav-item active' : 'nav-item'}
-                      >
-                        <MessagesSquare size={18} />
-                        <span>Foro del Programa</span>
-                      </NavLink>
-                    )}
                   </>
                 )}
 

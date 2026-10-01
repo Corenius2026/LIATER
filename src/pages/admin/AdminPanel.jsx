@@ -25,7 +25,7 @@ const TABS = [
   { id: 'grupos',     label: 'Grupos de Trabajo',  icon: <Users size={16} /> },
   { id: 'alumnos',    label: 'Alumnos',       icon: <Users size={16} /> },
   { id: 'profesores', label: 'Profesores',    icon: <GraduationCap size={16} /> },
-  { id: 'foro',       label: 'Foro del Curso', icon: <MessagesSquare size={16} /> },
+  { id: 'foro',       label: 'Foro',          icon: <MessagesSquare size={16} /> },
   { id: 'configuracion', label: 'Configuración', icon: <Settings size={16} /> },
 ];
 
@@ -245,7 +245,7 @@ export default function AdminPanel() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'resumen':    return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} isPublished={data.program?.is_published !== false && data.program?.status !== 'draft'} onTabChange={handleTabChange} onTogglePublish={handleTogglePublish} activeLiveMeetUrl={activeLiveMeetUrl} activeLiveTitle={activeLiveClass?.title || null} />;
+      case 'resumen':    return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} programType={data.program?.program_type} isPublished={data.program?.is_published !== false && data.program?.status !== 'draft'} onTabChange={handleTabChange} onTogglePublish={handleTogglePublish} activeLiveMeetUrl={activeLiveMeetUrl} activeLiveTitle={activeLiveClass?.title || null} />;
       case 'curriculum': return <CourseBuilder modules={data.modules} sessions={data.sessions} classes={data.classes} teachers={data.teachers} isCourse={isCourse} programId={programId} onRefresh={refreshData} />;
       case 'recursos':   return <AdminResources programId={programId} programTitle={data.program?.title} programClasses={data.classes} onRefresh={refreshData} />;
       case 'grupos':     return <AdminWorkGroups programId={programId} programTitle={data.program?.title} enrolledStudents={data.enrolledStudents} onRefresh={refreshData} />;
@@ -253,7 +253,7 @@ export default function AdminPanel() {
       case 'profesores': return <AdminTeachers teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} programTitle={data.program?.title} />;
       case 'foro':       return <Forum />;
       case 'configuracion': return <AdminSettingsTab />;
-      default:           return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} />;
+      default:           return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} programType={data.program?.program_type} />;
     }
   };
 

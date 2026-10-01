@@ -3,12 +3,12 @@ import {
   Users, GraduationCap, BookOpen, ListTree, Video,
   LayoutDashboard, Clock, Zap, UserPlus,
   CalendarPlus, Settings, CheckCircle, EyeOff, AlertCircle,
-  Radio, Paperclip
+  Radio, Paperclip, MessagesSquare
 } from "lucide-react";
 import { formatShortDate } from '@/utils/dateUtils';
 
 export default function AdminDashboard({
-  counts, upcomingClasses, isCourse, isPublished,
+  counts, upcomingClasses, isCourse, programType, isPublished,
   onTabChange, onTogglePublish,
   activeLiveMeetUrl, activeLiveTitle
 }) {
@@ -23,14 +23,24 @@ export default function AdminDashboard({
   ];
   if (isCourse) stats = stats.filter(s => s.label !== "Módulos");
 
-  // ACCESOS RAPIDOS (5)
+  // ACCESOS RAPIDOS (6)
   const quickActions = [
     { label: "Añadir Alumno",     desc: "Inscribir nuevo estudiante",   icon: <UserPlus      size={20} color="var(--navy)"      />, bg: "rgba(20,33,61,0.07)",  tab: "alumnos"       },
     { label: "Asignar Profesor",  desc: "Vincular docente al programa", icon: <GraduationCap size={20} color="var(--gold-dark)" />, bg: "var(--gold-subtle)",   tab: "profesores"    },
     { label: "Material del Curso", desc: "Recursos y guías",            icon: <Paperclip     size={20} color="var(--gold-dark)" />, bg: "var(--gold-subtle)",   tab: "recursos"      },
+    { label: "Foro",              desc: "Espacio de interacción",       icon: <MessagesSquare size={20} color="#0284c7"         />, bg: "#eff6ff",              tab: "foro"          },
     { label: "Ir al Constructor", desc: "Gestionar contenidos",         icon: <CalendarPlus  size={20} color="#16a34a"          />, bg: "#f0fdf4",              tab: "curriculum"    },
     { label: "Configuracion",     desc: "Editar datos del programa",    icon: <Settings      size={20} color="#7c3aed"          />, bg: "#f5f3ff",              tab: "configuracion" },
   ];
+
+  const getStatusTitle = () => {
+    const raw = (programType || (isCourse ? 'curso' : 'diplomado')).toLowerCase().trim();
+    if (raw === 'curso') return 'Estado del Curso';
+    if (raw === 'diplomado') return 'Estado del Diplomado';
+    if (raw.includes('especializa')) return 'Estado de la Especialización';
+    if (raw === 'taller') return 'Estado del Taller';
+    return `Estado del ${raw.charAt(0).toUpperCase() + raw.slice(1)}`;
+  };
 
   // CHECKS DE ESTADO
   const statusChecks = [
@@ -246,10 +256,10 @@ export default function AdminDashboard({
       {/* SECCION DOBLE: ESTADO + PROXIMAS CLASES */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem" }}>
 
-        {/* Estado del Programa — checks, no barras */}
+        {/* Estado según tipo de programa — checks, no barras */}
         <div style={{ padding: "1.5rem", background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)" }}>
           <h3 style={{ fontWeight: 700, marginBottom: "1.25rem", fontSize: "1.05rem", color: "var(--navy)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <LayoutDashboard size={18} color="var(--gold)" /> Estado del Programa
+            <LayoutDashboard size={18} color="var(--gold)" /> {getStatusTitle()}
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {statusChecks.map(item => {
