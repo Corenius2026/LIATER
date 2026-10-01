@@ -1142,34 +1142,81 @@ export default function AdminResources({ programId, programTitle, programClasses
                 />
               </div>
 
-              {/* PERMISO DE DESCARGA */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.84rem', color: 'var(--navy, #14213D)', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={formAllowDownload}
-                      onChange={e => setFormAllowDownload(e.target.checked)}
-                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--navy, #14213D)' }}
-                    />
-                    <span>Habilitar descarga a estudiantes</span>
-                  </label>
-                  <p style={{ margin: '0.2rem 0 0 1.5rem', fontSize: '0.74rem', color: '#64748B' }}>
+              {/* PERMISO DE DESCARGA (INTERRUPTOR DESLIZANTE) */}
+              <div 
+                onClick={() => setFormAllowDownload(!formAllowDownload)}
+                style={{ 
+                  background: formAllowDownload ? 'rgba(20, 33, 61, 0.03)' : '#F8FAFC', 
+                  border: formAllowDownload ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0', 
+                  borderRadius: '10px', 
+                  padding: '0.85rem 1rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  gap: '1rem',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                      Habilitar descarga a estudiantes
+                    </span>
+                    {formAllowDownload ? (
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#16A34A', background: '#DCFCE7', padding: '2px 8px', borderRadius: '6px' }}>
+                        Descargable
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', background: '#E2E8F0', padding: '2px 8px', borderRadius: '6px' }}>
+                        Solo lectura
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748B' }}>
                     {formAllowDownload 
                       ? '✓ Los estudiantes podrán descargar este archivo directamente a su equipo.'
-                      : '✗ Modo seguro: los estudiantes solo podrán visualizar el material en la plataforma sin botón de descarga.'}
+                      : '✗ Modo protegido: los estudiantes solo podrán visualizar el material en la plataforma sin botón de descarga.'}
                   </p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  {formAllowDownload ? (
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#16A34A', background: '#DCFCE7', padding: '3px 8px', borderRadius: '6px' }}>
-                      Descargable
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', background: '#E2E8F0', padding: '3px 8px', borderRadius: '6px' }}>
-                      Solo lectura
-                    </span>
-                  )}
+
+                {/* Pill Slider */}
+                <div
+                  role="switch"
+                  aria-checked={formAllowDownload}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === ' ' || e.key === 'Enter') {
+                      e.preventDefault();
+                      setFormAllowDownload(!formAllowDownload);
+                    }
+                  }}
+                  style={{
+                    width: '44px',
+                    height: '24px',
+                    borderRadius: '9999px',
+                    background: formAllowDownload ? 'var(--navy, #14213D)' : '#CBD5E1',
+                    position: 'relative',
+                    flexShrink: 0,
+                    transition: 'background-color 0.25s ease',
+                    boxShadow: formAllowDownload ? '0 0 8px rgba(20, 33, 61, 0.2)' : 'none'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: formAllowDownload ? '#FCA311' : '#FFFFFF',
+                      position: 'absolute',
+                      top: '3px',
+                      left: '3px',
+                      transform: formAllowDownload ? 'translateX(20px)' : 'translateX(0)',
+                      transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}
+                  />
                 </div>
               </div>
 
