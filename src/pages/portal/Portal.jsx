@@ -2155,32 +2155,7 @@ function TeacherPortal({ getDiplomadoLink }) {
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
-            <span style={{
-              background: '#F1F5F9',
-              color: 'var(--navy, #14213D)',
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              padding: '3px 10px',
-              borderRadius: '12px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em'
-            }}>
-              🏛️ Portal Docente LIATER · UNAL
-            </span>
-            <span style={{
-              background: '#DCFCE7',
-              color: '#007A2E',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: '10px'
-            }}>
-              ● Modo Activo
-            </span>
-          </div>
-
-          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25, textTransform: 'capitalize' }}>
+          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.8rem', fontWeight: 800, margin: 0, lineHeight: 1.25, textTransform: 'capitalize' }}>
             Hola, {teacherName || 'Profesor'}
           </h1>
           <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
