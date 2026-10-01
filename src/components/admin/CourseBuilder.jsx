@@ -536,7 +536,7 @@ function ClassEditDrawer({ isOpen, onClose, onRefresh, programId, classData, ses
                 <div>
                   <div style={{ fontWeight: 700, color: 'white', fontSize: '0.95rem' }}>Actividad de Reforzamiento con IA</div>
                   <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', marginTop: '0.2rem' }}>
-                    Pega la transcripcion de la clase, genera preguntas con IA o agregaelas manualmente, luego publica la actividad para los estudiantes.
+                    Genera preguntas con IA a partir de los materiales o agrégalas manualmente, luego publica la actividad para los estudiantes.
                   </div>
                 </div>
               </div>

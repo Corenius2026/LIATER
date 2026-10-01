@@ -44,14 +44,11 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   const [classResources, setClassResources] = useState([]);
   const [loadingResources, setLoadingResources] = useState(false);
   const [selectedResourceId, setSelectedResourceId] = useState('');
-  const [aiMode, setAiMode] = useState('document'); // 'document' | 'transcript'
   const [aiQuestionCount, setAiQuestionCount] = useState(5);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiSuccess, setAiSuccess] = useState('');
   const [generationSource, setGenerationSource] = useState(null); // { type, docTitle, date }
-  const [manualTranscript, setManualTranscript] = useState('');
-  const [showManualSection, setShowManualSection] = useState(false);
   
   // Modal de confirmación si ya existen preguntas
   const [replaceQuestionsModalOpen, setReplaceQuestionsModalOpen] = useState(false);
@@ -86,20 +83,13 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     }
   };
 
-  const handleGenerateQuestions = async (mode = 'document') => {
+  const handleGenerateQuestions = async () => {
     setAiError('');
     setAiSuccess('');
 
-    if (mode === 'document') {
-      if (!selectedResourceId) {
-        setAiError('Por favor selecciona un material de estudio de la lista para analizar.');
-        return;
-      }
-    } else {
-      if (manualTranscript.trim().length < 200) {
-        setAiError('La transcripción debe tener al menos 200 caracteres para poder generar preguntas representativas.');
-        return;
-      }
+    if (!selectedResourceId) {
+      setAiError('Por favor selecciona un material de estudio de la lista para analizar.');
+      return;
     }
 
     setAiGenerating(true);
@@ -109,14 +99,9 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       const payload = {
         classId,
         questionCount: aiQuestionCount,
-        classTitle: localActivity.title
+        classTitle: localActivity.title,
+        resourceId: selectedResourceId
       };
-
-      if (mode === 'document') {
-        payload.resourceId = selectedResourceId;
-      } else {
-        payload.transcript = manualTranscript.trim();
-      }
 
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
@@ -192,12 +177,10 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         };
       });
 
-      const docName = mode === 'document' 
-        ? (selectedDoc?.title || 'Material seleccionado') 
-        : 'Transcripción de la clase';
+      const docName = selectedDoc?.title || 'Material seleccionado';
 
       const sourceMeta = {
-        type: mode,
+        type: 'document',
         docTitle: docName,
         date: new Date().toISOString()
       };
@@ -1354,7 +1337,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
             </div>
             <div>
               <div style={{ fontWeight: 800, color: '#166534', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                Borrador generado por IA (Google Gemini)
+                Borrador generado por IA
                 <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
                   Pendiente de Revisión
                 </span>
@@ -1622,66 +1605,18 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
                 <Sparkles size={22} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
                   Generador de Preguntas con IA
-                  <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '20px', background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Google Gemini Flash
-                  </span>
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                   Genera preguntas de evaluación formativa analizando automáticamente los documentos y presentaciones de esta clase.
                 </p>
               </div>
             </div>
-
-            {/* Pestañas de modo (Documentos vs Transcripción) */}
-            <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <button
-                type="button"
-                onClick={() => { setAiMode('document'); setAiError(''); }}
-                style={{
-                  padding: '0.35rem 0.8rem',
-                  fontSize: '0.78rem',
-                  fontWeight: aiMode === 'document' ? 700 : 500,
-                  background: aiMode === 'document' ? '#ffffff' : 'transparent',
-                  color: aiMode === 'document' ? 'var(--navy)' : 'var(--text-secondary)',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  boxShadow: aiMode === 'document' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
-              >
-                <Presentation size={14} color={aiMode === 'document' ? 'var(--gold-dark)' : 'inherit'} /> Desde Documento / Presentación
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAiMode('transcript'); setAiError(''); }}
-                style={{
-                  padding: '0.35rem 0.8rem',
-                  fontSize: '0.78rem',
-                  fontWeight: aiMode === 'transcript' ? 700 : 500,
-                  background: aiMode === 'transcript' ? '#ffffff' : 'transparent',
-                  color: aiMode === 'transcript' ? 'var(--navy)' : 'var(--text-secondary)',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  boxShadow: aiMode === 'transcript' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
-              >
-                <FileText size={14} /> Desde Transcripción
-              </button>
-            </div>
           </div>
 
-          {/* MODO A: DESDE MATERIALES DE LA CLASE */}
-          {aiMode === 'document' && (
-            <div>
+          {/* GENERADOR DESDE MATERIALES DE LA CLASE */}
+          <div>
               {loadingResources ? (
                 <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                   <RefreshCw size={18} className="spin" style={{ marginBottom: '0.5rem' }} />
@@ -1868,7 +1803,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
                     <button
                       type="button"
-                      onClick={() => handleGenerateQuestions('document')}
+                      onClick={() => handleGenerateQuestions()}
                       disabled={aiGenerating || !selectedResourceId}
                       className="btn btn-primary"
                       style={{
@@ -1895,82 +1830,6 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
                 </div>
               )}
             </div>
-          )}
-
-          {/* MODO B: DESDE TRANSCRIPCIÓN MANUAL */}
-          {aiMode === 'transcript' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.35rem' }}>
-                  Pega la transcripción o resumen de la clase (Mín. 200 caracteres):
-                </label>
-                <textarea
-                  value={manualTranscript}
-                  onChange={(e) => setManualTranscript(e.target.value)}
-                  placeholder="Pega aquí la transcripción de la sesión grabada o el texto explicativo de la clase..."
-                  style={{
-                    width: '100%',
-                    minHeight: '110px',
-                    padding: '0.75rem',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
-                    fontFamily: 'inherit',
-                    resize: 'vertical'
-                  }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginTop: '0.25rem', color: manualTranscript.trim().length >= 200 ? '#16a34a' : '#64748b' }}>
-                  <span>{manualTranscript.trim().length} caracteres</span>
-                  {manualTranscript.trim().length < 200 && <span>Faltan {200 - manualTranscript.trim().length} para el mínimo</span>}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Cantidad de preguntas:
-                  </span>
-                  {[3, 5, 8, 10].map(count => (
-                    <button
-                      key={count}
-                      type="button"
-                      onClick={() => setAiQuestionCount(count)}
-                      style={{
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        border: `1.5px solid ${aiQuestionCount === count ? 'var(--gold-dark)' : 'var(--border-color)'}`,
-                        background: aiQuestionCount === count ? '#fffbeb' : '#ffffff',
-                        color: aiQuestionCount === count ? '#92400e' : 'var(--text-secondary)',
-                        fontWeight: aiQuestionCount === count ? 800 : 500,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {count}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleGenerateQuestions('transcript')}
-                  disabled={aiGenerating || manualTranscript.trim().length < 200}
-                  className="btn btn-primary"
-                  style={{ padding: '0.6rem 1.35rem', fontSize: '0.84rem', fontWeight: 700 }}
-                >
-                  {aiGenerating ? (
-                    <>
-                      <RefreshCw size={15} className="spin" /> Generando preguntas...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={15} color="var(--gold)" /> Generar desde Transcripción
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* MENSAJES DE ALERTA DE LA IA */}
           {aiError && (
