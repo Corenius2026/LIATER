@@ -3269,6 +3269,13 @@ function AdminPortal({ getDiplomadoLink }) {
     return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase();
   };
 
+  const todayFormatted = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.25rem', animation: 'fadeSlideUp 0.35s ease-out' }}>
       
@@ -3301,31 +3308,33 @@ function AdminPortal({ getDiplomadoLink }) {
         }} />
 
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
-            <span style={{ 
-              fontSize: '0.72rem', 
-              fontWeight: 800, 
-              padding: '3px 10px', 
-              borderRadius: '20px', 
-              background: 'rgba(252, 163, 17, 0.2)', 
-              color: '#FCA311', 
-              textTransform: 'uppercase', 
-              letterSpacing: '0.06em',
-              border: '1px solid rgba(252, 163, 17, 0.3)'
-            }}>
-              Administración Global
-            </span>
-            <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)' }}>•</span>
-            <span style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500 }}>
-              {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
-          </div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             Panel de Control LIATER
           </h1>
-          <p style={{ margin: '0.35rem 0 0', fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.82)', lineHeight: 1.4 }}>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
             ¡Hola, {currentUser?.full_name?.split(' ')[0] || 'Administrador'}! Bienvenido a tu centro de supervisión de programas, profesores y estudiantes.
           </p>
+        </div>
+
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(8px)',
+          padding: '0.65rem 1rem',
+          borderRadius: '10px',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          color: '#FFFFFF',
+          fontSize: '0.82rem',
+          fontWeight: 600,
+          textTransform: 'capitalize',
+          position: 'relative',
+          zIndex: 1,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)'
+        }}>
+          <CalendarDays size={15} color="var(--gold, #FCA311)" />
+          <span>{todayFormatted}</span>
         </div>
       </div>
 
