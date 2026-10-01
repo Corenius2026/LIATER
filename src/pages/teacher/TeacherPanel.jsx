@@ -19,9 +19,10 @@ import {
   Calendar, FileSpreadsheet, Folder, Brain, BarChart3,
   TrendingUp, Target, Lightbulb, Activity, HelpCircle,
   AlertTriangle, Star, Mail, Copy, Paperclip, FolderDown,
-  Lock
+  Lock, MessagesSquare
 } from 'lucide-react';
 import { triggerResourceDownload } from '@/utils/resourceUtils';
+import { getProgramThreads } from '@/services/forumService';
 
 import './TeacherPanel.css';
 import AdminClassReinforcement from '@/components/admin/AdminClassReinforcement';
@@ -3190,6 +3191,8 @@ function StatusChip({ status }) {
 ───────────────────────────────────────── */
 function ResumenTab({ onChangeTab }) {
   const { profile, teacherId, programId, currentProgram } = useTeacherContext();
+  const navigate = useNavigate();
+  const [recentThreads, setRecentThreads] = useState([]);
   const [stats, setStats] = useState({
     totalClasses: 0,
     completed: 0,
@@ -3345,6 +3348,14 @@ function ResumenTab({ onChangeTab }) {
         pendingEvaluations: 0, // Placeholder
         adminAnnouncements: resAdminAnnouncements.data || [],
       });
+
+      // Consultar temas recientes del foro
+      try {
+        const resForum = await getProgramThreads(programId);
+        setRecentThreads((resForum?.data || []).slice(0, 3));
+      } catch (errF) {
+        console.warn('Error fetching forum threads in summary:', errF);
+      }
     } catch (err) {
       console.error('Error fetching teacher stats:', err);
     } finally {
@@ -3726,6 +3737,101 @@ function ResumenTab({ onChangeTab }) {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Actividad en el Foro Académico */}
+          <div className="card" style={{ padding: '1.4rem', borderRadius: '16px', border: '1px solid #E2E8F0', background: '#FFFFFF', boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--navy, #14213D)', fontSize: '0.96rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <MessagesSquare size={17} color="var(--gold, #FCA311)" />
+                <span>Foro Académico</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => navigate(`/foro/${programId}`)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--navy, #14213D)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  padding: '3px 6px',
+                  borderRadius: '6px',
+                  transition: 'color 0.15s ease'
+                }}
+                onMouseOver={e => e.currentTarget.style.color = 'var(--gold, #FCA311)'}
+                onMouseOut={e => e.currentTarget.style.color = 'var(--navy, #14213D)'}
+              >
+                <span>Ver foro</span>
+                <ChevronRight size={13} />
+              </button>
+            </div>
+
+            {recentThreads.length === 0 ? (
+              <div style={{ padding: '1.6rem 1rem', textAlign: 'center', background: '#F8FAFC', borderRadius: '10px', border: '1px dashed #E2E8F0' }}>
+                <MessagesSquare size={24} color="#94A3B8" style={{ margin: '0 auto 0.5rem' }} />
+                <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>Sin debates recientes</p>
+                <span style={{ fontSize: '0.74rem', color: '#94A3B8', display: 'block', marginTop: '2px' }}>
+                  Las discusiones de los estudiantes aparecerán aquí
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                {recentThreads.map(thread => (
+                  <div
+                    key={thread.id}
+                    onClick={() => navigate(`/foro/hilo/${thread.id}`)}
+                    title={`Abrir hilo: ${thread.title}`}
+                    style={{
+                      padding: '0.75rem 0.85rem',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseOver={e => {
+                      e.currentTarget.style.background = '#FFFFFF';
+                      e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(20, 33, 61, 0.05)';
+                    }}
+                    onMouseOut={e => {
+                      e.currentTarget.style.background = '#F8FAFC';
+                      e.currentTarget.style.borderColor = '#E2E8F0';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <div style={{
+                      fontWeight: 700,
+                      color: 'var(--navy, #14213D)',
+                      fontSize: '0.83rem',
+                      lineHeight: 1.25,
+                      marginBottom: '4px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {thread.title}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.73rem', color: '#64748B' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                        {thread.author?.full_name || 'Estudiante'}
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--navy, #14213D)', fontWeight: 600 }}>
+                        <MessageSquare size={11} />
+                        {thread.reply_count || 0}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
