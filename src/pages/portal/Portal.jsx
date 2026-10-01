@@ -345,9 +345,9 @@ function StudentPortal({ getDiplomadoLink }) {
                       </a>
                     )}
 
-                    {dip.image_url ? (
+                    {(dip.image_url || dip.cover_image_url) ? (
                       <img 
-                        src={dip.image_url} 
+                        src={dip.image_url || dip.cover_image_url} 
                         alt={`Portada de ${dip.title}`}
                         onError={(e) => { 
                           e.target.style.display = 'none'; 
@@ -359,7 +359,7 @@ function StudentPortal({ getDiplomadoLink }) {
                     
                     {/* Fallback cuando no hay imagen o falla la carga */}
                     <div style={{ 
-                      display: dip.image_url ? 'none' : 'flex', 
+                      display: (dip.image_url || dip.cover_image_url) ? 'none' : 'flex', 
                       width: '100%', 
                       height: '100%', 
                       background: isCourse ? 'linear-gradient(135deg, #14213D 0%, #1d3557 60%, #FCA311 100%)' : 'linear-gradient(135deg, #14213D 0%, #1a2c50 60%, #007a2e 100%)',
@@ -2703,8 +2703,8 @@ function TeacherPortal({ getDiplomadoLink }) {
                 >
                   {/* CABECERA CON BANNER O GRADIENTE */}
                   <div style={{
-                    background: program.cover_image_url
-                      ? `linear-gradient(to bottom, rgba(20,33,61,0.3), rgba(20,33,61,0.85)), url(${program.cover_image_url}) center/cover no-repeat`
+                    background: (program.cover_image_url || program.image_url)
+                      ? `linear-gradient(to bottom, rgba(20,33,61,0.3), rgba(20,33,61,0.85)), url(${program.cover_image_url || program.image_url}) center/cover no-repeat`
                       : 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a5f 100%)',
                     height: '90px',
                     padding: '0.85rem 1.1rem',
@@ -3538,6 +3538,7 @@ function AdminPortal({ getDiplomadoLink }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
               {diplomas.filter(d => d.program_type !== 'curso').map(dip => {
                 const isPublished = dip.is_published !== false && dip.status !== 'draft';
+                const coverUrl = dip.image_url || dip.cover_image_url;
 
                 return (
                   <div 
@@ -3548,7 +3549,7 @@ function AdminPortal({ getDiplomadoLink }) {
                       background: '#FFFFFF', 
                       border: '1.5px solid #CBD5E1', 
                       borderRadius: '14px',
-                      padding: '1.35rem', 
+                      padding: 0, 
                       boxShadow: '0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04)',
                       position: 'relative',
                       overflow: 'hidden',
@@ -3565,107 +3566,157 @@ function AdminPortal({ getDiplomadoLink }) {
                       e.currentTarget.style.transform = 'translateY(0)';
                     }}
                   >
-                    {/* Indicador de acento superior */}
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: isPublished ? '#FCA311' : '#CBD5E1' }} />
+                    {/* IMAGEN DE PORTADA DEL DIPLOMADO */}
+                    <div style={{ width: '100%', height: '175px', overflow: 'hidden', position: 'relative', background: 'var(--navy, #14213D)' }}>
+                      {/* BADGES SOBREPUESTOS EN LA IMAGEN */}
+                      <div style={{ position: 'absolute', top: '0.65rem', left: '0.65rem', zIndex: 2 }}>
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          fontWeight: 800, 
+                          padding: '4px 9px', 
+                          borderRadius: '6px', 
+                          background: 'rgba(20, 33, 61, 0.88)', 
+                          color: '#FFFFFF', 
+                          textTransform: 'uppercase', 
+                          letterSpacing: '0.04em',
+                          backdropFilter: 'blur(6px)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)'
+                        }}>
+                          Diplomado
+                        </span>
+                      </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', marginTop: '2px' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: '#14213D', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Diplomado
-                      </span>
-                      <span style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '5px', 
-                        fontSize: '0.72rem', 
-                        fontWeight: 700, 
-                        padding: '3px 8px', 
-                        borderRadius: '20px', 
-                        background: isPublished ? '#DCFCE7' : '#F1F5F9', 
-                        color: isPublished ? '#15803D' : '#64748B' 
+                      <div style={{ position: 'absolute', top: '0.65rem', right: '0.65rem', zIndex: 2 }}>
+                        <span style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '5px', 
+                          fontSize: '0.7rem', 
+                          fontWeight: 700, 
+                          padding: '3px 9px', 
+                          borderRadius: '20px', 
+                          background: 'rgba(255, 255, 255, 0.95)', 
+                          color: isPublished ? '#15803D' : '#64748B',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                          backdropFilter: 'blur(4px)'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isPublished ? '#16A34A' : '#94A3B8' }} />
+                          {isPublished ? 'Activo' : 'Inhabilitado'}
+                        </span>
+                      </div>
+
+                      {coverUrl ? (
+                        <img 
+                          src={coverUrl} 
+                          alt={`Portada de ${dip.title}`}
+                          onError={(e) => { 
+                            e.target.style.display = 'none'; 
+                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; 
+                          }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: isPublished ? 'none' : 'grayscale(60%)' }} 
+                        />
+                      ) : null}
+                      
+                      {/* Fallback cuando no hay imagen o falla la carga */}
+                      <div style={{ 
+                        display: coverUrl ? 'none' : 'flex', 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'linear-gradient(135deg, #14213D 0%, #1a2c50 60%, #007a2e 100%)',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0.75rem',
+                        boxSizing: 'border-box'
                       }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isPublished ? '#16A34A' : '#94A3B8' }} />
-                        {isPublished ? 'Activo' : 'Inhabilitado'}
-                      </span>
+                        <BookOpen size={28} color="#ffffff" style={{ marginBottom: '0.25rem', opacity: 0.9 }} />
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.08em', color: '#a7f3d0', textTransform: 'uppercase' }}>
+                          LIATER UNAL
+                        </span>
+                      </div>
                     </div>
 
-                    <h3 style={{ fontSize: '1.05rem', marginBottom: '0.45rem', color: '#14213D', lineHeight: '1.35', fontWeight: 700 }}>
-                      {dip.title}
-                    </h3>
-                    <p style={{ 
-                      color: '#64748B', 
-                      fontSize: '0.82rem', 
-                      marginBottom: '1.25rem', 
-                      flexGrow: 1, 
-                      lineHeight: 1.45,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
-                      {dip.description || 'Sin descripción detallada.'}
-                    </p>
+                    {/* CUERPO DE LA TARJETA */}
+                    <div style={{ padding: '1.25rem 1.35rem 1.35rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                      <h3 style={{ fontSize: '1.05rem', marginBottom: '0.45rem', color: '#14213D', lineHeight: '1.35', fontWeight: 700 }}>
+                        {dip.title}
+                      </h3>
+                      <p style={{ 
+                        color: '#64748B', 
+                        fontSize: '0.82rem', 
+                        marginBottom: '1.25rem', 
+                        flexGrow: 1, 
+                        lineHeight: 1.45,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
+                        {dip.description || 'Sin descripción detallada.'}
+                      </p>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9' }}>
-                      <Link
-                        onClick={() => {
-                          localStorage.setItem('activeProgramId', dip.id);
-                          localStorage.setItem('activeProgramType', dip.program_type);
-                          window.dispatchEvent(new Event('programContextChanged'));
-                        }}
-                        to={getDiplomadoLink(dip.id)}
-                        className="btn btn-gold"
-                        style={{ 
-                          textAlign: 'center', 
-                          width: '100%', 
-                          justifyContent: 'center', 
-                          padding: '0.6rem', 
-                          fontWeight: 700, 
-                          borderRadius: '8px', 
-                          fontSize: '0.85rem',
-                          background: '#FCA311',
-                          color: '#14213D',
-                          boxShadow: '0 2px 8px rgba(252, 163, 17, 0.25)'
-                        }}
-                      >
-                        Administrar →
-                      </Link>
-
-                      {/* BOTONES DE INHABILITAR / ELIMINAR */}
-                      <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePublish(dip.id, isPublished)}
-                          title={isPublished ? 'Inhabilitar programa (ocultar de estudiantes)' : 'Habilitar programa'}
-                          style={{
-                            flex: 1,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                            padding: '0.45rem 0.5rem', borderRadius: '7px',
-                            fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                            background: isPublished ? '#FFFBEB' : '#EFF6FF',
-                            color: isPublished ? '#B45309' : '#1D4ED8',
-                            border: isPublished ? '1px solid #FDE68A' : '1px solid #BFDBFE',
-                            transition: 'all 0.2s'
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9' }}>
+                        <Link
+                          onClick={() => {
+                            localStorage.setItem('activeProgramId', dip.id);
+                            localStorage.setItem('activeProgramType', dip.program_type);
+                            window.dispatchEvent(new Event('programContextChanged'));
+                          }}
+                          to={getDiplomadoLink(dip.id)}
+                          className="btn btn-gold"
+                          style={{ 
+                            textAlign: 'center', 
+                            width: '100%', 
+                            justifyContent: 'center', 
+                            padding: '0.6rem', 
+                            fontWeight: 700, 
+                            borderRadius: '8px', 
+                            fontSize: '0.85rem',
+                            background: '#FCA311',
+                            color: '#14213D',
+                            boxShadow: '0 2px 8px rgba(252, 163, 17, 0.25)'
                           }}
                         >
-                          {isPublished ? <EyeOff size={13} /> : <Eye size={13} />}
-                          <span>{isPublished ? 'Inhabilitar' : 'Habilitar'}</span>
-                        </button>
+                          Administrar →
+                        </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProgram(dip)}
-                          title="Eliminar programa permanentemente"
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                            padding: '0.45rem 0.65rem', borderRadius: '7px',
-                            fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                            background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          <Trash2 size={13} />
-                          <span>Eliminar</span>
-                        </button>
+                        {/* BOTONES DE INHABILITAR / ELIMINAR */}
+                        <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePublish(dip.id, isPublished)}
+                            title={isPublished ? 'Inhabilitar programa (ocultar de estudiantes)' : 'Habilitar programa'}
+                            style={{
+                              flex: 1,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                              padding: '0.45rem 0.5rem', borderRadius: '7px',
+                              fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                              background: isPublished ? '#FFFBEB' : '#EFF6FF',
+                              color: isPublished ? '#B45309' : '#1D4ED8',
+                              border: isPublished ? '1px solid #FDE68A' : '1px solid #BFDBFE',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {isPublished ? <EyeOff size={13} /> : <Eye size={13} />}
+                            <span>{isPublished ? 'Inhabilitar' : 'Habilitar'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProgram(dip)}
+                            title="Eliminar programa permanentemente"
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                              padding: '0.45rem 0.65rem', borderRadius: '7px',
+                              fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                              background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            <span>Eliminar</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3729,6 +3780,7 @@ function AdminPortal({ getDiplomadoLink }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
               {diplomas.filter(d => d.program_type === 'curso').map(dip => {
                 const isPublished = dip.is_published !== false && dip.status !== 'draft';
+                const coverUrl = dip.image_url || dip.cover_image_url;
 
                 return (
                   <div 
@@ -3739,7 +3791,7 @@ function AdminPortal({ getDiplomadoLink }) {
                       background: '#FFFFFF', 
                       border: '1.5px solid #CBD5E1', 
                       borderRadius: '14px',
-                      padding: '1.35rem', 
+                      padding: 0, 
                       boxShadow: '0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04)',
                       position: 'relative',
                       overflow: 'hidden',
@@ -3756,137 +3808,187 @@ function AdminPortal({ getDiplomadoLink }) {
                       e.currentTarget.style.transform = 'translateY(0)';
                     }}
                   >
-                    {/* Indicador de acento superior */}
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: isPublished ? '#14213D' : '#CBD5E1' }} />
+                    {/* IMAGEN DE PORTADA DEL CURSO CORTO */}
+                    <div style={{ width: '100%', height: '175px', overflow: 'hidden', position: 'relative', background: 'var(--navy, #14213D)' }}>
+                      {/* BADGES SOBREPUESTOS EN LA IMAGEN */}
+                      <div style={{ position: 'absolute', top: '0.65rem', left: '0.65rem', zIndex: 2 }}>
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          fontWeight: 800, 
+                          padding: '4px 9px', 
+                          borderRadius: '6px', 
+                          background: 'rgba(20, 33, 61, 0.88)', 
+                          color: '#FCA311', 
+                          textTransform: 'uppercase', 
+                          letterSpacing: '0.04em',
+                          backdropFilter: 'blur(6px)',
+                          border: '1px solid rgba(252, 163, 17, 0.3)'
+                        }}>
+                          Curso Corto
+                        </span>
+                      </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', marginTop: '2px' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: '#F1F5F9', color: '#14213D', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Curso Corto
-                      </span>
-                      <span style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '5px', 
-                        fontSize: '0.72rem', 
-                        fontWeight: 700, 
-                        padding: '3px 8px', 
-                        borderRadius: '20px', 
-                        background: isPublished ? '#DCFCE7' : '#F1F5F9', 
-                        color: isPublished ? '#15803D' : '#64748B' 
+                      <div style={{ position: 'absolute', top: '0.65rem', right: '0.65rem', zIndex: 2 }}>
+                        <span style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '5px', 
+                          fontSize: '0.7rem', 
+                          fontWeight: 700, 
+                          padding: '3px 9px', 
+                          borderRadius: '20px', 
+                          background: 'rgba(255, 255, 255, 0.95)', 
+                          color: isPublished ? '#15803D' : '#64748B',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                          backdropFilter: 'blur(4px)'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isPublished ? '#16A34A' : '#94A3B8' }} />
+                          {isPublished ? 'Activo' : 'Inhabilitado'}
+                        </span>
+                      </div>
+
+                      {coverUrl ? (
+                        <img 
+                          src={coverUrl} 
+                          alt={`Portada de ${dip.title}`}
+                          onError={(e) => { 
+                            e.target.style.display = 'none'; 
+                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; 
+                          }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: isPublished ? 'none' : 'grayscale(60%)' }} 
+                        />
+                      ) : null}
+                      
+                      {/* Fallback cuando no hay imagen o falla la carga */}
+                      <div style={{ 
+                        display: coverUrl ? 'none' : 'flex', 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'linear-gradient(135deg, #14213D 0%, #1d3557 60%, #FCA311 100%)',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0.75rem',
+                        boxSizing: 'border-box'
                       }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isPublished ? '#16A34A' : '#94A3B8' }} />
-                        {isPublished ? 'Activo' : 'Inhabilitado'}
-                      </span>
+                        <BookOpen size={28} color="var(--gold, #FCA311)" style={{ marginBottom: '0.25rem', opacity: 0.9 }} />
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.08em', color: 'var(--gold, #FCA311)', textTransform: 'uppercase' }}>
+                          LIATER UNAL
+                        </span>
+                      </div>
                     </div>
 
-                    <h3 style={{ fontSize: '1.05rem', marginBottom: '0.45rem', color: '#14213D', lineHeight: '1.35', fontWeight: 700 }}>
-                      {dip.title}
-                    </h3>
-                    <p style={{ 
-                      color: '#64748B', 
-                      fontSize: '0.82rem', 
-                      marginBottom: '1.25rem', 
-                      flexGrow: 1, 
-                      lineHeight: 1.45,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
-                      {dip.description || 'Sin descripción detallada.'}
-                    </p>
+                    {/* CUERPO DE LA TARJETA */}
+                    <div style={{ padding: '1.25rem 1.35rem 1.35rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                      <h3 style={{ fontSize: '1.05rem', marginBottom: '0.45rem', color: '#14213D', lineHeight: '1.35', fontWeight: 700 }}>
+                        {dip.title}
+                      </h3>
+                      <p style={{ 
+                        color: '#64748B', 
+                        fontSize: '0.82rem', 
+                        marginBottom: '1.25rem', 
+                        flexGrow: 1, 
+                        lineHeight: 1.45,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
+                        {dip.description || 'Sin descripción detallada.'}
+                      </p>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9' }}>
-                      
-                      {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
-                      {dip.liveUrl && (
-                        <a 
-                          href={dip.liveUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9' }}>
+                        
+                        {/* ACCESO RÁPIDO A CLASE EN VIVO (Si aplica) */}
+                        {dip.liveUrl && (
+                          <a 
+                            href={dip.liveUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              gap: '0.4rem',
+                              width: '100%', 
+                              padding: '0.45rem 1rem', 
+                              fontWeight: 700, 
+                              fontSize: '0.85rem',
+                              borderRadius: '6px',
+                              background: '#FCA311',
+                              color: '#14213D',
+                              textDecoration: 'none',
+                              boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                            onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                          >
+                            <Video size={16} /> Unirse a la sesión en vivo
+                          </a>
+                        )}
+
+                        <Link
+                          onClick={() => {
+                            localStorage.setItem('activeProgramId', dip.id);
+                            localStorage.setItem('activeProgramType', dip.program_type);
+                            window.dispatchEvent(new Event('programContextChanged'));
+                          }}
+                          to={getDiplomadoLink(dip.id)}
+                          className="btn btn-navy"
                           style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            gap: '0.4rem',
+                            textAlign: 'center', 
                             width: '100%', 
-                            padding: '0.45rem 1rem', 
+                            justifyContent: 'center', 
+                            padding: '0.6rem', 
                             fontWeight: 700, 
+                            borderRadius: '8px', 
                             fontSize: '0.85rem',
-                            borderRadius: '6px',
-                            background: '#FCA311',
-                            color: '#14213D',
-                            textDecoration: 'none',
-                            boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
-                        >
-                          <Video size={16} /> Unirse a la sesión en vivo
-                        </a>
-                      )}
-
-                      <Link
-                        onClick={() => {
-                          localStorage.setItem('activeProgramId', dip.id);
-                          localStorage.setItem('activeProgramType', dip.program_type);
-                          window.dispatchEvent(new Event('programContextChanged'));
-                        }}
-                        to={getDiplomadoLink(dip.id)}
-                        className="btn btn-navy"
-                        style={{ 
-                          textAlign: 'center', 
-                          width: '100%', 
-                          justifyContent: 'center', 
-                          padding: '0.6rem', 
-                          fontWeight: 700, 
-                          borderRadius: '8px', 
-                          fontSize: '0.85rem',
-                          background: '#14213D',
-                          color: '#FFFFFF',
-                          boxShadow: '0 2px 8px rgba(20, 33, 61, 0.25)'
-                        }}
-                      >
-                        Administrar →
-                      </Link>
-
-                      {/* BOTONES DE INHABILITAR / ELIMINAR */}
-                      <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePublish(dip.id, isPublished)}
-                          title={isPublished ? 'Inhabilitar programa (ocultar de estudiantes)' : 'Habilitar programa'}
-                          style={{
-                            flex: 1,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                            padding: '0.45rem 0.5rem', borderRadius: '7px',
-                            fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                            background: isPublished ? '#FFFBEB' : '#EFF6FF',
-                            color: isPublished ? '#B45309' : '#1D4ED8',
-                            border: isPublished ? '1px solid #FDE68A' : '1px solid #BFDBFE',
-                            transition: 'all 0.2s'
+                            background: '#14213D',
+                            color: '#FFFFFF',
+                            boxShadow: '0 2px 8px rgba(20, 33, 61, 0.25)'
                           }}
                         >
-                          {isPublished ? <EyeOff size={13} /> : <Eye size={13} />}
-                          <span>{isPublished ? 'Inhabilitar' : 'Habilitar'}</span>
-                        </button>
+                          Administrar →
+                        </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProgram(dip)}
-                          title="Eliminar programa permanentemente"
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                            padding: '0.45rem 0.65rem', borderRadius: '7px',
-                            fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                            background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          <Trash2 size={13} />
-                          <span>Eliminar</span>
-                        </button>
+                        {/* BOTONES DE INHABILITAR / ELIMINAR */}
+                        <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePublish(dip.id, isPublished)}
+                            title={isPublished ? 'Inhabilitar programa (ocultar de estudiantes)' : 'Habilitar programa'}
+                            style={{
+                              flex: 1,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                              padding: '0.45rem 0.5rem', borderRadius: '7px',
+                              fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                              background: isPublished ? '#FFFBEB' : '#EFF6FF',
+                              color: isPublished ? '#B45309' : '#1D4ED8',
+                              border: isPublished ? '1px solid #FDE68A' : '1px solid #BFDBFE',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {isPublished ? <EyeOff size={13} /> : <Eye size={13} />}
+                            <span>{isPublished ? 'Inhabilitar' : 'Habilitar'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProgram(dip)}
+                            title="Eliminar programa permanentemente"
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                              padding: '0.45rem 0.65rem', borderRadius: '7px',
+                              fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                              background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            <span>Eliminar</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
