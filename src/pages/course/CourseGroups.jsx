@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import {
-  Users, Home, ListTree, BookOpen, Paperclip, BarChart2,
+  Users, Paperclip,
   ArrowLeft, ChevronRight, Plus, ExternalLink, Download,
   FileText, Trash2, Code, HardDrive, Archive, AlertCircle,
   X, CheckCircle, Info, Sparkles, UserCheck, Shield, Eye, Lock
@@ -231,144 +231,7 @@ export default function CourseGroups() {
         </p>
       </div>
 
-      {/* ── BARRA DE PESTAÑAS DEL CURSO (NAVEGACIÓN INTEGRADA) ── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        marginBottom: '1.75rem',
-        overflowX: 'auto',
-        paddingBottom: '4px',
-        borderBottom: '1px solid var(--border-color)',
-        scrollbarWidth: 'none'
-      }}>
-        <Link
-          to={role === 'admin' ? `/dashboard/admin/${cleanProgramId}?tab=grupos` : (role === 'teacher' ? `/dashboard/profesor/${cleanProgramId}?tab=grupos` : `/dashboard/${cleanProgramId}`)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.55rem 1rem',
-            borderRadius: '8px 8px 0 0',
-            fontSize: '0.84rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-            background: '#F1F5F9',
-            color: 'var(--navy)',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
-          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
-        >
-          <Home size={15} /> {role === 'admin' ? 'Panel Admin' : (role === 'teacher' ? 'Panel Docente' : 'Resumen')}
-        </Link>
-        <Link
-          to={isCourse ? `/syllabus/${cleanProgramId}` : `/modules/${cleanProgramId}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.55rem 1rem',
-            borderRadius: '8px 8px 0 0',
-            fontSize: '0.84rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-            background: '#F1F5F9',
-            color: 'var(--navy)',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
-          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
-        >
-          {isCourse ? <ListTree size={15} /> : <BookOpen size={15} />}
-          {isCourse ? 'Sesiones' : 'Módulos'}
-        </Link>
-        <Link
-          to={`/resources/${cleanProgramId}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.55rem 1rem',
-            borderRadius: '8px 8px 0 0',
-            fontSize: '0.84rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-            background: '#F1F5F9',
-            color: 'var(--navy)',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
-          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
-        >
-          <Paperclip size={15} color="var(--gold-dark, #b45309)" /> Recursos y Materiales
-        </Link>
 
-        {/* PESTAÑA ACTIVA: GRUPOS DE TRABAJO */}
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.55rem 1.1rem',
-            borderRadius: '8px 8px 0 0',
-            fontSize: '0.84rem',
-            fontWeight: 700,
-            background: 'var(--navy, #14213D)',
-            color: '#FFFFFF',
-            borderBottom: '3px solid var(--gold, #FCA311)',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <Users size={15} color="var(--gold, #FCA311)" /> Grupos de Trabajo {myGroup ? `(${myGroup.name})` : ''}
-        </div>
-
-        <Link
-          to={`/resultados/${cleanProgramId}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.55rem 1rem',
-            borderRadius: '8px 8px 0 0',
-            fontSize: '0.84rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-            background: '#F1F5F9',
-            color: 'var(--navy)',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
-          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
-        >
-          <BarChart2 size={15} /> Mis Resultados
-        </Link>
-        <Link
-          to={`/teachers/${cleanProgramId}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.55rem 1rem',
-            borderRadius: '8px 8px 0 0',
-            fontSize: '0.84rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-            background: '#F1F5F9',
-            color: 'var(--navy)',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={e => e.currentTarget.style.background = '#E2E8F0'}
-          onMouseOut={e => e.currentTarget.style.background = '#F1F5F9'}
-        >
-          <Users size={15} /> Profesores
-        </Link>
-      </div>
 
       {/* ── CONTENIDO PRINCIPAL: EL ESTUDIANTE TIENE GRUPO ASIGNADO ── */}
       {myGroup ? (

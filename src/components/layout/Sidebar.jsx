@@ -217,7 +217,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                     aria-current={location.pathname === `/foro/${teacherProgId}` ? 'page' : undefined}
                   >
                     <MessagesSquare size={18} />
-                    <span>Foro del Programa</span>
+                    <span>Foro</span>
                   </NavLink>
 
                   <NavLink
@@ -428,7 +428,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                       className={({isActive}) => (isActive || location.pathname.startsWith('/foro/hilo/')) ? 'nav-item active' : 'nav-item'}
                     >
                       <MessagesSquare size={18} />
-                      <span>Foro del Programa</span>
+                      <span>Foro</span>
                     </NavLink>
                     <NavLink to={`/teachers/${activeProgramId}`} className={({isActive}) => isActive ? 'nav-item active' : 'nav-item'}>
                       <Users size={18} />
