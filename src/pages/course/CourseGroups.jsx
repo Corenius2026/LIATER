@@ -547,7 +547,7 @@ export default function CourseGroups() {
             </p>
 
             <Link to={`/dashboard/${cleanProgramId}`} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }}>
-              Volver al Panorama del Curso
+              Volver al Resumen del Programa
             </Link>
           </div>
 

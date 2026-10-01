@@ -179,7 +179,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                     onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <BookOpen size={18} />
-                    <span>Panorama del Curso</span>
+                    <span>Resumen del Programa</span>
                   </NavLink>
 
                   <NavLink

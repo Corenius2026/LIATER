@@ -10395,7 +10395,7 @@ function GruposTab() {
 }
 
 const TABS = [
-  { id: 'resumen',      label: 'Panorama del Curso',        icon: <BookOpen size={16} />,        component: ResumenTab },
+  { id: 'resumen',      label: 'Resumen del Programa',      icon: <BookOpen size={16} />,        component: ResumenTab },
   { id: 'clases',       label: 'Mis Clases',                icon: <Video size={16} />,           component: ClasesTab },
   { id: 'recursos',     label: 'Material del Curso',        icon: <Paperclip size={16} />,       component: RecursosTab },
   { id: 'grupos',       label: 'Grupos de Trabajo',         icon: <Users size={16} />,           component: GruposTab },
