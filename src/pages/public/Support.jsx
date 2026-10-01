@@ -129,43 +129,40 @@ export default function Support() {
   return (
     <div style={{ padding: '1.5rem 2rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeSlideUp 0.35s ease-out' }}>
       
-      {/* ── HERO BANNER INSTITUCIONAL (AJUSTADO AL CONTENIDO) ── */}
+      {/* ── HERO BANNER INSTITUCIONAL EN AZUL OSCURO (#14213D) ── */}
       <div style={{
-        background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
-        borderRadius: '14px',
-        padding: '1.15rem 1.6rem',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '1.5rem',
-        boxShadow: '0 8px 20px -4px rgba(20, 33, 61, 0.22)',
+        gap: '1.25rem',
+        padding: '1.75rem 2rem',
+        background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
         color: '#FFFFFF',
         position: 'relative',
         overflow: 'hidden',
-        marginBottom: '1.75rem',
-        width: 'fit-content',
-        maxWidth: '100%',
-        boxSizing: 'border-box'
+        marginBottom: '1.75rem'
       }}>
         {/* Glow sutil de acento dorado */}
         <div style={{
           position: 'absolute',
-          top: '-35px',
-          right: '-35px',
-          width: '140px',
-          height: '140px',
+          top: '-40px',
+          right: '-40px',
+          width: '180px',
+          height: '180px',
           borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
           pointerEvents: 'none'
         }} />
 
-        <div style={{ position: 'relative', zIndex: 1, minWidth: '240px' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             Soporte Técnico y Ayuda Académica
           </h1>
-          <p style={{ margin: '0.35rem 0 0', fontSize: '0.86rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.4, maxWidth: '560px' }}>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
             {role === 'teacher' || role === 'admin' 
               ? 'Encuentra guías operativas para la gestión de tus programas o comunícate con el equipo técnico de LIATER.'
               : 'Encuentra respuestas a dudas frecuentes sobre el aula virtual o comunícate con la coordinación académica.'}
@@ -175,34 +172,33 @@ export default function Support() {
         <div style={{
           background: 'rgba(255, 255, 255, 0.08)',
           backdropFilter: 'blur(8px)',
-          padding: '0.6rem 0.95rem',
-          borderRadius: '10px',
+          padding: '0.75rem 1.15rem',
+          borderRadius: '12px',
           border: '1px solid rgba(255, 255, 255, 0.15)',
           display: 'flex',
           alignItems: 'center',
-          gap: '0.75rem',
+          gap: '0.85rem',
           position: 'relative',
           zIndex: 1,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
-          flexShrink: 0
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)'
         }}>
           <div style={{
-            width: '34px',
-            height: '34px',
-            borderRadius: '9px',
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
             background: 'rgba(252, 163, 17, 0.15)',
             color: 'var(--gold, #FCA311)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <HelpCircle size={17} />
+            <HelpCircle size={18} />
           </div>
           <div>
-            <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Base de Conocimiento
             </div>
-            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#FFFFFF' }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
               {allFaqs.length} {allFaqs.length === 1 ? 'Guía Disponible' : 'Guías Disponibles'}
             </div>
           </div>
