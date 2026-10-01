@@ -62,17 +62,75 @@ export default function Communications() {
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', animation: "fadeSlideUp 0.35s ease-out" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.75rem", flexWrap: "wrap", gap: "1rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--navy)", margin: 0 }}>Comunicaciones</h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.87rem", marginTop: "0.25rem" }}>Envía y administra anuncios globales o por programa.</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', animation: 'fadeSlideUp 0.35s ease-out' }}>
+      {/* ── HERO BANNER INSTITUCIONAL EN AZUL OSCURO (#14213D) ── */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1.25rem',
+        padding: '1.75rem 2rem',
+        background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+        color: '#FFFFFF',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Glow sutil de acento dorado */}
+        <div style={{
+          position: 'absolute',
+          top: '-40px',
+          right: '-40px',
+          width: '180px',
+          height: '180px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            Comunicaciones
+          </h1>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
+            Envía y administra anuncios globales o segmentados por programa académico.
+          </p>
         </div>
+
         <button
           onClick={handleCreate}
-          style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--navy)", color: "white", border: "none", borderRadius: "10px", padding: "0.7rem 1.25rem", fontWeight: 700, fontSize: "0.9rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(20,33,61,0.25)" }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            background: 'linear-gradient(135deg, #FCA311 0%, #E59500 100%)',
+            color: '#14213D',
+            border: 'none',
+            borderRadius: '12px',
+            padding: '0.75rem 1.35rem',
+            fontWeight: 800,
+            fontSize: '0.92rem',
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(252, 163, 17, 0.35)',
+            transition: 'all 0.2s ease',
+            position: 'relative',
+            zIndex: 1,
+            flexShrink: 0
+          }}
+          onMouseOver={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(252, 163, 17, 0.45)';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 14px rgba(252, 163, 17, 0.35)';
+          }}
         >
-          <Megaphone size={17} /> Nuevo Comunicado
+          <Megaphone size={18} strokeWidth={2.3} />
+          <span>Nuevo Comunicado</span>
         </button>
       </div>
 
