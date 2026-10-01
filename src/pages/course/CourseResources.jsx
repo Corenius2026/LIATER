@@ -772,34 +772,57 @@ export default function CourseResources() {
     const resType = res.resource_type || res.type || 'file';
     const isHidden = res.is_visible === false;
 
+    const getTypeMeta = () => {
+      switch (resType) {
+        case 'presentation':
+          return { bg: '#FEF3C7', border: '#FDE68A', text: '#B45309', label: 'Presentación' };
+        case 'file':
+        case 'pdf':
+        case 'document':
+          return { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', label: 'PDF / Lectura' };
+        case 'link':
+          return { bg: '#ECFDF5', border: '#A7F3D0', text: '#15803D', label: 'Enlace' };
+        case 'code':
+          return { bg: '#FAF5FF', border: '#E9D5FF', text: '#7E22CE', label: 'Código' };
+        case 'video':
+          return { bg: '#FEE2E2', border: '#FECACA', text: '#DC2626', label: 'Video' };
+        default:
+          return { bg: '#F1F5F9', border: '#E2E8F0', text: '#475569', label: 'Archivo' };
+      }
+    };
+    const meta = getTypeMeta();
+
     return (
       <div
         key={res.id}
         style={{
           background: isHidden ? '#F8FAFC' : '#FFFFFF',
           borderRadius: '14px',
-          border: isHidden ? '1px dashed #CBD5E1' : '1px solid #E2E8F0',
+          border: isHidden ? '1.5px dashed #CBD5E1' : '1.5px solid #E2E8F0',
+          borderLeft: res.isGeneral ? '5px solid var(--gold, #FCA311)' : '5px solid var(--navy, #14213D)',
           padding: '1.25rem',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
           gap: '1rem',
-          boxShadow: isHidden ? 'none' : '0 2px 6px rgba(20,33,61,0.03)',
-          transition: 'all 0.2s ease',
+          boxShadow: isHidden ? 'none' : '0 2px 8px rgba(20,33,61,0.04)',
+          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           position: 'relative',
           opacity: isHidden ? 0.8 : 1
         }}
         onMouseOver={e => {
           if (!isHidden) {
             e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 18px rgba(20,33,61,0.08)';
+            e.currentTarget.style.boxShadow = res.isGeneral
+              ? '0 10px 24px rgba(252, 163, 17, 0.14)'
+              : '0 10px 24px rgba(20, 33, 61, 0.08)';
             e.currentTarget.style.borderColor = '#CBD5E1';
           }
         }}
         onMouseOut={e => {
           if (!isHidden) {
             e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 6px rgba(20,33,61,0.03)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(20,33,61,0.04)';
             e.currentTarget.style.borderColor = '#E2E8F0';
           }
         }}
@@ -878,6 +901,7 @@ export default function CourseResources() {
                   borderRadius: '6px',
                   background: '#DCFCE7',
                   color: '#15803D',
+                  border: '1px solid #86EFAC',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '3px'
@@ -892,6 +916,7 @@ export default function CourseResources() {
                   borderRadius: '6px',
                   background: '#F1F5F9',
                   color: '#64748B',
+                  border: '1px solid #E2E8F0',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '3px'
@@ -924,11 +949,11 @@ export default function CourseResources() {
                 padding: '2px 8px',
                 borderRadius: '6px',
                 textTransform: 'uppercase',
-                background: resType === 'presentation' ? 'rgba(252,163,17,0.18)' : (resType === 'file' || resType === 'pdf') ? '#EFF6FF' : resType === 'link' ? '#F0FDF4' : '#FAF5FF',
-                color: resType === 'presentation' ? '#B45309' : (resType === 'file' || resType === 'pdf') ? '#1D4ED8' : resType === 'link' ? '#15803D' : '#7E22CE',
-                border: `1px solid ${resType === 'presentation' ? 'rgba(252,163,17,0.3)' : (resType === 'file' || resType === 'pdf') ? '#BFDBFE' : resType === 'link' ? '#BBF7D0' : '#E9D5FF'}`
+                background: meta.bg,
+                color: meta.text,
+                border: `1px solid ${meta.border}`
               }}>
-                {resType}
+                {meta.label}
               </span>
             </div>
           </div>
@@ -936,13 +961,14 @@ export default function CourseResources() {
           {/* CUERPO: TÍTULO Y DESCRIPCIÓN */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
             <div style={{
-              width: '42px', height: '42px', borderRadius: '10px',
-              background: res.isGeneral ? 'rgba(252, 163, 17, 0.12)' : '#F8FAFC',
-              border: '1px solid #E2E8F0',
+              width: '44px', height: '44px', borderRadius: '10px',
+              background: meta.bg,
+              border: `1px solid ${meta.border}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, marginTop: '2px'
+              flexShrink: 0, marginTop: '2px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
             }}>
-              {getResourceIcon(resType, 20)}
+              {getResourceIcon(resType, 22)}
             </div>
 
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -1015,21 +1041,22 @@ export default function CourseResources() {
               color: '#FFFFFF',
               border: 'none',
               borderRadius: '8px',
-              padding: '0.5rem 0.9rem',
-              fontSize: '0.8rem',
+              padding: '0.55rem 0.95rem',
+              fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.4rem',
+              gap: '0.45rem',
+              boxShadow: '0 2px 6px rgba(20,33,61,0.15)',
               transition: 'all 0.15s ease'
             }}
-            onMouseOver={e => e.currentTarget.style.background = '#000000'}
+            onMouseOver={e => e.currentTarget.style.background = '#0F172A'}
             onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
           >
             <Eye size={14} color="var(--gold, #FCA311)" />
-            <span>{isDrive ? 'Abrir Material' : 'Abrir Enlace'}</span>
+            <span>{isDrive ? 'Ver Material' : 'Abrir Enlace'}</span>
           </button>
 
           {/* Botón Descargar (si está permitido) */}
@@ -1039,20 +1066,23 @@ export default function CourseResources() {
               onClick={() => triggerResourceDownload(res.url, res.title)}
               title="Descargar material a tu equipo"
               style={{
-                background: '#DCFCE7',
-                color: '#15803D',
-                border: '1px solid #86EFAC',
+                background: 'var(--gold, #FCA311)',
+                color: 'var(--navy, #14213D)',
+                border: 'none',
                 borderRadius: '8px',
-                padding: '0.5rem 0.85rem',
-                fontSize: '0.8rem',
+                padding: '0.55rem 0.9rem',
+                fontSize: '0.82rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.35rem',
+                boxShadow: '0 2px 6px rgba(252,163,17,0.25)',
                 transition: 'all 0.15s ease'
               }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--gold-dark, #B45309)'}
+              onMouseOut={e => e.currentTarget.style.background = 'var(--gold, #FCA311)'}
             >
               <Download size={14} />
               <span>Descargar</span>
@@ -1069,7 +1099,7 @@ export default function CourseResources() {
                 color: 'var(--navy, #14213D)',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                padding: '0.5rem 0.75rem',
+                padding: '0.55rem 0.8rem',
                 fontSize: '0.8rem',
                 fontWeight: 600,
                 textDecoration: 'none',
@@ -1088,6 +1118,7 @@ export default function CourseResources() {
                 e.currentTarget.style.borderColor = '#CBD5E1';
               }}
             >
+              <Video size={13} color="var(--gold-dark, #B45309)" />
               <span>Clase</span>
               <ArrowRight size={13} />
             </Link>
@@ -1271,67 +1302,163 @@ export default function CourseResources() {
         </div>
       </div>
 
-      {/* ── ENCABEZADO PRINCIPAL ── */}
-      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <h1 className="page-title" style={{ fontSize: '1.85rem', lineHeight: 1.25, margin: 0 }}>
-          Recursos y Materiales de Estudio
-        </h1>
-        <p className="page-description" style={{ marginTop: '0.4rem', fontSize: '0.9rem' }}>
-          Consulta tanto los documentos y guías generales del curso como las presentaciones, lecturas y enlaces correspondientes a cada clase.
-        </p>
+      {/* ── ENCABEZADO PRINCIPAL (HERO BANNER ESTILO STITCH) ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #14213D 0%, #1a2c4e 60%, #0F172A 100%)',
+        borderRadius: '16px',
+        padding: '2rem 2.25rem',
+        marginBottom: '1.75rem',
+        color: '#FFFFFF',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '1.5rem',
+        boxShadow: '0 12px 32px rgba(20, 33, 61, 0.16)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Resplandor decorativo de fondo */}
+        <div style={{
+          position: 'absolute',
+          top: '-40px',
+          right: '-40px',
+          width: '240px',
+          height: '240px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, transparent 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ maxWidth: '640px', zIndex: 1 }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            background: 'rgba(252, 163, 17, 0.15)',
+            border: '1px solid rgba(252, 163, 17, 0.4)',
+            color: 'var(--gold, #FCA311)',
+            padding: '0.3rem 0.75rem',
+            borderRadius: '9999px',
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            marginBottom: '0.75rem'
+          }}>
+            <Sparkles size={12} />
+            <span>Centro de Recursos y Materiales</span>
+          </div>
+
+          <h1 style={{
+            fontSize: '1.9rem',
+            fontWeight: 800,
+            lineHeight: 1.2,
+            margin: '0 0 0.5rem 0',
+            color: '#FFFFFF',
+            letterSpacing: '-0.02em'
+          }}>
+            Recursos y Materiales de Estudio
+          </h1>
+
+          <p style={{
+            margin: 0,
+            fontSize: '0.92rem',
+            lineHeight: 1.5,
+            color: '#CBD5E1'
+          }}>
+            Consulta tanto los documentos y guías generales del curso como las presentaciones, lecturas y enlaces correspondientes a cada clase.
+          </p>
+        </div>
+
+        {/* Tarjeta de métricas stitch */}
+        <div style={{
+          zIndex: 1,
+          background: 'rgba(255, 255, 255, 0.06)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '14px',
+          padding: '1.1rem 1.4rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.6rem',
+          minWidth: '220px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+            <span style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--gold, #FCA311)', lineHeight: 1 }}>
+              {resources.length}
+            </span>
+            <span style={{ fontSize: '0.82rem', color: '#E2E8F0', fontWeight: 600 }}>
+              {resources.length === 1 ? 'material disponible' : 'materiales disponibles'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.6rem', fontSize: '0.75rem', color: '#94A3B8', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
+            <span><strong style={{ color: '#F8FAFC' }}>{generalResources.length}</strong> generales</span>
+            <span>•</span>
+            <span><strong style={{ color: '#F8FAFC' }}>{resources.length - generalResources.length}</strong> por clase</span>
+          </div>
+        </div>
       </div>
 
-
-
-      {/* ── BARRA DE BÚSQUEDA Y FILTROS ── */}
+      {/* ── BARRA DE BÚSQUEDA Y FILTROS ESTILO STITCH ── */}
       <div style={{
         background: '#FFFFFF',
         borderRadius: '14px',
-        padding: '1.25rem',
-        border: '1px solid #E2E8F0',
-        marginBottom: '1.75rem',
+        padding: '1.25rem 1.4rem',
+        border: '1.5px solid #E2E8F0',
+        marginBottom: '2rem',
         display: 'flex',
         flexDirection: 'column',
         gap: '1rem',
-        boxShadow: '0 1px 3px rgba(20,33,61,0.03)'
+        boxShadow: '0 4px 14px rgba(20,33,61,0.03)'
       }}>
         {/* FILA SUPERIOR: BUSCADOR + SELECTOR DE DESTINO (GENERAL / CLASE) */}
         <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Buscador de texto */}
           <div style={{
             position: 'relative',
-            flex: '1 1 280px',
+            flex: '1 1 300px',
             minWidth: '240px'
           }}>
-            <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <Search size={16} color="var(--navy, #14213D)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', opacity: 0.6 }} />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Buscar por material, guía, tema o clase..."
+              placeholder="Buscar por material, guía, tema o sesión..."
               style={{
                 width: '100%',
-                padding: '0.65rem 0.85rem 0.65rem 2.35rem',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                fontSize: '0.86rem',
+                padding: '0.7rem 2.2rem 0.7rem 2.5rem',
+                borderRadius: '10px',
+                border: '1.5px solid #CBD5E1',
+                fontSize: '0.88rem',
                 outline: 'none',
                 background: '#FAFBFD',
-                transition: 'border-color 0.15s ease'
+                transition: 'all 0.15s ease'
               }}
-              onFocus={e => e.currentTarget.style.borderColor = 'var(--gold, #FCA311)'}
-              onBlur={e => e.currentTarget.style.borderColor = '#CBD5E1'}
+              onFocus={e => {
+                e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.18)';
+                e.currentTarget.style.background = '#FFFFFF';
+              }}
+              onBlur={e => {
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.background = '#FAFBFD';
+              }}
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 style={{
-                  position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                  background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: '2px'
+                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                  background: '#F1F5F9', border: 'none', cursor: 'pointer', color: '#64748B',
+                  borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
               >
-                <X size={15} />
+                <X size={13} />
               </button>
             )}
           </div>
@@ -1343,15 +1470,24 @@ export default function CourseResources() {
               onChange={e => setSessionFilter(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                fontSize: '0.84rem',
+                padding: '0.7rem 0.85rem',
+                borderRadius: '10px',
+                border: '1.5px solid #CBD5E1',
+                fontSize: '0.86rem',
                 background: '#FAFBFD',
                 color: 'var(--navy, #14213D)',
                 fontWeight: 600,
                 outline: 'none',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onFocus={e => {
+                e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.18)';
+              }}
+              onBlur={e => {
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               <option value="all">Todo el Material ({resources.length})</option>
@@ -1373,8 +1509,8 @@ export default function CourseResources() {
         </div>
 
         {/* FILA INFERIOR: FILTROS TIPO PILL */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid #F1F5F9' }}>
-          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9' }}>
+          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
             {[
               { id: 'all', label: 'Todos', count: counts.all },
               { id: 'presentation', label: 'Presentaciones', count: counts.presentation },
@@ -1389,26 +1525,39 @@ export default function CourseResources() {
                   type="button"
                   onClick={() => setTypeFilter(f.id)}
                   style={{
-                    border: 'none',
+                    border: isSelected ? '1px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
                     borderRadius: '8px',
-                    padding: '0.4rem 0.85rem',
-                    fontSize: '0.8rem',
+                    padding: '0.42rem 0.9rem',
+                    fontSize: '0.82rem',
                     fontWeight: isSelected ? 700 : 500,
-                    background: isSelected ? 'var(--navy, #14213D)' : '#F1F5F9',
+                    background: isSelected ? 'var(--navy, #14213D)' : '#F8FAFC',
                     color: isSelected ? '#FFFFFF' : 'var(--navy, #14213D)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
+                    gap: '0.45rem',
+                    boxShadow: isSelected ? '0 2px 6px rgba(20,33,61,0.18)' : 'none',
                     transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={e => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = '#F1F5F9';
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                    }
+                  }}
+                  onMouseOut={e => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = '#F8FAFC';
+                      e.currentTarget.style.borderColor = '#E2E8F0';
+                    }
                   }}
                 >
                   <span>{f.label}</span>
                   <span style={{
-                    fontSize: '0.7rem',
-                    padding: '1px 6px',
+                    fontSize: '0.72rem',
+                    padding: '1px 7px',
                     borderRadius: '9999px',
-                    background: isSelected ? 'rgba(252,163,17,0.35)' : '#E2E8F0',
+                    background: isSelected ? 'rgba(252,163,17,0.3)' : '#E2E8F0',
                     color: isSelected ? 'var(--gold, #FCA311)' : '#64748B',
                     fontWeight: 700
                   }}>
@@ -1420,8 +1569,8 @@ export default function CourseResources() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
-              Mostrando <strong>{filteredResources.length}</strong> de {resources.length} recursos
+            <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
+              Mostrando <strong style={{ color: 'var(--navy, #14213D)' }}>{filteredResources.length}</strong> de {resources.length} recursos
             </span>
             {canManage && (
               <button
@@ -1433,7 +1582,7 @@ export default function CourseResources() {
                   handleOpenUpload(targetCls);
                 }}
                 className="btn btn-outline"
-                style={{ fontSize: '0.76rem', padding: '0.25rem 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
               >
                 <Plus size={13} /> Subir Material
               </button>
@@ -1499,41 +1648,49 @@ export default function CourseResources() {
               SECCIÓN 1: CONTENIDO GENERAL DEL CURSO (DESTACADO)
              ═════════════════════════════════════════════════════════════ */}
           {(sessionFilter === 'all' || sessionFilter === 'general') && (
-            <div>
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: '16px',
+              border: '1.5px solid rgba(252, 163, 17, 0.45)',
+              padding: '1.5rem',
+              boxShadow: '0 4px 16px rgba(252, 163, 17, 0.06)'
+            }}>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: '1rem',
+                marginBottom: '1.25rem',
                 flexWrap: 'wrap',
-                gap: '0.5rem',
-                paddingBottom: '0.6rem',
-                borderBottom: '2px solid rgba(252, 163, 17, 0.4)'
+                gap: '0.75rem',
+                paddingBottom: '0.85rem',
+                borderBottom: '1.5px solid rgba(252, 163, 17, 0.25)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                   <div style={{
-                    width: '36px', height: '36px', borderRadius: '10px',
-                    background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1e3a8a 100%)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FCA311'
+                    width: '42px', height: '42px', borderRadius: '12px',
+                    background: 'linear-gradient(135deg, var(--gold, #FCA311) 0%, #D97706 100%)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#14213D',
+                    boxShadow: '0 3px 10px rgba(252, 163, 17, 0.35)'
                   }}>
-                    <FolderDown size={18} />
+                    <FolderDown size={22} />
                   </div>
                   <div>
-                    <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, color: 'var(--navy, #14213D)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.24rem', fontWeight: 800, color: 'var(--navy, #14213D)', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                       <span>Contenido General del Curso</span>
                       <span style={{
                         fontSize: '0.72rem',
-                        padding: '2px 8px',
+                        padding: '2px 9px',
                         borderRadius: '999px',
-                        background: 'rgba(252, 163, 17, 0.2)',
-                        color: 'var(--gold-dark, #b45309)',
-                        fontWeight: 700
+                        background: 'rgba(252, 163, 17, 0.18)',
+                        color: '#B45309',
+                        fontWeight: 700,
+                        border: '1px solid rgba(252, 163, 17, 0.4)'
                       }}>
                         {filteredGeneral.length} {filteredGeneral.length === 1 ? 'material' : 'materiales'}
                       </span>
                     </h2>
-                    <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                      Guías académicas, bibliografía general, enlaces a software y recursos que aplican a todo el programa.
+                    <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
+                      Guías académicas, bibliografía general, enlaces a software y recursos transversales para todos los estudiantes.
                     </span>
                   </div>
                 </div>
@@ -1547,13 +1704,13 @@ export default function CourseResources() {
                       color: 'var(--gold-dark, #b45309)',
                       border: '1px solid rgba(252, 163, 17, 0.4)',
                       borderRadius: '8px',
-                      padding: '0.35rem 0.85rem',
-                      fontSize: '0.78rem',
+                      padding: '0.4rem 0.95rem',
+                      fontSize: '0.8rem',
                       fontWeight: 700,
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
+                      gap: '0.4rem',
                       transition: 'all 0.15s ease'
                     }}
                     onMouseOver={e => e.currentTarget.style.background = 'rgba(252, 163, 17, 0.25)'}
@@ -1567,10 +1724,10 @@ export default function CourseResources() {
 
               {filteredGeneral.length === 0 ? (
                 <div style={{
-                  padding: '1.5rem',
+                  padding: '1.75rem',
                   borderRadius: '12px',
-                  background: '#FAFBFD',
-                  border: '1px dashed #CBD5E1',
+                  background: '#FFFBEB',
+                  border: '1px dashed #FDE68A',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1578,12 +1735,12 @@ export default function CourseResources() {
                   flexWrap: 'wrap'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Info size={20} color="#64748B" />
+                    <Info size={20} color="#D97706" />
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '0.88rem', color: 'var(--navy, #14213D)', fontWeight: 700 }}>
+                      <h4 style={{ margin: 0, fontSize: '0.88rem', color: '#92400E', fontWeight: 700 }}>
                         Aún no se ha publicado contenido general del curso
                       </h4>
-                      <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: '#B45309' }}>
                         Los profesores pueden subir guías de laboratorio, enlaces a software o documentos transversales aquí.
                       </p>
                     </div>
@@ -1593,7 +1750,7 @@ export default function CourseResources() {
                       type="button"
                       onClick={() => handleOpenUpload('general')}
                       className="btn btn-primary"
-                      style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem' }}
+                      style={{ fontSize: '0.8rem', padding: '0.45rem 0.9rem' }}
                     >
                       <Plus size={13} /> Subir ahora
                     </button>
@@ -1611,47 +1768,55 @@ export default function CourseResources() {
               SECCIÓN 2: MATERIALES POR SESIÓN O CLASE
              ═════════════════════════════════════════════════════════════ */}
           {sessionFilter !== 'general' && filteredClass.length > 0 && (
-            <div>
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: '16px',
+              border: '1.5px solid #CBD5E1',
+              padding: '1.5rem',
+              boxShadow: '0 4px 16px rgba(20, 33, 61, 0.04)'
+            }}>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: '1rem',
+                marginBottom: '1.25rem',
                 flexWrap: 'wrap',
-                gap: '0.5rem',
-                paddingBottom: '0.6rem',
-                borderBottom: '1px solid #E2E8F0'
+                gap: '0.75rem',
+                paddingBottom: '0.85rem',
+                borderBottom: '1.5px solid #E2E8F0'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                   <div style={{
-                    width: '36px', height: '36px', borderRadius: '10px',
-                    background: '#F1F5F9',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy, #14213D)'
+                    width: '42px', height: '42px', borderRadius: '12px',
+                    background: 'linear-gradient(135deg, var(--navy, #14213D) 0%, #1E3A8A 100%)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF',
+                    boxShadow: '0 3px 10px rgba(20, 33, 61, 0.25)'
                   }}>
-                    <Layers size={18} />
+                    <Layers size={22} />
                   </div>
                   <div>
-                    <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, color: 'var(--navy, #14213D)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.24rem', fontWeight: 800, color: 'var(--navy, #14213D)', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                       <span>
                         {sessionFilter !== 'all'
                           ? (sessionsList.find(s => String(s.id) === String(sessionFilter))?.title || 'Materiales de la Sesión')
-                          : 'Materiales por Sesión'}
+                          : 'Materiales por Sesión de Clase'}
                       </span>
                       <span style={{
                         fontSize: '0.72rem',
-                        padding: '2px 8px',
+                        padding: '2px 9px',
                         borderRadius: '999px',
-                        background: '#F1F5F9',
-                        color: 'var(--navy, #14213D)',
-                        fontWeight: 700
+                        background: '#EFF6FF',
+                        color: '#1D4ED8',
+                        fontWeight: 700,
+                        border: '1px solid #BFDBFE'
                       }}>
                         {filteredClass.length} {filteredClass.length === 1 ? 'material' : 'materiales'}
                       </span>
                     </h2>
-                    <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
                       {sessionFilter !== 'all'
                         ? 'Presentaciones, lecturas y recursos asignados a esta sesión.'
-                        : 'Presentaciones y lecturas asociadas a sesiones de clase específicas.'}
+                        : 'Presentaciones, lecturas y enlaces asociados a sesiones de clase específicas.'}
                     </span>
                   </div>
                 </div>
@@ -1669,7 +1834,7 @@ export default function CourseResources() {
                       }
                     }}
                     className="btn btn-outline"
-                    style={{ fontSize: '0.78rem', padding: '0.35rem 0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                   >
                     <Plus size={13} /> Subir Material a Clase
                   </button>
