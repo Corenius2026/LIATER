@@ -890,66 +890,60 @@ function TeacherPortal({ getDiplomadoLink }) {
         
         {/* ── HERO BANNER INSTITUCIONAL ── */}
         <div style={{
-          background: '#FFFFFF',
+          background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
           borderRadius: '16px',
           padding: '1.75rem 2rem',
-          border: '1px solid #E2E8F0',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1.25rem',
-          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+          boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+          color: '#FFFFFF',
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
-              <span style={{
-                background: '#F1F5F9',
-                color: 'var(--navy, #14213D)',
-                fontSize: '0.74rem',
-                fontWeight: 800,
-                padding: '3px 10px',
-                borderRadius: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em'
-              }}>
-                🏛️ GESTIÓN ACADÉMICA · PORTAL DOCENTE UNAL
-              </span>
-              <span style={{
-                background: '#DCFCE7',
-                color: '#007A2E',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '10px'
-              }}>
-                ● Asignaciones Activas
-              </span>
-            </div>
+          {/* Glow sutil de acento */}
+          <div style={{
+            position: 'absolute',
+            top: '-40px',
+            right: '-40px',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+            pointerEvents: 'none'
+          }} />
 
-            <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Mis Programas Asignados
             </h1>
-            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
-              Administra tus diplomados, prepara tus sesiones de clase y acompaña el progreso académico de tus estudiantes.
+            <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
+              Administra tus diplomados y cursos, prepara tus sesiones de clase y acompaña el progreso académico de tus estudiantes.
             </p>
           </div>
 
           <div style={{
-            background: '#F8FAFC',
+            background: 'rgba(255, 255, 255, 0.08)',
+            backdropFilter: 'blur(8px)',
             padding: '0.75rem 1.15rem',
             borderRadius: '12px',
-            border: '1px solid #E2E8F0',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.85rem'
+            gap: '0.85rem',
+            position: 'relative',
+            zIndex: 1,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
               borderRadius: '10px',
-              background: 'rgba(20,33,61,0.06)',
-              color: 'var(--navy, #14213D)',
+              background: 'rgba(252, 163, 17, 0.15)',
+              color: 'var(--gold, #FCA311)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -957,10 +951,10 @@ function TeacherPortal({ getDiplomadoLink }) {
               <BookOpen size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Total Asignados
               </div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
                 {diplomas.length} {diplomas.length === 1 ? 'Programa' : 'Programas'}
               </div>
             </div>
@@ -1291,66 +1285,60 @@ function TeacherPortal({ getDiplomadoLink }) {
         
         {/* ── HERO BANNER INSTITUCIONAL ── */}
         <div style={{
-          background: '#FFFFFF',
+          background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
           borderRadius: '16px',
           padding: '1.75rem 2rem',
-          border: '1px solid #E2E8F0',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1.25rem',
-          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+          boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+          color: '#FFFFFF',
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
-              <span style={{
-                background: '#F1F5F9',
-                color: 'var(--navy, #14213D)',
-                fontSize: '0.74rem',
-                fontWeight: 800,
-                padding: '3px 10px',
-                borderRadius: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em'
-              }}>
-                🏛️ CRONOGRAMA ACADÉMICO · PORTAL DOCENTE UNAL
-              </span>
-              <span style={{
-                background: upcomingClasses.length > 0 ? '#DCFCE7' : '#F1F5F9',
-                color: upcomingClasses.length > 0 ? '#007A2E' : '#64748B',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '10px'
-              }}>
-                {upcomingClasses.length > 0 ? `● ${upcomingClasses.length} Sesiones Programadas` : '● Sin Clases Pendientes'}
-              </span>
-            </div>
+          {/* Glow sutil de acento */}
+          <div style={{
+            position: 'absolute',
+            top: '-40px',
+            right: '-40px',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+            pointerEvents: 'none'
+          }} />
 
-            <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Agenda de Clases y Sesiones
             </h1>
-            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+            <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
               Consulta tu programación sincrónica, conéctate a las aulas virtuales y gestiona el material pedagógico.
             </p>
           </div>
 
           <div style={{
-            background: '#F8FAFC',
+            background: 'rgba(255, 255, 255, 0.08)',
+            backdropFilter: 'blur(8px)',
             padding: '0.75rem 1.15rem',
             borderRadius: '12px',
-            border: '1px solid #E2E8F0',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.85rem'
+            gap: '0.85rem',
+            position: 'relative',
+            zIndex: 1,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
               borderRadius: '10px',
-              background: 'rgba(20,33,61,0.06)',
-              color: 'var(--navy, #14213D)',
+              background: 'rgba(252, 163, 17, 0.15)',
+              color: 'var(--gold, #FCA311)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -1358,10 +1346,10 @@ function TeacherPortal({ getDiplomadoLink }) {
               <CalendarClock size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Próximos 7 Días
               </div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
                 {classesThisWeek.length} {classesThisWeek.length === 1 ? 'Clase' : 'Clases'}
               </div>
             </div>
@@ -1722,66 +1710,60 @@ function TeacherPortal({ getDiplomadoLink }) {
         
         {/* ── HERO BANNER INSTITUCIONAL ── */}
         <div style={{
-          background: '#FFFFFF',
+          background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
           borderRadius: '16px',
           padding: '1.75rem 2rem',
-          border: '1px solid #E2E8F0',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1.25rem',
-          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+          boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+          color: '#FFFFFF',
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '6px', flexWrap: 'wrap' }}>
-              <span style={{
-                background: '#F1F5F9',
-                color: 'var(--navy, #14213D)',
-                fontSize: '0.74rem',
-                fontWeight: 800,
-                padding: '3px 10px',
-                borderRadius: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em'
-              }}>
-                🏛️ BANDEJA DE CONSULTAS · PORTAL DOCENTE UNAL
-              </span>
-              <span style={{
-                background: countTotalPending === 0 ? '#DCFCE7' : '#FEF3C7',
-                color: countTotalPending === 0 ? '#007A2E' : '#92400E',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '10px'
-              }}>
-                {countTotalPending === 0 ? '● Al Día' : `● ${countTotalPending} Pendientes`}
-              </span>
-            </div>
+          {/* Glow sutil de acento */}
+          <div style={{
+            position: 'absolute',
+            top: '-40px',
+            right: '-40px',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+            pointerEvents: 'none'
+          }} />
 
-            <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.65rem', fontWeight: 800, margin: 0, lineHeight: 1.25 }}>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Bandeja de Consultas Académicas
             </h1>
-            <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+            <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
               Atiende y gestiona las dudas formuladas por los estudiantes en tus diplomados y clases asignadas.
             </p>
           </div>
 
           <div style={{
-            background: '#F8FAFC',
+            background: 'rgba(255, 255, 255, 0.08)',
+            backdropFilter: 'blur(8px)',
             padding: '0.75rem 1.15rem',
             borderRadius: '12px',
-            border: '1px solid #E2E8F0',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.85rem'
+            gap: '0.85rem',
+            position: 'relative',
+            zIndex: 1,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
               borderRadius: '10px',
-              background: countNew > 0 ? '#FEF3C7' : 'rgba(20,33,61,0.06)',
-              color: countNew > 0 ? '#92400E' : 'var(--navy, #14213D)',
+              background: countNew > 0 ? 'rgba(252, 163, 17, 0.22)' : 'rgba(255, 255, 255, 0.1)',
+              color: countNew > 0 ? 'var(--gold, #FCA311)' : 'rgba(255, 255, 255, 0.85)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -1789,10 +1771,10 @@ function TeacherPortal({ getDiplomadoLink }) {
               <MessageSquareText size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748B)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Nuevas Consultas
               </div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
                 {countNew} {countNew === 1 ? 'Nueva' : 'Nuevas'}
               </div>
             </div>
