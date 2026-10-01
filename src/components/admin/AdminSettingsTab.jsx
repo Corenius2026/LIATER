@@ -237,14 +237,56 @@ export default function AdminSettingsTab() {
   const isButtonDisabled = saving || uploadingCover;
 
   return (
-    <div style={{ maxWidth: '800px' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '0.25rem' }}>
-          Configurar Curso
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Actualiza la información básica, enlaces y la carpeta de almacenamiento de Google Drive para este programa.
-        </p>
+    <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
+      {/* ── HEADER DE PESTAÑA UNIFORME EN BLANCO ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        padding: '1.25rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+        marginBottom: '1.5rem'
+      }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', letterSpacing: '-0.01em' }}>
+            Configuración del Programa
+          </h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#64748B' }}>
+            Actualiza los datos del programa, enlaces de sesión y carpetas de Google Drive.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button
+            type="submit"
+            form="admin-settings-form"
+            disabled={isButtonDisabled}
+            style={{
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              padding: '0.45rem 1.15rem',
+              borderRadius: '8px',
+              cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
+              opacity: isButtonDisabled ? 0.7 : 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Save size={15} />
+            <span>{saving ? 'Guardando...' : 'Guardar Cambios'}</span>
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -254,7 +296,7 @@ export default function AdminSettingsTab() {
         </div>
       )}
 
-      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <form id="admin-settings-form" onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '850px' }}>
         <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           <div>

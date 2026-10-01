@@ -598,22 +598,70 @@ export default function CourseBuilder({ modules, sessions, classes, teachers, pr
 
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      {/* ── HEADER DE PESTAÑA UNIFORME EN BLANCO ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        padding: '1.25rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+        marginBottom: '1.5rem'
+      }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy)', margin: 0 }}>Course Builder (Syllabus)</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.2rem 0 0 0' }}>Gestiona la estructura academica de forma jerarquica.</p>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', letterSpacing: '-0.01em' }}>
+            Constructor Académico (Syllabus)
+          </h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#64748B' }}>
+            Estructura y organiza los módulos, sesiones y clases en vivo del programa académico.
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+
+        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
           {!isCourse && (
-            <button onClick={() => setModals({ type: 'module', data: null, isOpen: true })} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-              <Plus size={16} /> Modulo
+            <button
+              onClick={() => setModals({ type: 'module', data: null, isOpen: true })}
+              style={{
+                background: 'var(--gold, #FCA311)',
+                color: 'var(--navy, #14213D)',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                padding: '0.45rem 1rem',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <Plus size={15} />
+              <span>Nuevo Módulo</span>
             </button>
           )}
-          <button onClick={() => setModals({ type: 'session', data: null, isOpen: true })} className="btn" style={{ background: 'white', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-            <Plus size={16} /> Sesion
+          <button
+            onClick={() => setModals({ type: 'session', data: null, isOpen: true })}
+            className="btn btn-outline"
+            style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <Plus size={14} />
+            <span>Nueva Sesión</span>
           </button>
-          <button onClick={() => openCreateClass(null)} className="btn" style={{ background: 'white', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-            <Plus size={16} /> Clase
+          <button
+            onClick={() => openCreateClass(null)}
+            className="btn btn-outline"
+            style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <Plus size={14} />
+            <span>Programar Clase</span>
           </button>
         </div>
       </div>

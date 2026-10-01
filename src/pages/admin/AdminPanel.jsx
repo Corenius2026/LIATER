@@ -259,17 +259,38 @@ export default function AdminPanel() {
 
   return (
     <div>
-      <div style={{ marginBottom: '1rem' }}>
-        <Link to="/portal" className="btn btn-outline" style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}>
-          <ArrowLeft size={14} /> Volver a Programas
-        </Link>
-      </div>
-
-      <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 className="page-title">Panel de Administración: {data.program?.title || 'Cargando...'}</h1>
-          <p className="page-description">Gestiona todos los recursos y contenidos del {isCourse ? 'curso' : 'diplomado'} desde un solo lugar.</p>
+      {/* ── BARRA SUPERIOR DE NAVEGACIÓN Y CONTEXTO DEL PROGRAMA ── */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1rem',
+        flexWrap: 'wrap',
+        gap: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <Link
+            to="/portal"
+            className="btn btn-outline"
+            style={{
+              fontSize: '0.82rem',
+              padding: '0.4rem 0.85rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              borderRadius: '8px',
+              fontWeight: 600,
+              background: '#FFFFFF'
+            }}
+          >
+            <ArrowLeft size={14} /> Volver a Programas
+          </Link>
+          <span style={{ color: '#CBD5E1' }}>|</span>
+          <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+            {data.program?.title || 'Cargando programa...'}
+          </span>
         </div>
+
         {activeLiveMeetUrl && (
           <a
             href={activeLiveMeetUrl}
@@ -278,21 +299,21 @@ export default function AdminPanel() {
             style={{
               background: '#FCA311',
               color: '#14213D',
-              padding: '0.45rem 1rem',
-              borderRadius: '6px',
-              fontSize: '0.85rem',
+              padding: '0.42rem 0.95rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
               fontWeight: 700,
               textDecoration: 'none',
               display: 'flex',
               alignItems: 'center',
               gap: '0.4rem',
-              boxShadow: '0 2px 4px rgba(252,163,17,0.2)',
+              boxShadow: '0 2px 6px rgba(252,163,17,0.25)',
               transition: 'all 0.2s ease'
             }}
             onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
             onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            <Video size={16} /> Unirse a la sesión en vivo
+            <Video size={15} /> Unirse a la sesión en vivo
           </a>
         )}
       </div>

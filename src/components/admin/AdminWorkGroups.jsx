@@ -521,6 +521,57 @@ NOTIFY pgrst, 'reload schema';`;
         </div>
       )}
 
+      {/* ── HEADER DE PESTAÑA UNIFORME EN BLANCO ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        padding: '1.25rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+        marginBottom: '1.5rem'
+      }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', letterSpacing: '-0.01em' }}>
+            Grupos de Trabajo y Equipos
+          </h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#64748B' }}>
+            Organiza a los estudiantes en equipos colaborativos, asigna líderes y supervisa sus entregables de clase.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            style={{
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              padding: '0.45rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <Plus size={15} />
+            <span>Crear Grupo</span>
+          </button>
+        </div>
+      </div>
+
       {/* ── BARRA SUPERIOR DE ACCIONES Y CONTADORES ── */}
       <div style={{
         display: 'grid',

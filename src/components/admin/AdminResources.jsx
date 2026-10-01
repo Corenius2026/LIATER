@@ -426,20 +426,20 @@ export default function AdminResources({ programId, programTitle, programClasses
       <div style={{
         background: '#FFFFFF',
         borderRadius: '14px',
-        padding: '1.25rem 1.5rem',
+        padding: '1.25rem 1.75rem',
         border: '1px solid #E2E8F0',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: '1rem',
-        boxShadow: '0 1px 3px rgba(20,33,61,0.03)'
+        boxShadow: '0 1px 3px rgba(20,33,61,0.04)'
       }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', letterSpacing: '-0.01em' }}>
             Material y Recursos del Curso
           </h2>
-          <p style={{ margin: '3px 0 0 0', fontSize: '0.84rem', color: '#64748B' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#64748B' }}>
             Gestiona guías transversales, presentaciones de clases, enlaces de interés y documentos de estudio.
           </p>
         </div>

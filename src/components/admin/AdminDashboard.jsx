@@ -96,50 +96,64 @@ export default function AdminDashboard({
         </a>
       )}
 
-      {/* BADGE PUBLICACION + CTA */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-        {isPublished ? (
-          <span style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            background: "#f0fdf4", color: "#16a34a",
-            border: "1px solid #bbf7d0", borderRadius: "20px",
-            padding: "0.3rem 0.85rem", fontSize: "0.78rem", fontWeight: 700
-          }}>
-            <CheckCircle size={14} /> Programa publicado — visible para estudiantes
-          </span>
-        ) : (
-          <span style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            background: "#fffbe6", color: "#d97706",
-            border: "1px solid #fca311", borderRadius: "20px",
-            padding: "0.3rem 0.85rem", fontSize: "0.78rem", fontWeight: 700
-          }}>
-            <EyeOff size={14} /> Programa en borrador — no visible para estudiantes
-          </span>
-        )}
+      {/* ── HEADER DE PESTAÑA UNIFORME EN BLANCO ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        padding: '1.25rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
+      }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', letterSpacing: '-0.01em' }}>
+            Panorama General del {isCourse ? 'Curso' : 'Diplomado'}
+          </h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#64748B' }}>
+            Supervisa las métricas clave, el avance pedagógico y los accesos rápidos a la gestión académica.
+          </p>
+        </div>
 
-        {onTogglePublish && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           <button
-            onClick={onTogglePublish}
-            style={{
-              background: isPublished ? "#fee2e2" : "#f0fdf4",
-              color: isPublished ? "#dc2626" : "#16a34a",
-              border: "1px solid " + (isPublished ? "#fecaca" : "#bbf7d0"),
-              borderRadius: "20px",
-              padding: "0.3rem 0.85rem",
-              fontSize: "0.78rem", fontWeight: 700,
-              cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
-              transition: "opacity 0.18s",
-            }}
-            onMouseOver={e => e.currentTarget.style.opacity = "0.75"}
-            onMouseOut={e  => e.currentTarget.style.opacity = "1"}
+            type="button"
+            onClick={() => onTabChange && onTabChange('curriculum')}
+            className="btn btn-outline"
+            style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            {isPublished
-              ? <><EyeOff size={13} /> Cambiar a borrador</>
-              : <><CheckCircle size={13} /> Publicar programa</>
-            }
+            <ListTree size={14} />
+            <span>Gestionar Syllabus</span>
           </button>
-        )}
+
+          <button
+            type="button"
+            onClick={() => onTabChange && onTabChange('alumnos')}
+            style={{
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              padding: '0.45rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <UserPlus size={15} />
+            <span>Inscribir Alumno</span>
+          </button>
+        </div>
       </div>
 
       {/* ESTADISTICAS (KPIs en Grid Horizontal) */}

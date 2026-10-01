@@ -164,11 +164,7 @@ export default function Forum() {
   }, [threads]);
 
   return (
-    <div style={{
-      maxWidth: '1040px',
-      margin: '0 auto',
-      padding: '1.75rem 1.25rem 3rem',
-    }}>
+    <div style={{ width: '100%', animation: 'fadeSlideUp 0.35s ease-out' }}>
 
       {/* ── ENCABEZADO MINIMALISTA INSTITUCIONAL ── */}
       <div style={{
@@ -188,39 +184,21 @@ export default function Forum() {
         }}>
           {/* Título y Contexto Académico */}
           <div style={{ maxWidth: '680px' }}>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: '#14213d',
-              background: 'rgba(20, 33, 61, 0.06)',
-              padding: '0.2rem 0.6rem',
-              borderRadius: '6px',
-              marginBottom: '0.5rem',
-            }}>
-              <GraduationCap size={13} color="var(--gold, #cca352)" />
-              <span>Foro Académico · LIATER</span>
-            </div>
-
             <h1 style={{
               margin: '0 0 0.35rem 0',
-              fontSize: '1.5rem',
+              fontSize: '1.25rem',
               fontWeight: 800,
-              color: 'var(--navy, #0b1528)',
-              letterSpacing: '-0.02em',
+              color: 'var(--navy, #14213D)',
+              letterSpacing: '-0.01em',
               lineHeight: 1.25,
             }}>
-              {programTitle || 'Diplomado Internacional en Tecnologías de la Información'}
+              Foro de Discusión y Consultas
             </h1>
 
             <p style={{
               margin: 0,
-              fontSize: '0.88rem',
-              color: '#64748b',
+              fontSize: '0.86rem',
+              color: '#64748B',
               lineHeight: 1.5,
             }}>
               Espacio oficial para resolver consultas académicas, compartir recursos y participar en debates de cátedra.

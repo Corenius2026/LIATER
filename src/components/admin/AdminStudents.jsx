@@ -346,18 +346,23 @@ export default function AlumnosTab({ enrolledStudents = [], programId, programTi
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
       
-      {/* HEADER SECTION: TITULO + BUSCADOR + BOTON */}
+      {/* ── HEADER DE PESTAÑA UNIFORME EN BLANCO ── */}
       <div style={{
-        marginBottom: '1.5rem',
+        background: '#FFFFFF',
+        borderRadius: '14px',
+        padding: '1.25rem 1.75rem',
+        border: '1px solid #E2E8F0',
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '1rem'
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+        marginBottom: '1.5rem'
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy, #14213D)', letterSpacing: '-0.01em' }}>
               Alumnos Inscritos
             </h2>
             <span style={{
@@ -371,7 +376,7 @@ export default function AlumnosTab({ enrolledStudents = [], programId, programTi
               {filtered.length}
             </span>
           </div>
-          <p style={{ color: '#64748B', fontSize: '0.84rem', margin: '4px 0 0 0' }}>
+          <p style={{ color: '#64748B', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
             Estudiantes que actualmente tienen acceso y matrícula activa en este programa.
           </p>
         </div>
@@ -379,7 +384,7 @@ export default function AlumnosTab({ enrolledStudents = [], programId, programTi
         {/* BARRA DE ACCIONES SUPERIOR */}
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* BUSCADOR */}
-          <div style={{ position: 'relative', minWidth: '260px' }}>
+          <div style={{ position: 'relative', minWidth: '240px' }}>
             <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
@@ -388,7 +393,7 @@ export default function AlumnosTab({ enrolledStudents = [], programId, programTi
               onChange={e => setSearchTerm(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.55rem 1rem 0.55rem 2.3rem',
+                padding: '0.45rem 1rem 0.45rem 2.3rem',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
                 fontSize: '0.84rem',
@@ -416,24 +421,24 @@ export default function AlumnosTab({ enrolledStudents = [], programId, programTi
             type="button"
             onClick={() => setShowEnrollDrawer(true)}
             style={{
-              fontSize: '0.84rem',
-              padding: '0.55rem 1.15rem',
-              display: 'flex',
+              fontSize: '0.82rem',
+              padding: '0.45rem 1rem',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: '0.45rem',
-              background: 'var(--navy, #14213D)',
-              color: '#FFFFFF',
+              background: 'var(--gold, #FCA311)',
+              color: 'var(--navy, #14213D)',
               border: 'none',
               borderRadius: '8px',
               cursor: 'pointer',
               fontWeight: 700,
-              boxShadow: '0 2px 6px rgba(20, 33, 61, 0.15)',
+              boxShadow: '0 2px 6px rgba(252, 163, 17, 0.3)',
               transition: 'all 0.15s ease'
             }}
-            onMouseOver={e => e.currentTarget.style.background = '#000000'}
-            onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            <Plus size={16} /> Inscribir Alumno
+            <Plus size={15} /> Inscribir Alumno
           </button>
         </div>
       </div>
