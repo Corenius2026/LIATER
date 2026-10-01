@@ -590,39 +590,9 @@ export default function Profile() {
           </div>
 
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', margin: 0, textTransform: 'capitalize', letterSpacing: '-0.01em' }}>
-                {personalData.full_name || (role === 'admin' ? 'Administrador LIATER' : role === 'teacher' ? 'Docente UNAL' : 'Estudiante LIATER')}
-              </h1>
-              <span style={{
-                background: role === 'teacher' 
-                  ? 'rgba(34, 197, 94, 0.18)' 
-                  : role === 'admin' 
-                    ? 'rgba(252, 163, 17, 0.18)' 
-                    : 'rgba(59, 130, 246, 0.2)',
-                color: role === 'teacher' 
-                  ? '#86EFAC' 
-                  : role === 'admin' 
-                    ? '#FDE047' 
-                    : '#93C5FD',
-                border: `1px solid ${role === 'teacher' ? 'rgba(134, 239, 172, 0.3)' : role === 'admin' ? 'rgba(253, 224, 71, 0.3)' : 'rgba(147, 197, 253, 0.3)'}`,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                padding: '2.5px 9px',
-                borderRadius: '9999px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px'
-              }}>
-                <span style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  background: role === 'teacher' ? '#86EFAC' : role === 'admin' ? '#FDE047' : '#93C5FD'
-                }} />
-                {role === 'teacher' ? 'Docente UNAL Activo' : role === 'admin' ? 'Administrador LIATER' : 'Estudiante LIATER'}
-              </span>
-            </div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#FFFFFF', margin: 0, textTransform: 'capitalize', letterSpacing: '-0.01em' }}>
+              {personalData.full_name || (role === 'admin' ? 'Administrador LIATER' : role === 'teacher' ? 'Docente UNAL' : 'Estudiante LIATER')}
+            </h1>
 
             <p style={{ color: 'rgba(255, 255, 255, 0.85)', display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '4px 0 0 0', fontSize: '0.85rem' }}>
               <Mail size={14} color="var(--gold, #FCA311)" /> {personalData.email || currentUser?.email}
