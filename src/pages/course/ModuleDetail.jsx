@@ -188,7 +188,7 @@ export default function ModuleDetail() {
       </div>
 
       {/* CONTENIDO Y SESIONES */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
         {sessions.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem', color: 'var(--text-muted)' }}>
             <BookOpen size={36} color="var(--gold-dark)" style={{ marginBottom: '0.5rem' }} />
@@ -197,26 +197,75 @@ export default function ModuleDetail() {
           </div>
         ) : (
           sessions.map((session, sIdx) => (
-            <div key={session.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
-                <div style={{
-                  width: '34px', height: '34px', borderRadius: 'var(--radius-md)',
-                  background: 'var(--gold-subtle)', color: 'var(--gold-dark)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 800, fontSize: '0.9rem', flexShrink: 0
-                }}>
-                  {session.order_index ?? (sIdx + 1)}
+            <div
+              key={session.id}
+              className="card static-card"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.1rem',
+                background: '#FFFFFF',
+                borderRadius: '14px',
+                border: '1.5px solid #CBD5E1',
+                borderLeft: '5px solid var(--navy, #14213D)',
+                boxShadow: '0 4px 16px rgba(20, 33, 61, 0.05)',
+                padding: '1.25rem 1.5rem'
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.85rem',
+                borderBottom: '1.5px solid #E2E8F0',
+                paddingBottom: '0.85rem',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #14213D 0%, #1E3A5F 100%)',
+                    color: 'var(--gold, #FCA311)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: '0.92rem',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 5px rgba(20, 33, 61, 0.15)'
+                  }}>
+                    {session.order_index ?? (sIdx + 1)}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--navy, #14213D)', margin: 0 }}>
+                      {session.title}
+                    </h3>
+                    {session.description && (
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                        {session.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>
-                    {session.title}
-                  </h3>
-                  {session.description && (
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                      {session.description}
-                    </p>
-                  )}
-                </div>
+
+                {session.classes && session.classes.length > 0 && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '20px',
+                    background: '#F1F5F9',
+                    border: '1px solid #E2E8F0',
+                    color: '#475569',
+                    fontSize: '0.74rem',
+                    fontWeight: 700
+                  }}>
+                    {session.classes.length} {session.classes.length === 1 ? 'clase' : 'clases'}
+                  </span>
+                )}
               </div>
 
               {/* LISTA DE CLASES DE LA SESIÓN */}
@@ -263,16 +312,28 @@ export default function ModuleDetail() {
 
                     return (
                     <div key={cls.id} style={{
-                      padding: '0.85rem 1rem',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: 'var(--radius-md)',
+                      padding: '0.9rem 1.15rem',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '10px',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      background: 'var(--surface-light)',
+                      background: '#F8FAFC',
                       gap: '1rem',
-                      flexWrap: 'wrap'
-                    }}>
+                      flexWrap: 'wrap',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseOver={e => {
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                      e.currentTarget.style.background = '#FFFFFF';
+                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.03)';
+                    }}
+                    onMouseOut={e => {
+                      e.currentTarget.style.borderColor = '#E2E8F0';
+                      e.currentTarget.style.background = '#F8FAFC';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    >
                       <div style={{ minWidth: 0, flex: '1 1 260px' }}>
                         <h4 style={{ fontWeight: 600, color: 'var(--navy)', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
                           {cls.title}
