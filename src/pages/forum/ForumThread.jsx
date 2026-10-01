@@ -106,6 +106,14 @@ export default function ForumThread() {
     fetchThread();
   }, [fetchThread]);
 
+  // Sincronizar contexto del programa para navegación del menú lateral
+  useEffect(() => {
+    if (thread?.program_id) {
+      localStorage.setItem('activeProgramId', String(thread.program_id));
+      window.dispatchEvent(new Event('programContextChanged'));
+    }
+  }, [thread?.program_id]);
+
   // Responder al hilo o a un post
   const handleSendReply = async () => {
     if (!replyBody.trim()) { setReplyError('Escribe tu respuesta.'); return; }

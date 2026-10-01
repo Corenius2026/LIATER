@@ -66,6 +66,15 @@ export default function Forum() {
     }
   };
 
+  // Sincronizar contexto del programa para navegación del menú lateral
+  useEffect(() => {
+    if (programId) {
+      const cleanId = decodeURIComponent(programId).trim();
+      localStorage.setItem('activeProgramId', cleanId);
+      window.dispatchEvent(new Event('programContextChanged'));
+    }
+  }, [programId]);
+
   // Obtener título del programa
   useEffect(() => {
     if (!programId) return;

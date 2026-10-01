@@ -10130,6 +10130,16 @@ export default function TeacherPanel() {
     setActiveTab(tabFromUrl || 'resumen');
   }, [searchParams]);
 
+  // Sincronizar contexto de programa activo para navegación consistente del menú lateral
+  useEffect(() => {
+    if (programId) {
+      const cleanId = decodeURIComponent(programId).trim();
+      localStorage.setItem('activeProgramId', cleanId);
+      localStorage.setItem('activeProgramRole', 'teacher');
+      window.dispatchEvent(new Event('programContextChanged'));
+    }
+  }, [programId]);
+
   // Función centralizada de cambio de pestaña con soporte de deep-link a duda específica
   const handleChangeTab = (tabId, doubtId = null) => {
     setActiveTab(tabId);
@@ -10166,7 +10176,13 @@ export default function TeacherPanel() {
           .select('*')
           .eq('id', programId)
           .maybeSingle();
-        if (data) setCurrentProgram(data);
+        if (data) {
+          setCurrentProgram(data);
+          if (data.program_type) {
+            localStorage.setItem('activeProgramType', data.program_type);
+            window.dispatchEvent(new Event('programContextChanged'));
+          }
+        }
 
         // Cargar clases del programa para determinar si hay clase en vivo activa (faltando 10 min o en curso)
         const { data: clsData } = await supabase

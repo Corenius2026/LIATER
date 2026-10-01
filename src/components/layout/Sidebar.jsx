@@ -103,8 +103,26 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
         {/* --- MENÚ PROFESOR (GLOBAL O CONTEXTUAL DE CURSO) --- */}
         {role === 'teacher' ? (
           (() => {
-            const isTeacherCourse = location.pathname.startsWith('/dashboard/profesor/');
-            const teacherProgId = isTeacherCourse ? location.pathname.split('/dashboard/profesor/')[1]?.split('?')[0]?.split('/')[0] : null;
+            const isTeacherDashboard = location.pathname.startsWith('/dashboard/profesor/');
+            const isForoPage = location.pathname.startsWith('/foro/');
+            const isForoHilo = location.pathname.startsWith('/foro/hilo/');
+
+            // Extraer ID del programa del profesor
+            let teacherProgId = null;
+            if (isTeacherDashboard) {
+              teacherProgId = location.pathname.split('/dashboard/profesor/')[1]?.split('?')[0]?.split('/')[0];
+            } else if (isForoPage && !isForoHilo) {
+              teacherProgId = location.pathname.split('/foro/')[1]?.split('?')[0]?.split('/')[0];
+            } else if (isForoHilo) {
+              teacherProgId = activeProgramId;
+            }
+
+            // Fallback al activeProgramId si estamos en el foro y no se extrajo directamente
+            if (!teacherProgId && isForoPage && activeProgramId) {
+              teacherProgId = activeProgramId;
+            }
+
+            const isTeacherCourse = Boolean(teacherProgId && !isGlobalRoute && (isTeacherDashboard || isForoPage));
             const currentTab = new URLSearchParams(location.search).get('tab') || 'resumen';
 
             if (isTeacherCourse && teacherProgId) {
@@ -112,7 +130,13 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                 <>
                   <button
                     type="button"
-                    onClick={() => navigate('/portal')}
+                    onClick={() => {
+                      if (onCloseMobile) onCloseMobile();
+                      localStorage.removeItem('activeProgramId');
+                      localStorage.removeItem('activeProgramRole');
+                      window.dispatchEvent(new Event('programContextChanged'));
+                      navigate('/portal');
+                    }}
                     className="nav-item back-to-portal-btn"
                     style={{
                       display: 'flex',
@@ -150,8 +174,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=resumen`}
-                    className={() => currentTab === 'resumen' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'resumen' ? 'page' : undefined}
+                    className={() => (currentTab === 'resumen' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'resumen' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <BookOpen size={18} />
                     <span>Panorama del Curso</span>
@@ -159,8 +184,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=clases`}
-                    className={() => currentTab === 'clases' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'clases' ? 'page' : undefined}
+                    className={() => (currentTab === 'clases' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'clases' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <Video size={18} />
                     <span>Mis Clases</span>
@@ -168,8 +194,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=recursos`}
-                    className={() => currentTab === 'recursos' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'recursos' ? 'page' : undefined}
+                    className={() => (currentTab === 'recursos' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'recursos' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <Paperclip size={18} />
                     <span>Material del Curso</span>
@@ -177,8 +204,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=grupos`}
-                    className={() => currentTab === 'grupos' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'grupos' ? 'page' : undefined}
+                    className={() => (currentTab === 'grupos' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'grupos' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <Users size={18} />
                     <span>Grupos de Trabajo</span>
@@ -186,8 +214,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=reforzamiento`}
-                    className={() => currentTab === 'reforzamiento' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'reforzamiento' ? 'page' : undefined}
+                    className={() => (currentTab === 'reforzamiento' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'reforzamiento' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <GraduationCap size={18} />
                     <span>Reforzamiento IA</span>
@@ -195,8 +224,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=dudas`}
-                    className={() => currentTab === 'dudas' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'dudas' ? 'page' : undefined}
+                    className={() => (currentTab === 'dudas' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'dudas' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <MessageSquare size={18} />
                     <span>Dudas y Consultas</span>
@@ -204,8 +234,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=anuncios`}
-                    className={() => currentTab === 'anuncios' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'anuncios' ? 'page' : undefined}
+                    className={() => (currentTab === 'anuncios' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'anuncios' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <Megaphone size={18} />
                     <span>Anuncios</span>
@@ -213,8 +244,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/foro/${teacherProgId}`}
-                    className={() => location.pathname === `/foro/${teacherProgId}` || location.pathname.startsWith('/foro/hilo/') ? 'nav-item active' : 'nav-item'}
-                    aria-current={location.pathname === `/foro/${teacherProgId}` ? 'page' : undefined}
+                    className={() => isForoPage ? 'nav-item active' : 'nav-item'}
+                    aria-current={isForoPage ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <MessagesSquare size={18} />
                     <span>Foro</span>
@@ -222,8 +254,9 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=estudiantes`}
-                    className={() => currentTab === 'estudiantes' ? 'nav-item active' : 'nav-item'}
-                    aria-current={currentTab === 'estudiantes' ? 'page' : undefined}
+                    className={() => (currentTab === 'estudiantes' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
+                    aria-current={(currentTab === 'estudiantes' && isTeacherDashboard) ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <Users size={18} />
                     <span>Estudiantes</span>
@@ -236,6 +269,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                     to="/perfil" 
                     className={() => location.pathname === '/perfil' ? 'nav-item active' : 'nav-item'}
                     aria-current={location.pathname === '/perfil' ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <UserCircle size={18} />
                     <span>Mi perfil</span>
@@ -245,6 +279,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
                     to="/soporte" 
                     className={() => location.pathname === '/soporte' ? 'nav-item active' : 'nav-item'}
                     aria-current={location.pathname === '/soporte' ? 'page' : undefined}
+                    onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <HelpCircle size={18} />
                     <span>Soporte técnico</span>
