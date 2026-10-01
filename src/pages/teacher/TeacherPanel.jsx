@@ -3727,32 +3727,6 @@ function ResumenTab({ onChangeTab }) {
               ))}
             </div>
           </div>
-          {/* Acceso rápido a secciones */}
-          <div className="card" style={{ padding: '1.5rem' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#14213D', fontSize: '1rem', fontWeight: 700 }}>Acceso rápido</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {[
-                { label: 'Mis Clases', tab: 'clases', icon: <Video size={14} /> },
-                { label: 'Reforzamiento IA', tab: 'reforzamiento', icon: <Brain size={14} /> },
-                { label: 'Dudas de estudiantes', tab: 'dudas', icon: <MessageSquare size={14} /> },
-                { label: 'Anuncios', tab: 'anuncios', icon: <Megaphone size={14} /> },
-                { label: 'Estudiantes', tab: 'estudiantes', icon: <Users size={14} /> },
-              ].map(({ label, tab, icon }) => (
-                <button key={tab} onClick={() => onChangeTab(tab)} style={{
-                  display: 'flex', alignItems: 'center', gap: '0.6rem',
-                  padding: '0.65rem 0.9rem', background: '#f8fafc',
-                  border: '1px solid #E5E5E5', borderRadius: '7px',
-                  color: '#14213D', fontSize: '0.83rem', fontWeight: 600,
-                  cursor: 'pointer', transition: 'all 0.2s ease', textAlign: 'left',
-                }}
-                  onMouseOver={e => { e.currentTarget.style.background = '#14213D'; e.currentTarget.style.color = '#FFFFFF'; e.currentTarget.style.borderColor = '#14213D'; }}
-                  onMouseOut={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#14213D'; e.currentTarget.style.borderColor = '#E5E5E5'; }}
-                >
-                  {icon} {label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
