@@ -296,11 +296,22 @@ export default function AdminSettingsTab() {
         </div>
       )}
 
-      <form id="admin-settings-form" onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '850px' }}>
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <form id="admin-settings-form" onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '14px',
+          border: '1px solid #E2E8F0',
+          padding: '1.75rem 2rem',
+          boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.35rem',
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
           
           <div>
-            <label htmlFor="settings-title-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
+            <label htmlFor="settings-title-input" style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)', marginBottom: '6px' }}>
               Título del Programa
             </label>
             <input 
@@ -309,12 +320,12 @@ export default function AdminSettingsTab() {
               value={title} 
               onChange={(e) => setTitle(e.target.value)} 
               required
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+              style={{ width: '100%', padding: '0.65rem 0.95rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', boxSizing: 'border-box' }}
             />
           </div>
 
           <div>
-            <label htmlFor="settings-description-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
+            <label htmlFor="settings-description-input" style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)', marginBottom: '6px' }}>
               Descripción
             </label>
             <textarea 
@@ -322,44 +333,46 @@ export default function AdminSettingsTab() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows="4"
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)', resize: 'vertical' }}
+              style={{ width: '100%', padding: '0.65rem 0.95rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', boxSizing: 'border-box', resize: 'vertical' }}
             />
           </div>
 
-          <div>
-            <label htmlFor="settings-meet-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', marginBottom: '8px' }}>
-              <Video size={16} /> Enlace Global de Clase en Vivo (Meet/Zoom)
-            </label>
-            <input 
-              id="settings-meet-input"
-              type="url"
-              placeholder="https://meet.google.com/..."
-              value={meetUrl}
-              onChange={(e) => setMeetUrl(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
-            />
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+            <div>
+              <label htmlFor="settings-meet-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)', marginBottom: '6px' }}>
+                <Video size={16} /> Enlace Global de Clase en Vivo (Meet/Zoom)
+              </label>
+              <input 
+                id="settings-meet-input"
+                type="url"
+                placeholder="https://meet.google.com/..."
+                value={meetUrl}
+                onChange={(e) => setMeetUrl(e.target.value)}
+                style={{ width: '100%', padding: '0.65rem 0.95rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', boxSizing: 'border-box' }}
+              />
+            </div>
 
-          <div>
-            <label htmlFor="settings-whatsapp-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', marginBottom: '8px' }}>
-              <MessageCircle size={16} /> ID Grupo WhatsApp (Bot)
-            </label>
-            <input 
-              id="settings-whatsapp-input"
-              type="text"
-              placeholder="Ej: 120363xxxxxxxx@g.us"
-              value={whatsappGroupId}
-              onChange={(e) => setWhatsappGroupId(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
-            />
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              El bot enviará recordatorios automáticos 10 horas antes de cada clase a este ID de grupo.
-            </p>
+            <div>
+              <label htmlFor="settings-whatsapp-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)', marginBottom: '6px' }}>
+                <MessageCircle size={16} /> ID Grupo WhatsApp (Bot)
+              </label>
+              <input 
+                id="settings-whatsapp-input"
+                type="text"
+                placeholder="Ej: 120363xxxxxxxx@g.us"
+                value={whatsappGroupId}
+                onChange={(e) => setWhatsappGroupId(e.target.value)}
+                style={{ width: '100%', padding: '0.65rem 0.95rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', boxSizing: 'border-box' }}
+              />
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                El bot enviará recordatorios automáticos 10 horas antes de cada clase a este ID de grupo.
+              </p>
+            </div>
           </div>
 
           {/* CARPETA DE GOOGLE DRIVE DEL CURSO */}
           <div>
-            <label htmlFor="settings-drive-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', marginBottom: '8px' }}>
+            <label htmlFor="settings-drive-input" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)', marginBottom: '6px' }}>
               <Folder size={16} /> Carpeta de Google Drive (Materiales y PDFs)
             </label>
             <input 
@@ -368,16 +381,16 @@ export default function AdminSettingsTab() {
               placeholder="https://drive.google.com/drive/folders/... o ID de la carpeta"
               value={driveFolderId}
               onChange={(e) => setDriveFolderId(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+              style={{ width: '100%', padding: '0.65rem 0.95rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', boxSizing: 'border-box' }}
             />
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
               Los PDFs y presentaciones que suban los profesores para las clases de este curso se guardarán automáticamente en esta carpeta.
             </p>
           </div>
 
           {/* SECCIÓN DE GESTIÓN DE PORTADA */}
           <div>
-            <label htmlFor="settings-cover-input" style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>
+            <label htmlFor="settings-cover-input" style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy, #14213D)', marginBottom: '6px' }}>
               Imagen de Portada
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -425,7 +438,7 @@ export default function AdminSettingsTab() {
             </div>
           </div>
           
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '1rem', paddingTop: '1.25rem', borderTop: '1px solid #F1F5F9' }}>
             <button 
               type="submit" 
               disabled={isButtonDisabled} 
