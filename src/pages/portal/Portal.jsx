@@ -2141,40 +2141,59 @@ function TeacherPortal({ getDiplomadoLink }) {
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
-      {/* ── BLOQUE 1: HERO BANNER INSTITUCIONAL ── */}
+      {/* ── BLOQUE 1: HERO BANNER INSTITUCIONAL EN AZUL OSCURO (#14213D) ── */}
       <div style={{
-        background: '#FFFFFF',
-        borderRadius: '16px',
-        padding: '1.75rem 2rem',
-        border: '1px solid #E2E8F0',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '1.25rem',
-        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+        padding: '1.75rem 2rem',
+        background: 'linear-gradient(135deg, #14213D 0%, #1A2B4C 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 10px 25px -5px rgba(20, 33, 61, 0.25), 0 8px 10px -6px rgba(20, 33, 61, 0.2)',
+        color: '#FFFFFF',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        <div>
-          <h1 style={{ color: 'var(--navy, #14213D)', fontSize: '1.8rem', fontWeight: 800, margin: 0, lineHeight: 1.25, textTransform: 'capitalize' }}>
+        {/* Glow sutil de acento */}
+        <div style={{
+          position: 'absolute',
+          top: '-40px',
+          right: '-40px',
+          width: '180px',
+          height: '180px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(252, 163, 17, 0.18) 0%, rgba(20, 33, 61, 0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'capitalize' }}>
             Hola, {teacherName || 'Profesor'}
           </h1>
-          <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.9rem', margin: '6px 0 0 0', fontWeight: 400, maxWidth: '650px', lineHeight: 1.45 }}>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45, maxWidth: '650px' }}>
             Centro de mando docente: Consulta tus sesiones, atiende las consultas de tus estudiantes y gestiona tus diplomados asignados.
           </p>
         </div>
 
         <div style={{
-          background: '#F8FAFC',
+          background: 'rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(8px)',
           padding: '0.65rem 1rem',
           borderRadius: '10px',
-          border: '1px solid #E2E8F0',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
           display: 'flex',
           alignItems: 'center',
           gap: '0.5rem',
-          color: 'var(--navy, #14213D)',
+          color: '#FFFFFF',
           fontSize: '0.82rem',
           fontWeight: 600,
-          textTransform: 'capitalize'
+          textTransform: 'capitalize',
+          position: 'relative',
+          zIndex: 1,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)'
         }}>
           <CalendarDays size={15} color="var(--gold, #FCA311)" />
           <span>{todayFormatted}</span>
