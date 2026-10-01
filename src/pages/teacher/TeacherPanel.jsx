@@ -3792,8 +3792,7 @@ function DudasTab() {
           *,
           class_sessions (
             id,
-            title,
-            session_id
+            title
           ),
           users_profile:student_id (
             id,
@@ -3821,7 +3820,7 @@ function DudasTab() {
       try {
         const { data: clsData } = await supabase
           .from('class_sessions')
-          .select('id, title, session_id, program_id')
+          .select('id, title, program_id')
           .eq('program_id', programId);
           
         const loadedClasses = clsData || [];
@@ -3873,7 +3872,7 @@ function DudasTab() {
             .from('class_doubts')
             .select(`
               *,
-              class_sessions (id, title, session_id),
+              class_sessions (id, title),
               users_profile:student_id (id, full_name, email)
             `)
             .in('class_id', classIds)
