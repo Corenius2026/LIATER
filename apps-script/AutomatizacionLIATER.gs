@@ -8,8 +8,9 @@
  * [Nivel 0: Carpeta Raíz] ➔ "PROGRAMAS - LIATER" (Configurada en ROOT_FOLDER_ID)
  *    ├── [Nivel 1: Categorías y Año] ➔ "LIATER - Cursos 2026", "LIATER - Diplomados 2026"
  *    │      ├── [Nivel 2: Cursos / Diplomados] ➔ "CUR-ILUM-2026-2 - Hospitalaria", "CUR-ILUM-2026-2 - Deportiva"
- *    │      │      └── [Nivel 3: Sesiones / Clases] ➔ "Sesión - 4", "Sesión - 5", etc.
- *    │      │             └── Grabaciones (.mp4), Transcripciones (.gdoc, .txt)
+ *    │      │      └── [Nivel 3: Sesiones] ➔ "Sesión - 4", "Sesión - 5", etc.
+ *    │      │             └── [Nivel 4: Clases] ➔ "Clase - 1", "Clase - 2", "Clase - 3", etc.
+ *    │      │                    └── Grabaciones (.mp4), Transcripciones (.gdoc, .txt)
  *    │      └── ℹ [Carpetas de utilería] ➔ "material", "plantillas", etc. (se ignoran automáticamente)
  * 
  * [Carpeta Origen Meet] ➔ "Meet Recordings" / "Grabaciones de Meet" (o MEET_RECORDINGS_FOLDER_ID)
@@ -19,11 +20,11 @@
  *    - [2026-2-CUR-ILUM-S04] : Año (2026), Semestre (2), Tipo (CUR), Código (ILUM), Sesión (S04 = Sesión 4)
  *    - Hospitalaria          : Nombre / Tema del curso (ubica la carpeta "CUR-ILUM-2026-2 - Hospitalaria")
  *    - 2026/09/30 17:54 GMT-05:00 : Fecha, hora exacta y zona horaria de la clase
- *    - Recording 3           : Parte o fragmento de la grabación
+ *    - Recording 3           : Parte de la grabación ➔ Corresponde a "Clase - 3" ("Recording" = Clase - 1)
  * 
  * FUNCIONES DISPONIBLES:
  * 1. `organizarGrabacionesDeMeet()`: Mueve grabaciones que cumplan la nomenclatura hacia su subcarpeta
- *    de sesión correspondiente (ej. "CUR-ILUM-2026-2 - Hospitalaria / Sesión - 4"). Ignora chats y archivos sin formato.
+ *    exacta de Sesión y Clase (ej. "CUR-ILUM-2026-2 - Hospitalaria / Sesión - 4 / Clase - 3").
  * 2. `sincronizarSoloVideos()`: Organiza grabaciones pendientes y vincula las URLs de video en Supabase.
  * 3. `procesarTranscripcionesEIA()`: Lee transcripciones y genera cuestionarios con Gemini.
  * 4. `ejecutarTodo()`: Ejecuta en orden: Organizar Grabaciones ➔ Sincronizar Videos ➔ Transcripciones IA.
@@ -45,17 +46,18 @@ var EDGE_FUNCTION_URL = "https://dbxkmasucybamylpkndm.supabase.co/functions/v1/a
 var QUESTION_COUNT = 5;
 
 // ============================================================================
-// 1. ORGANIZADOR: MOVER Y GUARDAR EN LA CARPETA DE SESIÓN CORRESPONDIENTE
+// 1. ORGANIZADOR: GUARDAR EN LA CARPETA DE SESIÓN Y CLASE CORRESPONDIENTE
 // ============================================================================
 
 /**
  * Escanea la carpeta de Google Meet y las carpetas de programas.
  * Solo procesa archivos que cumplan la nomenclatura estipulada (ej: [2026-2-CUR-ILUM-S04]).
- * Guarda cada archivo en la subcarpeta exacta de la sesión (ej. "Sesión - 4").
+ * Guarda cada archivo en la subcarpeta exacta de la Sesión y de la Clase:
+ * Ej: "CUR-ILUM-2026-2 - Hospitalaria / Sesión - 4 / Clase - 3"
  */
 function organizarGrabacionesDeMeet() {
   console.log("=================================================");
-  console.log("📂 ORGANIZANDO GRABACIONES EN CARPETAS DE SESIÓN");
+  console.log("📂 ORGANIZANDO GRABACIONES EN SESIONES Y CLASES");
   console.log("=================================================");
 
   var config = obtenerConfiguracion();
@@ -75,7 +77,7 @@ function organizarGrabacionesDeMeet() {
   var totalErrores = 0;
 
   // -------------------------------------------------------------
-  // PASO 1: Procesar archivos en la carpeta de Google Meet
+  // PASO 1: Procesar archivos nuevos en la carpeta de Google Meet
   // -------------------------------------------------------------
   var meetFolder = buscarCarpetaMeetRecordings(config.meetFolderId);
   if (meetFolder) {
@@ -84,14 +86,14 @@ function organizarGrabacionesDeMeet() {
       var file = iterMeet.next();
       var fileName = file.getName();
 
-      // FILTRO ESTRICTO: Solo procesar archivos que sigan la regla de nomenclatura estipulada
+      // FILTRO ESTRICTO: Solo procesar archivos que sigan la nomenclatura estipulada
       if (!cumpleNomenclaturaEstipulada(fileName)) {
-        continue; // Omitir silenciosamente chats, reuniones sin tag o de otros asuntos
+        continue; // Omitir silenciosamente chats y reuniones ajenas
       }
 
       totalEncontrados++;
       var info = parseNomenclaturaGrabacion(fileName);
-      console.log("\n-> Grabación encontrada: '" + fileName + "' (Sesión " + (info.sessionNumber || "?") + ")");
+      console.log("\n-> Grabación detectada en Meet: '" + fileName + "' (Sesión " + (info.sessionNumber || "?") + " - Clase " + info.classNumber + ")");
 
       var progDestino = encontrarProgramaParaGrabacion(programas, info);
       if (!progDestino) {
@@ -100,24 +102,27 @@ function organizarGrabacionesDeMeet() {
         continue;
       }
 
-      // Buscar o crear la carpeta de la sesión (ej: "Sesión - 4")
+      // 1. Obtener/crear la carpeta de la Sesión (ej: "Sesión - 4")
       var carpetaSesion = encontrarOCrearCarpetaSesion(progDestino.carpeta, info.sessionNumber);
-      var exito = moverArchivo(file, carpetaSesion);
 
+      // 2. Obtener/crear la carpeta de la Clase (ej: "Clase - 3")
+      var carpetaClase = encontrarOCrearCarpetaClase(carpetaSesion, info.classNumber);
+
+      var exito = moverArchivo(file, carpetaClase);
       if (exito) {
         totalGuardados++;
         garantizarPermisosDeLectura(file);
-        console.log("   ✓ Guardado con éxito en: '" + progDestino.nombre + " / " + carpetaSesion.getName() + "'");
+        console.log("   ✓ Guardado con éxito en: '" + progDestino.nombre + " / " + carpetaSesion.getName() + " / " + carpetaClase.getName() + "'");
 
         if (config.logSheet) {
           registrarEnLog(
             config.logSheet,
             file.getId(),
             fileName,
-            carpetaSesion.getId(),
-            carpetaSesion.getName(),
+            carpetaClase.getId(),
+            carpetaClase.getName(),
             "GUARDADO_OK",
-            "Guardado en " + progDestino.nombre + " / " + carpetaSesion.getName(),
+            "Guardado en " + progDestino.nombre + " / " + carpetaSesion.getName() + " / " + carpetaClase.getName(),
             progDestino.nombre,
             progDestino.tipo,
             progDestino.anio
@@ -125,14 +130,13 @@ function organizarGrabacionesDeMeet() {
         }
       } else {
         totalErrores++;
-        console.error("   ✗ Error al guardar el archivo en '" + carpetaSesion.getName() + "'");
+        console.error("   ✗ Error al guardar el archivo en '" + carpetaClase.getName() + "'");
       }
     }
   }
 
   // -------------------------------------------------------------
-  // PASO 2: Revisar si hay grabaciones en la raíz del curso
-  // (por si quedaron directamente en la carpeta del curso sin entrar a "Sesión - X")
+  // PASO 2: Revisar si hay grabaciones sueltas en la raíz del curso
   // -------------------------------------------------------------
   for (var p = 0; p < programas.length; p++) {
     var prog = programas[p];
@@ -142,29 +146,74 @@ function organizarGrabacionesDeMeet() {
       var f = filesEnRaizCurso.next();
       var fn = f.getName();
 
-      if (!cumpleNomenclaturaEstipulada(fn)) {
-        continue;
-      }
+      if (!cumpleNomenclaturaEstipulada(fn)) continue;
 
       var infoF = parseNomenclaturaGrabacion(fn);
       if (infoF && infoF.sessionNumber) {
         var sesionFolder = encontrarOCrearCarpetaSesion(prog.carpeta, infoF.sessionNumber);
+        var claseFolder = encontrarOCrearCarpetaClase(sesionFolder, infoF.classNumber);
 
-        // Verificar si ya está dentro de la carpeta de la sesión
         var parents = f.getParents();
         var parentIdActual = parents.hasNext() ? parents.next().getId() : "";
 
-        if (parentIdActual !== sesionFolder.getId()) {
+        if (parentIdActual !== claseFolder.getId()) {
           totalEncontrados++;
-          console.log("\n-> Grabación en raíz del curso: '" + fn + "' (Sesión " + infoF.sessionNumber + ")");
-          var ok = moverArchivo(f, sesionFolder);
+          console.log("\n-> Grabación suelta en raíz del curso: '" + fn + "' (Sesión " + infoF.sessionNumber + " - Clase " + infoF.classNumber + ")");
+          var ok = moverArchivo(f, claseFolder);
           if (ok) {
             totalGuardados++;
             garantizarPermisosDeLectura(f);
-            console.log("   ✓ Guardado con éxito en: '" + prog.nombre + " / " + sesionFolder.getName() + "'");
+            console.log("   ✓ Guardado con éxito en: '" + prog.nombre + " / " + sesionFolder.getName() + " / " + claseFolder.getName() + "'");
           } else {
             totalErrores++;
-            console.error("   ✗ Error al guardar en la subcarpeta de sesión");
+            console.error("   ✗ Error al mover a la subcarpeta de clase");
+          }
+        }
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // PASO 3: Revisar si hay grabaciones sueltas dentro de "Sesión - X"
+  // (para moverlas dentro de su respectiva subcarpeta "Clase - Y")
+  // -------------------------------------------------------------
+  for (var p2 = 0; p2 < programas.length; p2++) {
+    var prg = programas[p2];
+    var subcarpetasProg = prg.carpeta.getFolders();
+
+    while (subcarpetasProg.hasNext()) {
+      var subSesion = subcarpetasProg.next();
+      var numSesion = extraerNumeroSesionCarpeta(subSesion.getName());
+
+      // Si es una carpeta de sesión (ej: "Sesión - 4")
+      if (numSesion) {
+        var filesEnSesion = subSesion.getFiles();
+
+        while (filesEnSesion.hasNext()) {
+          var fS = filesEnSesion.next();
+          var fnS = fS.getName();
+
+          if (!cumpleNomenclaturaEstipulada(fnS)) continue;
+
+          var infoS = parseNomenclaturaGrabacion(fnS);
+          var destinoClase = encontrarOCrearCarpetaClase(subSesion, infoS.classNumber);
+
+          // Verificar si ya está dentro de la carpeta de la clase
+          var pS = fS.getParents();
+          var idActual = pS.hasNext() ? pS.next().getId() : "";
+
+          if (idActual !== destinoClase.getId()) {
+            totalEncontrados++;
+            console.log("\n-> Grabación suelta en '" + subSesion.getName() + "': '" + fnS + "' (Clase " + infoS.classNumber + ")");
+            var okClase = moverArchivo(fS, destinoClase);
+            if (okClase) {
+              totalGuardados++;
+              garantizarPermisosDeLectura(fS);
+              console.log("   ✓ Guardado con éxito en: '" + prg.nombre + " / " + subSesion.getName() + " / " + destinoClase.getName() + "'");
+            } else {
+              totalErrores++;
+              console.error("   ✗ Error al guardar en " + destinoClase.getName());
+            }
           }
         }
       }
@@ -194,7 +243,7 @@ function sincronizarSoloVideos() {
   var rootFolder = abrirCarpetaRaiz(config.rootFolderId);
   if (!rootFolder) return;
 
-  // Paso previo automático: Organizar archivos en sus respectivas carpetas de sesión
+  // Paso previo automático: Organizar archivos en sus carpetas de sesión y clase
   try {
     organizarGrabacionesDeMeet();
   } catch (eMeet) {
@@ -244,6 +293,7 @@ function sincronizarSoloVideos() {
           program_year: prog.anio,
           category_name: prog.categoriaNombre,
           session_number: nom ? nom.sessionNumber : null,
+          class_number: nom ? nom.classNumber : 1,
           class_date: nom ? nom.isoDateString : null,
           recording_date: nom ? nom.formattedDate : null,
           recording_part: nom ? nom.recordingPart : 1,
@@ -371,6 +421,7 @@ function procesarTranscripcionesEIA() {
           program_year: prog.anio,
           category_name: prog.categoriaNombre,
           session_number: nom ? nom.sessionNumber : null,
+          class_number: nom ? nom.classNumber : 1,
           class_date: nom ? nom.isoDateString : null,
           recording_date: nom ? nom.formattedDate : null,
           recording_part: nom ? nom.recordingPart : 1,
@@ -409,7 +460,7 @@ function procesarTranscripcionesEIA() {
 
 function ejecutarTodo() {
   console.log("=================================================");
-  console.log("🚀 EJECUCIÓN TOTAL: Organizar Meet + Videos + Transcripciones");
+  console.log("🚀 EJECUCIÓN TOTAL: Organizar Grabaciones + Videos + Transcripciones");
   console.log("=================================================");
   organizarGrabacionesDeMeet();
   sincronizarSoloVideos();
@@ -430,7 +481,7 @@ function configurarActivadores() {
     .create();
 
   console.log("✓ Activadores configurados con éxito:");
-  console.log("  - sincronizarSoloVideos: Cada 30 minutos (organiza y vincula)");
+  console.log("  - sincronizarSoloVideos: Cada 30 minutos (organiza en Sesión/Clase y vincula)");
   console.log("  - procesarTranscripcionesEIA: Cada 2 horas");
 }
 
@@ -470,7 +521,7 @@ function diagnosticarEstructura() {
       if (!cumpleNomenclaturaEstipulada(mf.getName())) continue;
       countMeet++;
       var infoM = parseNomenclaturaGrabacion(mf.getName());
-      console.log("  [" + countMeet + "] " + mf.getName() + " ➔ Sesión " + (infoM.sessionNumber || "?") + " (" + (infoM.topic || "N/A") + ")");
+      console.log("  [" + countMeet + "] " + mf.getName() + " ➔ Sesión " + (infoM.sessionNumber || "?") + " - Clase " + infoM.classNumber + " (" + (infoM.topic || "N/A") + ")");
     }
     if (countMeet === 0) {
       console.log("  ℹ No hay grabaciones con nomenclatura estipulada pendientes en Meet.");
@@ -494,7 +545,7 @@ function diagnosticarEstructura() {
     for (var v = 0; v < videos.length; v++) {
       var itemV = videos[v];
       var nomV = itemV.nomenclatura;
-      var descV = nomV && nomV.sessionNumber ? " [Sesión " + nomV.sessionNumber + "]" : "";
+      var descV = nomV && nomV.sessionNumber ? " [Sesión " + nomV.sessionNumber + " - Clase " + nomV.classNumber + "]" : "";
       console.log("       🎥 [" + itemV.nombreCarpeta + "] " + itemV.nombreArchivo + descV);
     }
   }
@@ -514,7 +565,6 @@ function diagnosticarEstructura() {
  */
 function cumpleNomenclaturaEstipulada(str) {
   if (!str) return false;
-  // Debe contener el tag entre corchetes con el código de sesión (ej. [2026-2-CUR-ILUM-S04])
   var tagMatch = str.match(/\[([^\]]+)\]/);
   if (!tagMatch) return false;
   var tag = tagMatch[1];
@@ -522,12 +572,39 @@ function cumpleNomenclaturaEstipulada(str) {
 }
 
 /**
- * Extrae el número de sesión del nombre de una carpeta (ej: "Sesión - 4", "Sesión 4", "Clase 4", "S04")
+ * Extrae el número de sesión de una carpeta (ej: "Sesión - 4", "Sesión 4", "S04")
  */
 function extraerNumeroSesionCarpeta(nombre) {
   if (!nombre) return null;
-  var match = nombre.match(/(?:clase|sesi[oó]n|session|modulo|m[oó]dulo|s|c)\s*[-–—:]*\s*#?\s*0*(\d+)\b/i);
+  var match = nombre.match(/(?:sesi[oó]n|session|s)\s*[-–—:]*\s*#?\s*0*(\d+)\b/i);
   return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Extrae el número de clase de una carpeta (ej: "Clase - 1", "Clase - 2", "Clase 3", "C01")
+ */
+function extraerNumeroClaseCarpeta(nombre) {
+  if (!nombre) return null;
+  var match = nombre.match(/(?:clase|class|c)\s*[-–—:]*\s*#?\s*0*(\d+)\b/i);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Determina el número de clase a partir del tag o del fragmento de grabación:
+ * "Recording" ➔ Clase 1
+ * "Recording 2" ➔ Clase 2
+ * "Recording 3" ➔ Clase 3
+ */
+function extraerNumeroClaseArchivo(tag, str, recordingPart) {
+  var cTagMatch = (tag || "").match(/-C0*(\d+)\b/i);
+  if (cTagMatch) return parseInt(cTagMatch[1], 10);
+
+  var cStrMatch = (str || "").match(/(?:clase|class)\s*[-–—:]*\s*#?\s*0*(\d+)\b/i);
+  if (cStrMatch) return parseInt(cStrMatch[1], 10);
+
+  if (recordingPart) return recordingPart;
+
+  return 1;
 }
 
 /**
@@ -543,8 +620,7 @@ function parseNomenclaturaGrabacion(str) {
   var sessionNumber = null;
   var sMatch = tag.match(/-S0*(\d+)\b/i) || 
                str.match(/\bS0*(\d+)\b/i) || 
-               str.match(/(?:sesi[oó]n|session|clase|class|m[oó]dulo)\s*[-–—:]*\s*#?\s*0*(\d+)/i) ||
-               str.match(/\bC0*(\d+)\b/i);
+               str.match(/(?:sesi[oó]n|session)\s*[-–—:]*\s*#?\s*0*(\d+)/i);
   if (sMatch) {
     sessionNumber = parseInt(sMatch[1], 10);
   }
@@ -592,13 +668,16 @@ function parseNomenclaturaGrabacion(str) {
     tipo = "diplomado";
   }
 
-  // 5. Extraer número de parte (Recording 3 -> 3)
+  // 5. Extraer número de parte (Recording 3 -> 3, Recording -> 1)
   var partMatch = str.match(/Recording\s*(\d+)/i) || 
                   str.match(/Grabaci[oó]n\s*(\d+)/i) || 
                   str.match(/Parte\s*(\d+)/i);
   var recordingPart = partMatch ? parseInt(partMatch[1], 10) : 1;
 
-  // 6. Extraer tema / nombre del programa (ej: 'Hospitalaria')
+  // 6. Determinar la clase (Clase 1, Clase 2, Clase 3)
+  var classNumber = extraerNumeroClaseArchivo(tag, str, recordingPart);
+
+  // 7. Extraer tema / nombre del programa (ej: 'Hospitalaria')
   var topic = "";
   var cleanName = str.replace(/\[[^\]]+\]/, "");
   cleanName = cleanName.replace(/-?\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}.*$/, "");
@@ -607,10 +686,10 @@ function parseNomenclaturaGrabacion(str) {
   cleanName = cleanName.replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "").trim();
   topic = cleanName;
 
-  // 7. Código de programa base (ej. 'CUR-ILUM' o '2026-2-CUR-ILUM')
+  // 8. Código de programa base (ej. 'CUR-ILUM' o '2026-2-CUR-ILUM')
   var programCode = "";
   if (tag) {
-    programCode = tag.replace(/-S0*\d+$/i, "").trim();
+    programCode = tag.replace(/-S0*\d+.*$/i, "").trim();
   }
 
   return {
@@ -619,6 +698,7 @@ function parseNomenclaturaGrabacion(str) {
     programCode: programCode,
     topic: topic,
     sessionNumber: sessionNumber,
+    classNumber: classNumber,
     isoDateString: isoDateString,
     formattedDate: formattedDate,
     rawDateStr: rawDateStr,
@@ -630,11 +710,11 @@ function parseNomenclaturaGrabacion(str) {
 }
 
 // ============================================================================
-// 7. NAVEGACIÓN Y DETECCIÓN EN DRIVE
+// 7. NAVEGACIÓN Y DETECCIÓN EN DRIVE (SESIÓN Y CLASE)
 // ============================================================================
 
 /**
- * Busca o crea la subcarpeta exacta de la sesión (ej. "Sesión - 4") dentro del programa
+ * Busca o crea la subcarpeta de la Sesión (ej. "Sesión - 4") dentro del programa
  */
 function encontrarOCrearCarpetaSesion(carpetaPrograma, sessionNumber) {
   if (!sessionNumber) {
@@ -643,7 +723,7 @@ function encontrarOCrearCarpetaSesion(carpetaPrograma, sessionNumber) {
 
   var subfolders = carpetaPrograma.getFolders();
   var subcarpetasExistentes = [];
-  var patronDetectado = "Sesión - "; // Formato estándar usado en LIATER (ej: "Sesión - 4")
+  var patronDetectado = "Sesión - "; // Formato estándar visto en LIATER (ej: "Sesión - 4")
 
   while (subfolders.hasNext()) {
     var sub = subfolders.next();
@@ -654,10 +734,6 @@ function encontrarOCrearCarpetaSesion(carpetaPrograma, sessionNumber) {
       patronDetectado = "Sesión - ";
     } else if (/^sesi[oó]n\s+\d+/i.test(fn)) {
       patronDetectado = "Sesión ";
-    } else if (/^clase\s*-\s*\d+/i.test(fn)) {
-      patronDetectado = "Clase - ";
-    } else if (/^clase\s+\d+/i.test(fn)) {
-      patronDetectado = "Clase ";
     }
   }
 
@@ -670,10 +746,50 @@ function encontrarOCrearCarpetaSesion(carpetaPrograma, sessionNumber) {
     }
   }
 
-  // 2. Si no existe, crear la carpeta de la sesión con el formato correspondiente
+  // 2. Si no existe, crear la carpeta de la sesión
   var nuevoNombre = patronDetectado + sessionNumber;
   console.log("   + Creando carpeta de sesión: '" + nuevoNombre + "' en '" + carpetaPrograma.getName() + "'");
   return carpetaPrograma.createFolder(nuevoNombre);
+}
+
+/**
+ * Busca o crea la subcarpeta de la Clase (ej. "Clase - 1", "Clase - 2", "Clase - 3")
+ * dentro de la carpeta de la Sesión (ej: "Sesión - 4")
+ */
+function encontrarOCrearCarpetaClase(carpetaSesion, classNumber) {
+  if (!classNumber) {
+    classNumber = 1;
+  }
+
+  var subfolders = carpetaSesion.getFolders();
+  var subcarpetasExistentes = [];
+  var patronDetectado = "Clase - "; // Formato estándar visto en LIATER (ej: "Clase - 1")
+
+  while (subfolders.hasNext()) {
+    var sub = subfolders.next();
+    subcarpetasExistentes.push(sub);
+
+    var fn = sub.getName();
+    if (/^clase\s*-\s*\d+/i.test(fn)) {
+      patronDetectado = "Clase - ";
+    } else if (/^clase\s+\d+/i.test(fn)) {
+      patronDetectado = "Clase ";
+    }
+  }
+
+  // 1. Buscar si ya existe la subcarpeta de la clase (ej. "Clase - 1", "Clase - 2", "Clase - 3")
+  for (var i = 0; i < subcarpetasExistentes.length; i++) {
+    var folder = subcarpetasExistentes[i];
+    var num = extraerNumeroClaseCarpeta(folder.getName());
+    if (num === classNumber) {
+      return folder;
+    }
+  }
+
+  // 2. Si no existe, crear la carpeta de la clase
+  var nuevoNombre = patronDetectado + classNumber;
+  console.log("   + Creando carpeta de clase: '" + nuevoNombre + "' en '" + carpetaSesion.getName() + "'");
+  return carpetaSesion.createFolder(nuevoNombre);
 }
 
 /**
@@ -691,7 +807,7 @@ function encontrarProgramaParaGrabacion(programas, infoNom) {
     var normP = limpiarTexto(p.nombre);
 
     var coincideTema = normTopic && normP.indexOf(normTopic) !== -1;
-    var coincideCodigo = normCode && (normP.indexOf(normCode) !== -1 || (infoNom.tag && normP.indexOf(limpiarTexto(infoNom.tag.replace(/-S0*\d+$/i, ""))) !== -1));
+    var coincideCodigo = normCode && (normP.indexOf(normCode) !== -1 || (infoNom.tag && normP.indexOf(limpiarTexto(infoNom.tag.replace(/-S0*\d+.*$/i, ""))) !== -1));
 
     if (coincideTema && coincideCodigo) {
       return p;
