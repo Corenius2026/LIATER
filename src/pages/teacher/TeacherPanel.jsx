@@ -4050,183 +4050,149 @@ function DudasTab() {
         </div>
       </div>
 
-      {/* 3 STATS KPI CARDS CON DISEÑO EJECUTIVO LIATER */}
+      {/* 3 STATS KPI CARDS CON DISEÑO EJECUTIVO LIATER (INFORMATIVAS SIN FILTRO ACTIVO) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
         
-        {/* CARD 1: PENDIENTES TOTALES */}
-        {(() => {
-          const isSelected = statusFilter === 'todos';
-          return (
-            <div
-              onClick={() => setStatusFilter('todos')}
-              style={{
-                background: isSelected ? '#FFFFFF' : '#FFFFFF',
-                border: isSelected ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
-                borderRadius: '14px',
-                padding: '1.25rem 1.4rem',
-                boxShadow: isSelected ? '0 4px 14px rgba(20, 33, 61, 0.08)' : '0 1px 3px rgba(20, 33, 61, 0.03)',
-                cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-              }}
-              onMouseEnter={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = '#CBD5E1';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(20, 33, 61, 0.06)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
-                }
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.08)', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <AlertCircle size={20} />
-                </div>
-                <span style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  background: isSelected ? 'var(--navy, #14213D)' : '#F1F5F9',
-                  color: isSelected ? '#FFFFFF' : '#64748B'
-                }}>
-                  {isSelected ? 'Filtro Activo' : 'General'}
-                </span>
-              </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1, letterSpacing: '-0.02em' }}>
-                {countByStatus('enviada') + countByStatus('revisada')}
-              </div>
-              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '6px 0 2px 0' }}>
-                Pendientes Totales
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                Consultas que requieren respuesta en clase
-              </div>
+        {/* CARD 1: PENDIENTES */}
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '14px',
+            padding: '1.25rem 1.4rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = '#FCA5A5';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(220, 38, 38, 0.08)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = '#E2E8F0';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.08)', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertCircle size={20} />
             </div>
-          );
-        })()}
+            <span style={{
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: '6px',
+              background: '#FEE2E2',
+              color: '#DC2626'
+            }}>
+              Pendiente
+            </span>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1, letterSpacing: '-0.02em' }}>
+            {countByStatus('enviada')}
+          </div>
+          <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '6px 0 2px 0' }}>
+            Consultas Pendientes
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+            Inquietudes de alumnos que esperan revisión
+          </div>
+        </div>
 
-        {/* CARD 2: NUEVAS (HOY / SIN REVISAR) */}
-        {(() => {
-          const isSelected = statusFilter === 'enviada';
-          const newCount = countByStatus('enviada');
-          return (
-            <div
-              onClick={() => setStatusFilter(statusFilter === 'enviada' ? 'todos' : 'enviada')}
-              style={{
-                background: isSelected ? '#FFFFFF' : '#FFFFFF',
-                border: isSelected ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
-                borderRadius: '14px',
-                padding: '1.25rem 1.4rem',
-                boxShadow: isSelected ? '0 4px 14px rgba(20, 33, 61, 0.08)' : '0 1px 3px rgba(20, 33, 61, 0.03)',
-                cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-              }}
-              onMouseEnter={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = '#CBD5E1';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(20, 33, 61, 0.06)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
-                }
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(252, 163, 17, 0.14)', color: '#B45309', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Clock size={20} />
-                </div>
-                <span style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  background: isSelected ? 'var(--navy, #14213D)' : (newCount > 0 ? '#FEF3C7' : '#F1F5F9'),
-                  color: isSelected ? '#FFFFFF' : (newCount > 0 ? '#92400E' : '#64748B')
-                }}>
-                  {isSelected ? 'Filtro Activo' : 'Sin revisar'}
-                </span>
-              </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1, letterSpacing: '-0.02em' }}>
-                {newCount}
-              </div>
-              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '6px 0 2px 0' }}>
-                Nuevas Recibidas
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                Inquietudes recientes sin clasificar
-              </div>
+        {/* CARD 2: REVISADAS */}
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '14px',
+            padding: '1.25rem 1.4rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = '#FCD34D';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(245, 158, 11, 0.08)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = '#E2E8F0';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(252, 163, 17, 0.14)', color: '#B45309', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={20} />
             </div>
-          );
-        })()}
+            <span style={{
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: '6px',
+              background: '#FEF3C7',
+              color: '#B45309'
+            }}>
+              Revisada
+            </span>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1, letterSpacing: '-0.02em' }}>
+            {countByStatus('revisada')}
+          </div>
+          <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '6px 0 2px 0' }}>
+            Consultas Revisadas
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+            Clasificadas para abordar durante la sesión
+          </div>
+        </div>
 
-        {/* CARD 3: REVISADAS */}
-        {(() => {
-          const isSelected = statusFilter === 'revisada';
-          return (
-            <div
-              onClick={() => setStatusFilter(statusFilter === 'revisada' ? 'todos' : 'revisada')}
-              style={{
-                background: isSelected ? '#FFFFFF' : '#FFFFFF',
-                border: isSelected ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
-                borderRadius: '14px',
-                padding: '1.25rem 1.4rem',
-                boxShadow: isSelected ? '0 4px 14px rgba(20, 33, 61, 0.08)' : '0 1px 3px rgba(20, 33, 61, 0.03)',
-                cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-              }}
-              onMouseEnter={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = '#CBD5E1';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(20, 33, 61, 0.06)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
-                }
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(0, 122, 46, 0.08)', color: '#007A2E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CheckCircle2 size={20} />
-                </div>
-                <span style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  background: isSelected ? 'var(--navy, #14213D)' : '#DCFCE7',
-                  color: isSelected ? '#FFFFFF' : '#007A2E'
-                }}>
-                  {isSelected ? 'Filtro Activo' : 'En preparación'}
-                </span>
-              </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1, letterSpacing: '-0.02em' }}>
-                {countByStatus('revisada')}
-              </div>
-              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '6px 0 2px 0' }}>
-                Revisadas por Docente
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                Marcadas para responder en la sesión
-              </div>
+        {/* CARD 3: ATENDIDAS */}
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '14px',
+            padding: '1.25rem 1.4rem',
+            boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = '#86EFAC';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 122, 46, 0.08)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = '#E2E8F0';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 1px 3px rgba(20, 33, 61, 0.03)';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(0, 122, 46, 0.08)', color: '#007A2E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={20} />
             </div>
-          );
-        })()}
+            <span style={{
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: '6px',
+              background: '#DCFCE7',
+              color: '#007A2E'
+            }}>
+              Atendida
+            </span>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1, letterSpacing: '-0.02em' }}>
+            {countByStatus('atendida')}
+          </div>
+          <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--navy, #14213D)', margin: '6px 0 2px 0' }}>
+            Consultas Atendidas
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+            Respuestas resueltas y explicadas a los estudiantes
+          </div>
+        </div>
 
       </div>
 
