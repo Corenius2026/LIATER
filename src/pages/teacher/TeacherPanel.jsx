@@ -1486,16 +1486,11 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                   <span>Cargando actividad de reforzamiento IA...</span>
                 </div>
               ) : !draft ? (
-                <div style={{ padding: '3rem', textAlign: 'center', background: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
-                  <Sparkles size={36} color="var(--gold, #FCA311)" style={{ margin: '0 auto 0.75rem' }} />
-                  <h3 style={{ color: 'var(--navy, #14213D)', marginBottom: '0.5rem', fontWeight: 700 }}>
-                    {!isPastClass ? 'Actividad disponible tras realizar la clase' : 'Sin borrador IA disponible'}
-                  </h3>
-                  <p style={{ color: 'var(--text-muted, #64748B)', fontSize: '0.88rem', margin: 0, maxWidth: '500px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    {!isPastClass
-                      ? 'El borrador de preguntas generado por la IA se procesará automáticamente una vez que la clase haya finalizado y se disponga de la grabación o transcripción.'
-                      : 'El administrador enviará el borrador generado por IA una vez que la transcripción de la clase esté procesada.'}
-                  </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <AdminClassReinforcement 
+                    classId={selectedClass.id} 
+                    onOpenUploadModal={() => setActiveSection('preclass')}
+                  />
                 </div>
               ) : (
                 <>
@@ -1949,7 +1944,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
 ───────────────────────────────────────── */
 function ClasesTab() {
   const { programId, teacherId, currentProgram } = useTeacherContext();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [classes, setClasses]           = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
@@ -2725,7 +2720,12 @@ function ClasesTab() {
           selectedClass={selectedClass}
           allClasses={classes}
           initialSection={modalInitialSection}
-          onClose={() => setSelectedClass(null)}
+          onClose={() => {
+            setSelectedClass(null);
+            if (searchParams.get('classId')) {
+              setSearchParams({ tab: 'clases' });
+            }
+          }}
           onClassUpdated={fetchMyClasses}
         />
       )}
@@ -3191,6 +3191,7 @@ function StatusChip({ status }) {
 ───────────────────────────────────────── */
 function ResumenTab({ onChangeTab }) {
   const { profile, teacherId, programId, currentProgram } = useTeacherContext();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [recentThreads, setRecentThreads] = useState([]);
   const [stats, setStats] = useState({
@@ -3201,13 +3202,13 @@ function ResumenTab({ onChangeTab }) {
     students: 0,
     pendingDoubts: 0,
     pendingDrafts: 0,      // borradores IA pendientes de revisión
-    missingRecordings: 0,  // clases pasadas sin video_url
+    activeActivities: 0,   // actividades IA publicadas
     pendingEvaluations: 0, // entregas de estudiantes pendientes por calificar
   });
   const [loading, setLoading] = useState(true);
   const [upcomingClasses, setUpcomingClasses] = useState([]);  // máx 1 (la más próxima)
   const [pendingDoubts, setPendingDoubts] = useState([]);
-  const [urgentAlerts, setUrgentAlerts] = useState([]);        // bandeja de acción
+  const [urgentAlerts, setUrgentAlerts] = useState([]);        // bandeja de acción y sugerencias
 
   const fetchStatsAndDoubts = async () => {
     if (!programId) return;
@@ -3215,11 +3216,24 @@ function ResumenTab({ onChangeTab }) {
       setLoading(true);
 
       const teacherProfileId = teacherId || profile?.id;
-      const pClasses = supabase.from('class_sessions')
+      const currentUserId = currentUser?.id || profile?.user_id;
+
+      // 1. Consultar clases del docente en este programa (o generales del programa)
+      let classFilter = '';
+      if (teacherProfileId && currentUserId && teacherProfileId !== currentUserId) {
+        classFilter = `teacher_id.eq.${teacherProfileId},teacher_id.eq.${currentUserId},teacher_id.is.null`;
+      } else if (teacherProfileId) {
+        classFilter = `teacher_id.eq.${teacherProfileId},teacher_id.is.null`;
+      }
+
+      let pClassesQuery = supabase.from('class_sessions')
         .select('id, title, class_date, program_id, duration, description, meet_url')
-        .eq('program_id', programId)
-        .eq('teacher_id', teacherProfileId)
-        .order('class_date', { ascending: true });
+        .eq('program_id', programId);
+
+      if (classFilter) {
+        pClassesQuery = pClassesQuery.or(classFilter);
+      }
+      pClassesQuery = pClassesQuery.order('class_date', { ascending: true });
         
       const pAnnouncements = supabase.from('announcements')
         .select('id, teacher_id, target_role')
@@ -3248,86 +3262,111 @@ function ResumenTab({ onChangeTab }) {
         .order('created_at', { ascending: false })
         .limit(3);
 
-      // Query A: Borradores IA pendientes de las clases del profesor
-      const pPendingDrafts = supabase
-        .from('activity_drafts')
-        .select('id, class_id, status, draft_data, created_at, class_sessions!inner(id, title, program_id, teacher_id)', { count: 'exact' })
-        .eq('class_sessions.program_id', programId)
-        .eq('class_sessions.teacher_id', teacherProfileId)
-        .eq('status', 'pending');
-
-      // Query B: Clases PROPIAS del profesor pasadas sin grabación (class_date < ahora Y video_url IS NULL)
-      const pMissingRecordings = supabase
-        .from('class_sessions')
-        .select('id, title, class_date', { count: 'exact', head: false })
-        .eq('program_id', programId)
-        .eq('teacher_id', teacherProfileId)
-        .lt('class_date', new Date().toISOString())
-        .is('video_url', null);
-
-      // Query C: Actividades de reforzamiento publicadas en las clases del profesor
-      const pActivities = supabase
-        .from('class_activities')
-        .select('id, class_id, is_published, class_sessions!inner(id, program_id, teacher_id)')
-        .eq('class_sessions.program_id', programId)
-        .eq('class_sessions.teacher_id', teacherProfileId)
-        .eq('is_published', true);
-
-      // Query D: Anuncios institucionales para profesores
-      const pAdminAnnouncements = supabase
-        .from('announcements')
-        .select('*')
-        .is('program_id', null)
-        .in('target_role', ['teacher', 'all'])
-        .order('created_at', { ascending: false });
-
-      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts, resDrafts, resMissingRec, resActivities, resAdminAnnouncements] = await Promise.all([
-        pClasses, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts, pPendingDrafts, pMissingRecordings, pActivities, pAdminAnnouncements
+      const [resClasses, resAnn, resStudents, resUnreviewed, resTopDoubts] = await Promise.all([
+        pClassesQuery, pAnnouncements, pStudents, pUnreviewedDoubts, pTopDoubts
       ]);
-      
+
       const classes = resClasses.data || [];
+      const classIds = classes.map(c => c.id);
+
+      // 2. Consultar borradores y actividades publicados usando classIds
+      let draftsData = [];
+      let activitiesData = [];
+
+      if (classIds.length > 0) {
+        const [draftsRes, actsRes] = await Promise.all([
+          supabase.from('activity_drafts')
+            .select('id, class_id, status, draft_data, created_at')
+            .in('class_id', classIds)
+            .order('created_at', { ascending: false }),
+          supabase.from('class_activities')
+            .select('id, class_id, is_published, title')
+            .in('class_id', classIds)
+            .eq('is_published', true)
+        ]);
+        draftsData = draftsRes.data || [];
+        activitiesData = actsRes.data || [];
+      }
+
+      const actsByClass = {};
+      activitiesData.forEach(a => {
+        actsByClass[a.class_id] = a;
+      });
+
+      const draftsByClass = {};
+      const pendingDraftsList = [];
+      draftsData.forEach(d => {
+        if (!draftsByClass[d.class_id]) draftsByClass[d.class_id] = d;
+        if (d.status === 'pending') {
+          pendingDraftsList.push(d);
+        }
+      });
+      
       const now = new Date();
       const getEndTime = (c) => new Date(new Date(c.class_date).getTime() + (c.duration || 120) * 60000);
 
       const completed = classes.filter(c => getEndTime(c) < now).length;
-      const upcomingList = classes.filter(c => getEndTime(c) >= now);
+      // Clases próximas cuya fecha y hora de inicio todavía NO ha llegado (desaparecen al iniciar la clase)
+      const upcomingList = classes.filter(c => new Date(c.class_date) > now);
       
       setUpcomingClasses(upcomingList.slice(0, 1));
       setPendingDoubts(resTopDoubts.data || []);
 
       const alerts = [];
 
-      // Alerta: borradores IA pendientes de validación
-      if ((resDrafts.data || []).length > 0) {
-        (resDrafts.data || []).forEach(d => {
+      // A. Alerta: Dudas de estudiantes sin atender
+      const unreviewedCount = resUnreviewed.count || 0;
+      if (unreviewedCount > 0) {
+        alerts.push({
+          id: 'doubt-urgent-alert',
+          type: 'doubt',
+          title: `Dudas estudiantiles sin responder (${unreviewedCount})`,
+          subtitle: `Tienes ${unreviewedCount} consulta${unreviewedCount === 1 ? '' : 's'} de estudiantes esperando retroalimentación.`,
+          action: 'Atender Dudas',
+          tab: 'dudas',
+          icon: 'message',
+          color: '#FCA311',
+          onClick: () => onChangeTab('dudas')
+        });
+      }
+
+      // B. Alerta: Borradores IA pendientes de validación
+      if (pendingDraftsList.length > 0) {
+        pendingDraftsList.forEach(d => {
+          const relatedClass = classes.find(c => c.id === d.class_id);
           alerts.push({
-            id: d.id,
+            id: 'draft-' + d.id,
             type: 'draft',
-            title: `Borrador IA pendiente: "${d.draft_data?.activity_title || 'Sin título'}"`,
-            subtitle: `Clase: ${d.class_sessions?.title || 'Clase vinculada'} · Generado ${new Date(d.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`,
-            action: 'Validar en Mis Clases',
+            title: `Borrador IA pendiente: "${d.draft_data?.activity_title || 'Actividad de Reforzamiento'}"`,
+            subtitle: `Clase: ${relatedClass?.title || 'Clase vinculada'} · Creado para revisión y aprobación previa`,
+            action: 'Validar Actividad',
             tab: 'clases',
             icon: 'sparkles',
             color: '#FCA311',
+            onClick: () => onChangeTab('clases', { classId: d.class_id, section: 'activity' })
           });
         });
       }
 
-      // Alerta: clases sin grabación vinculada
-      if ((resMissingRec.data || []).length > 0) {
-        (resMissingRec.data || []).forEach(c => {
-          alerts.push({
-            id: c.id + '-rec',
-            type: 'recording',
-            title: `Grabación pendiente: "${c.title}"`,
-            subtitle: `Clase del ${new Date(c.class_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} · Sin grabación vinculada`,
-            action: 'Ir a Mis Clases',
-            tab: 'clases',
-            icon: 'video',
-            color: '#14213D',
-          });
+      // C. Sugerencia de preparación: Crear actividad IA antes de que suceda la clase
+      // Solo para clases que todavía NO han comenzado (class_date > now) y que NO tienen actividad ni borrador
+      const upcomingWithoutActivity = upcomingList.filter(c => !actsByClass[c.id] && (!draftsByClass[c.id] || draftsByClass[c.id].status !== 'pending'));
+
+      // Mostrar hasta 2 próximas clases sugeridas para preparar actividad interactiva previa
+      upcomingWithoutActivity.slice(0, 2).forEach(c => {
+        alerts.push({
+          id: 'suggest-act-' + c.id,
+          type: 'suggest_activity',
+          title: `Preparar Reforzamiento IA: "${c.title}"`,
+          subtitle: `Clase programada: ${formatClassDate(c.class_date)} · Crea una actividad interactiva previa para tus estudiantes`,
+          action: 'Crear Actividad IA',
+          tab: 'clases',
+          icon: 'brain',
+          color: '#14213D',
+          onClick: () => onChangeTab('clases', { classId: c.id, section: 'activity' })
         });
-      }
+      });
+
       setUrgentAlerts(alerts);
 
       const visibleAnnouncementsCount = (resAnn.data || []).filter(a => {
@@ -3341,12 +3380,10 @@ function ResumenTab({ onChangeTab }) {
         upcoming: upcomingList.length,
         announcements: visibleAnnouncementsCount,
         students: resStudents.count || 0,
-        pendingDoubts: resUnreviewed.count || 0,
-        pendingDrafts: (resDrafts.data || []).length,
-        missingRecordings: (resMissingRec.data || []).length,
-        activeActivities: (resActivities.data || []).length,
-        pendingEvaluations: 0, // Placeholder
-        adminAnnouncements: resAdminAnnouncements.data || [],
+        pendingDoubts: unreviewedCount,
+        pendingDrafts: pendingDraftsList.length,
+        activeActivities: activitiesData.length,
+        pendingEvaluations: 0,
       });
 
       // Consultar temas recientes del foro
@@ -3501,66 +3538,111 @@ function ResumenTab({ onChangeTab }) {
           <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Borradores IA</span>
         </div>
 
-        {/* KPI 4: Clases sin grabación */}
+        {/* KPI 4: Actividades IA Activas */}
         <div className="card" style={{
           padding: '1.35rem 1.5rem',
-          borderLeft: `4px solid ${stats.missingRecordings > 0 ? '#dc2626' : '#E2E8F0'}`,
+          borderLeft: '4px solid var(--navy, #14213D)',
           borderRadius: '10px',
-          background: stats.missingRecordings > 0 ? 'rgba(220, 38, 38, 0.03)' : '#FFFFFF',
-          cursor: stats.missingRecordings > 0 ? 'pointer' : 'default',
+          background: '#FFFFFF',
+          cursor: 'pointer',
           transition: 'all 0.2s ease',
           boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
         }}
-          onClick={() => stats.missingRecordings > 0 && onChangeTab('clases')}
-          onMouseOver={e => stats.missingRecordings > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
+          onClick={() => onChangeTab('reforzamiento')}
+          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          <span style={{ fontSize: '2.3rem', fontWeight: 800, color: stats.missingRecordings > 0 ? '#dc2626' : 'var(--navy, #14213D)', lineHeight: 1 }}>{stats.missingRecordings}</span>
-          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sin grabación</span>
+          <span style={{ fontSize: '2.3rem', fontWeight: 800, color: 'var(--navy, #14213D)', lineHeight: 1 }}>{stats.activeActivities}</span>
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #64748B)', fontWeight: 700, marginTop: '0.5rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Actividades IA</span>
         </div>
       </div>
-      {/* ── BANDEJA DE ACCIÓN URGENTE ── Solo visible si hay alertas */}
-      {urgentAlerts.length > 0 && (
-        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(252, 163, 17, 0.3)', background: 'rgba(252, 163, 17, 0.04)', borderRadius: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-            <AlertCircle size={18} color="#FCA311" />
-            <h3 style={{ margin: 0, color: '#14213D', fontSize: '1rem', fontWeight: 700 }}>
-              Acciones requeridas <span style={{ background: '#FCA311', color: '#14213D', fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px', marginLeft: '6px' }}>{urgentAlerts.length}</span>
+      {/* ── BANDEJA DE ACCIONES Y SUGERENCIAS ── Visible en todos los programas */}
+      <div className="card" style={{
+        padding: '1.35rem 1.6rem',
+        border: urgentAlerts.length > 0 ? '1px solid rgba(252, 163, 17, 0.35)' : '1px solid #E2E8F0',
+        background: urgentAlerts.length > 0 ? 'rgba(252, 163, 17, 0.03)' : '#FFFFFF',
+        borderRadius: '14px',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: urgentAlerts.length > 0 ? '1rem' : '0', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            {urgentAlerts.length > 0 ? (
+              <AlertCircle size={18} color="#FCA311" />
+            ) : (
+              <CheckCircle2 size={18} color="#10B981" />
+            )}
+            <h3 style={{ margin: 0, color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+              Acciones requeridas y Sugerencias
+              {urgentAlerts.length > 0 && (
+                <span style={{ background: '#FCA311', color: '#14213D', fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px', marginLeft: '8px' }}>
+                  {urgentAlerts.length}
+                </span>
+              )}
             </h3>
           </div>
+          {urgentAlerts.length === 0 && (
+            <span style={{ fontSize: '0.8rem', color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Check size={14} /> Todo al día
+            </span>
+          )}
+        </div>
+
+        {urgentAlerts.length === 0 ? (
+          <div style={{ marginTop: '0.6rem', fontSize: '0.86rem', color: '#64748B' }}>
+            No tienes acciones urgentes pendientes ni borradores por validar en este programa. Tus próximas clases están al día.
+          </div>
+        ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {urgentAlerts.map(alert => (
               <div key={alert.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '1rem 1.25rem', background: '#FFFFFF',
-                border: `1px solid ${alert.color === '#FCA311' ? 'rgba(252,163,17,0.25)' : 'rgba(20,33,61,0.15)'}`,
-                borderRadius: '8px', gap: '1rem', flexWrap: 'wrap',
+                padding: '0.95rem 1.25rem', background: '#FFFFFF',
+                border: `1px solid ${alert.color === '#FCA311' ? 'rgba(252,163,17,0.3)' : 'rgba(20,33,61,0.12)'}`,
+                borderRadius: '10px', gap: '1rem', flexWrap: 'wrap',
                 transition: 'all 0.2s ease',
+                boxShadow: '0 1px 2px rgba(20, 33, 61, 0.02)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                  <div style={{ background: alert.color === '#FCA311' ? 'rgba(252,163,17,0.12)' : 'rgba(20,33,61,0.08)', padding: '0.5rem', borderRadius: '8px' }}>
+                  <div style={{
+                    background: alert.color === '#FCA311' ? 'rgba(252,163,17,0.12)' : 'rgba(20,33,61,0.06)',
+                    padding: '0.55rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
                     {alert.type === 'draft' ? (
                       <Sparkles size={18} color={alert.color} />
-                    ) : alert.type === 'evaluation' ? (
-                      <FileCheck size={18} color={alert.color} />
+                    ) : alert.type === 'suggest_activity' ? (
+                      <Brain size={18} color={alert.color} />
+                    ) : alert.type === 'doubt' ? (
+                      <MessageSquare size={18} color={alert.color} />
                     ) : (
-                      <Video size={18} color={alert.color} />
+                      <Sparkles size={18} color={alert.color} />
                     )}
                   </div>
                   <div>
                     <div style={{ fontWeight: 700, color: '#14213D', fontSize: '0.9rem' }}>{alert.title}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{alert.subtitle}</div>
+                    <div style={{ fontSize: '0.79rem', color: '#64748B', marginTop: '2px' }}>{alert.subtitle}</div>
                   </div>
                 </div>
                 <button
-                  onClick={() => onChangeTab(alert.tab)}
+                  type="button"
+                  onClick={alert.onClick}
                   style={{
-                    background: alert.color, color: alert.color === '#FCA311' ? '#14213D' : '#FFFFFF',
-                    border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem',
-                    fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                    transition: 'all 0.2s ease', whiteSpace: 'nowrap', flexShrink: 0,
+                    background: alert.color,
+                    color: alert.color === '#FCA311' ? '#14213D' : '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.45rem 1rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    boxShadow: alert.color === '#FCA311' ? '0 1px 3px rgba(252,163,17,0.2)' : 'none'
                   }}
-                  onMouseOver={e => e.currentTarget.style.opacity = '0.85'}
+                  onMouseOver={e => e.currentTarget.style.opacity = '0.88'}
                   onMouseOut={e => e.currentTarget.style.opacity = '1'}
                 >
                   {alert.action}
@@ -3568,8 +3650,8 @@ function ResumenTab({ onChangeTab }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
       {/* ── GRID PRINCIPAL (2 columnas) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', alignItems: 'start' }}>
         {/* COLUMNA IZQUIERDA */}
@@ -10440,13 +10522,15 @@ export default function TeacherPanel() {
     }
   }, [programId]);
 
-  // Función centralizada de cambio de pestaña con soporte de deep-link a duda específica
-  const handleChangeTab = (tabId, doubtId = null) => {
+  // Función centralizada de cambio de pestaña con soporte de deep-link a duda o clase específica
+  const handleChangeTab = (tabId, extraParams = null) => {
     setActiveTab(tabId);
-    if (doubtId) {
-      setSearchParams({ tab: tabId, doubtId });
-    } else {
+    if (!extraParams) {
       setSearchParams({ tab: tabId });
+    } else if (typeof extraParams === 'object') {
+      setSearchParams({ tab: tabId, ...extraParams });
+    } else {
+      setSearchParams({ tab: tabId, doubtId: extraParams });
     }
   };
 
