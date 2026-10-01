@@ -8,7 +8,7 @@ import {
   Layers, Calendar, Clock, ChevronRight, X, Check, Copy,
   Sparkles, FolderDown,
   Plus, Trash2, Edit3, EyeOff, Upload, Link as LinkIcon, Folder,
-  AlertCircle, RefreshCw, Info, Lock
+  AlertCircle, RefreshCw, Info, Lock, LayoutGrid, List
 } from 'lucide-react';
 import { triggerResourceDownload } from '@/utils/resourceUtils';
 
@@ -96,6 +96,7 @@ export default function CourseResources() {
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'presentation' | 'file' | 'link' | 'code'
   const [sessionFilter, setSessionFilter] = useState('all'); // 'all' | 'general' | sessionId
   const [copiedId, setCopiedId] = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // 'list' (por defecto: limpio y legible) | 'grid'
 
   // Modal de Subida / Edición de Recursos
   const [showModal, setShowModal] = useState(false);
@@ -1232,6 +1233,436 @@ export default function CourseResources() {
     );
   };
 
+  // Renderizador de Recurso en Formato Lista (Limpio, ligero y sin saturación)
+  const renderResourceListItem = (res) => {
+    const isDrive = res.url?.includes('drive.google.com') || res.provider === 'drive';
+    const resType = res.resource_type || res.type || 'file';
+    const isHidden = res.is_visible === false;
+
+    const getTypeMeta = () => {
+      switch (resType) {
+        case 'presentation':
+          return { bg: '#FEF3C7', border: '#FDE68A', text: '#B45309', label: 'Presentación' };
+        case 'file':
+        case 'pdf':
+        case 'document':
+          return { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', label: 'PDF / Lectura' };
+        case 'link':
+          return { bg: '#ECFDF5', border: '#A7F3D0', text: '#15803D', label: 'Enlace' };
+        case 'code':
+          return { bg: '#FAF5FF', border: '#E9D5FF', text: '#7E22CE', label: 'Código' };
+        case 'video':
+          return { bg: '#FEE2E2', border: '#FECACA', text: '#DC2626', label: 'Video' };
+        default:
+          return { bg: '#F1F5F9', border: '#E2E8F0', text: '#475569', label: 'Archivo' };
+      }
+    };
+    const meta = getTypeMeta();
+
+    return (
+      <div
+        key={res.id}
+        style={{
+          background: isHidden ? '#F8FAFC' : '#FFFFFF',
+          borderRadius: '12px',
+          border: isHidden ? '1.5px dashed #CBD5E1' : '1.5px solid #E2E8F0',
+          borderLeft: res.isGeneral ? '5px solid var(--gold, #FCA311)' : '5px solid var(--navy, #14213D)',
+          padding: '0.85rem 1.15rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          boxShadow: isHidden ? 'none' : '0 1px 4px rgba(20,33,61,0.03)',
+          transition: 'all 0.15s ease',
+          opacity: isHidden ? 0.8 : 1
+        }}
+        onMouseOver={e => {
+          if (!isHidden) {
+            e.currentTarget.style.background = '#FAFBFD';
+            e.currentTarget.style.borderColor = '#CBD5E1';
+            e.currentTarget.style.boxShadow = '0 3px 10px rgba(20,33,61,0.06)';
+          }
+        }}
+        onMouseOut={e => {
+          if (!isHidden) {
+            e.currentTarget.style.background = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+            e.currentTarget.style.boxShadow = '0 1px 4px rgba(20,33,61,0.03)';
+          }
+        }}
+      >
+        {/* LADO IZQUIERDO: ÍCONO + INFO PRINCIPAL */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: '1 1 360px' }}>
+          {/* Contenedor del ícono por tipo */}
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            background: meta.bg,
+            border: `1px solid ${meta.border}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {getResourceIcon(resType, 20)}
+          </div>
+
+          {/* Bloque de Título y Metadatos */}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  color: 'var(--navy, #14213D)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '100%'
+                }}
+                title={res.title}
+              >
+                {res.title}
+              </span>
+
+              {/* Badges de contexto en la misma línea */}
+              <span style={{
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: '6px',
+                background: meta.bg,
+                color: meta.text,
+                border: `1px solid ${meta.border}`,
+                flexShrink: 0
+              }}>
+                {meta.label}
+              </span>
+
+              {res.isGeneral ? (
+                <span style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  padding: '2px 7px',
+                  borderRadius: '6px',
+                  background: 'rgba(252, 163, 17, 0.15)',
+                  color: 'var(--gold-dark, #b45309)',
+                  border: '1px solid rgba(252, 163, 17, 0.35)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  flexShrink: 0
+                }}>
+                  <FolderDown size={11} /> General
+                </span>
+              ) : res.sessionTitle || res.classTitle ? (
+                <Link
+                  to={`/class/${res.classId}`}
+                  title={`Ir a la clase: ${res.classTitle || res.sessionTitle}`}
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    padding: '2px 7px',
+                    borderRadius: '6px',
+                    background: '#F1F5F9',
+                    color: 'var(--navy, #14213D)',
+                    border: '1px solid #CBD5E1',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.background = 'var(--navy, #14213D)';
+                    e.currentTarget.style.color = '#FFFFFF';
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.background = '#F1F5F9';
+                    e.currentTarget.style.color = 'var(--navy, #14213D)';
+                  }}
+                >
+                  <Video size={10} color="var(--gold, #FCA311)" />
+                  <span>{formatSessionAndClass(res.sessionTitle, res.classTitle)}</span>
+                </Link>
+              ) : null}
+
+              {/* Badge de permiso de descarga */}
+              {res.allow_download ? (
+                <span style={{
+                  fontSize: '0.66rem',
+                  fontWeight: 700,
+                  padding: '1px 6px',
+                  borderRadius: '5px',
+                  background: '#DCFCE7',
+                  color: '#15803D',
+                  border: '1px solid #86EFAC',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  flexShrink: 0
+                }}>
+                  <Download size={9} /> Descargable
+                </span>
+              ) : (
+                <span style={{
+                  fontSize: '0.66rem',
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: '5px',
+                  background: '#F1F5F9',
+                  color: '#64748B',
+                  border: '1px solid #E2E8F0',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  flexShrink: 0
+                }}>
+                  <Lock size={9} /> Solo lectura
+                </span>
+              )}
+
+              {isHidden && (
+                <span style={{
+                  fontSize: '0.66rem',
+                  fontWeight: 700,
+                  padding: '1px 6px',
+                  borderRadius: '5px',
+                  background: '#FEE2E2',
+                  color: '#DC2626',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  flexShrink: 0
+                }}>
+                  <EyeOff size={10} /> Oculto
+                </span>
+              )}
+            </div>
+
+            {/* Subtítulo / Descripción corta si existe */}
+            {res.description && (
+              <p style={{
+                margin: '0.2rem 0 0 0',
+                fontSize: '0.78rem',
+                color: '#64748B',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {res.description}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* LADO DERECHO: BOTONES DE ACCIÓN COMPACTOS Y ALINEADOS */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+          {/* Botón Ver Material */}
+          <button
+            type="button"
+            onClick={() => {
+              if (isDrive) {
+                setSelectedDoc(res);
+              } else if (res.url) {
+                window.open(res.url, '_blank', 'noopener,noreferrer');
+              }
+            }}
+            title={isDrive ? 'Ver documento integrado' : 'Abrir enlace externo'}
+            style={{
+              background: 'var(--navy, #14213D)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '7px',
+              padding: '0.42rem 0.8rem',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              boxShadow: '0 1px 4px rgba(20,33,61,0.12)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.background = '#0F172A'}
+            onMouseOut={e => e.currentTarget.style.background = 'var(--navy, #14213D)'}
+          >
+            <Eye size={13} color="var(--gold, #FCA311)" />
+            <span>Ver</span>
+          </button>
+
+          {/* Botón Descargar (si permitido) */}
+          {res.allow_download && res.url && (
+            <button
+              type="button"
+              onClick={() => triggerResourceDownload(res.url, res.title)}
+              title="Descargar material a tu equipo"
+              style={{
+                background: 'var(--gold, #FCA311)',
+                color: 'var(--navy, #14213D)',
+                border: 'none',
+                borderRadius: '7px',
+                padding: '0.42rem 0.8rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 1px 4px rgba(252,163,17,0.2)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--gold-dark, #B45309)'}
+              onMouseOut={e => e.currentTarget.style.background = 'var(--gold, #FCA311)'}
+            >
+              <Download size={13} />
+              <span>Descargar</span>
+            </button>
+          )}
+
+          {/* Si es de clase, enlace rápido a la clase */}
+          {!res.isGeneral && res.classId && (
+            <Link
+              to={`/class/${res.classId}`}
+              title="Ir a la clase"
+              style={{
+                background: '#F8FAFC',
+                color: 'var(--navy, #14213D)',
+                border: '1px solid #CBD5E1',
+                borderRadius: '7px',
+                padding: '0.42rem 0.65rem',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.background = '#F1F5F9';
+                e.currentTarget.style.borderColor = '#94A3B8';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.background = '#F8FAFC';
+                e.currentTarget.style.borderColor = '#CBD5E1';
+              }}
+            >
+              <Video size={12} color="var(--gold-dark, #B45309)" />
+              <span>Clase</span>
+            </Link>
+          )}
+
+          {/* Copiar Enlace */}
+          {res.url && (
+            <button
+              type="button"
+              onClick={() => handleCopyLink(res.url, res.id)}
+              title="Copiar enlace"
+              style={{
+                background: '#FFFFFF',
+                color: copiedId === res.id ? '#16A34A' : '#64748B',
+                border: `1px solid ${copiedId === res.id ? '#86EFAC' : '#CBD5E1'}`,
+                borderRadius: '7px',
+                padding: '0.42rem 0.5rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {copiedId === res.id ? <Check size={13} /> : <Copy size={13} />}
+            </button>
+          )}
+
+          {/* Acciones de gestión para Docente / Admin */}
+          {canManage && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', borderLeft: '1px solid #E2E8F0', paddingLeft: '0.45rem', marginLeft: '0.2rem' }}>
+              <button
+                type="button"
+                onClick={() => handleToggleAllowDownload(res)}
+                title={res.allow_download ? 'Descarga permitida (Clic para bloquear)' : 'Descarga bloqueada (Clic para permitir)'}
+                style={{
+                  background: res.allow_download ? '#DCFCE7' : '#F1F5F9',
+                  color: res.allow_download ? '#15803D' : '#64748B',
+                  border: `1px solid ${res.allow_download ? '#86EFAC' : '#E2E8F0'}`,
+                  borderRadius: '7px',
+                  padding: '0.42rem 0.48rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Download size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleToggleVisibility(res)}
+                title={res.is_visible !== false ? 'Ocultar a estudiantes' : 'Mostrar a estudiantes'}
+                style={{
+                  background: res.is_visible !== false ? '#F1F5F9' : '#FEF3C7',
+                  color: res.is_visible !== false ? '#64748B' : '#B45309',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '7px',
+                  padding: '0.42rem 0.48rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {res.is_visible !== false ? <Eye size={13} /> : <EyeOff size={13} />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenEdit(res)}
+                title="Editar material"
+                style={{
+                  background: '#F1F5F9',
+                  color: 'var(--navy, #14213D)',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '7px',
+                  padding: '0.42rem 0.48rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Edit3 size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDeleteResource(res)}
+                title="Eliminar material"
+                style={{
+                  background: '#FEE2E2',
+                  color: '#DC2626',
+                  border: '1px solid #FECACA',
+                  borderRadius: '7px',
+                  padding: '0.42rem 0.48rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ animation: 'fadeSlideUp 0.35s ease-out' }}>
 
@@ -1568,10 +1999,69 @@ export default function CourseResources() {
             })}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {/* SELECTOR DE MODO DE VISTA: LISTA (DEFAULT) / BLOQUES */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#F1F5F9',
+              padding: '3px',
+              borderRadius: '9px',
+              border: '1px solid #E2E8F0'
+            }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                title="Vista en Lista (Limpia y ligera - sin saturación)"
+                style={{
+                  border: 'none',
+                  background: viewMode === 'list' ? '#FFFFFF' : 'transparent',
+                  color: viewMode === 'list' ? 'var(--navy, #14213D)' : '#64748B',
+                  borderRadius: '7px',
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.78rem',
+                  fontWeight: viewMode === 'list' ? 700 : 500,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <List size={14} />
+                <span>Lista</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                title="Vista en Bloques / Tarjetas"
+                style={{
+                  border: 'none',
+                  background: viewMode === 'grid' ? '#FFFFFF' : 'transparent',
+                  color: viewMode === 'grid' ? 'var(--navy, #14213D)' : '#64748B',
+                  borderRadius: '7px',
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.78rem',
+                  fontWeight: viewMode === 'grid' ? 700 : 500,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: viewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <LayoutGrid size={14} />
+                <span>Bloques</span>
+              </button>
+            </div>
+
             <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
-              Mostrando <strong style={{ color: 'var(--navy, #14213D)' }}>{filteredResources.length}</strong> de {resources.length} recursos
+              Mostrando <strong style={{ color: 'var(--navy, #14213D)' }}>{filteredResources.length}</strong> de {resources.length}
             </span>
+
             {canManage && (
               <button
                 type="button"
@@ -1756,6 +2246,10 @@ export default function CourseResources() {
                     </button>
                   )}
                 </div>
+              ) : viewMode === 'list' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {filteredGeneral.map(res => renderResourceListItem(res))}
+                </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '1.25rem' }}>
                   {filteredGeneral.map(res => renderResourceCard(res))}
@@ -1841,9 +2335,15 @@ export default function CourseResources() {
                 )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '1.25rem' }}>
-                {filteredClass.map(res => renderResourceCard(res))}
-              </div>
+              {viewMode === 'list' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {filteredClass.map(res => renderResourceListItem(res))}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '1.25rem' }}>
+                  {filteredClass.map(res => renderResourceCard(res))}
+                </div>
+              )}
             </div>
           )}
 
