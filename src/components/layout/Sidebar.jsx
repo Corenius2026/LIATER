@@ -106,6 +106,7 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
             const isTeacherDashboard = location.pathname.startsWith('/dashboard/profesor/');
             const isForoPage = location.pathname.startsWith('/foro/');
             const isForoHilo = location.pathname.startsWith('/foro/hilo/');
+            const isClassPage = location.pathname.startsWith('/class/');
 
             // Extraer ID del programa del profesor
             let teacherProgId = null;
@@ -113,16 +114,16 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
               teacherProgId = location.pathname.split('/dashboard/profesor/')[1]?.split('?')[0]?.split('/')[0];
             } else if (isForoPage && !isForoHilo) {
               teacherProgId = location.pathname.split('/foro/')[1]?.split('?')[0]?.split('/')[0];
-            } else if (isForoHilo) {
+            } else if (isForoHilo || isClassPage) {
+              teacherProgId = new URLSearchParams(location.search).get('programId') || activeProgramId;
+            }
+
+            // Fallback al activeProgramId si estamos en el foro o clase y no se extrajo directamente
+            if (!teacherProgId && (isForoPage || isClassPage) && activeProgramId) {
               teacherProgId = activeProgramId;
             }
 
-            // Fallback al activeProgramId si estamos en el foro y no se extrajo directamente
-            if (!teacherProgId && isForoPage && activeProgramId) {
-              teacherProgId = activeProgramId;
-            }
-
-            const isTeacherCourse = Boolean(teacherProgId && !isGlobalRoute && (isTeacherDashboard || isForoPage));
+            const isTeacherCourse = Boolean(teacherProgId && !isGlobalRoute && (isTeacherDashboard || isForoPage || isClassPage));
             const currentTab = new URLSearchParams(location.search).get('tab') || 'resumen';
 
             if (isTeacherCourse && teacherProgId) {
@@ -184,8 +185,8 @@ export default function Sidebar({ isOpenMobile, onCloseMobile }) {
 
                   <NavLink
                     to={`/dashboard/profesor/${teacherProgId}?tab=clases`}
-                    className={() => (currentTab === 'clases' && isTeacherDashboard) ? 'nav-item active' : 'nav-item'}
-                    aria-current={(currentTab === 'clases' && isTeacherDashboard) ? 'page' : undefined}
+                    className={() => ((currentTab === 'clases' && isTeacherDashboard) || isClassPage) ? 'nav-item active' : 'nav-item'}
+                    aria-current={((currentTab === 'clases' && isTeacherDashboard) || isClassPage) ? 'page' : undefined}
                     onClick={() => { if (onCloseMobile) onCloseMobile(); }}
                   >
                     <Video size={18} />

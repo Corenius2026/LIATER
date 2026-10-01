@@ -1524,7 +1524,7 @@ export default function ClassDetail() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <Link
-                    to={clsData?.program_id ? `/teacher?programId=${clsData.program_id}&tab=classes` : '/teacher'}
+                    to={clsData?.program_id ? `/dashboard/profesor/${clsData.program_id}?tab=clases` : '/portal'}
                     style={{
                       background: 'rgba(255,255,255,0.1)',
                       color: '#ffffff',
@@ -1552,7 +1552,7 @@ export default function ClassDetail() {
               <Link
                 to={
                   isTeacher
-                    ? (clsData?.program_id ? `/teacher?programId=${clsData.program_id}&tab=classes` : '/teacher')
+                    ? (clsData?.program_id ? `/dashboard/profesor/${clsData.program_id}?tab=clases` : '/portal')
                     : (isCourse ? (clsData?.program_id ? `/dashboard/${clsData.program_id}` : '/portal') : (moduleId ? `/module/${moduleId}` : '/portal'))
                 }
                 className="btn btn-outline"

@@ -2679,7 +2679,7 @@ function ClasesTab() {
                               )}
 
                               <Link
-                                to={`/class/${cls.id}`}
+                                to={`/class/${cls.id}?programId=${programId}`}
                                 style={{
                                   background: 'var(--navy, #14213D)',
                                   color: '#FFFFFF',
