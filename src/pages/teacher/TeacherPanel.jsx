@@ -3883,7 +3883,8 @@ function ResumenTab({ onChangeTab }) {
    TAB 3: Dudas de estudiantes (Gestión Docente)
 ───────────────────────────────────────── */
 function DudasTab() {
-  const { programId, currentProgram } = useTeacherContext();
+  const { programId, currentProgram, teacherId, profile } = useTeacherContext();
+  const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   const [doubts, setDoubts] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -3892,27 +3893,87 @@ function DudasTab() {
 
   // Filtros
   const [statusFilter, setStatusFilter] = useState('todos');
-  const [classFilter, setClassFilter] = useState('todos');
+  const [sessionFilter, setSessionFilter] = useState('todos');
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateOrder, setDateOrder] = useState('desc');
 
   // Modal de Detalle
   const [selectedDoubt, setSelectedDoubt] = useState(null);
+
+  const effectiveTeacherProfileId = teacherId || profile?.id;
+  const currentUserId = currentUser?.id;
+  const isTeacherRole = currentUser?.role === 'teacher';
 
   const fetchDoubtsAndClasses = async () => {
     if (!programId) return;
     try {
       setLoading(true);
-      let doubtsData = [];
 
-      // 1. Fetch dudas
+      // 1. Fetch clases del programa con session_id, subtopic_id y teacher_id
+      let classIds = [];
+      let loadedClasses = [];
+      const classHierarchy = {};
+
+      try {
+        const { data: clsData } = await supabase
+          .from('class_sessions')
+          .select('id, title, program_id, session_id, subtopic_id, teacher_id')
+          .eq('program_id', programId);
+
+        loadedClasses = clsData || [];
+        setClasses(loadedClasses);
+        classIds = loadedClasses.map(c => c.id);
+
+        let moduleMap = {};
+        const { data: modulesRes } = await supabase.from('modules').select('id, title').eq('program_id', programId);
+        if (modulesRes) {
+          moduleMap = modulesRes.reduce((acc, m) => ({ ...acc, [m.id]: m.title }), {});
+        }
+
+        const sessionMap = {};
+        const { data: sRes } = await supabase.from('sessions').select('id, title, module_id');
+        let subRes = [];
+        try {
+          const { data: st } = await supabase.from('subtopics').select('id, title, module_id');
+          if (st) subRes = st;
+        } catch (e) {}
+
+        const allSessions = [...(sRes || []), ...subRes];
+        allSessions.forEach(s => {
+          sessionMap[s.id] = {
+            id: s.id,
+            title: s.title,
+            moduleTitle: moduleMap[s.module_id] || 'Módulo General'
+          };
+        });
+
+        loadedClasses.forEach(c => {
+          const parentId = c.session_id || c.subtopic_id;
+          const sess = parentId ? sessionMap[parentId] : null;
+          classHierarchy[c.id] = {
+            className: c.title || 'Clase',
+            sessionName: sess?.title || 'Sesión General',
+            moduleName: sess?.moduleTitle || 'Módulo General',
+            sessionId: parentId || 'general',
+            teacherId: c.teacher_id
+          };
+        });
+        setHierarchyMap(classHierarchy);
+      } catch (errHier) {
+        console.warn('Error construyendo jerarquía de clases:', errHier);
+      }
+
+      // 2. Fetch dudas del programa
+      let doubtsData = [];
       const { data: qData, error: qErr } = await supabase
         .from('class_doubts')
         .select(`
           *,
           class_sessions (
             id,
-            title
+            title,
+            session_id,
+            subtopic_id,
+            teacher_id
           ),
           users_profile:student_id (
             id,
@@ -3935,56 +3996,6 @@ function DudasTab() {
         doubtsData = qData ? [...qData] : [];
       }
 
-      // 2. Fetch clases de forma segura para no romper la app
-      let classIds = [];
-      try {
-        const { data: clsData } = await supabase
-          .from('class_sessions')
-          .select('id, title, program_id')
-          .eq('program_id', programId);
-          
-        const loadedClasses = clsData || [];
-        setClasses(loadedClasses);
-        classIds = loadedClasses.map(c => c.id);
-
-        let moduleMap = {};
-        let sessionMap = {};
-
-        const { data: modulesRes } = await supabase.from('modules').select('id, title').eq('program_id', programId);
-        if (modulesRes) {
-          moduleMap = modulesRes.reduce((acc, m) => ({ ...acc, [m.id]: m.title }), {});
-        }
-
-        const { data: sessionsRes, error: sErr } = await supabase.from('sessions').select('id, title, module_id');
-        let sData = sessionsRes || [];
-        if (sErr) {
-          const { data: subRes } = await supabase.from('subtopics').select('id, title, module_id');
-          sData = subRes || [];
-        }
-        
-        sessionMap = sData.reduce((acc, s) => ({
-          ...acc,
-          [s.id]: {
-            title: s.title,
-            moduleTitle: moduleMap[s.module_id] || 'Módulo General'
-          }
-        }), {});
-
-        const classHierarchy = {};
-        loadedClasses.forEach(c => {
-          const sess = sessionMap[c.session_id];
-          classHierarchy[c.id] = {
-            className: c.title || 'Clase',
-            sessionName: sess?.title || 'Sesión General',
-            moduleName: sess?.moduleTitle || 'Módulo General'
-          };
-        });
-        setHierarchyMap(classHierarchy);
-        
-      } catch (errHier) {
-        console.warn('Error construyendo jerarquía de clases:', errHier);
-      }
-
       // 3. Fallback de dudas por class_id si es necesario
       if (classIds.length > 0) {
         try {
@@ -3992,7 +4003,7 @@ function DudasTab() {
             .from('class_doubts')
             .select(`
               *,
-              class_sessions (id, title),
+              class_sessions (id, title, session_id, subtopic_id, teacher_id),
               users_profile:student_id (id, full_name, email)
             `)
             .in('class_id', classIds)
@@ -4012,7 +4023,7 @@ function DudasTab() {
         }
       }
 
-      // 4. Enriquecer perfiles
+      // 4. Enriquecer perfiles de estudiantes
       const missingStudentIds = doubtsData
         .filter(d => (!d.users_profile || !d.users_profile.full_name) && d.student_id)
         .map(d => d.student_id);
@@ -4038,7 +4049,35 @@ function DudasTab() {
         }
       }
 
-      setDoubts(doubtsData);
+      // 5. FILTRADO ESTRICTO POR DOCENTE:
+      // Si el usuario autenticado es profesor, solo debe ver dudas asignadas a sus clases
+      let filteredForTeacher = doubtsData;
+      if (isTeacherRole) {
+        const teacherClassIdSet = new Set(
+          loadedClasses
+            .filter(c => c.teacher_id && (c.teacher_id === effectiveTeacherProfileId || c.teacher_id === currentUserId))
+            .map(c => c.id)
+        );
+
+        filteredForTeacher = doubtsData.filter(d => {
+          // A. ¿La duda tiene teacher_id y coincide directamente con el docente?
+          if (d.teacher_id && (d.teacher_id === effectiveTeacherProfileId || d.teacher_id === currentUserId)) {
+            return true;
+          }
+          // B. ¿La clase a la que pertenece la duda está asignada a este profesor?
+          const clsTId = classHierarchy[d.class_id]?.teacherId || d.class_sessions?.teacher_id;
+          if (clsTId && (clsTId === effectiveTeacherProfileId || clsTId === currentUserId)) {
+            return true;
+          }
+          // C. ¿El class_id está en el set de clases de este docente?
+          if (d.class_id && teacherClassIdSet.has(d.class_id)) {
+            return true;
+          }
+          return false;
+        });
+      }
+
+      setDoubts(filteredForTeacher);
     } catch (err) {
       console.error('Error general al cargar dudas:', err);
     } finally {
@@ -4061,16 +4100,17 @@ function DudasTab() {
     }
   }, [searchParams, doubts]);
 
-  // Helper de jerarquía
+  // Helper de jerarquía robusto
   const getHierarchy = (d) => {
     const clsId = d?.class_id || d?.class_sessions?.id;
     if (clsId && hierarchyMap[clsId]) {
       return hierarchyMap[clsId];
     }
     const moduleName = d?.class_sessions?.sessions?.modules?.title || 'Módulo General';
-    const sessionName = d?.class_sessions?.sessions?.title || 'Sesión';
+    const sessionName = d?.class_sessions?.sessions?.title || 'Sesión General';
     const className = d?.class_sessions?.title || 'Clase';
-    return { moduleName, sessionName, className };
+    const sessionId = d?.class_sessions?.session_id || d?.class_sessions?.subtopic_id || 'general';
+    return { moduleName, sessionName, className, sessionId };
   };
 
   // Actualización de estado en caliente (optimista y persistida)
@@ -4082,12 +4122,37 @@ function DudasTab() {
     await updateDoubtStatus(doubtId, newStatus);
   };
 
+  // Sesiones únicas donde el profesor tiene o ha tenido clases asignadas
+  const availableSessions = useMemo(() => {
+    const map = new Map();
+    const relevantClasses = isTeacherRole
+      ? classes.filter(c => c.teacher_id && (c.teacher_id === effectiveTeacherProfileId || c.teacher_id === currentUserId))
+      : classes;
+
+    relevantClasses.forEach(c => {
+      const sessId = c.session_id || c.subtopic_id || 'general';
+      const info = hierarchyMap[c.id];
+      const sessTitle = info?.sessionName || 'Sesión General';
+      const modTitle = info?.moduleName && info.moduleName !== 'Módulo General' ? info.moduleName : null;
+      if (!map.has(sessId)) {
+        map.set(sessId, {
+          id: sessId,
+          title: sessTitle,
+          label: modTitle ? `${modTitle} › ${sessTitle}` : sessTitle
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [classes, hierarchyMap, isTeacherRole, effectiveTeacherProfileId, currentUserId]);
+
   // Filtrado dinámico
   const filteredDoubts = doubts.filter(d => {
     const matchesStatus = statusFilter === 'todos'
       ? d.status !== 'archivada'           // "Todas" excluye archivadas
       : d.status === statusFilter;          // filtros específicos funcionan normal
-    const matchesClass = classFilter === 'todos' || d.class_id === classFilter;
+    const h = getHierarchy(d);
+    const matchesSession = sessionFilter === 'todos' || h.sessionId === sessionFilter;
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm.trim() ||
       d.subject?.toLowerCase().includes(searchLower) ||
@@ -4095,11 +4160,11 @@ function DudasTab() {
       d.users_profile?.full_name?.toLowerCase().includes(searchLower) ||
       d.users_profile?.email?.toLowerCase().includes(searchLower);
 
-    return matchesStatus && matchesClass && matchesSearch;
+    return matchesStatus && matchesSession && matchesSearch;
   }).sort((a, b) => {
     const dateA = new Date(a.created_at).getTime();
     const dateB = new Date(b.created_at).getTime();
-    return dateOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    return dateB - dateA;
   });
 
   const countByStatus = (st) => doubts.filter(d => d.status === st).length;
@@ -4372,28 +4437,29 @@ function DudasTab() {
             ))}
           </div>
 
-          {/* SELECTOR DE CLASE Y ORDEN */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {/* SELECTOR DE SESIÓN (FILTRO EXCLUSIVO POR SESIONES DEL DOCENTE) */}
+          <div style={{ width: '100%' }}>
             <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              style={{ flex: 1, padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.75rem', background: '#fff' }}
+              value={sessionFilter}
+              onChange={(e) => setSessionFilter(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.45rem 0.65rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color, #E2E8F0)',
+                fontSize: '0.78rem',
+                background: '#FFFFFF',
+                color: 'var(--navy, #14213D)',
+                fontWeight: 600,
+                outline: 'none',
+                cursor: 'pointer',
+                boxSizing: 'border-box'
+              }}
             >
-              <option value="todos">Todas las clases</option>
-              {classes.map(c => {
-                const info = hierarchyMap[c.id];
-                const displayLabel = info ? `${info.sessionName} › ${c.title}` : c.title;
-                return <option key={c.id} value={c.id}>{displayLabel}</option>;
-              })}
-            </select>
-
-            <select
-              value={dateOrder}
-              onChange={(e) => setDateOrder(e.target.value)}
-              style={{ flex: '0 0 auto', padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.75rem', background: '#fff' }}
-            >
-              <option value="desc">Recientes</option>
-              <option value="asc">Antiguas</option>
+              <option value="todos">Todas las sesiones ({availableSessions.length})</option>
+              {availableSessions.map(s => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
             </select>
           </div>
 
@@ -4407,7 +4473,7 @@ function DudasTab() {
             ) : (
               filteredDoubts.map(doubt => {
                 const isSelected = activeDoubt?.id === doubt.id;
-                const { moduleName, className } = getHierarchy(doubt);
+                const h = getHierarchy(doubt);
                 const isNew = doubt.status === 'enviada';
                 const isRevised = doubt.status === 'revisada';
 
@@ -4460,8 +4526,25 @@ function DudasTab() {
                       {doubt.subject ? `${doubt.subject}: ` : ''}{doubt.description}
                     </p>
 
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.68rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(20, 33, 61, 0.04)', padding: '2px 6px', borderRadius: '4px' }}>
-                      <span>⚡ {className || moduleName}</span>
+                    {/* Especificar Sesión y Clase en la lista lateral */}
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      color: '#475569',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      maxWidth: '100%',
+                      overflow: 'hidden'
+                    }}>
+                      <span style={{ color: 'var(--gold-dark, #b45309)', flexShrink: 0 }}>⚡</span>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.sessionName}</span>
+                      <span style={{ color: '#94A3B8', flexShrink: 0 }}>›</span>
+                      <strong style={{ color: 'var(--navy, #14213D)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.className}</strong>
                     </div>
                   </div>
                 );
@@ -4503,17 +4586,27 @@ function DudasTab() {
                 </div>
               </div>
 
-              {/* JERARQUÍA ACADÉMICA / CLASE */}
+              {/* JERARQUÍA ACADÉMICA: PROGRAMA, SESIÓN Y CLASE DETALLADOS */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--navy)', fontWeight: 600 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--navy, #14213D)', fontWeight: 600 }}>
                   <BookOpen size={14} color="var(--gold-dark)" /> {currentProgram?.title || 'Programa'}
                 </div>
                 {(() => {
                   const h = getHierarchy(activeDoubt);
                   return (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
-                      <span>🎓 {h.moduleName} › {h.sessionName} › <strong style={{ color: 'var(--navy)' }}>{h.className}</strong></span>
-                    </div>
+                    <>
+                      {h.moduleName && h.moduleName !== 'Módulo General' && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
+                          <span>🎓 Módulo: <strong style={{ color: 'var(--navy, #14213D)' }}>{h.moduleName}</strong></span>
+                        </div>
+                      )}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
+                        <span>📂 Sesión: <strong style={{ color: 'var(--navy, #14213D)' }}>{h.sessionName}</strong></span>
+                      </div>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
+                        <span>⚡ Clase: <strong style={{ color: 'var(--navy, #14213D)' }}>{h.className}</strong></span>
+                      </div>
+                    </>
                   );
                 })()}
               </div>
@@ -4542,22 +4635,13 @@ function DudasTab() {
               {/* ACCIONES DE ESTADO (FOOTER) */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', marginTop: 'auto' }}>
                 {activeDoubt.status === 'enviada' && (
-                  <>
-                    <button
-                      onClick={() => handleStatusUpdate(activeDoubt.id, 'revisada')}
-                      className="btn btn-outline"
-                      style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
-                    >
-                      <Eye size={15} /> Marcar como Revisada
-                    </button>
-                    <button
-                      onClick={() => handleStatusUpdate(activeDoubt.id, 'atendida')}
-                      className="btn"
-                      style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', background: '#fca311', color: '#14213d', fontWeight: 800, border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
-                    >
-                      <CheckCircle2 size={15} /> Preparar Respuesta para Clase en Vivo
-                    </button>
-                  </>
+                  <button
+                    onClick={() => handleStatusUpdate(activeDoubt.id, 'revisada')}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                  >
+                    <Eye size={15} /> Marcar como Revisada
+                  </button>
                 )}
 
                 {activeDoubt.status === 'revisada' && (
