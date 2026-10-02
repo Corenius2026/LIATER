@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
-import { createDoubt, fetchStudentDoubtsForClass } from '@/services/doubtService';
+import { createDoubt, fetchStudentDoubtsForClass, updateDoubt, deleteDoubt } from '@/services/doubtService';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import { calculateProgramProgressDetails } from '@/services/programService';
 import { isClassLiveOrSoon, formatClassDate } from '@/utils/dateUtils';
 import { safeJsonParse, safeSetItem, safeRemoveItem } from '@/utils/storageUtils';
 import { triggerResourceDownload } from '@/utils/resourceUtils';
 import {
-  Download, FileText, Video, Calendar, User, ExternalLink,
+  Download, FileText, Video, Calendar, CalendarDays, User, ExternalLink,
   Paperclip, Presentation, ArrowLeft, ArrowRight, Clock, Award, HelpCircle,
   Send, CheckCircle2, BookOpen, X, Info, AlertCircle, FileCheck,
   MessageSquare, Check, Lock, RotateCcw, Zap, Radio, Eye,
@@ -217,8 +218,10 @@ export default function ClassDetail() {
   // Limpiar cualquier barra o traducción automática (/c/ -> 7c) en la URL
   const id = rawId.replace(/^\//, '').replace(/\/c\//g, '7c').replace(/\//g, '').trim();
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
   
   const [clsData, setClsData] = useState(null);
+  const [programTitle, setProgramTitle] = useState('');
   const [topic, setTopic] = useState('');
   const [moduleTitle, setModuleTitle] = useState('');
   const [moduleId, setModuleId] = useState(null);
@@ -850,6 +853,9 @@ export default function ClassDetail() {
 
   // ESTADOS DEL MODAL DE DUDAS Y PERSISTENCIA
   const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
+  const [editingDoubt, setEditingDoubt] = useState(null);
+  const [doubtToDelete, setDoubtToDelete] = useState(null);
+  const [isDeletingDoubt, setIsDeletingDoubt] = useState(false);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [touched, setTouched] = useState({ subject: false, description: false });
@@ -948,11 +954,15 @@ export default function ClassDetail() {
             );
           }
 
-          if (classData.program_id) {
+          const effectiveProgramId = classData.program_id || searchParams.get('programId');
+          if (effectiveProgramId) {
             secondaryPromises.push(
               (async () => {
-                const { data: progData } = await supabase.from('diploma_programs').select('program_type, meet_url').eq('id', classData.program_id).maybeSingle();
-                localStorage.setItem('activeProgramId', classData.program_id);
+                const { data: progData } = await supabase.from('diploma_programs').select('id, title, program_type, meet_url').eq('id', effectiveProgramId).maybeSingle();
+                localStorage.setItem('activeProgramId', effectiveProgramId);
+                if (progData?.title) {
+                  setProgramTitle(progData.title);
+                }
                 if (progData?.program_type) {
                   setProgramType(progData.program_type);
                   localStorage.setItem('activeProgramType', progData.program_type);
@@ -1197,8 +1207,68 @@ export default function ClassDetail() {
     fetchClassDetail();
   }, [id, currentUser?.id]);
 
+  // SINCRONIZACIÓN Y RECARGA DINÁMICA DE DUDAS
+  const refreshDoubts = async () => {
+    if (!id) return;
+    try {
+      if (currentUser?.id) {
+        const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
+        setUserDoubts(doubts || []);
+      }
+      const userRole = currentUser?.role;
+      if (userRole === 'admin' || userRole === 'teacher') {
+        const { data } = await supabase
+          .from('class_doubts')
+          .select('*, users_profile:student_id(full_name, email)')
+          .eq('class_id', id)
+          .neq('status', 'archivada')
+          .order('created_at', { ascending: false });
+        if (data) setAllClassDoubts(data);
+      }
+    } catch (err) {
+      console.warn('Error refreshing doubts in ClassDetail:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`realtime-class-doubts-${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'class_doubts', filter: `class_id=eq.${id}` },
+        () => {
+          refreshDoubts();
+        }
+      )
+      .subscribe();
+
+    const handleLocalUpdate = () => {
+      refreshDoubts();
+    };
+    window.addEventListener('liater-doubt-changed', handleLocalUpdate);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('liater-doubt-changed', handleLocalUpdate);
+    };
+  }, [id, currentUser?.id]);
+
   // MANEJO DE ACCESIBILIDAD Y ESCAPE EN EL MODAL DE DUDAS
-  const openDoubtModal = () => {
+  const openDoubtModal = (doubtToEdit = null) => {
+    if (doubtToEdit && doubtToEdit.id) {
+      setEditingDoubt(doubtToEdit);
+      setSubject(doubtToEdit.subject || '');
+      setDescription(doubtToEdit.description || '');
+      setTopic(doubtToEdit.topic || moduleTitle || '');
+    } else {
+      setEditingDoubt(null);
+      setSubject('');
+      setDescription('');
+      setTopic(moduleTitle || '');
+    }
+    setTouched({ subject: false, description: false });
     setIsDoubtModalOpen(true);
     setSubmitError('');
     setSuccessMsg('');
@@ -1209,6 +1279,7 @@ export default function ClassDetail() {
 
   const closeDoubtModal = () => {
     setIsDoubtModalOpen(false);
+    setEditingDoubt(null);
     setSubmitError('');
     setSuccessMsg('');
     doubtButtonRef.current?.focus();
@@ -1223,6 +1294,32 @@ export default function ClassDetail() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isDoubtModalOpen]);
+
+  // ELIMINACIÓN DE DUDA POR EL ESTUDIANTE
+  const handleConfirmDeleteDoubt = async () => {
+    if (!doubtToDelete) return;
+    setIsDeletingDoubt(true);
+    try {
+      const { success, error } = await deleteDoubt(doubtToDelete.id, currentUser?.id);
+      if (!success && error) {
+        console.error('Error al eliminar duda:', error);
+      }
+
+      // Actualización optimista inmediata
+      setUserDoubts(prev => prev.filter(d => d.id !== doubtToDelete.id));
+      setAllClassDoubts(prev => prev.filter(d => d.id !== doubtToDelete.id));
+
+      // Notificación local inmediata
+      window.dispatchEvent(new CustomEvent('liater-doubt-changed', {
+        detail: { action: 'delete', doubtId: doubtToDelete.id, classId: id }
+      }));
+    } catch (err) {
+      console.error('Error en handleConfirmDeleteDoubt:', err);
+    } finally {
+      setIsDeletingDoubt(false);
+      setDoubtToDelete(null);
+    }
+  };
 
   // VALIDACIÓN DEL FORMULARIO
   const subjectError = touched.subject && !subject.trim()
@@ -1242,7 +1339,7 @@ export default function ClassDetail() {
                       description.trim().length > 0 &&
                       description.length <= 1500;
 
-  // ENVÍO DE LA DUDA A SUPABASE CON MANEJO DE ESTADOS
+  // ENVÍO O EDICIÓN DE LA DUDA A SUPABASE CON MANEJO DE ESTADOS
   const handleSubmitDoubt = async (e) => {
     e.preventDefault();
     setTouched({ subject: true, description: true });
@@ -1250,7 +1347,7 @@ export default function ClassDetail() {
     if (!isFormValid || submitting) return;
 
     if (!currentUser?.id) {
-      setSubmitError('Debes iniciar sesión para enviar una duda.');
+      setSubmitError('Debes iniciar sesión para gestionar una duda.');
       return;
     }
 
@@ -1258,41 +1355,82 @@ export default function ClassDetail() {
     setSubmitError('');
     setSuccessMsg('');
 
-    const { data, error } = await createDoubt({
-      class_id: id,
-      module_id: moduleId,
-      program_id: clsData?.program_id,
-      student_id: currentUser.id,
-      teacher_id: clsData?.teacher_id,
-      subject,
-      description,
-      topic
-    });
+    if (editingDoubt) {
+      // MODO EDICIÓN DE DUDA EXISTENTE
+      const { data, error } = await updateDoubt(editingDoubt.id, {
+        subject,
+        description,
+        topic
+      });
 
-    if (error) {
-      console.error('Supabase Error on createDoubt:', error);
-      const errorMsg = error?.message || error?.details || JSON.stringify(error) || 'Ocurrió un error desconocido.';
-      setSubmitError(`Error en Supabase: ${errorMsg}`);
+      if (error) {
+        console.error('Supabase Error on updateDoubt:', error);
+        const errorMsg = error?.message || error?.details || JSON.stringify(error) || 'Ocurrió un error al actualizar.';
+        setSubmitError(`Error en Supabase: ${errorMsg}`);
+        setSubmitting(false);
+        return;
+      }
+
+      setSuccessMsg('Tu duda fue actualizada exitosamente y los cambios se reflejan al docente.');
       setSubmitting(false);
-      return;
+
+      // Actualizar lista local de inmediato
+      const trimmedSubj = subject.trim();
+      const trimmedDesc = description.trim();
+      const trimmedTopic = topic ? topic.trim() : null;
+
+      setUserDoubts(prev => prev.map(d => d.id === editingDoubt.id ? { ...d, subject: trimmedSubj, description: trimmedDesc, topic: trimmedTopic } : d));
+      setAllClassDoubts(prev => prev.map(d => d.id === editingDoubt.id ? { ...d, subject: trimmedSubj, description: trimmedDesc, topic: trimmedTopic } : d));
+
+      window.dispatchEvent(new CustomEvent('liater-doubt-changed', {
+        detail: { action: 'update', doubtId: editingDoubt.id, classId: id }
+      }));
+
+      setTimeout(() => {
+        setIsDoubtModalOpen(false);
+        setEditingDoubt(null);
+        setSuccessMsg('');
+      }, 1500);
+
+    } else {
+      // MODO CREACIÓN DE NUEVA DUDA
+      const { data, error } = await createDoubt({
+        class_id: id,
+        module_id: moduleId,
+        program_id: clsData?.program_id,
+        student_id: currentUser.id,
+        teacher_id: clsData?.teacher_id,
+        subject,
+        description,
+        topic
+      });
+
+      if (error) {
+        console.error('Supabase Error on createDoubt:', error);
+        const errorMsg = error?.message || error?.details || JSON.stringify(error) || 'Ocurrió un error desconocido.';
+        setSubmitError(`Error en Supabase: ${errorMsg}`);
+        setSubmitting(false);
+        return;
+      }
+
+      setSuccessMsg('Tu duda fue enviada. El docente podrá revisarla para atenderla durante la clase.');
+      setSubject('');
+      setDescription('');
+      setTouched({ subject: false, description: false });
+      setSubmitting(false);
+
+      const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
+      setUserDoubts(doubts || []);
+
+      window.dispatchEvent(new CustomEvent('liater-doubt-changed', {
+        detail: { action: 'create', classId: id }
+      }));
+
+      setTimeout(() => {
+        setIsDoubtModalOpen(false);
+        setSuccessMsg('');
+      }, 2000);
     }
-
-    // ÉXITO EN INSERCIÓN: Mensaje requerido, limpiar campos y recargar dudas
-    setSuccessMsg('Tu duda fue enviada. El docente podrá revisarla para atenderla durante la clase.');
-    setSubject('');
-    setDescription('');
-    setTouched({ subject: false, description: false });
-    setSubmitting(false);
-
-    // Actualizar lista de dudas enviadas en la vista
-    const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
-    setUserDoubts(doubts || []);
-
-    // Cerrar modal automáticamente después de 2 segundos
-    setTimeout(() => {
-      setIsDoubtModalOpen(false);
-      setSuccessMsg('');
-    }, 2000);
   };
 
   if (loading) {
@@ -1403,237 +1541,276 @@ export default function ClassDetail() {
         }
       `}</style>
 
-      {/* 1. ENCABEZADO DE LA CLASE */}
+      {/* 1. ENCABEZADO DE LA CLASE UNIFORME LIATER */}
       {(() => {
         const isCourse = programType === 'curso' || programType === 'course';
+        const effectiveProgramId = clsData?.program_id || searchParams.get('programId');
+        
+        const returnUrl = isTeacher
+          ? (effectiveProgramId ? `/dashboard/profesor/${effectiveProgramId}?tab=clases` : '/portal')
+          : (isAdmin
+              ? (effectiveProgramId ? `/dashboard/admin/${effectiveProgramId}?tab=curriculum` : '/portal')
+              : (isCourse
+                  ? (effectiveProgramId ? `/dashboard/${effectiveProgramId}` : '/portal')
+                  : (moduleId ? `/module/${moduleId}` : '/portal')));
+
+        const returnLabel = isTeacher
+          ? 'Volver a Mis Clases'
+          : (isAdmin
+              ? 'Volver al Constructor'
+              : (isCourse ? 'Volver al Curso' : (moduleId ? 'Volver al Módulo' : 'Volver al Portal')));
+
+        const liveMeetLink = clsData?.meet_url || programMeetUrl;
+
         return (
           <>
-            {/* BARRA SUPERIOR DE MODO ADMINISTRADOR */}
-            {isAdmin && (
-              <div style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                borderRadius: '12px',
-                padding: '0.85rem 1.25rem',
-                marginBottom: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '0.75rem',
-                border: '1px solid #334155',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.12)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <span style={{
-                    background: 'rgba(252, 163, 17, 0.2)',
-                    color: '#fca311',
-                    padding: '0.3rem 0.65rem',
-                    borderRadius: '8px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
+            {/* MIGAS DE PAN / NAVEGACIÓN SUPERIOR */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              marginBottom: '0.85rem',
+              fontSize: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem', color: '#64748B', fontWeight: 600 }}>
+                <Link
+                  to="/portal"
+                  style={{ color: '#64748B', textDecoration: 'none', transition: 'color 0.15s' }}
+                  onMouseOver={e => e.currentTarget.style.color = 'var(--navy, #14213D)'}
+                  onMouseOut={e => e.currentTarget.style.color = '#64748B'}
+                >
+                  Mis programas
+                </Link>
+                <span>/</span>
+                <Link
+                  to={returnUrl}
+                  style={{ color: '#64748B', textDecoration: 'none', transition: 'color 0.15s' }}
+                  onMouseOver={e => e.currentTarget.style.color = 'var(--navy, #14213D)'}
+                  onMouseOut={e => e.currentTarget.style.color = '#64748B'}
+                >
+                  {programTitle || (isCourse ? 'Curso' : 'Programa')}
+                </Link>
+                <span>/</span>
+                <span style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>
+                  {clsData.title}
+                </span>
+              </div>
+
+              {liveMeetLink && (
+                <a
+                  href={liveMeetLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
-                    letterSpacing: '0.5px'
-                  }}>
-                    <Shield size={14} /> MODO ADMINISTRADOR
-                  </span>
-                  <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>
-                    Vista previa de la clase con controles de gestión
-                  </span>
-                </div>
+                    gap: '0.45rem',
+                    background: 'var(--gold, #FCA311)',
+                    color: 'var(--navy, #14213D)',
+                    border: 'none',
+                    padding: '0.45rem 1.05rem',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    boxShadow: '0 2px 6px rgba(252, 163, 17, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.background = '#e8960a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = 'var(--gold, #FCA311)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  <Video size={15} /> <span>Unirse a la sesión en vivo</span>
+                </a>
+              )}
+            </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {clsData?.program_id && (
-                    <Link
-                      to={`/dashboard/admin/${clsData.program_id}?tab=curriculum`}
-                      style={{
-                        background: 'rgba(255,255,255,0.1)',
-                        color: '#ffffff',
-                        padding: '0.4rem 0.85rem',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 600,
-                        textDecoration: 'none',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        border: '1px solid rgba(255,255,255,0.15)'
-                      }}
-                    >
-                      <ArrowLeft size={13} /> Volver al Constructor
-                    </Link>
+            {/* ENCABEZADO DE TARJETA BLANCA ESTILO PANEL PROFESOR */}
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: '16px',
+              padding: '1.4rem 1.75rem',
+              border: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1.25rem',
+              marginBottom: '1.75rem',
+              boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
+            }}>
+              {/* Lado Izquierdo: Contexto, Título y Metadatos */}
+              <div style={{ flex: 1, minWidth: '280px' }}>
+                {!isCourse && moduleTitle && (
+                  <div style={{ marginBottom: '0.45rem' }}>
+                    <span style={{
+                      background: '#F1F5F9',
+                      color: '#475569',
+                      padding: '3px 10px',
+                      borderRadius: '9999px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700
+                    }}>
+                      {moduleTitle}
+                    </span>
+                  </div>
+                )}
+
+                <h1 style={{
+                  fontSize: '1.45rem',
+                  fontWeight: 800,
+                  color: 'var(--navy, #14213D)',
+                  margin: '0 0 0.5rem 0',
+                  letterSpacing: '-0.01em',
+                  lineHeight: 1.25
+                }}>
+                  {clsData.title}
+                </h1>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '0.55rem',
+                  fontSize: '0.82rem'
+                }}>
+                  {clsData.class_date && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      color: '#475569',
+                      fontWeight: 500
+                    }}>
+                      <CalendarDays size={14} color="#64748B" />
+                      <span>{formatClassDate(clsData.class_date)}</span>
+                    </span>
                   )}
+
+                  {clsData.duration && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      color: '#475569',
+                      fontWeight: 500
+                    }}>
+                      <Clock size={14} color="#64748B" />
+                      <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{clsData.duration}</strong> min</span>
+                    </span>
+                  )}
+
+                  {clsData.teacher_profiles?.name && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      color: '#475569',
+                      fontWeight: 500
+                    }}>
+                      <User size={14} color="#64748B" />
+                      <span>Docente: <strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{clsData.teacher_profiles.name}</strong></span>
+                    </span>
+                  )}
+
+                  {/* Estado de la actividad (solo si completada o pendiente) */}
+                  {activityState === 'completada' ? (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      background: 'var(--green-subtle, #f0fdf4)',
+                      color: 'var(--green-600, #16a34a)',
+                      border: '1px solid var(--green-400, #86efac)'
+                    }}>
+                      <CheckCircle2 size={14} /> Finalizada {completedResult ? `· ${completedResult.scorePct}%` : ''}
+                    </span>
+                  ) : (activityState === 'no_iniciada' || activityState === 'en_progreso') ? (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      background: 'var(--gold-subtle, #fef9ec)',
+                      color: 'var(--gold-dark, #b45309)',
+                      border: '1px solid var(--gold-light, #fde68a)'
+                    }}>
+                      <Zap size={14} /> Actividad pendiente
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Lado Derecho: Acciones rápidas */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                {canManageContent && (
                   <button
                     type="button"
                     onClick={handleOpenEditClassModal}
                     style={{
-                      background: 'var(--gold, #fca311)',
-                      color: '#14213d',
-                      padding: '0.4rem 0.9rem',
-                      borderRadius: '6px',
-                      fontSize: '0.76rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.55rem 1rem',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      background: '#FFFFFF',
+                      color: 'var(--navy, #14213D)',
+                      fontSize: '0.82rem',
                       fontWeight: 700,
-                      border: 'none',
                       cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem'
-                    }}
-                  >
-                    <Pencil size={13} /> Editar Clase
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* BARRA SUPERIOR DE MODO DOCENTE */}
-            {isTeacher && !isAdmin && (
-              <div style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                borderRadius: '12px',
-                padding: '0.85rem 1.25rem',
-                marginBottom: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '0.75rem',
-                border: '1px solid #334155',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.12)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <span style={{
-                    background: 'rgba(252, 163, 17, 0.2)',
-                    color: '#fca311',
-                    padding: '0.3rem 0.65rem',
-                    borderRadius: '8px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    letterSpacing: '0.5px'
-                  }}>
-                    <BookOpen size={14} /> MODO DOCENTE
-                  </span>
-                  <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>
-                    Gestión académica de materiales de estudio y actividad de reforzamiento
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <Link
-                    to={clsData?.program_id ? `/dashboard/profesor/${clsData.program_id}?tab=clases` : '/portal'}
-                    style={{
-                      background: 'rgba(255,255,255,0.1)',
-                      color: '#ffffff',
-                      padding: '0.4rem 0.85rem',
-                      borderRadius: '6px',
-                      fontSize: '0.76rem',
-                      fontWeight: 600,
-                      textDecoration: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      border: '1px solid rgba(255,255,255,0.15)',
                       transition: 'all 0.15s ease'
                     }}
-                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                    onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--gold, #FCA311)'; e.currentTarget.style.background = '#F8FAFC'; }}
+                    onMouseOut={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.background = '#FFFFFF'; }}
                   >
-                    <ArrowLeft size={13} /> Volver a Mis Clases
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginBottom: '1.25rem' }}>
-              <Link
-                to={
-                  isTeacher
-                    ? (clsData?.program_id ? `/dashboard/profesor/${clsData.program_id}?tab=clases` : '/portal')
-                    : (isCourse ? (clsData?.program_id ? `/dashboard/${clsData.program_id}` : '/portal') : (moduleId ? `/module/${moduleId}` : '/portal'))
-                }
-                className="btn btn-outline"
-                style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                <ArrowLeft size={14} /> {isTeacher ? 'Volver a Mis Clases' : (isCourse ? 'Volver al inicio del curso' : (moduleId ? 'Volver al Módulo' : 'Volver al Portal'))}
-              </Link>
-            </div>
-
-            <div className="page-header" style={{ marginBottom: '1.75rem' }}>
-              <h1 className="page-title" style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--navy)', margin: '0 0 0.6rem 0', lineHeight: 1.25 }}>
-                {clsData.title}
-              </h1>
-
-              {/* METADATOS LIMPIOS */}
-              <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.84rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
-                {clsData.class_date && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                    {formatClassDate(clsData.class_date)}
-                  </span>
-                )}
-                {clsData.teacher_profiles?.name && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <User size={15} color="var(--gold-dark)" />
-                    Docente: <strong style={{ color: 'var(--navy)' }}>{clsData.teacher_profiles.name}</strong>
-                  </span>
-                )}
-                {!isCourse && moduleTitle && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <BookOpen size={15} color="var(--gold-dark)" />
-                    Módulo: <strong style={{ color: 'var(--navy)' }}>{moduleTitle}</strong>
-                  </span>
-                )}
-                {clsData.duration && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Clock size={15} color="var(--gold-dark)" />
-                    {clsData.duration} min
-                  </span>
+                    <Pencil size={14} color="var(--navy, #14213D)" /> <span>Editar Clase</span>
+                  </button>
                 )}
 
-                {/* INDICADOR DE ESTADO: "Finalizada" ÚNICAMENTE SI SE COMPLETÓ LA ACTIVIDAD DE REFORZAMIENTO */}
-                {activityState === 'completada' ? (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
-                    background: 'var(--green-subtle, #f0fdf4)',
-                    color: 'var(--green-600, #16a34a)',
-                    border: '1px solid var(--green-400, #86efac)'
-                  }}>
-                    <CheckCircle2 size={13} /> Finalizada {completedResult ? `· ${completedResult.scorePct}%` : ''}
-                  </span>
-                ) : (activityState === 'no_iniciada' || activityState === 'en_progreso') ? (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
-                    background: 'var(--gold-subtle, #fef9ec)',
-                    color: 'var(--gold-dark, #b45309)',
-                    border: '1px solid var(--gold-light, #fde68a)'
-                  }}>
-                    <Zap size={13} /> Actividad pendiente
-                  </span>
-                ) : clsData.video_url ? (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
-                    background: 'rgba(20,33,61,0.06)',
-                    color: 'var(--navy)',
-                    border: '1px solid var(--border-color)'
-                  }}>
-                    <Video size={13} /> Grabación disponible
-                  </span>
-                ) : (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
-                    background: '#f1f5f9',
-                    color: '#475569'
-                  }}>
-                    Programada
-                  </span>
-                )}
+                <Link
+                  to={returnUrl}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    background: 'var(--navy, #14213D)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(20, 33, 61, 0.15)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.background = '#000000'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = 'var(--navy, #14213D)'; }}
+                >
+                  <ArrowLeft size={15} /> <span>{returnLabel}</span>
+                </Link>
               </div>
             </div>
           </>
@@ -2308,36 +2485,133 @@ export default function ClassDetail() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                       {userDoubts.map(doubt => (
                         <div key={doubt.id} style={{
-                          padding: '0.65rem 0.85rem',
-                          background: 'var(--surface-light)',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color)'
+                          padding: '0.75rem 0.85rem',
+                          background: 'var(--surface-light, #F8FAFC)',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-color, #E2E8F0)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.45rem',
+                          boxShadow: '0 1px 2px rgba(20, 33, 61, 0.03)'
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy, #14213D)', lineHeight: 1.35, wordBreak: 'break-word' }}>
                               {doubt.subject}
                             </span>
                             <span style={{
                               fontSize: '0.68rem',
-                              padding: '0.15rem 0.5rem',
-                              borderRadius: '10px',
-                              fontWeight: 600,
+                              padding: '0.18rem 0.55rem',
+                              borderRadius: '8px',
+                              fontWeight: 700,
                               whiteSpace: 'nowrap',
-                              background: doubt.status === 'atendida' ? '#dcfce7' :
-                                          doubt.status === 'revisada' ? '#fef3c7' :
-                                          doubt.status === 'archivada' ? '#f1f5f9' : '#dbeafe',
+                              background: doubt.status === 'atendida' ? '#DCFCE7' :
+                                          doubt.status === 'revisada' ? '#FEF3C7' : '#DBEAFE',
                               color: doubt.status === 'atendida' ? '#166534' :
-                                     doubt.status === 'revisada' ? '#92400e' :
-                                     doubt.status === 'archivada' ? '#475569' : '#1e40af'
+                                     doubt.status === 'revisada' ? '#92400E' : '#1E40AF'
                             }}>
                               {doubt.status === 'atendida' ? 'Atendida en clase' :
-                               doubt.status === 'revisada' ? 'Revisada' :
-                               doubt.status === 'archivada' ? 'Archivada' : 'Enviada'}
+                               doubt.status === 'revisada' ? 'Revisada' : 'Enviada'}
                             </span>
                           </div>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </span>
+
+                          {doubt.description && (
+                            <p style={{
+                              fontSize: '0.78rem',
+                              color: '#475569',
+                              margin: 0,
+                              lineHeight: 1.45,
+                              wordBreak: 'break-word',
+                              whiteSpace: 'pre-wrap'
+                            }}>
+                              {doubt.description}
+                            </p>
+                          )}
+
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            marginTop: '0.2rem',
+                            paddingTop: '0.45rem',
+                            borderTop: '1px solid #E2E8F0'
+                          }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748B)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Clock size={11} />
+                              {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+
+                            {/* ACCIONES: EDITAR Y ELIMINAR */}
+                            {doubt.status === 'enviada' ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => openDoubtModal(doubt)}
+                                  title="Editar esta duda"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    padding: '0.25rem 0.55rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #CBD5E1',
+                                    background: '#FFFFFF',
+                                    color: '#334155',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseOver={e => {
+                                    e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                                    e.currentTarget.style.color = 'var(--navy, #14213D)';
+                                    e.currentTarget.style.background = '#FEFCE8';
+                                  }}
+                                  onMouseOut={e => {
+                                    e.currentTarget.style.borderColor = '#CBD5E1';
+                                    e.currentTarget.style.color = '#334155';
+                                    e.currentTarget.style.background = '#FFFFFF';
+                                  }}
+                                >
+                                  <Pencil size={11} /> Editar
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setDoubtToDelete(doubt)}
+                                  title="Eliminar esta duda"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    padding: '0.25rem 0.55rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #FECACA',
+                                    background: '#FFFFFF',
+                                    color: '#DC2626',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseOver={e => {
+                                    e.currentTarget.style.borderColor = '#DC2626';
+                                    e.currentTarget.style.background = '#FEE2E2';
+                                  }}
+                                  onMouseOut={e => {
+                                    e.currentTarget.style.borderColor = '#FECACA';
+                                    e.currentTarget.style.background = '#FFFFFF';
+                                  }}
+                                >
+                                  <Trash2 size={11} /> Eliminar
+                                </button>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '0.68rem', color: '#64748B', fontStyle: 'italic' }}>
+                                {doubt.status === 'atendida' ? '✓ Duda atendida' : 'Docente revisando'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2354,7 +2628,6 @@ export default function ClassDetail() {
                       <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>Enviada</span>
                       <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Revisada</span>
                       <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Atendida en clase</span>
-                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>Archivada</span>
                     </div>
                   </div>
                 )}
@@ -2429,7 +2702,7 @@ export default function ClassDetail() {
                   width: '42px',
                   height: '42px',
                   borderRadius: '12px',
-                  background: '#eff6ff',
+                  background: editingDoubt ? '#FEF3C7' : '#eff6ff',
                   color: 'var(--navy)',
                   display: 'flex',
                   alignItems: 'center',
@@ -2437,14 +2710,14 @@ export default function ClassDetail() {
                   flexShrink: 0
                 }}
               >
-                <HelpCircle size={22} color="var(--gold-dark)" />
+                {editingDoubt ? <Pencil size={20} color="#B45309" /> : <HelpCircle size={22} color="var(--gold-dark)" />}
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>
-                  Enviar Duda al Docente
+                  {editingDoubt ? 'Editar Duda' : 'Enviar Duda al Docente'}
                 </h3>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Clase: {clsData.title}
+                  Clase: {clsData?.title || 'Sesión'}
                 </span>
               </div>
             </div>
@@ -2465,7 +2738,9 @@ export default function ClassDetail() {
             }}>
               <Info size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--gold-dark)' }} />
               <span>
-                Tu duda será revisada por el docente para ser atendida durante la clase o en el espacio académico correspondiente.
+                {editingDoubt
+                  ? 'Modifica los datos de tu consulta. Los cambios se actualizarán de inmediato en la bandeja del docente.'
+                  : 'Tu duda será revisada por el docente para ser atendida durante la clase o en el espacio académico correspondiente.'}
               </span>
             </div>
 
@@ -2653,7 +2928,7 @@ export default function ClassDetail() {
                     boxShadow: isFormValid && !submitting ? '0 2px 4px rgba(20, 33, 61, 0.2)' : 'none'
                   }}
                 >
-                  <Send size={15} /> {submitting ? 'Guardando...' : 'Enviar una duda'}
+                  <Send size={15} /> {submitting ? 'Guardando...' : editingDoubt ? 'Guardar Cambios' : 'Enviar una duda'}
                 </button>
               </div>
 
@@ -2661,6 +2936,20 @@ export default function ClassDetail() {
           </div>
         </div>
       )}
+
+      {/* 4. MODAL ACCESIBLE DE CONFIRMACIÓN PARA ELIMINAR DUDA */}
+      <ConfirmModal
+        isOpen={Boolean(doubtToDelete)}
+        onClose={() => setDoubtToDelete(null)}
+        onConfirm={handleConfirmDeleteDoubt}
+        title="Eliminar Duda"
+        message={`¿Estás seguro de que deseas eliminar tu duda "${doubtToDelete?.subject || 'esta duda'}"?`}
+        note="Esta consulta se retirará permanentemente y dejará de aparecer en la bandeja del docente."
+        confirmText="Eliminar Duda"
+        cancelText="Conservar"
+        isDanger={true}
+        loading={isDeletingDoubt}
+      />
 
       {/* =================================================================== */}
       {/* MODAL / EXPERIENCIA INTERACTIVA DE LA ACTIVIDAD DE REFORZAMIENTO */}

@@ -158,31 +158,13 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
     const diff = classDate - now;
     if (diff > 0 && diff < 60 * 60 * 1000) return 'live';   // próxima hora
     if (diff > 0) return 'upcoming';
-    
-    // Lógica para completada vs pendiente si ya pasó la fecha
-    const hasVideo = !!selectedClass.video_url;
-    let isActPublished = false;
-    if (activityStats) {
-      isActPublished = !!activityStats.isPublished;
-    } else if (selectedClass.has_published_activity) {
-      isActPublished = true;
-    } else if (Array.isArray(selectedClass.class_activities)) {
-      isActPublished = selectedClass.class_activities.some(a => a.is_published);
-    } else if (Array.isArray(selectedClass.activity_drafts)) {
-      isActPublished = selectedClass.activity_drafts.some(d => d.status === 'approved' || d.status === 'published');
-    } else if (draft) {
-      isActPublished = draft.status === 'approved' || draft.status === 'published';
-    }
-    
-    if (hasVideo && isActPublished) return 'completed';
-    return 'pending';
+    return 'completed';
   })();
 
   const STATUS_LABELS = {
     upcoming:  { label: 'Programada',  bg: 'rgba(255,255,255,0.15)', color: '#FFFFFF', border: 'rgba(255,255,255,0.3)' },
     live:      { label: '🔴 EN VIVO',  bg: '#FEE2E2',                color: '#DC2626', border: 'rgba(220,38,38,0.4)' },
     completed: { label: 'Finalizada',  bg: '#DCFCE7',                color: '#007A2E', border: 'rgba(0,122,46,0.3)' },
-    pending:   { label: 'Pendiente',   bg: '#FEF3C7',                color: '#92400E', border: 'rgba(245,158,11,0.4)' },
   };
   const statusInfo = STATUS_LABELS[classStatus] || STATUS_LABELS.upcoming;
 
@@ -2049,7 +2031,7 @@ function ClasesTab() {
     const sectionParam = searchParams.get('section');
     const filterParam = searchParams.get('filter');
 
-    if (filterParam && ['all', 'upcoming', 'completed', 'pending'].includes(filterParam)) {
+    if (filterParam && ['all', 'upcoming', 'completed'].includes(filterParam)) {
       setFilterStatus(filterParam);
     }
 
@@ -2111,17 +2093,12 @@ function ClasesTab() {
 
   const now = new Date();
 
-  // Filtrar por estado
+  // Filtrar por estado (Todas | Próximas | Finalizadas)
   const filteredClasses = classes.filter(c => {
     const isPast = new Date(c.class_date) < now;
-    const hasVideo = !!c.video_url;
-    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-    const isCompleted = isPast && hasVideo && hasActivity;
-    const isPending   = isPast && !isCompleted;
 
     if (filterStatus === 'upcoming')  return !isPast;
-    if (filterStatus === 'pending')   return isPending;
-    if (filterStatus === 'completed') return isCompleted;
+    if (filterStatus === 'completed') return isPast;
     return true;
   });
 
@@ -2154,18 +2131,7 @@ function ClasesTab() {
   });
 
   const totalUpcoming  = classes.filter(c => new Date(c.class_date) >= now).length;
-  const totalPending   = classes.filter(c => {
-    const isPast = new Date(c.class_date) < now;
-    const hasVideo = !!c.video_url;
-    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-    return isPast && !(hasVideo && hasActivity);
-  }).length;
-  const totalCompleted = classes.filter(c => {
-    const isPast = new Date(c.class_date) < now;
-    const hasVideo = !!c.video_url;
-    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-    return isPast && hasVideo && hasActivity;
-  }).length;
+  const totalCompleted = classes.filter(c => new Date(c.class_date) < now).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -2296,39 +2262,7 @@ function ClasesTab() {
           </div>
         </div>
 
-        {/* PENDIENTES DE GESTIÓN */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '14px',
-          padding: '1.25rem 1.5rem',
-          border: '1px solid #E2E8F0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          boxShadow: '0 1px 3px rgba(20,33,61,0.02)'
-        }}>
-          <div style={{
-            width: '46px', height: '46px', borderRadius: '12px',
-            background: totalPending > 0 ? '#FEF3C7' : '#F8FAFC',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: totalPending > 0 ? '#92400E' : '#64748B', flexShrink: 0
-          }}>
-            <AlertTriangle size={22} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>
-              Atención Requerida
-            </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: totalPending > 0 ? '#92400E' : 'var(--navy, #14213D)' }}>
-              {totalPending}
-            </div>
-            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-              {totalPending > 0 ? 'Grabación o IA pendiente' : 'Todo al día'}
-            </div>
-          </div>
-        </div>
-
-        {/* FINALIZADAS CON ÉXITO */}
+        {/* FINALIZADAS */}
         <div style={{
           background: '#FFFFFF',
           borderRadius: '14px',
@@ -2355,7 +2289,7 @@ function ClasesTab() {
               {totalCompleted}
             </div>
             <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-              Video y actividad OK
+              {totalCompleted > 0 ? 'Sesiones impartidas' : 'Sin clases finalizadas aún'}
             </div>
           </div>
         </div>
@@ -2377,7 +2311,6 @@ function ClasesTab() {
           {[
             { id: 'all',       label: 'Todas las clases', count: classes.length },
             { id: 'upcoming',  label: 'Próximas',         count: totalUpcoming },
-            { id: 'pending',   label: 'Pendientes',       count: totalPending },
             { id: 'completed', label: 'Finalizadas',      count: totalCompleted }
           ].map(f => {
             const isSelected = filterStatus === f.id;
@@ -2557,8 +2490,6 @@ function ClasesTab() {
                         const isPast      = new Date(cls.class_date) < now;
                         const hasVideo    = !!cls.video_url;
                         const hasActivity = !!cls.has_published_activity || (Array.isArray(cls.class_activities) && cls.class_activities.some(a => a.is_published)) || (Array.isArray(cls.activity_drafts) && cls.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-                        const isCompleted = isPast && hasVideo && hasActivity;
-                        const isPending   = isPast && !isCompleted;
                         const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();
                         const isLive      = isClassLiveOrSoon(cls, 10);
 
@@ -2585,7 +2516,7 @@ function ClasesTab() {
                               <div style={{
                                 width: '10px', height: '10px', borderRadius: '50%',
                                 marginTop: '6px', flexShrink: 0,
-                                background: isCompleted ? '#007A2E' : isPending ? '#F97316' : isToday ? 'var(--gold, #FCA311)' : '#94A3B8',
+                                background: isLive ? '#DC2626' : isToday ? 'var(--gold, #FCA311)' : isPast ? '#007A2E' : '#94A3B8',
                                 boxShadow: isLive ? '0 0 0 3px rgba(220,38,38,0.2)' : 'none'
                               }} />
 
@@ -2621,30 +2552,32 @@ function ClasesTab() {
                                   {isPast && (
                                     <>
                                       {/* GRABACIÓN STATUS CHIP */}
-                                      <span style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                        background: hasVideo ? '#DCFCE7' : '#FEF3C7',
-                                        color: hasVideo ? '#007A2E' : '#92400E',
-                                        border: `1px solid ${hasVideo ? 'rgba(0,122,46,0.2)' : 'rgba(245,158,11,0.3)'}`,
-                                        padding: '2px 7px', borderRadius: '6px',
-                                        fontSize: '0.74rem', fontWeight: 700
-                                      }}>
-                                        {hasVideo ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                                        {hasVideo ? 'Grabación OK' : 'Grabación pendiente'}
-                                      </span>
+                                      {hasVideo && (
+                                        <span style={{
+                                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                          background: '#DCFCE7',
+                                          color: '#007A2E',
+                                          border: '1px solid rgba(0,122,46,0.2)',
+                                          padding: '2px 7px', borderRadius: '6px',
+                                          fontSize: '0.74rem', fontWeight: 700
+                                        }}>
+                                          <CheckCircle2 size={12} /> Grabación disponible
+                                        </span>
+                                      )}
 
                                       {/* ACTIVIDAD IA STATUS CHIP */}
-                                      <span style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                        background: hasActivity ? '#DCFCE7' : '#FEF3C7',
-                                        color: hasActivity ? '#007A2E' : '#92400E',
-                                        border: `1px solid ${hasActivity ? 'rgba(0,122,46,0.2)' : 'rgba(245,158,11,0.3)'}`,
-                                        padding: '2px 7px', borderRadius: '6px',
-                                        fontSize: '0.74rem', fontWeight: 700
-                                      }}>
-                                        {hasActivity ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                                        {hasActivity ? 'Actividad OK' : 'Actividad pendiente'}
-                                      </span>
+                                      {hasActivity && (
+                                        <span style={{
+                                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                          background: '#FEF3C7',
+                                          color: '#92400E',
+                                          border: '1px solid rgba(245,158,11,0.3)',
+                                          padding: '2px 7px', borderRadius: '6px',
+                                          fontSize: '0.74rem', fontWeight: 700
+                                        }}>
+                                          <Sparkles size={12} /> Actividad IA activa
+                                        </span>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -3269,7 +3202,7 @@ function ResumenTab({ onChangeTab }) {
       const classes = resClasses.data || [];
       const classIds = classes.map(c => c.id);
 
-      // 2. Consultar borradores y actividades publicados usando classIds
+      // 2. Consultar borradores y actividades (publicadas y no publicadas) usando classIds
       let draftsData = [];
       let activitiesData = [];
 
@@ -3282,25 +3215,48 @@ function ResumenTab({ onChangeTab }) {
           supabase.from('class_activities')
             .select('id, class_id, is_published, title')
             .in('class_id', classIds)
-            .eq('is_published', true)
         ]);
         draftsData = draftsRes.data || [];
         activitiesData = actsRes.data || [];
       }
 
-      const actsByClass = {};
+      const publishedActsByClass = {};
+      const unpublishedActsByClass = {};
       activitiesData.forEach(a => {
-        actsByClass[a.class_id] = a;
+        if (a.is_published) {
+          publishedActsByClass[a.class_id] = a;
+        } else {
+          unpublishedActsByClass[a.class_id] = a;
+        }
       });
 
       const draftsByClass = {};
-      const pendingDraftsList = [];
+      const pendingDraftsByClass = {};
       draftsData.forEach(d => {
         if (!draftsByClass[d.class_id]) draftsByClass[d.class_id] = d;
         if (d.status === 'pending') {
-          pendingDraftsList.push(d);
+          pendingDraftsByClass[d.class_id] = d;
         }
       });
+
+      // Identificar si una clase tiene actividad publicada
+      const hasPublishedActivity = (classId) => {
+        return !!publishedActsByClass[classId] || (draftsByClass[classId] && (draftsByClass[classId].status === 'approved' || draftsByClass[classId].status === 'published'));
+      };
+
+      // Identificar si una clase tiene borrador o actividad generada pendiente de validación
+      const getPendingDraftInfo = (classId) => {
+        if (hasPublishedActivity(classId)) return null;
+        const draft = pendingDraftsByClass[classId];
+        const unpubAct = unpublishedActsByClass[classId];
+        if (draft) return { type: 'draft', id: draft.id, title: draft.draft_data?.activity_title || 'Actividad de Reforzamiento' };
+        if (unpubAct) return { type: 'unpub_activity', id: unpubAct.id, title: unpubAct.title || 'Actividad de Reforzamiento' };
+        return null;
+      };
+
+      // Clases con borrador pendiente en todo el programa
+      const classesWithPendingDraft = classes.filter(c => !!getPendingDraftInfo(c.id));
+      const totalPublishedActivities = classes.filter(c => hasPublishedActivity(c.id)).length;
       
       const now = new Date();
       const getEndTime = (c) => new Date(new Date(c.class_date).getTime() + (c.duration || 120) * 60000);
@@ -3330,30 +3286,32 @@ function ResumenTab({ onChangeTab }) {
         });
       }
 
-      // B. Alerta: Borradores IA pendientes de validación
-      if (pendingDraftsList.length > 0) {
-        pendingDraftsList.forEach(d => {
-          const relatedClass = classes.find(c => c.id === d.class_id);
-          alerts.push({
-            id: 'draft-' + d.id,
-            type: 'draft',
-            title: `Borrador IA pendiente: "${d.draft_data?.activity_title || 'Actividad de Reforzamiento'}"`,
-            subtitle: `Clase: ${relatedClass?.title || 'Clase vinculada'} · Creado para revisión y aprobación previa`,
-            action: 'Validar Actividad',
-            tab: 'clases',
-            icon: 'sparkles',
-            color: '#FCA311',
-            onClick: () => navigate(`/class/${d.class_id}${programId ? `?programId=${programId}` : ''}`)
-          });
-        });
-      }
+      // B. Preparación de Sesiones: Borradores IA pendientes de validación para clases PRÓXIMAS
+      // REGLA CRUCIAL: Solo se muestran aquí si la clase aún NO ha iniciado (new Date(c.class_date) > now).
+      // Tan pronto llega la hora de inicio de la clase, se quita de Preparación de Sesiones y solo permanece en "Reforzamiento IA".
+      const upcomingWithPendingDraft = upcomingList.filter(c => !!getPendingDraftInfo(c.id));
 
-      // C. Preparación de Sesiones: Sugerencia para subir materiales y generar actividad IA previa
-      // Solo para clases que todavía NO han comenzado (class_date > now) y que NO tienen actividad ni borrador
-      const upcomingWithoutActivity = upcomingList.filter(c => !actsByClass[c.id] && (!draftsByClass[c.id] || draftsByClass[c.id].status !== 'pending'));
+      upcomingWithPendingDraft.forEach(c => {
+        const draftInfo = getPendingDraftInfo(c.id);
+        alerts.push({
+          id: 'draft-prep-' + c.id,
+          type: 'draft',
+          title: `Validar Borrador IA: "${draftInfo?.title || 'Actividad de Reforzamiento'}"`,
+          subtitle: `Clase: "${c.title}" (${formatClassDate(c.class_date)}) · Revisa y valida la actividad antes de la sesión`,
+          action: 'Validar Borrador',
+          tab: 'clases',
+          icon: 'sparkles',
+          color: '#FCA311',
+          onClick: () => navigate(`/class/${c.id}${programId ? `?programId=${programId}` : ''}`)
+        });
+      });
+
+      // C. Preparación de Sesiones: Sugerencia para subir materiales y preparar sesión previa
+      // Solo para clases que todavía NO han comenzado (class_date > now) y que NO tienen actividad publicada NI borrador pendiente
+      const upcomingWithoutActivityOrDraft = upcomingList.filter(c => !hasPublishedActivity(c.id) && !getPendingDraftInfo(c.id));
 
       // Mostrar hasta 2 próximas clases sugeridas para preparar sesión
-      upcomingWithoutActivity.slice(0, 2).forEach(c => {
+      upcomingWithoutActivityOrDraft.slice(0, 2).forEach(c => {
         alerts.push({
           id: 'suggest-act-' + c.id,
           type: 'suggest_activity',
@@ -3381,8 +3339,8 @@ function ResumenTab({ onChangeTab }) {
         announcements: visibleAnnouncementsCount,
         students: resStudents.count || 0,
         pendingDoubts: unreviewedCount,
-        pendingDrafts: pendingDraftsList.length,
-        activeActivities: activitiesData.length,
+        pendingDrafts: classesWithPendingDraft.length,
+        activeActivities: totalPublishedActivities,
         pendingEvaluations: 0,
       });
 
@@ -3527,7 +3485,7 @@ function ResumenTab({ onChangeTab }) {
           transition: 'all 0.2s ease',
           boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
         }}
-          onClick={() => stats.pendingDrafts > 0 && onChangeTab('clases')}
+          onClick={() => stats.pendingDrafts > 0 && onChangeTab('reforzamiento', { statusFilter: 'draft_pending' })}
           onMouseOver={e => stats.pendingDrafts > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
@@ -3559,8 +3517,8 @@ function ResumenTab({ onChangeTab }) {
       {/* ── BANDEJA DE ACCIONES Y SUGERENCIAS ── Visible en todos los programas */}
       <div className="card" style={{
         padding: '1.35rem 1.6rem',
-        border: urgentAlerts.length > 0 ? '1px solid rgba(252, 163, 17, 0.35)' : '1px solid #E2E8F0',
-        background: urgentAlerts.length > 0 ? 'rgba(252, 163, 17, 0.03)' : '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        background: '#FFFFFF',
         borderRadius: '14px',
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
@@ -3596,8 +3554,8 @@ function ResumenTab({ onChangeTab }) {
             {urgentAlerts.map(alert => (
               <div key={alert.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.95rem 1.25rem', background: '#FFFFFF',
-                border: `1px solid ${alert.color === '#FCA311' ? 'rgba(252,163,17,0.3)' : 'rgba(20,33,61,0.12)'}`,
+                padding: '0.95rem 1.25rem', background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
                 borderRadius: '10px', gap: '1rem', flexWrap: 'wrap',
                 transition: 'all 0.2s ease',
                 boxShadow: '0 1px 2px rgba(20, 33, 61, 0.02)'
@@ -3808,7 +3766,7 @@ function ResumenTab({ onChangeTab }) {
               {[
                 { label: 'Total de clases', value: stats.totalClasses, color: '#14213D' },
                 { label: 'Clases completadas', value: stats.completed, color: '#16a34a' },
-                { label: 'Clases pendientes', value: stats.upcoming, color: '#14213D' },
+                { label: 'Clases por impartir', value: stats.upcoming, color: '#14213D' },
                 { label: 'Actividades IA activas', value: stats.activeActivities || 0, color: '#FCA311' },
                 { label: 'Estudiantes inscritos', value: stats.students, color: '#14213D' },
                 { label: 'Anuncios publicados', value: stats.announcements, color: '#14213D' },
@@ -3925,7 +3883,8 @@ function ResumenTab({ onChangeTab }) {
    TAB 3: Dudas de estudiantes (Gestión Docente)
 ───────────────────────────────────────── */
 function DudasTab() {
-  const { programId, currentProgram } = useTeacherContext();
+  const { programId, currentProgram, teacherId, profile } = useTeacherContext();
+  const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   const [doubts, setDoubts] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -3934,27 +3893,86 @@ function DudasTab() {
 
   // Filtros
   const [statusFilter, setStatusFilter] = useState('todos');
-  const [classFilter, setClassFilter] = useState('todos');
+  const [sessionFilter, setSessionFilter] = useState('todos');
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateOrder, setDateOrder] = useState('desc');
 
   // Modal de Detalle
   const [selectedDoubt, setSelectedDoubt] = useState(null);
+
+  const effectiveTeacherProfileId = teacherId || profile?.id;
+  const currentUserId = currentUser?.id;
+  const isTeacherRole = currentUser?.role === 'teacher';
 
   const fetchDoubtsAndClasses = async () => {
     if (!programId) return;
     try {
       setLoading(true);
-      let doubtsData = [];
 
-      // 1. Fetch dudas
+      // 1. Fetch clases del programa con session_id, subtopic_id y teacher_id
+      let classIds = [];
+      let loadedClasses = [];
+      const classHierarchy = {};
+
+      try {
+        const { data: clsData } = await supabase
+          .from('class_sessions')
+          .select('id, title, program_id, subtopic_id, teacher_id')
+          .eq('program_id', programId);
+
+        loadedClasses = clsData || [];
+        setClasses(loadedClasses);
+        classIds = loadedClasses.map(c => c.id);
+
+        let moduleMap = {};
+        const { data: modulesRes } = await supabase.from('modules').select('id, title').eq('program_id', programId);
+        if (modulesRes) {
+          moduleMap = modulesRes.reduce((acc, m) => ({ ...acc, [m.id]: m.title }), {});
+        }
+
+        const sessionMap = {};
+        const { data: sRes } = await supabase.from('sessions').select('id, title, module_id');
+        let subRes = [];
+        try {
+          const { data: st } = await supabase.from('subtopics').select('id, title, module_id');
+          if (st) subRes = st;
+        } catch (e) {}
+
+        const allSessions = [...(sRes || []), ...subRes];
+        allSessions.forEach(s => {
+          sessionMap[s.id] = {
+            id: s.id,
+            title: s.title,
+            moduleTitle: moduleMap[s.module_id] || 'Módulo General'
+          };
+        });
+
+        loadedClasses.forEach(c => {
+          const parentId = c.session_id || c.subtopic_id;
+          const sess = parentId ? sessionMap[parentId] : null;
+          classHierarchy[c.id] = {
+            className: c.title || 'Clase',
+            sessionName: sess?.title || 'Sesión General',
+            moduleName: sess?.moduleTitle || 'Módulo General',
+            sessionId: parentId || 'general',
+            teacherId: c.teacher_id
+          };
+        });
+        setHierarchyMap(classHierarchy);
+      } catch (errHier) {
+        console.warn('Error construyendo jerarquía de clases:', errHier);
+      }
+
+      // 2. Fetch dudas del programa
+      let doubtsData = [];
       const { data: qData, error: qErr } = await supabase
         .from('class_doubts')
         .select(`
           *,
           class_sessions (
             id,
-            title
+            title,
+            subtopic_id,
+            teacher_id
           ),
           users_profile:student_id (
             id,
@@ -3977,56 +3995,6 @@ function DudasTab() {
         doubtsData = qData ? [...qData] : [];
       }
 
-      // 2. Fetch clases de forma segura para no romper la app
-      let classIds = [];
-      try {
-        const { data: clsData } = await supabase
-          .from('class_sessions')
-          .select('id, title, program_id')
-          .eq('program_id', programId);
-          
-        const loadedClasses = clsData || [];
-        setClasses(loadedClasses);
-        classIds = loadedClasses.map(c => c.id);
-
-        let moduleMap = {};
-        let sessionMap = {};
-
-        const { data: modulesRes } = await supabase.from('modules').select('id, title').eq('program_id', programId);
-        if (modulesRes) {
-          moduleMap = modulesRes.reduce((acc, m) => ({ ...acc, [m.id]: m.title }), {});
-        }
-
-        const { data: sessionsRes, error: sErr } = await supabase.from('sessions').select('id, title, module_id');
-        let sData = sessionsRes || [];
-        if (sErr) {
-          const { data: subRes } = await supabase.from('subtopics').select('id, title, module_id');
-          sData = subRes || [];
-        }
-        
-        sessionMap = sData.reduce((acc, s) => ({
-          ...acc,
-          [s.id]: {
-            title: s.title,
-            moduleTitle: moduleMap[s.module_id] || 'Módulo General'
-          }
-        }), {});
-
-        const classHierarchy = {};
-        loadedClasses.forEach(c => {
-          const sess = sessionMap[c.session_id];
-          classHierarchy[c.id] = {
-            className: c.title || 'Clase',
-            sessionName: sess?.title || 'Sesión General',
-            moduleName: sess?.moduleTitle || 'Módulo General'
-          };
-        });
-        setHierarchyMap(classHierarchy);
-        
-      } catch (errHier) {
-        console.warn('Error construyendo jerarquía de clases:', errHier);
-      }
-
       // 3. Fallback de dudas por class_id si es necesario
       if (classIds.length > 0) {
         try {
@@ -4034,7 +4002,7 @@ function DudasTab() {
             .from('class_doubts')
             .select(`
               *,
-              class_sessions (id, title),
+              class_sessions (id, title, subtopic_id, teacher_id),
               users_profile:student_id (id, full_name, email)
             `)
             .in('class_id', classIds)
@@ -4054,7 +4022,7 @@ function DudasTab() {
         }
       }
 
-      // 4. Enriquecer perfiles
+      // 4. Enriquecer perfiles de estudiantes
       const missingStudentIds = doubtsData
         .filter(d => (!d.users_profile || !d.users_profile.full_name) && d.student_id)
         .map(d => d.student_id);
@@ -4080,7 +4048,45 @@ function DudasTab() {
         }
       }
 
-      setDoubts(doubtsData);
+      // 5. FILTRADO ESTRICTO POR DOCENTE:
+      // Si el usuario autenticado es profesor, solo debe ver dudas asignadas a sus clases
+      let filteredForTeacher = doubtsData;
+      if (isTeacherRole) {
+        const teacherClassIdSet = new Set(
+          loadedClasses
+            .filter(c => c.teacher_id && (c.teacher_id === effectiveTeacherProfileId || c.teacher_id === currentUserId))
+            .map(c => c.id)
+        );
+
+        filteredForTeacher = doubtsData.filter(d => {
+          // A. ¿La duda tiene teacher_id y coincide directamente con el docente?
+          if (d.teacher_id && (d.teacher_id === effectiveTeacherProfileId || d.teacher_id === currentUserId)) {
+            return true;
+          }
+          // B. ¿La clase a la que pertenece la duda está asignada a este profesor?
+          const clsTId = classHierarchy[d.class_id]?.teacherId || d.class_sessions?.teacher_id;
+          if (clsTId && (clsTId === effectiveTeacherProfileId || clsTId === currentUserId)) {
+            return true;
+          }
+          // C. ¿El class_id está en el set de clases de este docente?
+          if (d.class_id && teacherClassIdSet.has(d.class_id)) {
+            return true;
+          }
+          return false;
+        });
+      }
+
+      // Excluir dudas archivadas/eliminadas
+      filteredForTeacher = filteredForTeacher.filter(d => d.status !== 'archivada');
+
+      setDoubts(filteredForTeacher);
+
+      // Mantener selectedDoubt sincronizado con la versión fresca (actualizada o eliminada)
+      setSelectedDoubt(prev => {
+        if (!prev) return null;
+        const fresh = filteredForTeacher.find(d => d.id === prev.id);
+        return fresh || null;
+      });
     } catch (err) {
       console.error('Error general al cargar dudas:', err);
     } finally {
@@ -4090,7 +4096,30 @@ function DudasTab() {
 
   useEffect(() => {
     fetchDoubtsAndClasses();
-  }, [programId]);
+
+    // Sincronización en tiempo real vía Supabase Realtime
+    const channel = supabase
+      .channel('teacher-doubts-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'class_doubts' },
+        () => {
+          fetchDoubtsAndClasses();
+        }
+      )
+      .subscribe();
+
+    // Listener local para cambios instantáneos entre componentes
+    const handleLocalUpdate = () => {
+      fetchDoubtsAndClasses();
+    };
+    window.addEventListener('liater-doubt-changed', handleLocalUpdate);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('liater-doubt-changed', handleLocalUpdate);
+    };
+  }, [programId, effectiveTeacherProfileId, currentUserId, isTeacherRole]);
 
   // Deep linking: Si viene un doubtId en la URL, abrir automáticamente el modal correspondiente
   useEffect(() => {
@@ -4103,16 +4132,17 @@ function DudasTab() {
     }
   }, [searchParams, doubts]);
 
-  // Helper de jerarquía
+  // Helper de jerarquía robusto
   const getHierarchy = (d) => {
     const clsId = d?.class_id || d?.class_sessions?.id;
     if (clsId && hierarchyMap[clsId]) {
       return hierarchyMap[clsId];
     }
     const moduleName = d?.class_sessions?.sessions?.modules?.title || 'Módulo General';
-    const sessionName = d?.class_sessions?.sessions?.title || 'Sesión';
+    const sessionName = d?.class_sessions?.sessions?.title || 'Sesión General';
     const className = d?.class_sessions?.title || 'Clase';
-    return { moduleName, sessionName, className };
+    const sessionId = d?.class_sessions?.session_id || d?.class_sessions?.subtopic_id || 'general';
+    return { moduleName, sessionName, className, sessionId };
   };
 
   // Actualización de estado en caliente (optimista y persistida)
@@ -4124,12 +4154,37 @@ function DudasTab() {
     await updateDoubtStatus(doubtId, newStatus);
   };
 
+  // Sesiones únicas donde el profesor tiene o ha tenido clases asignadas
+  const availableSessions = useMemo(() => {
+    const map = new Map();
+    const relevantClasses = isTeacherRole
+      ? classes.filter(c => c.teacher_id && (c.teacher_id === effectiveTeacherProfileId || c.teacher_id === currentUserId))
+      : classes;
+
+    relevantClasses.forEach(c => {
+      const sessId = c.session_id || c.subtopic_id || 'general';
+      const info = hierarchyMap[c.id];
+      const sessTitle = info?.sessionName || 'Sesión General';
+      const modTitle = info?.moduleName && info.moduleName !== 'Módulo General' ? info.moduleName : null;
+      if (!map.has(sessId)) {
+        map.set(sessId, {
+          id: sessId,
+          title: sessTitle,
+          label: modTitle ? `${modTitle} › ${sessTitle}` : sessTitle
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [classes, hierarchyMap, isTeacherRole, effectiveTeacherProfileId, currentUserId]);
+
   // Filtrado dinámico
   const filteredDoubts = doubts.filter(d => {
     const matchesStatus = statusFilter === 'todos'
       ? d.status !== 'archivada'           // "Todas" excluye archivadas
       : d.status === statusFilter;          // filtros específicos funcionan normal
-    const matchesClass = classFilter === 'todos' || d.class_id === classFilter;
+    const h = getHierarchy(d);
+    const matchesSession = sessionFilter === 'todos' || h.sessionId === sessionFilter;
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm.trim() ||
       d.subject?.toLowerCase().includes(searchLower) ||
@@ -4137,11 +4192,11 @@ function DudasTab() {
       d.users_profile?.full_name?.toLowerCase().includes(searchLower) ||
       d.users_profile?.email?.toLowerCase().includes(searchLower);
 
-    return matchesStatus && matchesClass && matchesSearch;
+    return matchesStatus && matchesSession && matchesSearch;
   }).sort((a, b) => {
     const dateA = new Date(a.created_at).getTime();
     const dateB = new Date(b.created_at).getTime();
-    return dateOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    return dateB - dateA;
   });
 
   const countByStatus = (st) => doubts.filter(d => d.status === st).length;
@@ -4414,28 +4469,29 @@ function DudasTab() {
             ))}
           </div>
 
-          {/* SELECTOR DE CLASE Y ORDEN */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {/* SELECTOR DE SESIÓN (FILTRO EXCLUSIVO POR SESIONES DEL DOCENTE) */}
+          <div style={{ width: '100%' }}>
             <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              style={{ flex: 1, padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.75rem', background: '#fff' }}
+              value={sessionFilter}
+              onChange={(e) => setSessionFilter(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.45rem 0.65rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color, #E2E8F0)',
+                fontSize: '0.78rem',
+                background: '#FFFFFF',
+                color: 'var(--navy, #14213D)',
+                fontWeight: 600,
+                outline: 'none',
+                cursor: 'pointer',
+                boxSizing: 'border-box'
+              }}
             >
-              <option value="todos">Todas las clases</option>
-              {classes.map(c => {
-                const info = hierarchyMap[c.id];
-                const displayLabel = info ? `${info.sessionName} › ${c.title}` : c.title;
-                return <option key={c.id} value={c.id}>{displayLabel}</option>;
-              })}
-            </select>
-
-            <select
-              value={dateOrder}
-              onChange={(e) => setDateOrder(e.target.value)}
-              style={{ flex: '0 0 auto', padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.75rem', background: '#fff' }}
-            >
-              <option value="desc">Recientes</option>
-              <option value="asc">Antiguas</option>
+              <option value="todos">Todas las sesiones ({availableSessions.length})</option>
+              {availableSessions.map(s => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
             </select>
           </div>
 
@@ -4449,7 +4505,7 @@ function DudasTab() {
             ) : (
               filteredDoubts.map(doubt => {
                 const isSelected = activeDoubt?.id === doubt.id;
-                const { moduleName, className } = getHierarchy(doubt);
+                const h = getHierarchy(doubt);
                 const isNew = doubt.status === 'enviada';
                 const isRevised = doubt.status === 'revisada';
 
@@ -4502,8 +4558,25 @@ function DudasTab() {
                       {doubt.subject ? `${doubt.subject}: ` : ''}{doubt.description}
                     </p>
 
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.68rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(20, 33, 61, 0.04)', padding: '2px 6px', borderRadius: '4px' }}>
-                      <span>⚡ {className || moduleName}</span>
+                    {/* Especificar Sesión y Clase en la lista lateral */}
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      color: '#475569',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      maxWidth: '100%',
+                      overflow: 'hidden'
+                    }}>
+                      <span style={{ color: 'var(--gold-dark, #b45309)', flexShrink: 0 }}>⚡</span>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.sessionName}</span>
+                      <span style={{ color: '#94A3B8', flexShrink: 0 }}>›</span>
+                      <strong style={{ color: 'var(--navy, #14213D)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.className}</strong>
                     </div>
                   </div>
                 );
@@ -4545,17 +4618,27 @@ function DudasTab() {
                 </div>
               </div>
 
-              {/* JERARQUÍA ACADÉMICA / CLASE */}
+              {/* JERARQUÍA ACADÉMICA: PROGRAMA, SESIÓN Y CLASE DETALLADOS */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--navy)', fontWeight: 600 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--navy, #14213D)', fontWeight: 600 }}>
                   <BookOpen size={14} color="var(--gold-dark)" /> {currentProgram?.title || 'Programa'}
                 </div>
                 {(() => {
                   const h = getHierarchy(activeDoubt);
                   return (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
-                      <span>🎓 {h.moduleName} › {h.sessionName} › <strong style={{ color: 'var(--navy)' }}>{h.className}</strong></span>
-                    </div>
+                    <>
+                      {h.moduleName && h.moduleName !== 'Módulo General' && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
+                          <span>🎓 Módulo: <strong style={{ color: 'var(--navy, #14213D)' }}>{h.moduleName}</strong></span>
+                        </div>
+                      )}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
+                        <span>📂 Sesión: <strong style={{ color: 'var(--navy, #14213D)' }}>{h.sessionName}</strong></span>
+                      </div>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#f8fafc', border: '1px solid var(--border-color, #E2E8F0)', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', color: '#475569' }}>
+                        <span>⚡ Clase: <strong style={{ color: 'var(--navy, #14213D)' }}>{h.className}</strong></span>
+                      </div>
+                    </>
                   );
                 })()}
               </div>
@@ -4584,22 +4667,13 @@ function DudasTab() {
               {/* ACCIONES DE ESTADO (FOOTER) */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', marginTop: 'auto' }}>
                 {activeDoubt.status === 'enviada' && (
-                  <>
-                    <button
-                      onClick={() => handleStatusUpdate(activeDoubt.id, 'revisada')}
-                      className="btn btn-outline"
-                      style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
-                    >
-                      <Eye size={15} /> Marcar como Revisada
-                    </button>
-                    <button
-                      onClick={() => handleStatusUpdate(activeDoubt.id, 'atendida')}
-                      className="btn"
-                      style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', background: '#fca311', color: '#14213d', fontWeight: 800, border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
-                    >
-                      <CheckCircle2 size={15} /> Preparar Respuesta para Clase en Vivo
-                    </button>
-                  </>
+                  <button
+                    onClick={() => handleStatusUpdate(activeDoubt.id, 'revisada')}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.82rem', padding: '0.55rem 1.1rem', color: '#92400e', borderColor: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}
+                  >
+                    <Eye size={15} /> Marcar como Revisada
+                  </button>
                 )}
 
                 {activeDoubt.status === 'revisada' && (
@@ -7735,14 +7809,24 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
 ───────────────────────────────────────────────────────────── */
 function ReforzamientoIATab({ onChangeTab }) {
   const { profile, teacherId, programId, currentProgram } = useTeacherContext();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialFilter = searchParams.get('statusFilter') || 'all';
   const [loading, setLoading] = useState(true);
   const [classesWithActivities, setClassesWithActivities] = useState([]);
   const [totalProgramClasses, setTotalProgramClasses] = useState(0);
   const [modules, setModules] = useState([]);
   const [selectedModuleId, setSelectedModuleId] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'published' | 'with_responses' | 'draft_pending'
+  const [statusFilter, setStatusFilter] = useState(initialFilter); // 'all' | 'published' | 'with_responses' | 'draft_pending'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedActivityForModal, setSelectedActivityForModal] = useState(null);
+
+  useEffect(() => {
+    const f = searchParams.get('statusFilter');
+    if (f) {
+      setStatusFilter(f);
+    }
+  }, [searchParams]);
 
   // Cargar datos
   const loadData = async () => {
@@ -7760,23 +7844,31 @@ function ReforzamientoIATab({ onChangeTab }) {
 
       setModules(modData || []);
 
-      // 2. Obtener clases asignadas al docente con jerarquía sessions / modules
+      // 2. Obtener clases asignadas al docente con jerarquía sessions / modules (o generales del programa)
       let classes = [];
-      const { data: sData, error: sErr } = await supabase
+      let classFilter = '';
+      if (teacherProfileId) {
+        classFilter = `teacher_id.eq.${teacherProfileId},teacher_id.is.null`;
+      }
+
+      let classQuery = supabase
         .from('class_sessions')
         .select('*, sessions(id, title, order_index, module_id, modules(id, title, program_id)), meet_url')
-        .eq('program_id', programId)
-        .eq('teacher_id', teacherProfileId)
-        .order('class_date', { ascending: true });
+        .eq('program_id', programId);
+      if (classFilter) classQuery = classQuery.or(classFilter);
+      classQuery = classQuery.order('class_date', { ascending: true });
+
+      const { data: sData, error: sErr } = await classQuery;
 
       if (sErr) {
         // Fallback a esquema subtopics si aún existiera
-        const { data: oldData } = await supabase
+        let oldQuery = supabase
           .from('class_sessions')
           .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
-          .eq('program_id', programId)
-          .eq('teacher_id', teacherProfileId)
-          .order('class_date', { ascending: true });
+          .eq('program_id', programId);
+        if (classFilter) oldQuery = oldQuery.or(classFilter);
+        oldQuery = oldQuery.order('class_date', { ascending: true });
+        const { data: oldData } = await oldQuery;
         classes = oldData || [];
       } else {
         classes = sData || [];
@@ -7869,9 +7961,11 @@ function ReforzamientoIATab({ onChangeTab }) {
         const avgScore = studentBestScores.length > 0 ? Math.round(studentBestScores.reduce((a, b) => a + b, 0) / studentBestScores.length) : null;
 
         // Determinar estado de la actividad (publicada o borrador pendiente)
-        let actStatus = 'draft_pending';
+        let actStatus = 'none';
         if (act && act.is_published) {
           actStatus = 'published';
+        } else if ((act && !act.is_published) || (draft && draft.status === 'pending')) {
+          actStatus = 'draft_pending';
         }
 
         const effectiveTotal = totalStudents > 0 ? totalStudents : uniqueStudentsCompleted;
@@ -7889,8 +7983,8 @@ function ReforzamientoIATab({ onChangeTab }) {
         };
       });
 
-      // Solo conservar clases que tengan actividad creada o borrador generado
-      const onlyWithActivities = enriched.filter(c => c.activity || c.draft);
+      // Conservar clases que tengan actividad publicada o borrador pendiente
+      const onlyWithActivities = enriched.filter(c => c.actStatus === 'published' || c.actStatus === 'draft_pending');
       setClassesWithActivities(onlyWithActivities);
       setTotalProgramClasses(classes.length);
     } catch (err) {
@@ -8151,8 +8245,14 @@ function ReforzamientoIATab({ onChangeTab }) {
           boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
           display: 'flex',
           alignItems: 'center',
-          gap: '14px'
-        }}>
+          gap: '14px',
+          cursor: draftPendingCount > 0 ? 'pointer' : 'default',
+          transition: 'all 0.2s ease'
+        }}
+          onClick={() => draftPendingCount > 0 && setStatusFilter('draft_pending')}
+          onMouseOver={e => draftPendingCount > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
+          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+        >
           <div style={{
             width: '48px',
             height: '48px',
@@ -8168,7 +8268,7 @@ function ReforzamientoIATab({ onChangeTab }) {
           <div>
             <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Borradores por Validar</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: draftPendingCount > 0 ? '#B45309' : '#14213D' }}>
-              {draftPendingCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>en Mis Clases</span>
+              {draftPendingCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>pendientes</span>
             </div>
           </div>
         </div>
@@ -8418,7 +8518,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                       alignItems: 'center',
                       gap: '4px'
                     }}>
-                      <Bot size={12} /> Borrador IA pendiente
+                      <Bot size={12} /> Borrador pendiente
                     </span>
                   )}
                 </div>
@@ -8498,7 +8598,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                       fontSize: '0.8rem',
                       color: '#92400E'
                     }}>
-                      💡 <strong>Borrador listo:</strong> La IA generó preguntas de repaso basadas en el material de clase. Valídalo y apruébalo en Mis Clases.
+                      💡 <strong>Borrador listo:</strong> Actividad pedagógica generada que requiere revisión y validación previa antes de activarse para los estudiantes.
                     </div>
                   )}
                 </div>
@@ -8535,7 +8635,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                     </button>
                   ) : (
                     <button
-                      onClick={() => onChangeTab && onChangeTab('clases', { classId: cls.id, section: 'activity' })}
+                      onClick={() => navigate(`/class/${cls.id}${programId ? `?programId=${programId}` : ''}`)}
                       style={{
                         flex: 1,
                         display: 'flex',
@@ -8549,10 +8649,14 @@ function ReforzamientoIATab({ onChangeTab }) {
                         borderRadius: '8px',
                         fontSize: '0.82rem',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(252, 163, 17, 0.25)',
+                        transition: 'all 0.15s ease'
                       }}
+                      onMouseOver={e => e.currentTarget.style.background = '#e8960a'}
+                      onMouseOut={e => e.currentTarget.style.background = '#FCA311'}
                     >
-                      <Sparkles size={15} /> Revisar y Validar en Mis Clases
+                      <Sparkles size={15} /> Revisar y Validar Borrador
                     </button>
                   )}
                 </div>

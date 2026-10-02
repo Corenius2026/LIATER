@@ -75,10 +75,84 @@ export async function fetchStudentDoubtsForClass(classId, studentId = null) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return { doubts: data || [], error: null };
+    // Filtrar dudas archivadas para no mostrarlas en la lista activa
+    const activeDoubts = (data || []).filter(d => d.status !== 'archivada');
+    return { doubts: activeDoubts, error: null };
   } catch (err) {
     console.error('Error al consultar las dudas de la clase:', err);
     return { doubts: [], error: err };
+  }
+}
+
+/**
+ * Actualiza los campos (asunto, descripción, tema) de una duda existente de un estudiante.
+ * 
+ * @param {string} doubtId - ID de la duda a actualizar
+ * @param {Object} updateData - Nuevos datos
+ * @param {string} updateData.subject - Asunto
+ * @param {string} updateData.description - Descripción detallada
+ * @param {string} [updateData.topic] - Tema opcional
+ * @returns {Promise<{ data: Object|null, error: Error|null }>}
+ */
+export async function updateDoubt(doubtId, updateData) {
+  try {
+    if (!doubtId) throw new Error('El ID de la duda es obligatorio.');
+    if (!updateData.subject?.trim()) throw new Error('El asunto de la duda es obligatorio.');
+    if (!updateData.description?.trim()) throw new Error('La descripción de la duda es obligatoria.');
+
+    const payload = {
+      subject: updateData.subject.trim(),
+      description: updateData.description.trim(),
+      topic: updateData.topic ? updateData.topic.trim() : null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('class_doubts')
+      .update(payload)
+      .eq('id', doubtId)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error al actualizar la duda en Supabase:', err);
+    return { data: null, error: err };
+  }
+}
+
+/**
+ * Elimina una duda enviada por el estudiante.
+ * Si la política física DELETE no lo permite, realiza un archivado defensivo seguro.
+ * 
+ * @param {string} doubtId - ID de la duda
+ * @param {string} [studentId] - ID del estudiante propietario
+ * @returns {Promise<{ success: boolean, error: Error|null }>}
+ */
+export async function deleteDoubt(doubtId, studentId = null) {
+  try {
+    if (!doubtId) throw new Error('El ID de la duda es obligatorio.');
+
+    let query = supabase.from('class_doubts').delete().eq('id', doubtId);
+    if (studentId) {
+      query = query.eq('student_id', studentId);
+    }
+
+    const { error } = await query;
+    if (error) {
+      console.warn('Fallo DELETE físico en Supabase, aplicando archivado defensivo:', error);
+      const { error: archiveError } = await supabase
+        .from('class_doubts')
+        .update({ status: 'archivada', updated_at: new Date().toISOString() })
+        .eq('id', doubtId);
+      if (archiveError) throw archiveError;
+    }
+
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error al eliminar la duda:', err);
+    return { success: false, error: err };
   }
 }
 
