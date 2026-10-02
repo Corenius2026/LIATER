@@ -468,8 +468,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
       actId = newAct.id;
     }
     
-    for (let qi = 0; qi < (draftData.questions || []).length; qi++) {
-      const q = draftData.questions[qi];
+    await Promise.all((draftData.questions || []).map(async (q, qi) => {
       const qPayload = {
         activity_id: actId,
         text: q.text,
@@ -502,17 +501,32 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
       }
 
       if (qErr) throw qErr;
+
+      const optsPayload = (q.options || []).map((opt, oi) => ({
+        question_id: qData.id,
+        text: opt.text || `Opción ${oi + 1}`,
+        order_num: oi + 1
+      }));
+
+      const { data: insertedOpts, error: optErr } = await supabase
+        .from('question_options')
+        .insert(optsPayload)
+        .select();
+
+      if (optErr) throw optErr;
+
       let correctOptId = null;
-      for (let oi = 0; oi < (q.options || []).length; oi++) {
-        const opt = q.options[oi];
-        const { data: optData, error: optErr } = await supabase.from('question_options').insert({ question_id: qData.id, text: opt.text, order_num: oi + 1 }).select('id').single();
-        if (optErr) throw optErr;
-        if (opt.is_correct) correctOptId = optData.id;
+      const correctIdx = (q.options || []).findIndex(opt => opt.is_correct || opt.isCorrect || opt.correct);
+      if (correctIdx >= 0 && insertedOpts?.[correctIdx]) {
+        correctOptId = insertedOpts[correctIdx].id;
+      } else if (insertedOpts?.[0]) {
+        correctOptId = insertedOpts[0].id;
       }
+
       if (correctOptId) {
         await supabase.from('question_correct_answers').upsert({ question_id: qData.id, correct_option_id: correctOptId }, { onConflict: 'question_id' });
       }
-    }
+    }));
   };
 
   const handlePublishActivity = async () => {
@@ -535,8 +549,10 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
     setActionLoading('unpublishing');
     setActivityMsg('');
     try {
-      await supabase.from('class_activities').update({ is_published: false }).eq('class_id', selectedClass.id);
-      await supabase.from('activity_drafts').update({ status: 'pending' }).eq('id', draft?.id);
+      await Promise.all([
+        supabase.from('class_activities').update({ is_published: false }).eq('class_id', selectedClass.id),
+        draft?.id ? supabase.from('activity_drafts').update({ status: 'pending' }).eq('id', draft.id) : Promise.resolve()
+      ]);
       setActivityMsg('Actividad despublicada. Los estudiantes ya no pueden verla.');
       await fetchDraftAndStats();
       if (onClassUpdated) onClassUpdated();
@@ -6351,11 +6367,9 @@ function BorradoresTab() {
       activityId = newAct.id;
     }
 
-    // 2. Insertar preguntas y opciones
+    // 2. Insertar preguntas y opciones en paralelo con inserción en lote (bulk)
     const questions = draftData.questions || [];
-    for (let qIndex = 0; qIndex < questions.length; qIndex++) {
-      const q = questions[qIndex];
-
+    await Promise.all(questions.map(async (q, qIndex) => {
       const { data: qData, error: qErr } = await supabase
         .from('activity_questions')
         .insert({
@@ -6370,26 +6384,25 @@ function BorradoresTab() {
       if (qErr) throw qErr;
       const questionId = qData.id;
 
+      const optsPayload = (q.options || []).map((opt, oIndex) => ({
+        question_id: questionId,
+        text: opt.text || `Opción ${oIndex + 1}`,
+        order_num: oIndex + 1,
+      }));
+
+      const { data: insertedOpts, error: optErr } = await supabase
+        .from('question_options')
+        .insert(optsPayload)
+        .select();
+
+      if (optErr) throw optErr;
+
       let correctOptId = null;
-
-      for (let oIndex = 0; oIndex < (q.options || []).length; oIndex++) {
-        const opt = q.options[oIndex];
-
-        const { data: optData, error: optErr } = await supabase
-          .from('question_options')
-          .insert({
-            question_id: questionId,
-            text: opt.text,
-            order_num: oIndex + 1,
-          })
-          .select('id')
-          .single();
-
-        if (optErr) throw optErr;
-
-        if (opt.is_correct) {
-          correctOptId = optData.id;
-        }
+      const correctIdx = (q.options || []).findIndex(opt => opt.is_correct || opt.isCorrect || opt.correct);
+      if (correctIdx >= 0 && insertedOpts?.[correctIdx]) {
+        correctOptId = insertedOpts[correctIdx].id;
+      } else if (insertedOpts?.[0]) {
+        correctOptId = insertedOpts[0].id;
       }
 
       if (correctOptId) {
@@ -6400,7 +6413,7 @@ function BorradoresTab() {
             correct_option_id: correctOptId,
           }, { onConflict: 'question_id' });
       }
-    }
+    }));
   };
 
   const handleApprove = async (draft) => {
@@ -6433,17 +6446,10 @@ function BorradoresTab() {
     setActionLoading(draft.id + '-unpublish');
     try {
       const classId = draft.class_id || draft.class_sessions?.id;
-      if (classId) {
-        await supabase
-          .from('class_activities')
-          .update({ is_published: false })
-          .eq('class_id', classId);
-      }
-
-      await supabase
-        .from('activity_drafts')
-        .update({ status: 'pending' })
-        .eq('id', draft.id);
+      await Promise.all([
+        classId ? supabase.from('class_activities').update({ is_published: false }).eq('class_id', classId) : Promise.resolve(),
+        supabase.from('activity_drafts').update({ status: 'pending' }).eq('id', draft.id)
+      ]);
 
       showToast('Actividad despublicada. Ha vuelto a estado pendiente.', 'info');
       fetchDrafts();

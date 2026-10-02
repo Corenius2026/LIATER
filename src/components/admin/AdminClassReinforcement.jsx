@@ -611,155 +611,180 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       }
     }
 
-    const savedQuestions = [];
+    // Guardar preguntas en paralelo con inserción de opciones en bloque
+    const savedQuestions = await Promise.all(
+      currentQuestions.map(async (q, qIndex) => {
+        let realQId = q.id;
+        const validQType = normalizeQType(q.question_type);
 
-    for (let qIndex = 0; qIndex < currentQuestions.length; qIndex++) {
-      const q = currentQuestions[qIndex];
-      let realQId = q.id;
-      const validQType = normalizeQType(q.question_type);
+        // 1. Crear o actualizar la pregunta en DB
+        if (String(q.id).startsWith('temp-')) {
+          const qPayload = {
+            activity_id: targetActId,
+            text: q.text || 'Sin enunciado',
+            question_type: validQType,
+            order_num: qIndex
+          };
+          if (q.explanation) qPayload.explanation = q.explanation;
+          if (q.source_basis) qPayload.source_basis = q.source_basis;
 
-      // 1. Crear o actualizar la pregunta en DB
-      if (String(q.id).startsWith('temp-')) {
-        const qPayload = {
-          activity_id: targetActId,
-          text: q.text || 'Sin enunciado',
-          question_type: validQType,
-          order_num: qIndex
-        };
-        if (q.explanation) qPayload.explanation = q.explanation;
-        if (q.source_basis) qPayload.source_basis = q.source_basis;
-
-        let { data: insertedQ, error: qErr } = await supabase
-          .from('activity_questions')
-          .insert([qPayload])
-          .select()
-          .single();
-
-        if (qErr && (qErr.message?.includes('explanation') || qErr.message?.includes('source_basis') || qErr.code === 'PGRST204')) {
-          delete qPayload.explanation;
-          delete qPayload.source_basis;
-          const retryRes = await supabase
+          let { data: insertedQ, error: qErr } = await supabase
             .from('activity_questions')
             .insert([qPayload])
             .select()
             .single();
-          insertedQ = retryRes.data;
-          qErr = retryRes.error;
-        }
 
-        if (qErr) throw qErr;
-        realQId = insertedQ.id;
-      } else {
-        const updatePayload = {
-          text: q.text,
-          question_type: validQType,
-          order_num: qIndex
-        };
-        if (q.explanation !== undefined) updatePayload.explanation = q.explanation || null;
+          if (qErr && (qErr.message?.includes('explanation') || qErr.message?.includes('source_basis') || qErr.code === 'PGRST204')) {
+            delete qPayload.explanation;
+            delete qPayload.source_basis;
+            const retryRes = await supabase
+              .from('activity_questions')
+              .insert([qPayload])
+              .select()
+              .single();
+            insertedQ = retryRes.data;
+            qErr = retryRes.error;
+          }
 
-        let { error: updateQErr } = await supabase
-          .from('activity_questions')
-          .update(updatePayload)
-          .eq('id', q.id);
+          if (qErr) throw qErr;
+          realQId = insertedQ.id;
 
-        if (updateQErr && (updateQErr.message?.includes('explanation') || updateQErr.code === 'PGRST204')) {
-          delete updatePayload.explanation;
+          // Inserción en lote (bulk) de todas las opciones en 1 sola consulta
+          const optsPayload = (q.options || []).map((opt, oIndex) => ({
+            question_id: realQId,
+            text: opt.text || `Opción ${oIndex + 1}`,
+            order_num: oIndex
+          }));
+
+          const { data: insertedOpts, error: optErr } = await supabase
+            .from('question_options')
+            .insert(optsPayload)
+            .select();
+
+          if (optErr) throw optErr;
+
+          let realCorrectOptId = null;
+          const correctIdx = (q.options || []).findIndex(o => String(o.id) === String(q.correctOptionId));
+          if (correctIdx >= 0 && insertedOpts?.[correctIdx]) {
+            realCorrectOptId = insertedOpts[correctIdx].id;
+          } else if (insertedOpts?.[0]) {
+            realCorrectOptId = insertedOpts[0].id;
+          }
+
+          if (realCorrectOptId) {
+            await supabase
+              .from('question_correct_answers')
+              .upsert({
+                question_id: realQId,
+                correct_option_id: realCorrectOptId
+              }, { onConflict: 'question_id' });
+          }
+
+          return {
+            ...q,
+            id: realQId,
+            activity_id: targetActId,
+            options: (insertedOpts || []).map((io, idx) => ({
+              ...(q.options?.[idx] || {}),
+              id: io.id,
+              question_id: realQId
+            })),
+            correctOptionId: realCorrectOptId
+          };
+        } else {
+          // Pregunta existente: actualizar
+          const updatePayload = {
+            text: q.text,
+            question_type: validQType,
+            order_num: qIndex
+          };
+          if (q.explanation !== undefined) updatePayload.explanation = q.explanation || null;
+
           await supabase
             .from('activity_questions')
             .update(updatePayload)
             .eq('id', q.id);
-        }
-      }
 
-      // Eliminar de DB opciones huérfanas de esta pregunta
-      if (!String(q.id).startsWith('temp-')) {
-        const { data: existingOpts } = await supabase
-          .from('question_options')
-          .select('id')
-          .eq('question_id', realQId);
+          // Eliminar opciones huérfanas
+          const { data: existingOpts } = await supabase
+            .from('question_options')
+            .select('id')
+            .eq('question_id', realQId);
 
-        if (existingOpts && existingOpts.length > 0) {
-          const currentOptRealIds = new Set((q.options || []).filter(o => !String(o.id).startsWith('temp-')).map(o => o.id));
-          const optIdsToDelete = existingOpts.map(o => o.id).filter(id => !currentOptRealIds.has(id));
-          if (optIdsToDelete.length > 0) {
-            await supabase.from('question_correct_answers').delete().in('correct_option_id', optIdsToDelete);
-            await supabase
-              .from('question_options')
-              .delete()
-              .in('id', optIdsToDelete);
+          if (existingOpts && existingOpts.length > 0) {
+            const currentOptRealIds = new Set((q.options || []).filter(o => !String(o.id).startsWith('temp-')).map(o => o.id));
+            const optIdsToDelete = existingOpts.map(o => o.id).filter(id => !currentOptRealIds.has(id));
+            if (optIdsToDelete.length > 0) {
+              await supabase.from('question_correct_answers').delete().in('correct_option_id', optIdsToDelete);
+              await supabase.from('question_options').delete().in('id', optIdsToDelete);
+            }
           }
+
+          // Crear o actualizar opciones
+          const savedOptions = [];
+          let realCorrectOptId = null;
+
+          for (let oIndex = 0; oIndex < (q.options || []).length; oIndex++) {
+            const opt = q.options[oIndex];
+            let realOptId = opt.id;
+
+            if (String(opt.id).startsWith('temp-')) {
+              const { data: insertedOpt, error: optErr } = await supabase
+                .from('question_options')
+                .insert([{
+                  question_id: realQId,
+                  text: opt.text || 'Opción',
+                  order_num: oIndex
+                }])
+                .select()
+                .single();
+
+              if (optErr) throw optErr;
+              realOptId = insertedOpt.id;
+            } else {
+              await supabase
+                .from('question_options')
+                .update({
+                  text: opt.text,
+                  order_num: oIndex
+                })
+                .eq('id', opt.id);
+            }
+
+            if (q.correctOptionId && String(q.correctOptionId) === String(opt.id)) {
+              realCorrectOptId = realOptId;
+            }
+
+            savedOptions.push({
+              ...opt,
+              id: realOptId,
+              question_id: realQId
+            });
+          }
+
+          if (!realCorrectOptId && savedOptions.length > 0) {
+            realCorrectOptId = savedOptions[0].id;
+          }
+
+          if (realCorrectOptId) {
+            await supabase
+              .from('question_correct_answers')
+              .upsert({
+                question_id: realQId,
+                correct_option_id: realCorrectOptId
+              }, { onConflict: 'question_id' });
+          }
+
+          return {
+            ...q,
+            id: realQId,
+            activity_id: targetActId,
+            options: savedOptions,
+            correctOptionId: realCorrectOptId
+          };
         }
-      }
-
-      // 2. Crear o actualizar las opciones en DB
-      const savedOptions = [];
-      let realCorrectOptId = null;
-
-      for (let oIndex = 0; oIndex < (q.options || []).length; oIndex++) {
-        const opt = q.options[oIndex];
-        let realOptId = opt.id;
-
-        if (String(opt.id).startsWith('temp-')) {
-          const { data: insertedOpt, error: optErr } = await supabase
-            .from('question_options')
-            .insert([{
-              question_id: realQId,
-              text: opt.text || 'Opción',
-              order_num: oIndex
-            }])
-            .select()
-            .single();
-
-          if (optErr) throw optErr;
-          realOptId = insertedOpt.id;
-        } else {
-          await supabase
-            .from('question_options')
-            .update({
-              text: opt.text,
-              order_num: oIndex
-            })
-            .eq('id', opt.id);
-        }
-
-        if (q.correctOptionId && String(q.correctOptionId) === String(opt.id)) {
-          realCorrectOptId = realOptId;
-        }
-
-        savedOptions.push({
-          ...opt,
-          id: realOptId,
-          question_id: realQId
-        });
-      }
-
-      // Si por alguna razón no se detectó la respuesta correcta, usar la primera por defecto
-      if (!realCorrectOptId && savedOptions.length > 0) {
-        realCorrectOptId = savedOptions[0].id;
-      }
-
-      // 3. Guardar la respuesta correcta en DB
-      if (realCorrectOptId) {
-        const { error: upsertErr } = await supabase
-          .from('question_correct_answers')
-          .upsert({
-            question_id: realQId,
-            correct_option_id: realCorrectOptId
-          }, { onConflict: 'question_id' });
-          
-        if (upsertErr) {
-          console.error('Error guardando respuesta correcta en Supabase:', upsertErr);
-        }
-      }
-
-      savedQuestions.push({
-        ...q,
-        id: realQId,
-        activity_id: activityId,
-        options: savedOptions,
-        correctOptionId: realCorrectOptId
-      });
-    }
+      })
+    );
 
     return savedQuestions;
   };
@@ -1253,30 +1278,54 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         }
       }
 
-      // 2. Persistir todas las preguntas y opciones pendientes con el UUID real
-      const savedQs = await persistQuestionsToDatabase(realActId, questions);
-      setQuestions(savedQs);
-
       const willPublish = !currentAct?.is_published;
 
-      // 3. Validaciones antes de publicar
-      if (willPublish) {
-        if (savedQs.length === 0) {
-          throw new Error('La actividad debe tener al menos una pregunta para ser publicada.');
+      // FAST PATH: Despublicar de forma inmediata (sin tocar preguntas ni bloquear la UI)
+      if (!willPublish) {
+        const { data: updatedAct, error: pubErr } = await supabase
+          .from('class_activities')
+          .update({ is_published: false })
+          .eq('id', realActId)
+          .select()
+          .single();
+
+        if (pubErr) throw pubErr;
+
+        setActivity(updatedAct || { ...(currentAct || {}), id: realActId, is_published: false });
+        setSuccess('Actividad regresada a borrador.');
+        setTimeout(() => setSuccess(''), 4000);
+
+        // Sincronizar status en activity_drafts en segundo plano
+        supabase
+          .from('activity_drafts')
+          .update({ status: 'pending', reviewed_at: null })
+          .eq('class_id', classId)
+          .then(() => {})
+          .catch(err => console.warn('Nota: No se pudo actualizar status en activity_drafts:', err));
+
+        return;
+      }
+
+      // VALIDACIONES PREVIAS (antes de cualquier operación de base de datos)
+      if (questions.length === 0) {
+        throw new Error('La actividad debe tener al menos una pregunta para ser publicada.');
+      }
+      for (const q of questions) {
+        if (!q.options || q.options.length < 2) {
+          throw new Error(`La pregunta "${q.text || 'Sin enunciado'}" debe tener al menos 2 opciones.`);
         }
-        for (const q of savedQs) {
-          if (!q.options || q.options.length < 2) {
-            throw new Error(`La pregunta "${q.text}" debe tener al menos 2 opciones.`);
-          }
-          if (!q.correctOptionId) {
-            throw new Error(`La pregunta "${q.text}" no tiene una opción correcta asignada.`);
-          }
+        if (!q.correctOptionId) {
+          throw new Error(`La pregunta "${q.text || 'Sin enunciado'}" no tiene una opción correcta asignada.`);
         }
       }
 
-      // 4. Actualizar el estado en class_activities
+      // 2. Persistir todas las preguntas y opciones con el UUID real en paralelo
+      const savedQs = await persistQuestionsToDatabase(realActId, questions);
+      setQuestions(savedQs);
+
+      // 3. Actualizar el estado en class_activities
       const pubPayload = { 
-        is_published: willPublish,
+        is_published: true,
         title: localActivity.title || currentAct?.title || 'Actividad de Reforzamiento',
         description: localActivity.description || currentAct?.description || '',
         is_mandatory: localActivity.is_mandatory !== undefined ? localActivity.is_mandatory : false,
@@ -1300,46 +1349,48 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
       if (pubErr) throw pubErr;
 
-      // 5. Sincronizar también activity_drafts para mantener consistencia bidireccional
-      try {
-        const { data: latestDraft } = await supabase
-          .from('activity_drafts')
-          .select('*')
-          .eq('class_id', classId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (latestDraft) {
-          await supabase
-            .from('activity_drafts')
-            .update({ 
-              status: willPublish ? 'approved' : 'pending',
-              reviewed_at: willPublish ? new Date().toISOString() : null,
-              draft_data: {
-                ...latestDraft.draft_data,
-                activity_title: localActivity.title,
-                activity_description: localActivity.description,
-                questions: savedQs.map(q => ({
-                  text: q.text,
-                  question_type: q.question_type,
-                  explanation: q.explanation || '',
-                  options: (q.options || []).map(o => ({
-                    text: o.text,
-                    is_correct: String(o.id) === String(q.correctOptionId)
-                  }))
-                }))
-              }
-            })
-            .eq('id', latestDraft.id);
-        }
-      } catch (draftErr) {
-        console.warn('Nota: No se pudo actualizar status en activity_drafts:', draftErr);
-      }
-
-      setActivity(updatedAct || { ...(currentAct || {}), id: realActId, is_published: willPublish });
-      setSuccess(willPublish ? '✓ Actividad publicada exitosamente. Los estudiantes ya pueden responderla.' : 'Actividad regresada a borrador.');
+      setActivity(updatedAct || { ...(currentAct || {}), id: realActId, is_published: true });
+      setSuccess('✓ Actividad publicada exitosamente. Los estudiantes ya pueden responderla.');
       setTimeout(() => setSuccess(''), 4000);
+
+      // 4. Sincronizar en segundo plano activity_drafts para mantener consistencia sin bloquear al usuario
+      (async () => {
+        try {
+          const { data: latestDraft } = await supabase
+            .from('activity_drafts')
+            .select('id, draft_data')
+            .eq('class_id', classId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestDraft) {
+            await supabase
+              .from('activity_drafts')
+              .update({ 
+                status: 'approved',
+                reviewed_at: new Date().toISOString(),
+                draft_data: {
+                  ...latestDraft.draft_data,
+                  activity_title: localActivity.title,
+                  activity_description: localActivity.description,
+                  questions: savedQs.map(q => ({
+                    text: q.text,
+                    question_type: q.question_type,
+                    explanation: q.explanation || '',
+                    options: (q.options || []).map(o => ({
+                      text: o.text,
+                      is_correct: String(o.id) === String(q.correctOptionId)
+                    }))
+                  }))
+                }
+              })
+              .eq('id', latestDraft.id);
+          }
+        } catch (draftErr) {
+          console.warn('Nota: No se pudo actualizar status en activity_drafts:', draftErr);
+        }
+      })();
     } catch (err) {
       console.error('Error al cambiar el estado de publicación:', err);
       setError('Error al cambiar el estado de publicación: ' + (err.message || err));
