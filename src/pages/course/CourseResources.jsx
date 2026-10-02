@@ -31,7 +31,7 @@ function getResourceIcon(type, size = 18) {
     case 'file':
     case 'pdf':
     case 'document':
-      return <FileText size={size} color="#2563eb" />;
+      return <FileText size={size} color="#dc2626" />;
     case 'link':
       return <ExternalLink size={size} color="#16a34a" />;
     case 'code':
@@ -780,7 +780,7 @@ export default function CourseResources() {
         case 'file':
         case 'pdf':
         case 'document':
-          return { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', label: 'PDF / Lectura' };
+          return { bg: '#FEF2F2', border: '#FECACA', text: '#DC2626', label: 'PDF / Lectura' };
         case 'link':
           return { bg: '#ECFDF5', border: '#A7F3D0', text: '#15803D', label: 'Enlace' };
         case 'code':
@@ -859,26 +859,8 @@ export default function CourseResources() {
             gap: '0.5rem',
             flexWrap: 'wrap'
           }}>
-            {/* BADGE DE CLASE O GENERAL */}
-            {res.isGeneral ? (
-              <span
-                style={{
-                  background: 'linear-gradient(135deg, rgba(252, 163, 17, 0.18) 0%, rgba(252, 163, 17, 0.08) 100%)',
-                  color: 'var(--gold-dark, #b45309)',
-                  borderRadius: '8px',
-                  padding: '0.3rem 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  border: '1px solid rgba(252, 163, 17, 0.35)'
-                }}
-              >
-                <FolderDown size={13} color="var(--gold-dark, #b45309)" />
-                <span>Contenido General del Curso</span>
-              </span>
-            ) : (
+            {/* BADGE DE CLASE (SI NO ES GENERAL) */}
+            {!res.isGeneral && res.classId ? (
               <Link
                 to={`/class/${res.classId}`}
                 title={res.sessionTitle ? `${res.sessionTitle} — ${res.classTitle}` : `Ir a la clase: ${res.classTitle}`}
@@ -911,26 +893,11 @@ export default function CourseResources() {
                   {formatSessionAndClass(res.sessionTitle, res.classTitle)}
                 </span>
               </Link>
-            )}
+            ) : <div />}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              {/* PERMISO DE DESCARGA */}
-              {res.allow_download ? (
-                <span style={{
-                  fontSize: '0.66rem',
-                  fontWeight: 700,
-                  padding: '2px 7px',
-                  borderRadius: '6px',
-                  background: '#DCFCE7',
-                  color: '#15803D',
-                  border: '1px solid #86EFAC',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '3px'
-                }}>
-                  <Download size={10} /> Descargable
-                </span>
-              ) : (
+              {/* SOLO LECTURA (SI NO ES DESCARGABLE) */}
+              {!res.allow_download && (
                 <span style={{
                   fontSize: '0.66rem',
                   fontWeight: 600,
@@ -1102,22 +1069,20 @@ export default function CourseResources() {
                 color: 'var(--navy, #14213D)',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '0.55rem 0.9rem',
+                padding: '0.55rem 0.75rem',
                 fontSize: '0.82rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.35rem',
                 boxShadow: '0 2px 6px rgba(252,163,17,0.25)',
                 transition: 'all 0.15s ease'
               }}
               onMouseOver={e => e.currentTarget.style.background = 'var(--gold-dark, #B45309)'}
               onMouseOut={e => e.currentTarget.style.background = 'var(--gold, #FCA311)'}
             >
-              <Download size={14} />
-              <span>Descargar</span>
+              <Download size={15} />
             </button>
           )}
 
@@ -1254,7 +1219,7 @@ export default function CourseResources() {
         case 'file':
         case 'pdf':
         case 'document':
-          return { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', label: 'PDF / Lectura' };
+          return { bg: '#FEF2F2', border: '#FECACA', text: '#DC2626', label: 'PDF / Lectura' };
         case 'link':
           return { bg: '#ECFDF5', border: '#A7F3D0', text: '#15803D', label: 'Enlace' };
         case 'code':
@@ -1401,24 +1366,8 @@ export default function CourseResources() {
               minWidth: 0
             }}>
 
-              {/* Badge General o Clase */}
-              {res.isGeneral ? (
-                <span style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  padding: '2px 7px',
-                  borderRadius: '6px',
-                  background: 'rgba(252, 163, 17, 0.15)',
-                  color: 'var(--gold-dark, #b45309)',
-                  border: '1px solid rgba(252, 163, 17, 0.35)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  flexShrink: 0
-                }}>
-                  <FolderDown size={11} /> General
-                </span>
-              ) : (res.sessionTitle || res.classTitle) ? (
+              {/* Badge de Clase si aplica */}
+              {!res.isGeneral && (res.sessionTitle || res.classTitle) ? (
                 <Link
                   to={`/class/${res.classId}`}
                   title={`Ir a la clase: ${res.classTitle || res.sessionTitle}`}
@@ -1457,24 +1406,8 @@ export default function CourseResources() {
                 </Link>
               ) : null}
 
-              {/* Badge de permiso de descarga */}
-              {res.allow_download ? (
-                <span style={{
-                  fontSize: '0.66rem',
-                  fontWeight: 700,
-                  padding: '1px 6px',
-                  borderRadius: '5px',
-                  background: '#DCFCE7',
-                  color: '#15803D',
-                  border: '1px solid #86EFAC',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '2px',
-                  flexShrink: 0
-                }}>
-                  <Download size={9} /> Descargable
-                </span>
-              ) : (
+              {/* Badge de permiso: solo visible cuando es solo lectura */}
+              {!res.allow_download && (
                 <span style={{
                   fontSize: '0.66rem',
                   fontWeight: 600,
@@ -1583,21 +1516,20 @@ export default function CourseResources() {
                 color: 'var(--navy, #14213D)',
                 border: 'none',
                 borderRadius: '7px',
-                padding: '0.42rem 0.8rem',
+                padding: '0.42rem 0.55rem',
                 fontSize: '0.8rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.35rem',
+                justifyContent: 'center',
                 boxShadow: '0 1px 4px rgba(252,163,17,0.2)',
                 transition: 'all 0.15s ease'
               }}
               onMouseOver={e => e.currentTarget.style.background = 'var(--gold-dark, #B45309)'}
               onMouseOut={e => e.currentTarget.style.background = 'var(--gold, #FCA311)'}
             >
-              <Download size={13} />
-              <span>Descargar</span>
+              <Download size={14} />
             </button>
           )}
 
