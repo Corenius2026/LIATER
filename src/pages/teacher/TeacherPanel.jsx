@@ -3343,27 +3343,27 @@ function ResumenTab({ onChangeTab }) {
             tab: 'clases',
             icon: 'sparkles',
             color: '#FCA311',
-            onClick: () => onChangeTab('clases', { classId: d.class_id, section: 'activity' })
+            onClick: () => navigate(`/class/${d.class_id}${programId ? `?programId=${programId}` : ''}`)
           });
         });
       }
 
-      // C. Sugerencia de preparación: Crear actividad IA antes de que suceda la clase
+      // C. Preparación de Sesiones: Sugerencia para subir materiales y generar actividad IA previa
       // Solo para clases que todavía NO han comenzado (class_date > now) y que NO tienen actividad ni borrador
       const upcomingWithoutActivity = upcomingList.filter(c => !actsByClass[c.id] && (!draftsByClass[c.id] || draftsByClass[c.id].status !== 'pending'));
 
-      // Mostrar hasta 2 próximas clases sugeridas para preparar actividad interactiva previa
+      // Mostrar hasta 2 próximas clases sugeridas para preparar sesión
       upcomingWithoutActivity.slice(0, 2).forEach(c => {
         alerts.push({
           id: 'suggest-act-' + c.id,
           type: 'suggest_activity',
-          title: `Preparar Reforzamiento IA: "${c.title}"`,
-          subtitle: `Clase programada: ${formatClassDate(c.class_date)} · Crea una actividad interactiva previa para tus estudiantes`,
-          action: 'Crear Actividad IA',
+          title: `Preparar sesión: "${c.title}"`,
+          subtitle: `Programada: ${formatClassDate(c.class_date)} · Sube el material de apoyo y genera la actividad interactiva previa con IA`,
+          action: 'Preparar Clase',
           tab: 'clases',
-          icon: 'brain',
+          icon: 'layers',
           color: '#14213D',
-          onClick: () => onChangeTab('clases', { classId: c.id, section: 'activity' })
+          onClick: () => navigate(`/class/${c.id}${programId ? `?programId=${programId}` : ''}`)
         });
       });
 
@@ -3572,7 +3572,7 @@ function ResumenTab({ onChangeTab }) {
               <CheckCircle2 size={18} color="#10B981" />
             )}
             <h3 style={{ margin: 0, color: '#14213D', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-              Acciones requeridas y Sugerencias
+              Preparación de Sesiones
               {urgentAlerts.length > 0 && (
                 <span style={{ background: '#FCA311', color: '#14213D', fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px', marginLeft: '8px' }}>
                   {urgentAlerts.length}
@@ -3589,7 +3589,7 @@ function ResumenTab({ onChangeTab }) {
 
         {urgentAlerts.length === 0 ? (
           <div style={{ marginTop: '0.6rem', fontSize: '0.86rem', color: '#64748B' }}>
-            No tienes acciones urgentes pendientes ni borradores por validar en este programa. Tus próximas clases están al día.
+            No tienes sesiones pendientes de preparar ni dudas por responder en este programa. Tus clases están al día.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -3610,7 +3610,7 @@ function ResumenTab({ onChangeTab }) {
                     {alert.type === 'draft' ? (
                       <Sparkles size={18} color={alert.color} />
                     ) : alert.type === 'suggest_activity' ? (
-                      <Brain size={18} color={alert.color} />
+                      <Layers size={18} color={alert.color} />
                     ) : alert.type === 'doubt' ? (
                       <MessageSquare size={18} color={alert.color} />
                     ) : (
