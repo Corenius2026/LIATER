@@ -1540,77 +1540,91 @@ export default function ClassDetail() {
                   display: 'flex',
                   alignItems: 'center',
                   flexWrap: 'wrap',
-                  gap: '0.75rem',
-                  fontSize: '0.84rem',
-                  color: '#64748B'
+                  gap: '0.55rem',
+                  fontSize: '0.82rem'
                 }}>
                   {clsData.class_date && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      color: '#475569',
+                      fontWeight: 500
+                    }}>
                       <CalendarDays size={14} color="#64748B" />
                       <span>{formatClassDate(clsData.class_date)}</span>
                     </span>
                   )}
 
                   {clsData.duration && (
-                    <>
-                      <span>·</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Clock size={14} color="#64748B" />
-                        <span>{clsData.duration} min</span>
-                      </span>
-                    </>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      color: '#475569',
+                      fontWeight: 500
+                    }}>
+                      <Clock size={14} color="#64748B" />
+                      <span><strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{clsData.duration}</strong> min</span>
+                    </span>
                   )}
 
                   {clsData.teacher_profiles?.name && (
-                    <>
-                      <span>·</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <User size={14} color="#64748B" />
-                        <span>Docente: <strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{clsData.teacher_profiles.name}</strong></span>
-                      </span>
-                    </>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      color: '#475569',
+                      fontWeight: 500
+                    }}>
+                      <User size={14} color="#64748B" />
+                      <span>Docente: <strong style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>{clsData.teacher_profiles.name}</strong></span>
+                    </span>
                   )}
 
-                  {/* Estado de la actividad y clase (solo si aplica) */}
+                  {/* Estado de la actividad (solo si completada o pendiente) */}
                   {activityState === 'completada' ? (
-                    <>
-                      <span>·</span>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                        padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
-                        background: 'var(--green-subtle, #f0fdf4)',
-                        color: 'var(--green-600, #16a34a)',
-                        border: '1px solid var(--green-400, #86efac)'
-                      }}>
-                        <CheckCircle2 size={13} /> Finalizada {completedResult ? `· ${completedResult.scorePct}%` : ''}
-                      </span>
-                    </>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      background: 'var(--green-subtle, #f0fdf4)',
+                      color: 'var(--green-600, #16a34a)',
+                      border: '1px solid var(--green-400, #86efac)'
+                    }}>
+                      <CheckCircle2 size={14} /> Finalizada {completedResult ? `· ${completedResult.scorePct}%` : ''}
+                    </span>
                   ) : (activityState === 'no_iniciada' || activityState === 'en_progreso') ? (
-                    <>
-                      <span>·</span>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                        padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
-                        background: 'var(--gold-subtle, #fef9ec)',
-                        color: 'var(--gold-dark, #b45309)',
-                        border: '1px solid var(--gold-light, #fde68a)'
-                      }}>
-                        <Zap size={13} /> Actividad pendiente
-                      </span>
-                    </>
-                  ) : clsData.video_url ? (
-                    <>
-                      <span>·</span>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                        padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
-                        background: 'rgba(20,33,61,0.06)',
-                        color: 'var(--navy, #14213D)',
-                        border: '1px solid var(--border-color, #E2E8F0)'
-                      }}>
-                        <Video size={13} /> Grabación disponible
-                      </span>
-                    </>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      background: 'var(--gold-subtle, #fef9ec)',
+                      color: 'var(--gold-dark, #b45309)',
+                      border: '1px solid var(--gold-light, #fde68a)'
+                    }}>
+                      <Zap size={14} /> Actividad pendiente
+                    </span>
                   ) : null}
                 </div>
               </div>
