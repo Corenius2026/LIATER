@@ -22,6 +22,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   const [questions, setQuestions] = useState([]);
   
   const [saving, setSaving] = useState(false);
+  const [savingQuestions, setSavingQuestions] = useState(false);
   const [publishLoading, setPublishLoading] = useState(null); // 'publishing' | 'unpublishing' | null
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -150,7 +151,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         throw new Error('La IA no devolvió preguntas válidas. Por favor intenta nuevamente.');
       }
 
-      // 1. Eliminar preguntas previas de la base de datos (activity_questions y relaciones)
+      // 1. Asegurar o crear la fila en class_activities
       let targetActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) 
         ? activity.id 
         : null;
@@ -164,6 +165,29 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         if (actRow) targetActId = actRow.id;
       }
 
+      if (!targetActId) {
+        const insertPayload = {
+          class_id: classId,
+          title: data.draft?.activity_title || localActivity.title || 'Actividad de Reforzamiento',
+          description: data.draft?.activity_description || localActivity.description || '',
+          is_mandatory: false,
+          max_attempts: 1,
+          due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null,
+          is_published: false
+        };
+        let { data: newAct, error: createErr } = await supabase.from('class_activities').insert([insertPayload]).select().single();
+        if (createErr && (createErr.code === '42703' || createErr.message?.includes('due_date'))) {
+          delete insertPayload.due_date;
+          const retry = await supabase.from('class_activities').insert([insertPayload]).select().single();
+          newAct = retry.data;
+        }
+        if (newAct) {
+          targetActId = newAct.id;
+          setActivity(newAct);
+        }
+      }
+
+      // 2. Purgar preguntas anteriores de la base de datos
       if (targetActId) {
         try {
           const { error: rpcErr } = await supabase.rpc('purge_activity_questions', { p_activity_id: targetActId });
@@ -186,17 +210,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         }
       }
 
-      // 2. Limpiar borradores antiguos de IA para esta clase en activity_drafts
-      try {
-        await supabase
-          .from('activity_drafts')
-          .delete()
-          .eq('class_id', classId);
-      } catch (cleanDraftsErr) {
-        console.warn('Nota limpiando borradores previos:', cleanDraftsErr);
-      }
-
-      // 3. Obtener el nuevo borrador insertado por la Edge Function para tener su id real
+      // 3. Obtener el borrador generado por la Edge Function para sincronizar estado
       try {
         const { data: latestDraft } = await supabase
           .from('activity_drafts')
@@ -247,7 +261,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
         return {
           id: qId,
-          activity_id: activity?.id || 'temp-act',
+          activity_id: targetActId || activity?.id || 'temp-act',
           text: q.text || 'Sin enunciado',
           question_type: q.question_type || 'single_choice',
           order_num: qIndex,
@@ -266,8 +280,20 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         date: new Date().toISOString()
       };
 
-      // Reemplazar preguntas en el estado local directamente
-      setQuestions(parsedQuestions);
+      // 4. Guardar automáticamente las preguntas en PostgreSQL
+      let savedQuestions = parsedQuestions;
+      if (targetActId) {
+        try {
+          const persisted = await persistQuestionsToDatabase(targetActId, parsedQuestions);
+          if (persisted && persisted.length > 0) {
+            savedQuestions = persisted;
+          }
+        } catch (saveErr) {
+          console.warn('Nota: Auto-guardado en DB falló, preguntas quedan en memoria:', saveErr);
+        }
+      }
+
+      setQuestions(savedQuestions);
       if (data.draft.activity_title && (!localActivity.title || localActivity.title === 'Actividad de Reforzamiento')) {
         setLocalActivity(prev => ({
           ...prev,
@@ -277,7 +303,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       }
 
       setGenerationSource(sourceMeta);
-      setAiSuccess(`✓ ${parsedQuestions.length} nuevas preguntas generadas con IA a partir de "${sourceMeta.docTitle}" cargadas en el editor.`);
+      setAiSuccess(`✓ ${savedQuestions.length} nuevas preguntas generadas con IA y guardadas exitosamente en la base de datos.`);
       setTimeout(() => setAiSuccess(''), 7000);
 
     } catch (err) {
@@ -378,8 +404,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           };
         });
 
-        // Si la actividad en DB no tiene preguntas pero existe un borrador de IA nuevo y pendiente, cargarlas
-        if (normalizedQuestions.length === 0 && !actData.is_published && draftData?.status === 'pending' && draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
+        // Si la actividad en DB no tiene preguntas pero existe un borrador de IA con preguntas, cargarlas
+        if (normalizedQuestions.length === 0 && !actData.is_published && draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
           const isOptionCorrect = (o, oIndex, q) => {
             if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
             if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
@@ -792,7 +818,9 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
   const saveActivityInfo = async () => {
     setSaving(true);
+    setSavingQuestions(true);
     setError('');
+    setSuccess('');
     try {
       let realActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) 
         ? activity.id 
@@ -948,15 +976,18 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         }
       } catch (_) {}
 
-      setSuccess('Las preguntas y la actividad han sido guardadas en borrador. Puedes revisarla y hacer clic en "Publicar Actividad".');
+      setSuccess(`✓ Se guardaron exitosamente ${questions.length} preguntas en la base de datos.`);
       setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
       console.error(err);
-      setError('Error al guardar la actividad: ' + err.message);
+      setError('Error al guardar las preguntas: ' + err.message);
     } finally {
       setSaving(false);
+      setSavingQuestions(false);
     }
   };
+
+  const handleSaveQuestions = saveActivityInfo;
 
   const addQuestion = async (type) => {
     let currentAct = activity;
@@ -1613,32 +1644,61 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
               </div>
             </div>
           </div>
-          <button 
-            onClick={togglePublish} 
-            disabled={saving || !!publishLoading} 
-            className="btn btn-primary" 
-            style={{ 
-              background: '#16a34a', 
-              borderColor: '#16a34a', 
-              padding: '0.6rem 1.25rem', 
-              fontWeight: 700, 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem',
-              opacity: publishLoading ? 0.8 : 1,
-              cursor: publishLoading ? 'wait' : 'pointer'
-            }}
-          >
-            {publishLoading === 'publishing' ? (
-              <>
-                <RefreshCw size={16} className="spin" /> Publicando actividad...
-              </>
-            ) : (
-              <>
-                <Check size={16} /> Aprobar y Publicar Actividad
-              </>
-            )}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button 
+              type="button"
+              onClick={handleSaveQuestions} 
+              disabled={saving} 
+              className="btn btn-secondary" 
+              style={{ 
+                background: '#ffffff', 
+                color: '#15803d', 
+                borderColor: '#86efac', 
+                padding: '0.6rem 1.15rem', 
+                fontWeight: 700, 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '0.45rem',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              }}
+            >
+              {savingQuestions ? (
+                <>
+                  <RefreshCw size={15} className="spin" /> Guardando...
+                </>
+              ) : (
+                <>
+                  <Save size={15} /> Guardar Preguntas
+                </>
+              )}
+            </button>
+            <button 
+              onClick={togglePublish} 
+              disabled={saving || !!publishLoading} 
+              className="btn btn-primary" 
+              style={{ 
+                background: '#16a34a', 
+                borderColor: '#16a34a', 
+                padding: '0.6rem 1.25rem', 
+                fontWeight: 700, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                opacity: publishLoading ? 0.8 : 1,
+                cursor: publishLoading ? 'wait' : 'pointer'
+              }}
+            >
+              {publishLoading === 'publishing' ? (
+                <>
+                  <RefreshCw size={16} className="spin" /> Publicando actividad...
+                </>
+              ) : (
+                <>
+                  <Check size={16} /> Aprobar y Publicar Actividad
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -2152,18 +2212,51 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           {aiSuccess && (
             <div style={{
               marginTop: '1rem',
-              padding: '0.75rem 1rem',
+              padding: '0.85rem 1.15rem',
               background: '#f0fdf4',
               color: '#15803d',
               border: '1px solid #86efac',
               borderRadius: '8px',
-              fontSize: '0.84rem',
+              fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem'
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
             }}>
-              <CheckCircle2 size={16} flexShrink={0} />
-              <span>{aiSuccess}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle2 size={18} flexShrink={0} />
+                <span>{aiSuccess}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveQuestions}
+                disabled={saving}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  background: '#16a34a',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                }}
+              >
+                {savingQuestions ? (
+                  <>
+                    <RefreshCw size={13} className="spin" /> Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save size={13} /> Guardar Ahora
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>
@@ -2171,10 +2264,42 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
       {/* 3. PREGUNTAS Y OPCIONES */}
       <div className="card" style={{ padding: '1.5rem', background: 'white', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)' }}>Constructor de Preguntas ({questions.length})</h3>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={() => addQuestion('single_choice')} className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.8rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy)', margin: 0 }}>Constructor de Preguntas ({questions.length})</h3>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Crea, edita y guarda las preguntas para esta actividad</span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button 
+              type="button"
+              onClick={handleSaveQuestions} 
+              disabled={saving} 
+              className="btn btn-primary"
+              style={{
+                fontSize: '0.8rem',
+                padding: '0.5rem 0.9rem',
+                background: '#1e3a8a',
+                borderColor: '#1e3a8a',
+                color: 'white',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                boxShadow: '0 2px 6px rgba(30, 58, 138, 0.25)'
+              }}
+              title="Guardar preguntas en la base de datos"
+            >
+              {savingQuestions ? (
+                <>
+                  <RefreshCw size={14} className="spin" /> Guardando...
+                </>
+              ) : (
+                <>
+                  <Save size={14} /> Guardar Preguntas
+                </>
+              )}
+            </button>
+            <button onClick={() => addQuestion('single_choice')} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.8rem' }}>
               <Plus size={14} style={{ marginRight: '0.3rem' }}/> Opción Múltiple
             </button>
             <button onClick={() => addQuestion('true_false')} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.8rem' }}>
@@ -2278,6 +2403,87 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* BARRA DE ACCIÓN INFERIOR PARA GUARDAR PREGUNTAS */}
+        {questions.length > 0 && (
+          <div style={{
+            marginTop: '1.5rem',
+            padding: '1.25rem 1.5rem',
+            background: '#f8fafc',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CheckCircle2 size={18} color="#16a34a" />
+              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--navy)' }}>
+                {questions.length} {questions.length === 1 ? 'pregunta configurada' : 'preguntas configuradas'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button 
+                type="button"
+                onClick={handleSaveQuestions} 
+                disabled={saving} 
+                className="btn btn-primary"
+                style={{
+                  fontSize: '0.85rem',
+                  padding: '0.6rem 1.25rem',
+                  background: '#1e3a8a',
+                  borderColor: '#1e3a8a',
+                  color: 'white',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 2px 6px rgba(30, 58, 138, 0.25)'
+                }}
+              >
+                {savingQuestions ? (
+                  <>
+                    <RefreshCw size={15} className="spin" /> Guardando preguntas...
+                  </>
+                ) : (
+                  <>
+                    <Save size={15} /> Guardar Preguntas ({questions.length})
+                  </>
+                )}
+              </button>
+              <button 
+                type="button"
+                onClick={togglePublish} 
+                disabled={saving || !!publishLoading} 
+                className={`btn ${activity?.is_published ? 'btn-secondary' : 'btn-primary'}`}
+                style={{
+                  fontSize: '0.85rem',
+                  padding: '0.6rem 1.25rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  opacity: publishLoading ? 0.8 : 1,
+                  cursor: publishLoading ? 'wait' : 'pointer'
+                }}
+              >
+                {publishLoading ? (
+                  <>
+                    <RefreshCw size={15} className="spin" /> Procesando...
+                  </>
+                ) : activity?.is_published ? (
+                  'Despublicar Actividad'
+                ) : (
+                  <>
+                    <Check size={15} /> Publicar Actividad
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
       </div>
