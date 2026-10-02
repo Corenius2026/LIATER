@@ -307,6 +307,12 @@ export default function AdminResources({ programId, programTitle, programClasses
       }
       try {
         setIsSubmitting(true);
+        const urlLower = formUrl.toLowerCase();
+        let provider = 'external';
+        if (urlLower.includes('drive.google.com')) provider = 'drive';
+        else if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) provider = 'youtube';
+        else if (urlLower.includes('supabase.co')) provider = 'supabase';
+
         const insertPayload = {
           program_id: programId,
           class_id: targetDestination === 'general' ? null : targetDestination,
@@ -314,7 +320,7 @@ export default function AdminResources({ programId, programTitle, programClasses
           resource_type: formType,
           url: formUrl.trim(),
           description: formDescription.trim() || null,
-          provider: formUrl.includes('drive.google.com') ? 'drive' : 'link',
+          provider: provider,
           is_visible: true,
           allow_download: formAllowDownload
         };

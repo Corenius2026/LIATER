@@ -430,7 +430,12 @@ export default function ClassDetail() {
       }
       setUploadingPdf(true);
       try {
-        const provider = resFormUrl.includes('drive.google.com') ? 'drive' : (resFormUrl.includes('github.com') ? 'github' : 'link');
+        const urlLower = resFormUrl.toLowerCase();
+        let provider = 'external';
+        if (urlLower.includes('drive.google.com')) provider = 'drive';
+        else if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) provider = 'youtube';
+        else if (urlLower.includes('supabase.co')) provider = 'supabase';
+
         const payload = {
           class_id: id,
           program_id: clsData?.program_id || null,
@@ -2042,7 +2047,7 @@ export default function ClassDetail() {
                           )}
                           {res.provider && res.provider !== 'drive' && (
                             <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
-                              • {res.provider}
+                              • {res.provider === 'external' ? 'Enlace Web' : res.provider}
                             </span>
                           )}
                         </div>
