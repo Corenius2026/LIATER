@@ -2191,6 +2191,20 @@ export default function ClassDetail() {
                 >
                   <Zap size={14} color="var(--gold)" /> Gestionar Actividad con IA
                 </button>
+                {activityState === 'no_configurada' && (
+                  <div style={{
+                    marginTop: '0.65rem',
+                    padding: '0.6rem 0.75rem',
+                    background: '#F8FAFC',
+                    border: '1px dashed #CBD5E1',
+                    borderRadius: '8px',
+                    fontSize: '0.76rem',
+                    color: '#475569',
+                    lineHeight: 1.4
+                  }}>
+                    💡 <strong>Consejo docente:</strong> Sube tus diapositivas o documentos en <em>Recursos y Material de Estudio</em> para que la IA genere automáticamente las preguntas con base en tu contenido.
+                  </div>
+                )}
               </div>
             )}
 
