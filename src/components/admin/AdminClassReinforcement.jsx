@@ -340,8 +340,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         setLocalActivity({
           title: actData.title,
           description: actData.description || '',
-          is_mandatory: actData.is_mandatory,
-          max_attempts: actData.max_attempts,
+          is_mandatory: false,
+          max_attempts: 1,
           due_date: actData.due_date ? toLocalDatetimeString(actData.due_date) : ''
         });
 
@@ -507,8 +507,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         class_id: classId,
         title: localActivity.title,
         description: localActivity.description,
-        is_mandatory: localActivity.is_mandatory,
-        max_attempts: localActivity.max_attempts,
+        is_mandatory: false,
+        max_attempts: 1,
         due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null,
         is_published: false
       };
@@ -561,8 +561,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           class_id: classId,
           title: localActivity.title || 'Actividad de Reforzamiento',
           description: localActivity.description || '',
-          is_mandatory: localActivity.is_mandatory || false,
-          max_attempts: localActivity.max_attempts || 1,
+          is_mandatory: false,
+          max_attempts: 1,
           due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null,
           is_published: false
         };
@@ -817,8 +817,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           const updatePayload = {
             title: localActivity.title,
             description: localActivity.description,
-            is_mandatory: localActivity.is_mandatory,
-            max_attempts: localActivity.max_attempts,
+            is_mandatory: false,
+            max_attempts: 1,
             due_date: parsedDue
           };
           let { data: updatedAct, error: updateError } = await supabase
@@ -843,8 +843,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
             class_id: classId,
             title: localActivity.title,
             description: localActivity.description,
-            is_mandatory: localActivity.is_mandatory,
-            max_attempts: localActivity.max_attempts,
+            is_mandatory: false,
+            max_attempts: 1,
             due_date: parsedDue,
             is_published: false
           };
@@ -871,8 +871,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         const updatePayload = {
           title: localActivity.title,
           description: localActivity.description,
-          is_mandatory: localActivity.is_mandatory,
-          max_attempts: localActivity.max_attempts,
+          is_mandatory: false,
+          max_attempts: 1,
           due_date: parsedDue
         };
         let { data: updatedAct, error: updateError } = await supabase
@@ -1256,8 +1256,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
             class_id: classId,
             title: localActivity.title || 'Actividad de Reforzamiento',
             description: localActivity.description || '',
-            is_mandatory: localActivity.is_mandatory || false,
-            max_attempts: localActivity.max_attempts || 1,
+            is_mandatory: false,
+            max_attempts: 1,
             due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null,
             is_published: false
           };
@@ -1331,8 +1331,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         is_published: true,
         title: localActivity.title || currentAct?.title || 'Actividad de Reforzamiento',
         description: localActivity.description || currentAct?.description || '',
-        is_mandatory: localActivity.is_mandatory !== undefined ? localActivity.is_mandatory : false,
-        max_attempts: localActivity.max_attempts || 1,
+        is_mandatory: false,
+        max_attempts: 1,
         due_date: localActivity.due_date ? parseLocalDatetime(localActivity.due_date) : null
       };
 
@@ -1739,30 +1739,6 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
               style={{ width: '100%', padding: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '6px', minHeight: '60px', fontFamily: 'inherit' }} 
               placeholder="Ej: Resuelve este breve test para asentar tus conocimientos..."
             />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-              <input 
-                type="checkbox" 
-                checked={localActivity.is_mandatory} 
-                onChange={e => setLocalActivity({...localActivity, is_mandatory: e.target.checked})}
-                style={{ width: '16px', height: '16px' }}
-              />
-              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Es Obligatoria para avanzar</span>
-            </label>
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Intentos permitidos</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input 
-                type="number" 
-                min="0"
-                value={localActivity.max_attempts} 
-                onChange={e => setLocalActivity({...localActivity, max_attempts: parseInt(e.target.value) || 0})}
-                style={{ width: '100px', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px' }} 
-              />
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(0 = Ilimitados)</span>
-            </div>
           </div>
           
           {/* FECHA LÍMITE Y CONTROL DE VENCIMIENTO / REACTIVACIÓN */}

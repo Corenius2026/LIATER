@@ -427,7 +427,8 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
         title: draftData.activity_title || 'Actividad de Reforzamiento', 
         description: draftData.activity_description || '', 
         is_published: true, 
-        max_attempts: maxAttempts 
+        max_attempts: 1,
+        is_mandatory: false
       };
       if (draftData.due_date) updatePayload.due_date = draftData.due_date;
       
@@ -452,7 +453,7 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
         title: draftData.activity_title || 'Actividad de Reforzamiento', 
         description: draftData.activity_description || '', 
         is_published: true, 
-        max_attempts: maxAttempts, 
+        max_attempts: 1, 
         is_mandatory: false 
       };
       if (draftData.due_date) insertPayload.due_date = draftData.due_date;
@@ -1593,24 +1594,6 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                       padding: '0.6rem 0.85rem', borderRadius: '8px'
                     }}>
                       {activityMsg}
-                    </div>
-                  )}
-
-                  {editingQuestions && (
-                    <div style={{ padding: '1rem', background: '#F8FAFC', borderRadius: '10px', border: '1px solid #CBD5E1' }}>
-                      <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
-                        Intentos permitidos para el alumno:
-                      </label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <input 
-                          type="number" 
-                          min="0"
-                          value={maxAttempts} 
-                          onChange={e => setMaxAttempts(parseInt(e.target.value) || 0)}
-                          style={{ width: '90px', padding: '0.45rem 0.6rem', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.85rem' }} 
-                        />
-                        <span style={{ fontSize: '0.78rem', color: '#64748B' }}>(0 = Intentos ilimitados)</span>
-                      </div>
                     </div>
                   )}
 
@@ -6329,7 +6312,7 @@ function BorradoresTab() {
         title: draftData.activity_title || 'Actividad de Reforzamiento',
         description: draftData.activity_description || '',
         is_published: true,
-        max_attempts: attemptsValue,
+        max_attempts: 1,
         is_mandatory: false,
       };
       if (draftData.due_date) updatePayload.due_date = draftData.due_date;
@@ -6365,7 +6348,7 @@ function BorradoresTab() {
         title: draftData.activity_title || 'Actividad de Reforzamiento',
         description: draftData.activity_description || '',
         is_published: true,
-        max_attempts: attemptsValue,
+        max_attempts: 1,
         is_mandatory: false,
       };
       if (draftData.due_date) insertPayload.due_date = draftData.due_date;
@@ -6443,7 +6426,7 @@ function BorradoresTab() {
       const classId = draft.class_id || draft.class_sessions?.id;
       if (!classId) throw new Error('No se encontró el ID de la clase vinculada.');
 
-      const attempts = maxAttemptsByDraft[draft.id] ?? 1;
+      const attempts = 1;
       await syncAndPublishActivity(classId, draft.draft_data, attempts);
 
       await supabase
@@ -6739,18 +6722,6 @@ function BorradoresTab() {
                   {/* Botones según estado */}
                   {draft.status === 'pending' && (
                     <>
-                      {/* Input intentos permitidos */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>Intentos:</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={maxAttemptsByDraft[draft.id] ?? 1}
-                          onChange={e => setMaxAttemptsByDraft(prev => ({ ...prev, [draft.id]: parseInt(e.target.value) || 0 }))}
-                          style={{ width: '60px', padding: '0.3rem 0.4rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.8rem', textAlign: 'center' }}
-                          title="0 = Intentos ilimitados"
-                        />
-                      </div>
                       <button
                         onClick={() => handleApprove(draft)}
                         disabled={!!actionLoading}
