@@ -1751,25 +1751,6 @@ export default function CourseResources() {
         }} />
 
         <div style={{ maxWidth: '640px', zIndex: 1 }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            background: 'rgba(252, 163, 17, 0.15)',
-            border: '1px solid rgba(252, 163, 17, 0.4)',
-            color: 'var(--gold, #FCA311)',
-            padding: '0.3rem 0.75rem',
-            borderRadius: '9999px',
-            fontSize: '0.72rem',
-            fontWeight: 800,
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-            marginBottom: '0.75rem'
-          }}>
-            <Sparkles size={12} />
-            <span>Centro de Recursos y Materiales</span>
-          </div>
-
           <h1 style={{
             fontSize: '1.9rem',
             fontWeight: 800,
@@ -2157,19 +2138,8 @@ export default function CourseResources() {
                     <FolderDown size={22} />
                   </div>
                   <div>
-                    <h2 style={{ margin: 0, fontSize: '1.24rem', fontWeight: 800, color: 'var(--navy, #14213D)', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                      <span>Contenido General del Curso</span>
-                      <span style={{
-                        fontSize: '0.72rem',
-                        padding: '2px 9px',
-                        borderRadius: '999px',
-                        background: 'rgba(252, 163, 17, 0.18)',
-                        color: '#B45309',
-                        fontWeight: 700,
-                        border: '1px solid rgba(252, 163, 17, 0.4)'
-                      }}>
-                        {filteredGeneral.length} {filteredGeneral.length === 1 ? 'material' : 'materiales'}
-                      </span>
+                    <h2 style={{ margin: 0, fontSize: '1.24rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                      Contenido General del Curso
                     </h2>
                     <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
                       Guías académicas, bibliografía general, enlaces a software y recursos transversales para todos los estudiantes.
@@ -2285,23 +2255,10 @@ export default function CourseResources() {
                     <Layers size={22} />
                   </div>
                   <div>
-                    <h2 style={{ margin: 0, fontSize: '1.24rem', fontWeight: 800, color: 'var(--navy, #14213D)', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                      <span>
-                        {sessionFilter !== 'all'
-                          ? (sessionsList.find(s => String(s.id) === String(sessionFilter))?.title || 'Materiales de la Sesión')
-                          : 'Materiales por Sesión de Clase'}
-                      </span>
-                      <span style={{
-                        fontSize: '0.72rem',
-                        padding: '2px 9px',
-                        borderRadius: '999px',
-                        background: '#EFF6FF',
-                        color: '#1D4ED8',
-                        fontWeight: 700,
-                        border: '1px solid #BFDBFE'
-                      }}>
-                        {filteredClass.length} {filteredClass.length === 1 ? 'material' : 'materiales'}
-                      </span>
+                    <h2 style={{ margin: 0, fontSize: '1.24rem', fontWeight: 800, color: 'var(--navy, #14213D)' }}>
+                      {sessionFilter !== 'all'
+                        ? (sessionsList.find(s => String(s.id) === String(sessionFilter))?.title || 'Materiales de la Sesión')
+                        : 'Materiales por Sesión de Clase'}
                     </h2>
                     <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
                       {sessionFilter !== 'all'
