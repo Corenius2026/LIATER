@@ -821,7 +821,7 @@ export default function CourseResources() {
           background: isHidden ? '#F8FAFC' : '#FFFFFF',
           borderRadius: '14px',
           border: isHidden ? '1.5px dashed #CBD5E1' : '1.5px solid #E2E8F0',
-          borderLeft: res.isGeneral ? '5px solid var(--gold, #FCA311)' : '5px solid var(--navy, #14213D)',
+          borderLeft: '5px solid var(--gold, #FCA311)',
           padding: '1.25rem',
           display: 'flex',
           flexDirection: 'column',
@@ -835,17 +835,21 @@ export default function CourseResources() {
         onMouseOver={e => {
           if (!isHidden) {
             e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = res.isGeneral
-              ? '0 10px 24px rgba(252, 163, 17, 0.14)'
-              : '0 10px 24px rgba(20, 33, 61, 0.08)';
-            e.currentTarget.style.borderColor = '#CBD5E1';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(252, 163, 17, 0.12)';
+            e.currentTarget.style.borderTopColor = '#CBD5E1';
+            e.currentTarget.style.borderRightColor = '#CBD5E1';
+            e.currentTarget.style.borderBottomColor = '#CBD5E1';
+            e.currentTarget.style.borderLeftColor = 'var(--gold, #FCA311)';
           }
         }}
         onMouseOut={e => {
           if (!isHidden) {
             e.currentTarget.style.transform = 'translateY(0)';
             e.currentTarget.style.boxShadow = '0 2px 8px rgba(20,33,61,0.04)';
-            e.currentTarget.style.borderColor = '#E2E8F0';
+            e.currentTarget.style.borderTopColor = '#E2E8F0';
+            e.currentTarget.style.borderRightColor = '#E2E8F0';
+            e.currentTarget.style.borderBottomColor = '#E2E8F0';
+            e.currentTarget.style.borderLeftColor = 'var(--gold, #FCA311)';
           }
         }}
       >
@@ -1260,7 +1264,7 @@ export default function CourseResources() {
           background: isHidden ? '#F8FAFC' : '#FFFFFF',
           borderRadius: '12px',
           border: isHidden ? '1.5px dashed #CBD5E1' : '1.5px solid #E2E8F0',
-          borderLeft: res.isGeneral ? '5px solid var(--gold, #FCA311)' : '5px solid var(--navy, #14213D)',
+          borderLeft: '5px solid var(--gold, #FCA311)',
           padding: '0.9rem 1.15rem',
           display: 'flex',
           alignItems: 'center',
@@ -1277,16 +1281,22 @@ export default function CourseResources() {
         }}
         onMouseOver={e => {
           if (!isHidden) {
-            e.currentTarget.style.background = '#FAFBFD';
-            e.currentTarget.style.borderColor = '#CBD5E1';
+            e.currentTarget.style.background = '#FFFFFF';
             e.currentTarget.style.boxShadow = '0 3px 10px rgba(20,33,61,0.06)';
+            e.currentTarget.style.borderTopColor = '#CBD5E1';
+            e.currentTarget.style.borderRightColor = '#CBD5E1';
+            e.currentTarget.style.borderBottomColor = '#CBD5E1';
+            e.currentTarget.style.borderLeftColor = 'var(--gold, #FCA311)';
           }
         }}
         onMouseOut={e => {
           if (!isHidden) {
             e.currentTarget.style.background = '#FFFFFF';
-            e.currentTarget.style.borderColor = '#E2E8F0';
             e.currentTarget.style.boxShadow = '0 1px 4px rgba(20,33,61,0.03)';
+            e.currentTarget.style.borderTopColor = '#E2E8F0';
+            e.currentTarget.style.borderRightColor = '#E2E8F0';
+            e.currentTarget.style.borderBottomColor = '#E2E8F0';
+            e.currentTarget.style.borderLeftColor = 'var(--gold, #FCA311)';
           }
         }}
       >
