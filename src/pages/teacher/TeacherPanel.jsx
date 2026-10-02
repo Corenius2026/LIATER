@@ -3202,7 +3202,7 @@ function ResumenTab({ onChangeTab }) {
       const classes = resClasses.data || [];
       const classIds = classes.map(c => c.id);
 
-      // 2. Consultar borradores y actividades publicados usando classIds
+      // 2. Consultar borradores y actividades (publicadas y no publicadas) usando classIds
       let draftsData = [];
       let activitiesData = [];
 
@@ -3215,25 +3215,48 @@ function ResumenTab({ onChangeTab }) {
           supabase.from('class_activities')
             .select('id, class_id, is_published, title')
             .in('class_id', classIds)
-            .eq('is_published', true)
         ]);
         draftsData = draftsRes.data || [];
         activitiesData = actsRes.data || [];
       }
 
-      const actsByClass = {};
+      const publishedActsByClass = {};
+      const unpublishedActsByClass = {};
       activitiesData.forEach(a => {
-        actsByClass[a.class_id] = a;
+        if (a.is_published) {
+          publishedActsByClass[a.class_id] = a;
+        } else {
+          unpublishedActsByClass[a.class_id] = a;
+        }
       });
 
       const draftsByClass = {};
-      const pendingDraftsList = [];
+      const pendingDraftsByClass = {};
       draftsData.forEach(d => {
         if (!draftsByClass[d.class_id]) draftsByClass[d.class_id] = d;
         if (d.status === 'pending') {
-          pendingDraftsList.push(d);
+          pendingDraftsByClass[d.class_id] = d;
         }
       });
+
+      // Identificar si una clase tiene actividad publicada
+      const hasPublishedActivity = (classId) => {
+        return !!publishedActsByClass[classId] || (draftsByClass[classId] && (draftsByClass[classId].status === 'approved' || draftsByClass[classId].status === 'published'));
+      };
+
+      // Identificar si una clase tiene borrador o actividad generada pendiente de validación
+      const getPendingDraftInfo = (classId) => {
+        if (hasPublishedActivity(classId)) return null;
+        const draft = pendingDraftsByClass[classId];
+        const unpubAct = unpublishedActsByClass[classId];
+        if (draft) return { type: 'draft', id: draft.id, title: draft.draft_data?.activity_title || 'Actividad de Reforzamiento' };
+        if (unpubAct) return { type: 'unpub_activity', id: unpubAct.id, title: unpubAct.title || 'Actividad de Reforzamiento' };
+        return null;
+      };
+
+      // Clases con borrador pendiente en todo el programa
+      const classesWithPendingDraft = classes.filter(c => !!getPendingDraftInfo(c.id));
+      const totalPublishedActivities = classes.filter(c => hasPublishedActivity(c.id)).length;
       
       const now = new Date();
       const getEndTime = (c) => new Date(new Date(c.class_date).getTime() + (c.duration || 120) * 60000);
@@ -3263,30 +3286,32 @@ function ResumenTab({ onChangeTab }) {
         });
       }
 
-      // B. Alerta: Borradores IA pendientes de validación
-      if (pendingDraftsList.length > 0) {
-        pendingDraftsList.forEach(d => {
-          const relatedClass = classes.find(c => c.id === d.class_id);
-          alerts.push({
-            id: 'draft-' + d.id,
-            type: 'draft',
-            title: `Borrador IA pendiente: "${d.draft_data?.activity_title || 'Actividad de Reforzamiento'}"`,
-            subtitle: `Clase: ${relatedClass?.title || 'Clase vinculada'} · Creado para revisión y aprobación previa`,
-            action: 'Validar Actividad',
-            tab: 'clases',
-            icon: 'sparkles',
-            color: '#FCA311',
-            onClick: () => navigate(`/class/${d.class_id}${programId ? `?programId=${programId}` : ''}`)
-          });
-        });
-      }
+      // B. Preparación de Sesiones: Borradores IA pendientes de validación para clases PRÓXIMAS
+      // REGLA CRUCIAL: Solo se muestran aquí si la clase aún NO ha iniciado (new Date(c.class_date) > now).
+      // Tan pronto llega la hora de inicio de la clase, se quita de Preparación de Sesiones y solo permanece en "Reforzamiento IA".
+      const upcomingWithPendingDraft = upcomingList.filter(c => !!getPendingDraftInfo(c.id));
 
-      // C. Preparación de Sesiones: Sugerencia para subir materiales y generar actividad IA previa
-      // Solo para clases que todavía NO han comenzado (class_date > now) y que NO tienen actividad ni borrador
-      const upcomingWithoutActivity = upcomingList.filter(c => !actsByClass[c.id] && (!draftsByClass[c.id] || draftsByClass[c.id].status !== 'pending'));
+      upcomingWithPendingDraft.forEach(c => {
+        const draftInfo = getPendingDraftInfo(c.id);
+        alerts.push({
+          id: 'draft-prep-' + c.id,
+          type: 'draft',
+          title: `Validar Borrador IA: "${draftInfo?.title || 'Actividad de Reforzamiento'}"`,
+          subtitle: `Clase: "${c.title}" (${formatClassDate(c.class_date)}) · Revisa y valida la actividad antes de la sesión`,
+          action: 'Validar Borrador',
+          tab: 'clases',
+          icon: 'sparkles',
+          color: '#FCA311',
+          onClick: () => navigate(`/class/${c.id}${programId ? `?programId=${programId}` : ''}`)
+        });
+      });
+
+      // C. Preparación de Sesiones: Sugerencia para subir materiales y preparar sesión previa
+      // Solo para clases que todavía NO han comenzado (class_date > now) y que NO tienen actividad publicada NI borrador pendiente
+      const upcomingWithoutActivityOrDraft = upcomingList.filter(c => !hasPublishedActivity(c.id) && !getPendingDraftInfo(c.id));
 
       // Mostrar hasta 2 próximas clases sugeridas para preparar sesión
-      upcomingWithoutActivity.slice(0, 2).forEach(c => {
+      upcomingWithoutActivityOrDraft.slice(0, 2).forEach(c => {
         alerts.push({
           id: 'suggest-act-' + c.id,
           type: 'suggest_activity',
@@ -3314,8 +3339,8 @@ function ResumenTab({ onChangeTab }) {
         announcements: visibleAnnouncementsCount,
         students: resStudents.count || 0,
         pendingDoubts: unreviewedCount,
-        pendingDrafts: pendingDraftsList.length,
-        activeActivities: activitiesData.length,
+        pendingDrafts: classesWithPendingDraft.length,
+        activeActivities: totalPublishedActivities,
         pendingEvaluations: 0,
       });
 
@@ -3460,7 +3485,7 @@ function ResumenTab({ onChangeTab }) {
           transition: 'all 0.2s ease',
           boxShadow: '0 1px 3px rgba(20, 33, 61, 0.04)'
         }}
-          onClick={() => stats.pendingDrafts > 0 && onChangeTab('clases')}
+          onClick={() => stats.pendingDrafts > 0 && onChangeTab('reforzamiento', { statusFilter: 'draft_pending' })}
           onMouseOver={e => stats.pendingDrafts > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
@@ -7668,14 +7693,24 @@ function ActivityResultsModal({ activity, classData, onClose, onGoToClass }) {
 ───────────────────────────────────────────────────────────── */
 function ReforzamientoIATab({ onChangeTab }) {
   const { profile, teacherId, programId, currentProgram } = useTeacherContext();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialFilter = searchParams.get('statusFilter') || 'all';
   const [loading, setLoading] = useState(true);
   const [classesWithActivities, setClassesWithActivities] = useState([]);
   const [totalProgramClasses, setTotalProgramClasses] = useState(0);
   const [modules, setModules] = useState([]);
   const [selectedModuleId, setSelectedModuleId] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'published' | 'with_responses' | 'draft_pending'
+  const [statusFilter, setStatusFilter] = useState(initialFilter); // 'all' | 'published' | 'with_responses' | 'draft_pending'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedActivityForModal, setSelectedActivityForModal] = useState(null);
+
+  useEffect(() => {
+    const f = searchParams.get('statusFilter');
+    if (f) {
+      setStatusFilter(f);
+    }
+  }, [searchParams]);
 
   // Cargar datos
   const loadData = async () => {
@@ -7693,23 +7728,31 @@ function ReforzamientoIATab({ onChangeTab }) {
 
       setModules(modData || []);
 
-      // 2. Obtener clases asignadas al docente con jerarquía sessions / modules
+      // 2. Obtener clases asignadas al docente con jerarquía sessions / modules (o generales del programa)
       let classes = [];
-      const { data: sData, error: sErr } = await supabase
+      let classFilter = '';
+      if (teacherProfileId) {
+        classFilter = `teacher_id.eq.${teacherProfileId},teacher_id.is.null`;
+      }
+
+      let classQuery = supabase
         .from('class_sessions')
         .select('*, sessions(id, title, order_index, module_id, modules(id, title, program_id)), meet_url')
-        .eq('program_id', programId)
-        .eq('teacher_id', teacherProfileId)
-        .order('class_date', { ascending: true });
+        .eq('program_id', programId);
+      if (classFilter) classQuery = classQuery.or(classFilter);
+      classQuery = classQuery.order('class_date', { ascending: true });
+
+      const { data: sData, error: sErr } = await classQuery;
 
       if (sErr) {
         // Fallback a esquema subtopics si aún existiera
-        const { data: oldData } = await supabase
+        let oldQuery = supabase
           .from('class_sessions')
           .select('*, subtopics(id, title, module_id, modules(id, title, program_id)), meet_url')
-          .eq('program_id', programId)
-          .eq('teacher_id', teacherProfileId)
-          .order('class_date', { ascending: true });
+          .eq('program_id', programId);
+        if (classFilter) oldQuery = oldQuery.or(classFilter);
+        oldQuery = oldQuery.order('class_date', { ascending: true });
+        const { data: oldData } = await oldQuery;
         classes = oldData || [];
       } else {
         classes = sData || [];
@@ -7802,9 +7845,11 @@ function ReforzamientoIATab({ onChangeTab }) {
         const avgScore = studentBestScores.length > 0 ? Math.round(studentBestScores.reduce((a, b) => a + b, 0) / studentBestScores.length) : null;
 
         // Determinar estado de la actividad (publicada o borrador pendiente)
-        let actStatus = 'draft_pending';
+        let actStatus = 'none';
         if (act && act.is_published) {
           actStatus = 'published';
+        } else if ((act && !act.is_published) || (draft && draft.status === 'pending')) {
+          actStatus = 'draft_pending';
         }
 
         const effectiveTotal = totalStudents > 0 ? totalStudents : uniqueStudentsCompleted;
@@ -7822,8 +7867,8 @@ function ReforzamientoIATab({ onChangeTab }) {
         };
       });
 
-      // Solo conservar clases que tengan actividad creada o borrador generado
-      const onlyWithActivities = enriched.filter(c => c.activity || c.draft);
+      // Conservar clases que tengan actividad publicada o borrador pendiente
+      const onlyWithActivities = enriched.filter(c => c.actStatus === 'published' || c.actStatus === 'draft_pending');
       setClassesWithActivities(onlyWithActivities);
       setTotalProgramClasses(classes.length);
     } catch (err) {
@@ -8084,8 +8129,14 @@ function ReforzamientoIATab({ onChangeTab }) {
           boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
           display: 'flex',
           alignItems: 'center',
-          gap: '14px'
-        }}>
+          gap: '14px',
+          cursor: draftPendingCount > 0 ? 'pointer' : 'default',
+          transition: 'all 0.2s ease'
+        }}
+          onClick={() => draftPendingCount > 0 && setStatusFilter('draft_pending')}
+          onMouseOver={e => draftPendingCount > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
+          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+        >
           <div style={{
             width: '48px',
             height: '48px',
@@ -8101,7 +8152,7 @@ function ReforzamientoIATab({ onChangeTab }) {
           <div>
             <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Borradores por Validar</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: draftPendingCount > 0 ? '#B45309' : '#14213D' }}>
-              {draftPendingCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>en Mis Clases</span>
+              {draftPendingCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>pendientes</span>
             </div>
           </div>
         </div>
@@ -8351,7 +8402,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                       alignItems: 'center',
                       gap: '4px'
                     }}>
-                      <Bot size={12} /> Borrador IA pendiente
+                      <Bot size={12} /> Borrador pendiente
                     </span>
                   )}
                 </div>
@@ -8431,7 +8482,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                       fontSize: '0.8rem',
                       color: '#92400E'
                     }}>
-                      💡 <strong>Borrador listo:</strong> La IA generó preguntas de repaso basadas en el material de clase. Valídalo y apruébalo en Mis Clases.
+                      💡 <strong>Borrador listo:</strong> Actividad pedagógica generada que requiere revisión y validación previa antes de activarse para los estudiantes.
                     </div>
                   )}
                 </div>
@@ -8468,7 +8519,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                     </button>
                   ) : (
                     <button
-                      onClick={() => onChangeTab && onChangeTab('clases', { classId: cls.id, section: 'activity' })}
+                      onClick={() => navigate(`/class/${cls.id}${programId ? `?programId=${programId}` : ''}`)}
                       style={{
                         flex: 1,
                         display: 'flex',
@@ -8482,10 +8533,14 @@ function ReforzamientoIATab({ onChangeTab }) {
                         borderRadius: '8px',
                         fontSize: '0.82rem',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(252, 163, 17, 0.25)',
+                        transition: 'all 0.15s ease'
                       }}
+                      onMouseOver={e => e.currentTarget.style.background = '#e8960a'}
+                      onMouseOut={e => e.currentTarget.style.background = '#FCA311'}
                     >
-                      <Sparkles size={15} /> Revisar y Validar en Mis Clases
+                      <Sparkles size={15} /> Revisar y Validar Borrador
                     </button>
                   )}
                 </div>
