@@ -2505,15 +2505,12 @@ export default function ClassDetail() {
                               fontWeight: 700,
                               whiteSpace: 'nowrap',
                               background: doubt.status === 'atendida' ? '#DCFCE7' :
-                                          doubt.status === 'revisada' ? '#FEF3C7' :
-                                          doubt.status === 'archivada' ? '#F1F5F9' : '#DBEAFE',
+                                          doubt.status === 'revisada' ? '#FEF3C7' : '#DBEAFE',
                               color: doubt.status === 'atendida' ? '#166534' :
-                                     doubt.status === 'revisada' ? '#92400E' :
-                                     doubt.status === 'archivada' ? '#475569' : '#1E40AF'
+                                     doubt.status === 'revisada' ? '#92400E' : '#1E40AF'
                             }}>
                               {doubt.status === 'atendida' ? 'Atendida en clase' :
-                               doubt.status === 'revisada' ? 'Revisada' :
-                               doubt.status === 'archivada' ? 'Archivada' : 'Enviada'}
+                               doubt.status === 'revisada' ? 'Revisada' : 'Enviada'}
                             </span>
                           </div>
 
@@ -2631,7 +2628,6 @@ export default function ClassDetail() {
                       <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>Enviada</span>
                       <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Revisada</span>
                       <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Atendida en clase</span>
-                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>Archivada</span>
                     </div>
                   </div>
                 )}
