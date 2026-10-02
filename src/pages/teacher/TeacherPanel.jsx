@@ -7737,9 +7737,10 @@ function ReforzamientoIATab({ onChangeTab }) {
   const { profile, teacherId, programId, currentProgram } = useTeacherContext();
   const [loading, setLoading] = useState(true);
   const [classesWithActivities, setClassesWithActivities] = useState([]);
+  const [totalProgramClasses, setTotalProgramClasses] = useState(0);
   const [modules, setModules] = useState([]);
   const [selectedModuleId, setSelectedModuleId] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'published' | 'with_responses' | 'draft_pending' | 'no_activity'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'published' | 'with_responses' | 'draft_pending'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedActivityForModal, setSelectedActivityForModal] = useState(null);
 
@@ -7785,6 +7786,7 @@ function ReforzamientoIATab({ onChangeTab }) {
 
       if (classIds.length === 0) {
         setClassesWithActivities([]);
+        setTotalProgramClasses(0);
         setLoading(false);
         return;
       }
@@ -7866,14 +7868,10 @@ function ReforzamientoIATab({ onChangeTab }) {
         const studentBestScores = Object.values(bestScoreByStudent);
         const avgScore = studentBestScores.length > 0 ? Math.round(studentBestScores.reduce((a, b) => a + b, 0) / studentBestScores.length) : null;
 
-        // Determinar estado de la actividad con sincronización exacta
-        let actStatus = 'no_activity';
+        // Determinar estado de la actividad (publicada o borrador pendiente)
+        let actStatus = 'draft_pending';
         if (act && act.is_published) {
           actStatus = 'published';
-        } else if (draft && draft.status === 'pending') {
-          actStatus = 'draft_pending';
-        } else if (draft && draft.status === 'approved' && (!act || !act.is_published)) {
-          actStatus = 'draft_pending';
         }
 
         const effectiveTotal = totalStudents > 0 ? totalStudents : uniqueStudentsCompleted;
@@ -7891,7 +7889,10 @@ function ReforzamientoIATab({ onChangeTab }) {
         };
       });
 
-      setClassesWithActivities(enriched);
+      // Solo conservar clases que tengan actividad creada o borrador generado
+      const onlyWithActivities = enriched.filter(c => c.activity || c.draft);
+      setClassesWithActivities(onlyWithActivities);
+      setTotalProgramClasses(classes.length);
     } catch (err) {
       console.error('Error cargando actividades de reforzamiento:', err);
     } finally {
@@ -7949,7 +7950,6 @@ function ReforzamientoIATab({ onChangeTab }) {
     if (statusFilter === 'published' && c.actStatus !== 'published') return false;
     if (statusFilter === 'with_responses' && c.completedCount === 0) return false;
     if (statusFilter === 'draft_pending' && c.actStatus !== 'draft_pending') return false;
-    if (statusFilter === 'no_activity' && c.actStatus !== 'no_activity') return false;
 
     // Filtro Búsqueda
     if (searchTerm.trim()) {
@@ -8075,7 +8075,7 @@ function ReforzamientoIATab({ onChangeTab }) {
           <div>
             <div style={{ fontSize: '0.78rem', color: '#6C757D', fontWeight: 600 }}>Actividades Publicadas</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#14213D' }}>
-              {publishedCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>de {classesWithActivities.length} clases</span>
+              {publishedCount} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6C757D' }}>de {totalProgramClasses || publishedCount} clases</span>
             </div>
           </div>
         </div>
@@ -8240,7 +8240,6 @@ function ReforzamientoIATab({ onChangeTab }) {
             { id: 'published', label: 'Publicadas' },
             { id: 'with_responses', label: 'Con respuestas' },
             { id: 'draft_pending', label: 'Borradores pendientes' },
-            { id: 'no_activity', label: 'Sin actividad' },
           ].map(f => (
             <button
               key={f.id}
@@ -8269,6 +8268,54 @@ function ReforzamientoIATab({ onChangeTab }) {
           <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
           <div>Cargando actividades de reforzamiento...</div>
         </div>
+      ) : classesWithActivities.length === 0 ? (
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '3rem 2rem',
+          textAlign: 'center',
+          border: '1px dashed #D1D5DB'
+        }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '16px',
+            background: 'rgba(20, 33, 61, 0.05)',
+            color: '#14213D',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1rem auto'
+          }}>
+            <Brain size={28} color="#14213D" />
+          </div>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '1.15rem', fontWeight: 800, color: '#14213D' }}>
+            No hay actividades de reforzamiento aún
+          </h3>
+          <p style={{ margin: '0 auto 1.5rem auto', fontSize: '0.86rem', color: '#64748B', maxWidth: '500px', lineHeight: 1.5 }}>
+            Las actividades de reforzamiento y borradores generados por IA para tus clases se monitorean desde este panel. Para crear una actividad, prepara tu sesión desde <strong>Resumen del Programa</strong> o ingresa a <strong>Mis Clases</strong>.
+          </p>
+          <button
+            type="button"
+            onClick={() => onChangeTab && onChangeTab('clases')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'var(--navy, #14213D)',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '0.6rem 1.3rem',
+              borderRadius: '8px',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(20, 33, 61, 0.15)'
+            }}
+          >
+            <Layers size={16} color="var(--gold, #FCA311)" /> Ir a Mis Clases
+          </button>
+        </div>
       ) : filteredList.length === 0 ? (
         <div style={{
           background: '#FFFFFF',
@@ -8279,11 +8326,27 @@ function ReforzamientoIATab({ onChangeTab }) {
         }}>
           <Brain size={40} color="#9CA3AF" style={{ marginBottom: '12px' }} />
           <h3 style={{ margin: '0 0 6px 0', fontSize: '1.1rem', color: '#14213D' }}>
-            No se encontraron clases con ese criterio
+            No se encontraron actividades con ese criterio
           </h3>
           <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#6C757D' }}>
-            Prueba ajustando los filtros de módulo o estado de actividad.
+            Prueba ajustando los filtros de módulo o búsqueda.
           </p>
+          <button
+            type="button"
+            onClick={() => { setSearchTerm(''); setStatusFilter('all'); setSelectedModuleId('all'); }}
+            style={{
+              background: 'transparent',
+              border: '1px solid #CBD5E1',
+              padding: '0.45rem 0.95rem',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              color: '#14213D'
+            }}
+          >
+            Limpiar filtros
+          </button>
         </div>
       ) : (
         <div style={{
@@ -8343,7 +8406,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                     }}>
                       <CheckCheck size={12} /> Publicada y activa
                     </span>
-                  ) : isDraftPending ? (
+                  ) : (
                     <span style={{
                       background: '#FEF3C7',
                       color: '#B45309',
@@ -8356,17 +8419,6 @@ function ReforzamientoIATab({ onChangeTab }) {
                       gap: '4px'
                     }}>
                       <Bot size={12} /> Borrador IA pendiente
-                    </span>
-                  ) : (
-                    <span style={{
-                      background: '#F1F5F9',
-                      color: '#64748B',
-                      padding: '3px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.72rem',
-                      fontWeight: 600
-                    }}>
-                      Sin actividad IA
                     </span>
                   )}
                 </div>
@@ -8436,7 +8488,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                         )}
                       </div>
                     </div>
-                  ) : isDraftPending ? (
+                  ) : (
                     <div style={{
                       marginTop: 'auto',
                       padding: '10px 12px',
@@ -8446,18 +8498,7 @@ function ReforzamientoIATab({ onChangeTab }) {
                       fontSize: '0.8rem',
                       color: '#92400E'
                     }}>
-                      💡 <strong>Borrador listo:</strong> La IA generó preguntas de repaso basadas en la grabación. Valídalo en la pestaña Mis Clases.
-                    </div>
-                  ) : (
-                    <div style={{
-                      marginTop: 'auto',
-                      padding: '10px 12px',
-                      background: '#F8F9FA',
-                      borderRadius: '8px',
-                      fontSize: '0.8rem',
-                      color: '#6C757D'
-                    }}>
-                      Añade la grabación de la clase en <strong>Mis Clases</strong> para que la IA genere automáticamente la actividad de reforzamiento.
+                      💡 <strong>Borrador listo:</strong> La IA generó preguntas de repaso basadas en el material de clase. Valídalo y apruébalo en Mis Clases.
                     </div>
                   )}
                 </div>
@@ -8492,9 +8533,9 @@ function ReforzamientoIATab({ onChangeTab }) {
                     >
                       <BarChart3 size={15} color="#FCA311" /> Ver Resultados y Analítica
                     </button>
-                  ) : isDraftPending ? (
+                  ) : (
                     <button
-                      onClick={() => onChangeTab && onChangeTab('clases')}
+                      onClick={() => onChangeTab && onChangeTab('clases', { classId: cls.id, section: 'activity' })}
                       style={{
                         flex: 1,
                         display: 'flex',
@@ -8512,27 +8553,6 @@ function ReforzamientoIATab({ onChangeTab }) {
                       }}
                     >
                       <Sparkles size={15} /> Revisar y Validar en Mis Clases
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => onChangeTab && onChangeTab('clases')}
-                      style={{
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        background: 'transparent',
-                        color: '#14213D',
-                        border: '1px solid #D1D5DB',
-                        padding: '8px 14px',
-                        borderRadius: '8px',
-                        fontSize: '0.82rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Video size={15} /> Ir a Mis Clases
                     </button>
                   )}
                 </div>
