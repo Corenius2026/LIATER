@@ -150,28 +150,68 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       }
 
       // 1. Eliminar preguntas previas de la base de datos (activity_questions y relaciones)
-      if (activity?.id && activity.id !== 'draft-temp') {
-        try {
-          const { data: oldQs } = await supabase
-            .from('activity_questions')
-            .select('id')
-            .eq('activity_id', activity.id);
+      let targetActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) 
+        ? activity.id 
+        : null;
 
-          if (oldQs && oldQs.length > 0) {
-            const oldQIds = oldQs.map(q => q.id);
-            await supabase.from('attempt_answers').delete().in('question_id', oldQIds);
-            await supabase.from('question_correct_answers').delete().in('question_id', oldQIds);
-            await supabase.from('question_options').delete().in('question_id', oldQIds);
-            await supabase.from('activity_questions').delete().in('id', oldQIds);
+      if (!targetActId) {
+        const { data: actRow } = await supabase
+          .from('class_activities')
+          .select('id')
+          .eq('class_id', classId)
+          .maybeSingle();
+        if (actRow) targetActId = actRow.id;
+      }
+
+      if (targetActId) {
+        try {
+          const { error: rpcErr } = await supabase.rpc('purge_activity_questions', { p_activity_id: targetActId });
+          if (rpcErr) {
+            const { data: oldQs } = await supabase
+              .from('activity_questions')
+              .select('id')
+              .eq('activity_id', targetActId);
+
+            if (oldQs && oldQs.length > 0) {
+              const oldQIds = oldQs.map(q => q.id);
+              await supabase.from('attempt_answers').delete().in('question_id', oldQIds);
+              await supabase.from('question_correct_answers').delete().in('question_id', oldQIds);
+              await supabase.from('question_options').delete().in('question_id', oldQIds);
+              await supabase.from('activity_questions').delete().in('id', oldQIds);
+            }
           }
         } catch (dbDelErr) {
           console.error('Error al purgar preguntas anteriores de DB:', dbDelErr);
         }
       }
 
-      // 2. Si existía un borrador previo, actualizar o asignar el nuevo
-      if (data.draft) {
-        setDraft(data.draft);
+      // 2. Limpiar borradores antiguos de IA para esta clase en activity_drafts
+      try {
+        await supabase
+          .from('activity_drafts')
+          .delete()
+          .eq('class_id', classId);
+      } catch (cleanDraftsErr) {
+        console.warn('Nota limpiando borradores previos:', cleanDraftsErr);
+      }
+
+      // 3. Obtener el nuevo borrador insertado por la Edge Function para tener su id real
+      try {
+        const { data: latestDraft } = await supabase
+          .from('activity_drafts')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestDraft) {
+          setDraft(latestDraft);
+        } else if (data.draft) {
+          setDraft(data.draft);
+        }
+      } catch (_) {
+        if (data.draft) setDraft(data.draft);
       }
 
       const isOptionCorrect = (o, oIndex, q) => {
@@ -254,17 +294,11 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     }
   }, [classId]);
 
-  // Realtime subscription para sincronizar drafts creados por la IA y recursos en vivo
+  // Realtime subscription para recursos en vivo (sin pisar el editor de preguntas)
   useEffect(() => {
     if (!classId) return;
     const channel = supabase
       .channel('admin_class_activity_sync_' + classId)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_activities', filter: `class_id=eq.${classId}` }, () => {
-        loadActivityData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_drafts', filter: `class_id=eq.${classId}` }, () => {
-        loadActivityData();
-      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources', filter: `class_id=eq.${classId}` }, () => {
         fetchClassResources();
       })
@@ -343,8 +377,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           };
         });
 
-        // Si la actividad en DB no tiene preguntas pero existe un borrador de IA, cargarlas automáticamente
-        if (normalizedQuestions.length === 0 && draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
+        // Si la actividad en DB no tiene preguntas pero existe un borrador de IA nuevo y pendiente, cargarlas
+        if (normalizedQuestions.length === 0 && !actData.is_published && draftData?.status === 'pending' && draftData?.draft_data?.questions && draftData.draft_data.questions.length > 0) {
           const isOptionCorrect = (o, oIndex, q) => {
             if (o.is_correct === true || o.isCorrect === true || o.correct === true || o.is_right === true) return true;
             if (typeof q.correct_option_index === 'number' && q.correct_option_index === oIndex) return true;
@@ -838,7 +872,55 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       if (questions.length > 0) {
         const savedQs = await persistQuestionsToDatabase(realActId, questions);
         setQuestions(savedQs);
+      } else {
+        try {
+          const { error: rpcErr } = await supabase.rpc('purge_activity_questions', { p_activity_id: realActId });
+          if (rpcErr) {
+            const { data: oldQs } = await supabase.from('activity_questions').select('id').eq('activity_id', realActId);
+            if (oldQs && oldQs.length > 0) {
+              const oldQIds = oldQs.map(q => q.id);
+              await supabase.from('attempt_answers').delete().in('question_id', oldQIds);
+              await supabase.from('question_correct_answers').delete().in('question_id', oldQIds);
+              await supabase.from('question_options').delete().in('question_id', oldQIds);
+              await supabase.from('activity_questions').delete().in('id', oldQIds);
+            }
+          }
+        } catch (_) {}
       }
+
+      // Sincronizar también activity_drafts con las preguntas guardadas
+      try {
+        const { data: latestDraft } = await supabase
+          .from('activity_drafts')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestDraft) {
+          await supabase
+            .from('activity_drafts')
+            .update({
+              draft_data: {
+                ...latestDraft.draft_data,
+                activity_title: localActivity.title,
+                activity_description: localActivity.description,
+                questions: questions.map(q => ({
+                  text: q.text,
+                  question_type: q.question_type,
+                  explanation: q.explanation || '',
+                  options: (q.options || []).map(o => ({
+                    text: o.text,
+                    is_correct: String(o.id) === String(q.correctOptionId)
+                  }))
+                }))
+              },
+              status: questions.length === 0 ? 'cleared' : latestDraft.status
+            })
+            .eq('id', latestDraft.id);
+        }
+      } catch (_) {}
 
       setSuccess('Las preguntas y la actividad han sido guardadas en borrador. Puedes revisarla y hacer clic en "Publicar Actividad".');
       setTimeout(() => setSuccess(''), 5000);
@@ -927,50 +1009,93 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     const targetQ = questions.find(q => String(q.id) === String(id));
 
     // 2. Eliminar del estado inmediatamente
-    setQuestions(prev => prev.filter(q => String(q.id) !== String(id)));
+    const remainingQuestions = questions.filter(q => String(q.id) !== String(id));
+    setQuestions(remainingQuestions);
 
-    // 3. Eliminar de la base de datos física si no es ID temporal
-    if (!String(id).startsWith('temp-')) {
-      try {
-        await supabase.from('attempt_answers').delete().eq('question_id', id);
-        await supabase.from('question_correct_answers').delete().eq('question_id', id);
-        await supabase.from('question_options').delete().eq('question_id', id);
-        const { error: delErr } = await supabase.from('activity_questions').delete().eq('id', id);
-        if (delErr) console.error('Error al eliminar de activity_questions:', delErr);
-      } catch (err) {
-        console.error('Error al eliminar pregunta de la base de datos:', err);
+    // 3. Eliminar de la base de datos física (activity_questions y relaciones)
+    try {
+      if (!String(id).startsWith('temp-')) {
+        // Intentar primero con RPC seguro (SECURITY DEFINER)
+        const { error: rpcErr } = await supabase.rpc('delete_activity_question', { p_question_id: id });
+        if (rpcErr) {
+          await supabase.from('attempt_answers').delete().eq('question_id', id);
+          await supabase.from('question_correct_answers').delete().eq('question_id', id);
+          await supabase.from('question_options').delete().eq('question_id', id);
+          const { error: delErr } = await supabase.from('activity_questions').delete().eq('id', id);
+          if (delErr) console.error('Error al eliminar de activity_questions:', delErr);
+        }
+      } else if (targetQ?.text) {
+        // Si el ID en editor era temporal pero ya fue guardada en activity_questions con este mismo enunciado
+        let realActId = (activity && activity.id !== 'draft-temp' && !String(activity.id).startsWith('temp-')) 
+          ? activity.id 
+          : null;
+        if (!realActId) {
+          const { data: actRow } = await supabase.from('class_activities').select('id').eq('class_id', classId).maybeSingle();
+          if (actRow) realActId = actRow.id;
+        }
+
+        if (realActId) {
+          const { data: dbQs } = await supabase
+            .from('activity_questions')
+            .select('id')
+            .eq('activity_id', realActId)
+            .eq('text', targetQ.text.trim());
+
+          if (dbQs && dbQs.length > 0) {
+            for (const dbQ of dbQs) {
+              const { error: rpcErr } = await supabase.rpc('delete_activity_question', { p_question_id: dbQ.id });
+              if (rpcErr) {
+                await supabase.from('attempt_answers').delete().eq('question_id', dbQ.id);
+                await supabase.from('question_correct_answers').delete().eq('question_id', dbQ.id);
+                await supabase.from('question_options').delete().eq('question_id', dbQ.id);
+                await supabase.from('activity_questions').delete().eq('id', dbQ.id);
+              }
+            }
+          }
+        }
       }
+    } catch (err) {
+      console.error('Error al eliminar pregunta de la base de datos:', err);
     }
 
-    // 4. Si la pregunta proviene o se encuentra en un borrador de IA (activity_drafts), purgarla también
-    if (draft?.id) {
-      try {
-        const currentDraftQuestions = draft.draft_data?.questions || [];
-        const filteredDraftQuestions = currentDraftQuestions.filter((dq, idx) => {
-          if (String(id) === `temp-draft-q-${idx}` || String(id) === `temp-q-${idx}`) return false;
-          if (targetQ && dq.text && targetQ.text && dq.text.trim() === targetQ.text.trim()) return false;
-          return true;
-        });
+    // 4. Si la pregunta proviene o se encuentra en un borrador de IA (activity_drafts), purgarla de TODOS los borradores de esta clase
+    try {
+      const { data: classDrafts } = await supabase
+        .from('activity_drafts')
+        .select('*')
+        .eq('class_id', classId);
 
-        if (filteredDraftQuestions.length !== currentDraftQuestions.length) {
+      if (classDrafts && classDrafts.length > 0) {
+        for (const cd of classDrafts) {
+          const currentDraftQuestions = cd.draft_data?.questions || [];
+          const filteredDraftQuestions = currentDraftQuestions.filter((dq, idx) => {
+            if (String(id) === `temp-draft-q-${idx}` || String(id) === `temp-q-${idx}`) return false;
+            if (targetQ?.text && dq.text && dq.text.trim() === targetQ.text.trim()) return false;
+            if (dq.id && String(dq.id) === String(id)) return false;
+            return true;
+          });
+
           const updatedDraftData = {
-            ...draft.draft_data,
+            ...cd.draft_data,
             questions: filteredDraftQuestions
           };
 
           await supabase
             .from('activity_drafts')
-            .update({ draft_data: updatedDraftData })
-            .eq('id', draft.id);
+            .update({ 
+              draft_data: updatedDraftData,
+              status: filteredDraftQuestions.length === 0 ? 'cleared' : cd.status 
+            })
+            .eq('id', cd.id);
 
-          setDraft(prev => prev ? { ...prev, draft_data: updatedDraftData } : null);
+          setDraft(prev => (prev && prev.id === cd.id) ? { ...prev, draft_data: updatedDraftData } : prev);
         }
-      } catch (draftErr) {
-        console.warn('Error al actualizar activity_drafts:', draftErr);
       }
+    } catch (draftErr) {
+      console.warn('Error al actualizar activity_drafts:', draftErr);
     }
 
-    setSuccess('Pregunta eliminada correctamente de la base de datos.');
+    setSuccess('Pregunta eliminada correctamente de la base de datos y del editor.');
     setTimeout(() => setSuccess(''), 3000);
   };
 
@@ -1177,13 +1302,37 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
       // 5. Sincronizar también activity_drafts para mantener consistencia bidireccional
       try {
-        await supabase
+        const { data: latestDraft } = await supabase
           .from('activity_drafts')
-          .update({ 
-            status: willPublish ? 'approved' : 'pending',
-            reviewed_at: willPublish ? new Date().toISOString() : null 
-          })
-          .eq('class_id', classId);
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestDraft) {
+          await supabase
+            .from('activity_drafts')
+            .update({ 
+              status: willPublish ? 'approved' : 'pending',
+              reviewed_at: willPublish ? new Date().toISOString() : null,
+              draft_data: {
+                ...latestDraft.draft_data,
+                activity_title: localActivity.title,
+                activity_description: localActivity.description,
+                questions: savedQs.map(q => ({
+                  text: q.text,
+                  question_type: q.question_type,
+                  explanation: q.explanation || '',
+                  options: (q.options || []).map(o => ({
+                    text: o.text,
+                    is_correct: String(o.id) === String(q.correctOptionId)
+                  }))
+                }))
+              }
+            })
+            .eq('id', latestDraft.id);
+        }
       } catch (draftErr) {
         console.warn('Nota: No se pudo actualizar status en activity_drafts:', draftErr);
       }
