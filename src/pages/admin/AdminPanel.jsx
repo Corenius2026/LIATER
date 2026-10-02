@@ -251,7 +251,7 @@ export default function AdminPanel() {
       case 'grupos':     return <AdminWorkGroups programId={programId} programTitle={data.program?.title} enrolledStudents={data.enrolledStudents} onRefresh={refreshData} />;
       case 'alumnos':    return <AdminStudents enrolledStudents={data.enrolledStudents} programId={programId} programTitle={data.program?.title} onRefresh={refreshData} />;
       case 'profesores': return <AdminTeachers teachers={data.teachers} loading={loading} onRefresh={refreshData} programId={programId} programTitle={data.program?.title} />;
-      case 'foro':       return <Forum />;
+      case 'foro':       return <Forum programId={programId} />;
       case 'configuracion': return <AdminSettingsTab />;
       default:           return <AdminDashboard counts={data.counts} upcomingClasses={data.upcomingClasses} isCourse={isCourse} programType={data.program?.program_type} />;
     }

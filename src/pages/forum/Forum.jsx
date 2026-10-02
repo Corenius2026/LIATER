@@ -8,7 +8,7 @@
  * - Manejo riguroso de roles, estados y eliminación en Supabase
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   MessageSquarePlus, RefreshCw, MessagesSquare,
   AlertCircle, Copy, CheckCircle, Search, X, GraduationCap
@@ -26,9 +26,11 @@ const CATEGORY_OPTIONS = [
   { value: 'debate',   label: 'Debate' },
 ];
 
-export default function Forum() {
-  const { programId } = useParams();
+export default function Forum({ programId: propProgramId } = {}) {
+  const { programId: paramProgramId } = useParams();
+  const programId = propProgramId || paramProgramId;
   const { currentUser } = useAuth();
+  const location = useLocation();
 
   const [threads, setThreads]               = useState([]);
   const [loading, setLoading]               = useState(true);
@@ -175,249 +177,292 @@ export default function Forum() {
   return (
     <div style={{ width: '100%', animation: 'fadeSlideUp 0.35s ease-out' }}>
 
-      {/* ── ENCABEZADO DE PESTAÑA UNIFORME ── */}
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: '16px',
-        padding: '1.4rem 1.75rem',
-        marginBottom: '1.5rem',
-        boxShadow: '0 1px 3px rgba(11, 21, 40, 0.03)',
-      }}>
+      {/* ── BARRA DE BREADCRUMBS SUPERIOR (CUANDO SE VISITA DIRECTAMENTE EL FORO) ── */}
+      {location.pathname.startsWith('/foro/') && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '1.25rem',
+          gap: '0.5rem',
+          fontSize: '0.84rem',
+          color: '#64748B',
+          marginBottom: '1rem',
+          flexWrap: 'wrap'
         }}>
-          {/* Título y Contexto Académico */}
-          <div style={{ maxWidth: '680px' }}>
-
-            <h1 style={{
-              margin: '0 0 0.35rem 0',
-              fontSize: '1.35rem',
-              fontWeight: 800,
-              color: 'var(--navy, #14213D)',
-              letterSpacing: '-0.01em',
-              lineHeight: 1.25,
-            }}>
-              Foro de Discusión y Consultas
-            </h1>
-
-            <p style={{
-              margin: 0,
-              fontSize: '0.86rem',
+          <Link
+            to={
+              currentUser?.role === 'teacher'
+                ? (programId ? `/dashboard/profesor/${programId}` : '/portal')
+                : (currentUser?.role === 'admin'
+                  ? (programId ? `/admin/${programId}?tab=foro` : '/portal')
+                  : (programId ? `/dashboard/${programId}` : '/portal'))
+            }
+            style={{
               color: '#64748B',
-              lineHeight: 1.5,
-            }}>
-              Espacio oficial para resolver consultas académicas, compartir recursos y participar en debates de cátedra.
-            </p>
-          </div>
+              textDecoration: 'none',
+              fontWeight: 500,
+              transition: 'color 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.color = 'var(--navy, #14213D)'}
+            onMouseOut={e => e.currentTarget.style.color = '#64748B'}
+          >
+            Mis programas
+          </Link>
+          <span>/</span>
+          <span style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>
+            {programTitle || 'Programa'}
+          </span>
+          <span>/</span>
+          <span style={{ color: 'var(--navy, #14213D)', fontWeight: 700 }}>
+            Foro
+          </span>
+        </div>
+      )}
 
-          {/* Acciones Superiores: Refrescar + Botón Nuevo Hilo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <button
-              onClick={fetchThreads}
-              title="Actualizar lista de discusiones"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '38px',
-                height: '38px',
-                borderRadius: '9px',
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#475569',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseOver={e => {
-                e.currentTarget.style.borderColor = 'var(--gold, #cca352)';
-                e.currentTarget.style.color = 'var(--navy, #0b1528)';
-              }}
-              onMouseOut={e => {
-                e.currentTarget.style.borderColor = '#cbd5e1';
-                e.currentTarget.style.color = '#475569';
-              }}
-            >
-              <RefreshCw size={15} />
-            </button>
+      {/* ── ENCABEZADO DE PESTAÑA UNIFORME (SOLO TÍTULO, DESCRIPCIÓN Y ACCIONES) ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '16px',
+        padding: '1.4rem 1.75rem',
+        border: '1px solid #E2E8F0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)',
+        marginBottom: '1.25rem'
+      }}>
+        {/* Título y Contexto Académico */}
+        <div>
+          <h1 style={{
+            fontSize: '1.35rem',
+            fontWeight: 800,
+            color: 'var(--navy, #14213D)',
+            margin: '0 0 0.35rem 0',
+            letterSpacing: '-0.01em',
+            lineHeight: 1.25,
+          }}>
+            Foro de Discusión y Consultas
+          </h1>
 
-            {/* Botón Principal: Navy con detalle Dorado */}
-            <button
-              onClick={() => setShowModal(true)}
-              disabled={!tableExists}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.62rem 1.25rem',
-                borderRadius: '9px',
-                fontWeight: 700,
-                fontSize: '0.86rem',
-                background: tableExists ? 'var(--navy, #0b1528)' : '#94a3b8',
-                color: '#ffffff',
-                border: '1.5px solid rgba(252, 163, 17, 0.45)',
-                boxShadow: '0 2px 8px rgba(11, 21, 40, 0.15)',
-                cursor: tableExists ? 'pointer' : 'not-allowed',
-                transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-              onMouseOver={e => {
-                if (tableExists) {
-                  e.currentTarget.style.borderColor = 'var(--gold, #cca352)';
-                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(252, 163, 17, 0.3)';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }
-              }}
-              onMouseOut={e => {
-                if (tableExists) {
-                  e.currentTarget.style.borderColor = 'rgba(252, 163, 17, 0.45)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(11, 21, 40, 0.15)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }
-              }}
-            >
-              <MessageSquarePlus size={16} color="var(--gold, #cca352)" />
-              <span>Nuevo hilo</span>
-            </button>
-          </div>
+          <p style={{
+            margin: 0,
+            fontSize: '0.86rem',
+            color: '#64748B',
+            lineHeight: 1.5,
+          }}>
+            Espacio oficial para resolver consultas académicas, compartir recursos y participar en debates de cátedra.
+          </p>
         </div>
 
-        {/* ── BARRA INTEGRADA: BUSCADOR + PÍLDORAS DE FILTRO ── */}
-        {tableExists && (
+        {/* Acciones Superiores: Refrescar + Botón Nuevo Hilo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={fetchThreads}
+            title="Actualizar lista de discusiones"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: 'var(--navy, #14213D)',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            <RefreshCw size={14} /> <span>Actualizar</span>
+          </button>
+
+          {/* Botón Principal: Navy con detalle Dorado */}
+          <button
+            type="button"
+            onClick={() => setShowModal(true)}
+            disabled={!tableExists}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: tableExists ? 'var(--navy, #14213D)' : '#94a3b8',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              padding: '0.6rem 1.25rem',
+              borderRadius: '8px',
+              cursor: tableExists ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(20, 33, 61, 0.2)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={e => {
+              if (tableExists) {
+                e.currentTarget.style.background = '#000000';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }
+            }}
+            onMouseOut={e => {
+              if (tableExists) {
+                e.currentTarget.style.background = 'var(--navy, #14213D)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }
+            }}
+          >
+            <MessageSquarePlus size={16} color="var(--gold, #FCA311)" />
+            <span>Nuevo hilo</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── BARRA DE HERRAMIENTAS SEPARADA: FILTROS SEGMENTADOS Y BÚSQUEDA (ESTILO ANUNCIOS) ── */}
+      {tableExists && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          marginBottom: '1.25rem',
+        }}>
+          {/* Pills de filtrado segmentados */}
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '0.85rem',
-            marginTop: '1.25rem',
-            paddingTop: '1.15rem',
-            borderTop: '1px solid #f1f5f9',
+            display: 'inline-flex',
+            background: '#F1F5F9',
+            padding: '4px',
+            borderRadius: '10px',
+            gap: '4px'
           }}>
-            {/* Buscador reactivo */}
-            <div style={{
-              position: 'relative',
-              flex: '1 1 280px',
-              maxWidth: '380px',
-            }}>
-              <Search
-                size={15}
-                color="#94a3b8"
-                style={{
-                  position: 'absolute',
-                  left: '0.85rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                }}
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Buscar preguntas o temas..."
-                style={{
-                  width: '100%',
-                  padding: '0.48rem 2.2rem 0.48rem 2.3rem',
-                  fontSize: '0.83rem',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f8fafc',
-                  color: 'var(--navy, #0b1528)',
-                  outline: 'none',
-                  transition: 'all 0.15s ease',
-                  boxSizing: 'border-box',
-                }}
-                onFocus={e => {
-                  e.target.style.borderColor = 'var(--gold, #cca352)';
-                  e.target.style.background = '#ffffff';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.15)';
-                }}
-                onBlur={e => {
-                  e.target.style.borderColor = '#cbd5e1';
-                  e.target.style.background = '#f8fafc';
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
-              {searchQuery && (
+            {CATEGORY_OPTIONS.map(opt => {
+              const isActive = categoryFilter === opt.value;
+              const count = counts[opt.value] ?? 0;
+              return (
                 <button
+                  key={opt.value}
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setCategoryFilter(opt.value)}
                   style={{
-                    position: 'absolute',
-                    right: '0.65rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
                     border: 'none',
-                    padding: '0.2rem',
+                    borderRadius: '7px',
+                    padding: '0.4rem 0.9rem',
+                    fontSize: '0.82rem',
+                    fontWeight: isActive ? 700 : 500,
+                    background: isActive ? 'var(--navy, #14213D)' : 'transparent',
+                    color: isActive ? '#FFFFFF' : 'var(--text-muted, #64748B)',
                     cursor: 'pointer',
-                    color: '#94a3b8',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                  onMouseOver={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.color = 'var(--navy, #14213D)';
+                    }
+                  }}
+                  onMouseOut={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.color = 'var(--text-muted, #64748B)';
+                    }
                   }}
                 >
-                  <X size={14} />
+                  <span>{opt.label}</span>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    padding: '1px 6px',
+                    borderRadius: '9999px',
+                    background: isActive ? 'rgba(255,255,255,0.2)' : '#E2E8F0',
+                    color: isActive ? '#FFFFFF' : '#64748B',
+                    fontWeight: 700
+                  }}>
+                    {count}
+                  </span>
                 </button>
-              )}
-            </div>
-
-            {/* Píldoras de Categoría con Contadores */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-              {CATEGORY_OPTIONS.map(opt => {
-                const isActive = categoryFilter === opt.value;
-                const count = counts[opt.value] ?? 0;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setCategoryFilter(opt.value)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      padding: '0.42rem 0.95rem',
-                      borderRadius: '999px',
-                      fontWeight: isActive ? 700 : 500,
-                      fontSize: '0.8rem',
-                      border: `1px solid ${isActive ? 'var(--navy, #0b1528)' : '#e2e8f0'}`,
-                      background: isActive ? 'var(--navy, #0b1528)' : '#ffffff',
-                      color: isActive ? '#ffffff' : '#475569',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      boxShadow: isActive ? '0 1px 3px rgba(11, 21, 40, 0.15)' : 'none',
-                    }}
-                    onMouseOver={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.borderColor = 'var(--gold, #cca352)';
-                        e.currentTarget.style.color = 'var(--navy, #0b1528)';
-                      }
-                    }}
-                    onMouseOut={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.borderColor = '#e2e8f0';
-                        e.currentTarget.style.color = '#475569';
-                      }
-                    }}
-                  >
-                    <span>{opt.label}</span>
-                    <span style={{
-                      fontSize: '0.72rem',
-                      padding: '0.1rem 0.45rem',
-                      borderRadius: '999px',
-                      background: isActive ? 'rgba(255, 255, 255, 0.2)' : '#f1f5f9',
-                      color: isActive ? 'var(--gold, #cca352)' : '#64748b',
-                      fontWeight: 700,
-                    }}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+              );
+            })}
           </div>
-        )}
-      </div>
+
+          {/* Buscador de temas */}
+          <div style={{
+            position: 'relative',
+            minWidth: '240px',
+            maxWidth: '340px',
+            flex: '1 1 auto'
+          }}>
+            <Search
+              size={16}
+              style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#94A3B8'
+              }}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar por título o contenido..."
+              style={{
+                width: '100%',
+                padding: '0.5rem 2rem 0.5rem 2.2rem',
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                background: '#FFFFFF',
+                fontSize: '0.84rem',
+                color: 'var(--navy, #14213D)',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+              }}
+              onFocus={e => {
+                e.target.style.borderColor = 'var(--gold, #FCA311)';
+                e.target.style.boxShadow = '0 0 0 3px rgba(252, 163, 17, 0.15)';
+              }}
+              onBlur={e => {
+                e.target.style.borderColor = '#E2E8F0';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '4px',
+                  cursor: 'pointer',
+                  color: '#94A3B8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── BANNER GUÍA SI LAS TABLAS ESTÁN PENDIENTES DE MIGRACIÓN ── */}
       {!tableExists && (
