@@ -3517,8 +3517,8 @@ function ResumenTab({ onChangeTab }) {
       {/* ── BANDEJA DE ACCIONES Y SUGERENCIAS ── Visible en todos los programas */}
       <div className="card" style={{
         padding: '1.35rem 1.6rem',
-        border: urgentAlerts.length > 0 ? '1px solid rgba(252, 163, 17, 0.35)' : '1px solid #E2E8F0',
-        background: urgentAlerts.length > 0 ? 'rgba(252, 163, 17, 0.03)' : '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        background: '#FFFFFF',
         borderRadius: '14px',
         boxShadow: '0 1px 3px rgba(20, 33, 61, 0.03)'
       }}>
@@ -3554,8 +3554,8 @@ function ResumenTab({ onChangeTab }) {
             {urgentAlerts.map(alert => (
               <div key={alert.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.95rem 1.25rem', background: '#FFFFFF',
-                border: `1px solid ${alert.color === '#FCA311' ? 'rgba(252,163,17,0.3)' : 'rgba(20,33,61,0.12)'}`,
+                padding: '0.95rem 1.25rem', background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
                 borderRadius: '10px', gap: '1rem', flexWrap: 'wrap',
                 transition: 'all 0.2s ease',
                 boxShadow: '0 1px 2px rgba(20, 33, 61, 0.02)'
