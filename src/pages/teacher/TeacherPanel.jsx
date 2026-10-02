@@ -158,31 +158,13 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
     const diff = classDate - now;
     if (diff > 0 && diff < 60 * 60 * 1000) return 'live';   // próxima hora
     if (diff > 0) return 'upcoming';
-    
-    // Lógica para completada vs pendiente si ya pasó la fecha
-    const hasVideo = !!selectedClass.video_url;
-    let isActPublished = false;
-    if (activityStats) {
-      isActPublished = !!activityStats.isPublished;
-    } else if (selectedClass.has_published_activity) {
-      isActPublished = true;
-    } else if (Array.isArray(selectedClass.class_activities)) {
-      isActPublished = selectedClass.class_activities.some(a => a.is_published);
-    } else if (Array.isArray(selectedClass.activity_drafts)) {
-      isActPublished = selectedClass.activity_drafts.some(d => d.status === 'approved' || d.status === 'published');
-    } else if (draft) {
-      isActPublished = draft.status === 'approved' || draft.status === 'published';
-    }
-    
-    if (hasVideo && isActPublished) return 'completed';
-    return 'pending';
+    return 'completed';
   })();
 
   const STATUS_LABELS = {
     upcoming:  { label: 'Programada',  bg: 'rgba(255,255,255,0.15)', color: '#FFFFFF', border: 'rgba(255,255,255,0.3)' },
     live:      { label: '🔴 EN VIVO',  bg: '#FEE2E2',                color: '#DC2626', border: 'rgba(220,38,38,0.4)' },
     completed: { label: 'Finalizada',  bg: '#DCFCE7',                color: '#007A2E', border: 'rgba(0,122,46,0.3)' },
-    pending:   { label: 'Pendiente',   bg: '#FEF3C7',                color: '#92400E', border: 'rgba(245,158,11,0.4)' },
   };
   const statusInfo = STATUS_LABELS[classStatus] || STATUS_LABELS.upcoming;
 
@@ -2049,7 +2031,7 @@ function ClasesTab() {
     const sectionParam = searchParams.get('section');
     const filterParam = searchParams.get('filter');
 
-    if (filterParam && ['all', 'upcoming', 'completed', 'pending'].includes(filterParam)) {
+    if (filterParam && ['all', 'upcoming', 'completed'].includes(filterParam)) {
       setFilterStatus(filterParam);
     }
 
@@ -2111,17 +2093,12 @@ function ClasesTab() {
 
   const now = new Date();
 
-  // Filtrar por estado
+  // Filtrar por estado (Todas | Próximas | Finalizadas)
   const filteredClasses = classes.filter(c => {
     const isPast = new Date(c.class_date) < now;
-    const hasVideo = !!c.video_url;
-    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-    const isCompleted = isPast && hasVideo && hasActivity;
-    const isPending   = isPast && !isCompleted;
 
     if (filterStatus === 'upcoming')  return !isPast;
-    if (filterStatus === 'pending')   return isPending;
-    if (filterStatus === 'completed') return isCompleted;
+    if (filterStatus === 'completed') return isPast;
     return true;
   });
 
@@ -2154,18 +2131,7 @@ function ClasesTab() {
   });
 
   const totalUpcoming  = classes.filter(c => new Date(c.class_date) >= now).length;
-  const totalPending   = classes.filter(c => {
-    const isPast = new Date(c.class_date) < now;
-    const hasVideo = !!c.video_url;
-    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-    return isPast && !(hasVideo && hasActivity);
-  }).length;
-  const totalCompleted = classes.filter(c => {
-    const isPast = new Date(c.class_date) < now;
-    const hasVideo = !!c.video_url;
-    const hasActivity = !!c.has_published_activity || (Array.isArray(c.class_activities) && c.class_activities.some(a => a.is_published)) || (Array.isArray(c.activity_drafts) && c.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-    return isPast && hasVideo && hasActivity;
-  }).length;
+  const totalCompleted = classes.filter(c => new Date(c.class_date) < now).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -2296,39 +2262,7 @@ function ClasesTab() {
           </div>
         </div>
 
-        {/* PENDIENTES DE GESTIÓN */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '14px',
-          padding: '1.25rem 1.5rem',
-          border: '1px solid #E2E8F0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          boxShadow: '0 1px 3px rgba(20,33,61,0.02)'
-        }}>
-          <div style={{
-            width: '46px', height: '46px', borderRadius: '12px',
-            background: totalPending > 0 ? '#FEF3C7' : '#F8FAFC',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: totalPending > 0 ? '#92400E' : '#64748B', flexShrink: 0
-          }}>
-            <AlertTriangle size={22} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748B)', textTransform: 'uppercase' }}>
-              Atención Requerida
-            </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: totalPending > 0 ? '#92400E' : 'var(--navy, #14213D)' }}>
-              {totalPending}
-            </div>
-            <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-              {totalPending > 0 ? 'Grabación o IA pendiente' : 'Todo al día'}
-            </div>
-          </div>
-        </div>
-
-        {/* FINALIZADAS CON ÉXITO */}
+        {/* FINALIZADAS */}
         <div style={{
           background: '#FFFFFF',
           borderRadius: '14px',
@@ -2355,7 +2289,7 @@ function ClasesTab() {
               {totalCompleted}
             </div>
             <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-              Video y actividad OK
+              {totalCompleted > 0 ? 'Sesiones impartidas' : 'Sin clases finalizadas aún'}
             </div>
           </div>
         </div>
@@ -2377,7 +2311,6 @@ function ClasesTab() {
           {[
             { id: 'all',       label: 'Todas las clases', count: classes.length },
             { id: 'upcoming',  label: 'Próximas',         count: totalUpcoming },
-            { id: 'pending',   label: 'Pendientes',       count: totalPending },
             { id: 'completed', label: 'Finalizadas',      count: totalCompleted }
           ].map(f => {
             const isSelected = filterStatus === f.id;
@@ -2557,8 +2490,6 @@ function ClasesTab() {
                         const isPast      = new Date(cls.class_date) < now;
                         const hasVideo    = !!cls.video_url;
                         const hasActivity = !!cls.has_published_activity || (Array.isArray(cls.class_activities) && cls.class_activities.some(a => a.is_published)) || (Array.isArray(cls.activity_drafts) && cls.activity_drafts.some(d => d.status === 'approved' || d.status === 'published'));
-                        const isCompleted = isPast && hasVideo && hasActivity;
-                        const isPending   = isPast && !isCompleted;
                         const isToday     = new Date().toDateString() === new Date(cls.class_date).toDateString();
                         const isLive      = isClassLiveOrSoon(cls, 10);
 
@@ -2585,7 +2516,7 @@ function ClasesTab() {
                               <div style={{
                                 width: '10px', height: '10px', borderRadius: '50%',
                                 marginTop: '6px', flexShrink: 0,
-                                background: isCompleted ? '#007A2E' : isPending ? '#F97316' : isToday ? 'var(--gold, #FCA311)' : '#94A3B8',
+                                background: isLive ? '#DC2626' : isToday ? 'var(--gold, #FCA311)' : isPast ? '#007A2E' : '#94A3B8',
                                 boxShadow: isLive ? '0 0 0 3px rgba(220,38,38,0.2)' : 'none'
                               }} />
 
@@ -2621,30 +2552,32 @@ function ClasesTab() {
                                   {isPast && (
                                     <>
                                       {/* GRABACIÓN STATUS CHIP */}
-                                      <span style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                        background: hasVideo ? '#DCFCE7' : '#FEF3C7',
-                                        color: hasVideo ? '#007A2E' : '#92400E',
-                                        border: `1px solid ${hasVideo ? 'rgba(0,122,46,0.2)' : 'rgba(245,158,11,0.3)'}`,
-                                        padding: '2px 7px', borderRadius: '6px',
-                                        fontSize: '0.74rem', fontWeight: 700
-                                      }}>
-                                        {hasVideo ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                                        {hasVideo ? 'Grabación OK' : 'Grabación pendiente'}
-                                      </span>
+                                      {hasVideo && (
+                                        <span style={{
+                                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                          background: '#DCFCE7',
+                                          color: '#007A2E',
+                                          border: '1px solid rgba(0,122,46,0.2)',
+                                          padding: '2px 7px', borderRadius: '6px',
+                                          fontSize: '0.74rem', fontWeight: 700
+                                        }}>
+                                          <CheckCircle2 size={12} /> Grabación disponible
+                                        </span>
+                                      )}
 
                                       {/* ACTIVIDAD IA STATUS CHIP */}
-                                      <span style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                        background: hasActivity ? '#DCFCE7' : '#FEF3C7',
-                                        color: hasActivity ? '#007A2E' : '#92400E',
-                                        border: `1px solid ${hasActivity ? 'rgba(0,122,46,0.2)' : 'rgba(245,158,11,0.3)'}`,
-                                        padding: '2px 7px', borderRadius: '6px',
-                                        fontSize: '0.74rem', fontWeight: 700
-                                      }}>
-                                        {hasActivity ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                                        {hasActivity ? 'Actividad OK' : 'Actividad pendiente'}
-                                      </span>
+                                      {hasActivity && (
+                                        <span style={{
+                                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                          background: '#FEF3C7',
+                                          color: '#92400E',
+                                          border: '1px solid rgba(245,158,11,0.3)',
+                                          padding: '2px 7px', borderRadius: '6px',
+                                          fontSize: '0.74rem', fontWeight: 700
+                                        }}>
+                                          <Sparkles size={12} /> Actividad IA activa
+                                        </span>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -3808,7 +3741,7 @@ function ResumenTab({ onChangeTab }) {
               {[
                 { label: 'Total de clases', value: stats.totalClasses, color: '#14213D' },
                 { label: 'Clases completadas', value: stats.completed, color: '#16a34a' },
-                { label: 'Clases pendientes', value: stats.upcoming, color: '#14213D' },
+                { label: 'Clases por impartir', value: stats.upcoming, color: '#14213D' },
                 { label: 'Actividades IA activas', value: stats.activeActivities || 0, color: '#FCA311' },
                 { label: 'Estudiantes inscritos', value: stats.students, color: '#14213D' },
                 { label: 'Anuncios publicados', value: stats.announcements, color: '#14213D' },
