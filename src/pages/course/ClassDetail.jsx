@@ -1510,42 +1510,8 @@ export default function ClassDetail() {
             }}>
               {/* Lado Izquierdo: Contexto, Título y Metadatos */}
               <div style={{ flex: 1, minWidth: '280px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.45rem' }}>
-                  {isTeacher && (
-                    <span style={{
-                      background: 'rgba(20, 33, 61, 0.05)',
-                      color: 'var(--navy, #14213D)',
-                      padding: '3px 10px',
-                      borderRadius: '9999px',
-                      fontSize: '0.72rem',
-                      fontWeight: 800,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em'
-                    }}>
-                      <BookOpen size={12} color="var(--gold-dark, #b45309)" /> MODO DOCENTE · GESTIÓN DE CLASE
-                    </span>
-                  )}
-                  {isAdmin && (
-                    <span style={{
-                      background: 'rgba(20, 33, 61, 0.05)',
-                      color: 'var(--navy, #14213D)',
-                      padding: '3px 10px',
-                      borderRadius: '9999px',
-                      fontSize: '0.72rem',
-                      fontWeight: 800,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em'
-                    }}>
-                      <Shield size={12} color="var(--gold-dark, #b45309)" /> MODO ADMINISTRADOR · GESTIÓN DE CLASE
-                    </span>
-                  )}
-                  {!isCourse && moduleTitle && (
+                {!isCourse && moduleTitle && (
+                  <div style={{ marginBottom: '0.45rem' }}>
                     <span style={{
                       background: '#F1F5F9',
                       color: '#475569',
@@ -1556,8 +1522,8 @@ export default function ClassDetail() {
                     }}>
                       {moduleTitle}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <h1 style={{
                   fontSize: '1.45rem',
@@ -1605,49 +1571,47 @@ export default function ClassDetail() {
                     </>
                   )}
 
-                  <span>·</span>
-
-                  {/* Estado de la actividad y clase */}
+                  {/* Estado de la actividad y clase (solo si aplica) */}
                   {activityState === 'completada' ? (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                      padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
-                      background: 'var(--green-subtle, #f0fdf4)',
-                      color: 'var(--green-600, #16a34a)',
-                      border: '1px solid var(--green-400, #86efac)'
-                    }}>
-                      <CheckCircle2 size={13} /> Finalizada {completedResult ? `· ${completedResult.scorePct}%` : ''}
-                    </span>
+                    <>
+                      <span>·</span>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
+                        background: 'var(--green-subtle, #f0fdf4)',
+                        color: 'var(--green-600, #16a34a)',
+                        border: '1px solid var(--green-400, #86efac)'
+                      }}>
+                        <CheckCircle2 size={13} /> Finalizada {completedResult ? `· ${completedResult.scorePct}%` : ''}
+                      </span>
+                    </>
                   ) : (activityState === 'no_iniciada' || activityState === 'en_progreso') ? (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                      padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
-                      background: 'var(--gold-subtle, #fef9ec)',
-                      color: 'var(--gold-dark, #b45309)',
-                      border: '1px solid var(--gold-light, #fde68a)'
-                    }}>
-                      <Zap size={13} /> Actividad pendiente
-                    </span>
+                    <>
+                      <span>·</span>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
+                        background: 'var(--gold-subtle, #fef9ec)',
+                        color: 'var(--gold-dark, #b45309)',
+                        border: '1px solid var(--gold-light, #fde68a)'
+                      }}>
+                        <Zap size={13} /> Actividad pendiente
+                      </span>
+                    </>
                   ) : clsData.video_url ? (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                      padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
-                      background: 'rgba(20,33,61,0.06)',
-                      color: 'var(--navy, #14213D)',
-                      border: '1px solid var(--border-color, #E2E8F0)'
-                    }}>
-                      <Video size={13} /> Grabación disponible
-                    </span>
-                  ) : (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                      padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
-                      background: '#F1F5F9',
-                      color: '#475569'
-                    }}>
-                      Programada
-                    </span>
-                  )}
+                    <>
+                      <span>·</span>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
+                        background: 'rgba(20,33,61,0.06)',
+                        color: 'var(--navy, #14213D)',
+                        border: '1px solid var(--border-color, #E2E8F0)'
+                      }}>
+                        <Video size={13} /> Grabación disponible
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
