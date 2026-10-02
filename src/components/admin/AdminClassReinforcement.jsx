@@ -50,9 +50,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   const [aiSuccess, setAiSuccess] = useState('');
   const [generationSource, setGenerationSource] = useState(null); // { type, docTitle, date }
   
-  // Modal de confirmación si ya existen preguntas
-  const [replaceQuestionsModalOpen, setReplaceQuestionsModalOpen] = useState(false);
-  const [pendingDraftToLoad, setPendingDraftToLoad] = useState(null);
+  // Modal de confirmación si ya existen preguntas antes de generar con IA
+  const [confirmGenerateModalOpen, setConfirmGenerateModalOpen] = useState(false);
 
   const fetchClassResources = async () => {
     if (!classId) return;
@@ -83,7 +82,23 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     }
   };
 
-  const handleGenerateQuestions = async () => {
+  const onGenerateAIClick = () => {
+    setAiError('');
+    setAiSuccess('');
+
+    if (!selectedResourceId) {
+      setAiError('Por favor selecciona un material de estudio de la lista para analizar.');
+      return;
+    }
+
+    if (questions.length > 0) {
+      setConfirmGenerateModalOpen(true);
+    } else {
+      executeGenerateQuestions();
+    }
+  };
+
+  const executeGenerateQuestions = async () => {
     setAiError('');
     setAiSuccess('');
 
@@ -132,6 +147,31 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
       if (!data?.draft?.questions || data.draft.questions.length === 0) {
         throw new Error('La IA no devolvió preguntas válidas. Por favor intenta nuevamente.');
+      }
+
+      // 1. Eliminar preguntas previas de la base de datos (activity_questions y relaciones)
+      if (activity?.id && activity.id !== 'draft-temp') {
+        try {
+          const { data: oldQs } = await supabase
+            .from('activity_questions')
+            .select('id')
+            .eq('activity_id', activity.id);
+
+          if (oldQs && oldQs.length > 0) {
+            const oldQIds = oldQs.map(q => q.id);
+            await supabase.from('attempt_answers').delete().in('question_id', oldQIds);
+            await supabase.from('question_correct_answers').delete().in('question_id', oldQIds);
+            await supabase.from('question_options').delete().in('question_id', oldQIds);
+            await supabase.from('activity_questions').delete().in('id', oldQIds);
+          }
+        } catch (dbDelErr) {
+          console.error('Error al purgar preguntas anteriores de DB:', dbDelErr);
+        }
+      }
+
+      // 2. Si existía un borrador previo, actualizar o asignar el nuevo
+      if (data.draft) {
+        setDraft(data.draft);
       }
 
       const isOptionCorrect = (o, oIndex, q) => {
@@ -185,17 +225,19 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         date: new Date().toISOString()
       };
 
-      if (questions.length > 0) {
-        setPendingDraftToLoad({
-          questions: parsedQuestions,
-          sourceMeta,
-          activityTitle: data.draft.activity_title,
-          activityDescription: data.draft.activity_description
-        });
-        setReplaceQuestionsModalOpen(true);
-      } else {
-        applyGeneratedQuestions(parsedQuestions, sourceMeta, 'replace', data.draft.activity_title, data.draft.activity_description);
+      // Reemplazar preguntas en el estado local directamente
+      setQuestions(parsedQuestions);
+      if (data.draft.activity_title && (!localActivity.title || localActivity.title === 'Actividad de Reforzamiento')) {
+        setLocalActivity(prev => ({
+          ...prev,
+          title: data.draft.activity_title,
+          description: data.draft.activity_description || prev.description
+        }));
       }
+
+      setGenerationSource(sourceMeta);
+      setAiSuccess(`✓ ${parsedQuestions.length} nuevas preguntas generadas con IA a partir de "${sourceMeta.docTitle}" cargadas en el editor.`);
+      setTimeout(() => setAiSuccess(''), 7000);
 
     } catch (err) {
       console.error('Error generando preguntas con IA:', err);
@@ -203,32 +245,6 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
     } finally {
       setAiGenerating(false);
     }
-  };
-
-  const applyGeneratedQuestions = (newQuestions, sourceMeta, strategy = 'replace', newTitle = '', newDesc = '') => {
-    if (strategy === 'replace') {
-      setQuestions(newQuestions);
-      if (newTitle && (!localActivity.title || localActivity.title === 'Actividad de Reforzamiento')) {
-        setLocalActivity(prev => ({
-          ...prev,
-          title: newTitle,
-          description: newDesc || prev.description
-        }));
-      }
-    } else {
-      const offset = questions.length;
-      const renumbered = newQuestions.map((q, i) => ({
-        ...q,
-        order_num: offset + i
-      }));
-      setQuestions(prev => [...prev, ...renumbered]);
-    }
-
-    setGenerationSource(sourceMeta);
-    setAiSuccess(`✓ ${newQuestions.length} preguntas generadas con IA a partir de "${sourceMeta.docTitle}" cargadas en el borrador.`);
-    setTimeout(() => setAiSuccess(''), 7000);
-    setReplaceQuestionsModalOpen(false);
-    setPendingDraftToLoad(null);
   };
 
   useEffect(() => {
@@ -554,6 +570,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       const currentRealIds = new Set(currentQuestions.filter(q => !String(q.id).startsWith('temp-')).map(q => q.id));
       const idsToDelete = existingQs.map(q => q.id).filter(id => !currentRealIds.has(id));
       if (idsToDelete.length > 0) {
+        await supabase.from('attempt_answers').delete().in('question_id', idsToDelete);
         await supabase.from('question_correct_answers').delete().in('question_id', idsToDelete);
         await supabase.from('question_options').delete().in('question_id', idsToDelete);
         await supabase.from('activity_questions').delete().in('id', idsToDelete);
@@ -904,15 +921,57 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   };
 
   const deleteQuestion = async (id) => {
-    if (!window.confirm('¿Eliminar pregunta? Se borrarán sus opciones y respuestas.')) return;
+    if (!window.confirm('¿Eliminar pregunta? Se borrará permanentemente de la base de datos y del editor.')) return;
+    
+    // 1. Ubicar la pregunta que se desea eliminar
+    const targetQ = questions.find(q => String(q.id) === String(id));
+
+    // 2. Eliminar del estado inmediatamente
+    setQuestions(prev => prev.filter(q => String(q.id) !== String(id)));
+
+    // 3. Eliminar de la base de datos física si no es ID temporal
     if (!String(id).startsWith('temp-')) {
       try {
+        await supabase.from('attempt_answers').delete().eq('question_id', id);
         await supabase.from('question_correct_answers').delete().eq('question_id', id);
         await supabase.from('question_options').delete().eq('question_id', id);
-        await supabase.from('activity_questions').delete().eq('id', id);
-      } catch (err) { console.error(err); }
+        const { error: delErr } = await supabase.from('activity_questions').delete().eq('id', id);
+        if (delErr) console.error('Error al eliminar de activity_questions:', delErr);
+      } catch (err) {
+        console.error('Error al eliminar pregunta de la base de datos:', err);
+      }
     }
-    setQuestions(questions.filter(q => q.id !== id));
+
+    // 4. Si la pregunta proviene o se encuentra en un borrador de IA (activity_drafts), purgarla también
+    if (draft?.id) {
+      try {
+        const currentDraftQuestions = draft.draft_data?.questions || [];
+        const filteredDraftQuestions = currentDraftQuestions.filter((dq, idx) => {
+          if (String(id) === `temp-draft-q-${idx}` || String(id) === `temp-q-${idx}`) return false;
+          if (targetQ && dq.text && targetQ.text && dq.text.trim() === targetQ.text.trim()) return false;
+          return true;
+        });
+
+        if (filteredDraftQuestions.length !== currentDraftQuestions.length) {
+          const updatedDraftData = {
+            ...draft.draft_data,
+            questions: filteredDraftQuestions
+          };
+
+          await supabase
+            .from('activity_drafts')
+            .update({ draft_data: updatedDraftData })
+            .eq('id', draft.id);
+
+          setDraft(prev => prev ? { ...prev, draft_data: updatedDraftData } : null);
+        }
+      } catch (draftErr) {
+        console.warn('Error al actualizar activity_drafts:', draftErr);
+      }
+    }
+
+    setSuccess('Pregunta eliminada correctamente de la base de datos.');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const addOption = async (questionId) => {
@@ -981,6 +1040,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           await supabase.from('question_correct_answers').delete().eq('question_id', questionId);
           correctId = null;
         }
+        await supabase.from('attempt_answers').delete().eq('selected_option_id', optionId);
         await supabase.from('question_options').delete().eq('id', optionId);
       } catch (err) { console.error(err); }
     } else {
@@ -1803,7 +1863,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
 
                     <button
                       type="button"
-                      onClick={() => handleGenerateQuestions()}
+                      onClick={onGenerateAIClick}
                       disabled={aiGenerating || !selectedResourceId}
                       className="btn btn-primary"
                       style={{
@@ -1983,100 +2043,67 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         )}
       </div>
 
-      {/* MODAL: CONFIRMAR REEMPLAZO O AÑADIR PREGUNTAS DE IA */}
-      {replaceQuestionsModalOpen && pendingDraftToLoad && (
+      {/* MODAL: ALERTA DE CONFIRMACIÓN ANTES DE GENERAR NUEVAS PREGUNTAS CON IA */}
+      {confirmGenerateModalOpen && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(3px)',
+          background: 'rgba(20, 33, 61, 0.65)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 10000, padding: '1rem'
         }}>
           <div style={{
-            background: '#ffffff', borderRadius: '14px', width: '100%', maxWidth: '500px',
+            background: '#ffffff', borderRadius: '14px', width: '100%', maxWidth: '480px',
             padding: '1.75rem', boxShadow: '0 20px 45px rgba(0,0,0,0.25)', position: 'relative',
-            animation: 'fadeSlideUp 0.25s ease-out'
+            animation: 'fadeSlideUp 0.25s ease-out', border: '1px solid var(--border-color)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)' }}>
-                <Layers size={20} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1rem' }}>
+              <div style={{
+                width: '42px', height: '42px', borderRadius: '10px',
+                background: '#FEF3C7', color: '#B45309',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+              }}>
+                <AlertTriangle size={22} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--navy)' }}>
-                  ¿Cómo deseas aplicar las preguntas?
+                  ¿Generar nuevas preguntas con IA?
                 </h3>
                 <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  El editor ya tiene {questions.length} {questions.length === 1 ? 'pregunta' : 'preguntas'} registradas.
+                  Actualmente hay {questions.length} {questions.length === 1 ? 'pregunta creada' : 'preguntas creadas'} en esta actividad.
                 </p>
               </div>
             </div>
 
-            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-              La Inteligencia Artificial generó <strong>{pendingDraftToLoad.questions.length} preguntas</strong> a partir de <em>"{pendingDraftToLoad.sourceMeta.docTitle}"</em>. Selecciona cómo deseas organizarlas:
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '1.5rem' }}>
+              Al generar nuevas preguntas con IA, <strong>las preguntas actuales serán eliminadas de la base de datos y del editor</strong> para ser reemplazadas por las nuevas. ¿Estás seguro de que deseas continuar?
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
               <button
                 type="button"
-                onClick={() => applyGeneratedQuestions(pendingDraftToLoad.questions, pendingDraftToLoad.sourceMeta, 'replace', pendingDraftToLoad.activityTitle, pendingDraftToLoad.activityDescription)}
-                style={{
-                  padding: '0.85rem 1rem',
-                  background: '#ffffff',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '8px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                onMouseOver={e => e.currentTarget.style.borderColor = 'var(--navy)'}
-                onMouseOut={e => e.currentTarget.style.borderColor = '#cbd5e1'}
-              >
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>
-                  🔄 Reemplazar todas las preguntas
-                </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Elimina las preguntas actuales del editor y deja únicamente las {pendingDraftToLoad.questions.length} generadas por la IA.
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyGeneratedQuestions(pendingDraftToLoad.questions, pendingDraftToLoad.sourceMeta, 'append', pendingDraftToLoad.activityTitle, pendingDraftToLoad.activityDescription)}
-                style={{
-                  padding: '0.85rem 1rem',
-                  background: '#ffffff',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '8px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                onMouseOver={e => e.currentTarget.style.borderColor = 'var(--navy)'}
-                onMouseOut={e => e.currentTarget.style.borderColor = '#cbd5e1'}
-              >
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--navy)' }}>
-                  ➕ Añadir al final (Conservar las actuales)
-                </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Mantén tus preguntas existentes y añade las nuevas al final (Total: {questions.length + pendingDraftToLoad.questions.length} preguntas).
-                </div>
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
-              <button
-                type="button"
-                onClick={() => { setReplaceQuestionsModalOpen(false); setPendingDraftToLoad(null); }}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: '#f1f5f9',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
+                onClick={() => setConfirmGenerateModalOpen(false)}
+                className="btn btn-secondary"
+                style={{ padding: '0.55rem 1rem', fontSize: '0.84rem' }}
               >
                 Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmGenerateModalOpen(false);
+                  executeGenerateQuestions();
+                }}
+                className="btn btn-primary"
+                style={{
+                  background: 'var(--navy)', color: '#ffffff',
+                  padding: '0.55rem 1.15rem', fontSize: '0.84rem', fontWeight: 700,
+                  display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                  boxShadow: '0 2px 8px rgba(20,33,61,0.2)'
+                }}
+              >
+                <Sparkles size={14} color="var(--gold)" />
+                <span>Sí, generar y reemplazar</span>
               </button>
             </div>
           </div>
