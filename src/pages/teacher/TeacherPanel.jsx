@@ -1530,10 +1530,20 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                           style={{
                             background: '#FFFFFF', color: '#DC2626', border: '1px solid #FCA5A5',
                             borderRadius: '8px', padding: '0.45rem 0.95rem', fontSize: '0.8rem',
-                            fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem'
+                            fontWeight: 700, cursor: actionLoading === 'unpublishing' ? 'wait' : 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '0.35rem',
+                            opacity: actionLoading === 'unpublishing' ? 0.75 : 1
                           }}
                         >
-                          {actionLoading === 'unpublishing' ? '...' : <><EyeOff size={13} /> Despublicar</>}
+                          {actionLoading === 'unpublishing' ? (
+                            <>
+                              <RefreshCw size={13} className="spin" /> Despublicando...
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff size={13} /> Despublicar
+                            </>
+                          )}
                         </button>
                       ) : (
                         <button
@@ -1543,11 +1553,21 @@ function ClassDetailModal({ selectedClass, allClasses, onClose, onClassUpdated, 
                           style={{
                             background: 'var(--gold, #FCA311)', color: 'var(--navy, #14213D)', border: 'none',
                             borderRadius: '8px', padding: '0.45rem 1rem', fontSize: '0.8rem',
-                            fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem',
-                            boxShadow: '0 2px 6px rgba(252,163,17,0.3)'
+                            fontWeight: 800, cursor: actionLoading === 'publishing' ? 'wait' : 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '0.35rem',
+                            boxShadow: '0 2px 6px rgba(252,163,17,0.3)',
+                            opacity: actionLoading === 'publishing' ? 0.75 : 1
                           }}
                         >
-                          {actionLoading === 'publishing' ? 'Publicando...' : <><CheckCheck size={14} /> Publicar a estudiantes</>}
+                          {actionLoading === 'publishing' ? (
+                            <>
+                              <RefreshCw size={14} className="spin" /> Publicando...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCheck size={14} /> Publicar a estudiantes
+                            </>
+                          )}
                         </button>
                       )}
 
@@ -6741,7 +6761,15 @@ function BorradoresTab() {
                           fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
                         }}
                       >
-                        {actionLoading === draft.id + '-approve' ? '...' : <><Check size={13} /> Publicar</>}
+                        {actionLoading === draft.id + '-approve' ? (
+                          <>
+                            <RefreshCw size={13} className="spin" /> Publicando...
+                          </>
+                        ) : (
+                          <>
+                            <Check size={13} /> Publicar
+                          </>
+                        )}
                       </button>
                       <button
                         onClick={() => handleReject(draft)}
@@ -6753,7 +6781,15 @@ function BorradoresTab() {
                           fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
                         }}
                       >
-                        {actionLoading === draft.id + '-reject' ? '...' : <><XCircle size={13} /> Rechazar</>}
+                        {actionLoading === draft.id + '-reject' ? (
+                          <>
+                            <RefreshCw size={13} className="spin" /> Rechazando...
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={13} /> Rechazar
+                          </>
+                        )}
                       </button>
                     </>
                   )}
@@ -6769,7 +6805,15 @@ function BorradoresTab() {
                         fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
                       }}
                     >
-                      {actionLoading === draft.id + '-unpublish' ? '...' : <><EyeOff size={13} /> Despublicar</>}
+                      {actionLoading === draft.id + '-unpublish' ? (
+                        <>
+                          <RefreshCw size={13} className="spin" /> Despublicando...
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff size={13} /> Despublicar
+                        </>
+                      )}
                     </button>
                   )}
 
@@ -6784,7 +6828,15 @@ function BorradoresTab() {
                         fontSize: '0.8rem', fontWeight: 700, opacity: actionLoading ? 0.6 : 1
                       }}
                     >
-                      {actionLoading === draft.id + '-approve' ? '...' : <><Check size={13} /> Publicar</>}
+                      {actionLoading === draft.id + '-approve' ? (
+                        <>
+                          <RefreshCw size={13} className="spin" /> Publicando...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={13} /> Publicar
+                        </>
+                      )}
                     </button>
                   )}
 

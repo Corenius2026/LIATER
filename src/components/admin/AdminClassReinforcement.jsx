@@ -22,6 +22,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   const [questions, setQuestions] = useState([]);
   
   const [saving, setSaving] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(null); // 'publishing' | 'unpublishing' | null
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -1224,6 +1225,8 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
   };
 
   const togglePublish = async () => {
+    const willPublish = !activity?.is_published;
+    setPublishLoading(willPublish ? 'publishing' : 'unpublishing');
     setSaving(true);
     setError('');
     try {
@@ -1278,10 +1281,10 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
         }
       }
 
-      const willPublish = !currentAct?.is_published;
+      const willPublishActual = !currentAct?.is_published;
 
       // FAST PATH: Despublicar de forma inmediata (sin tocar preguntas ni bloquear la UI)
-      if (!willPublish) {
+      if (!willPublishActual) {
         const { data: updatedAct, error: pubErr } = await supabase
           .from('class_activities')
           .update({ is_published: false })
@@ -1396,6 +1399,7 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
       setError('Error al cambiar el estado de publicación: ' + (err.message || err));
     } finally {
       setSaving(false);
+      setPublishLoading(null);
     }
   };
 
@@ -1611,11 +1615,29 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
           </div>
           <button 
             onClick={togglePublish} 
-            disabled={saving} 
+            disabled={saving || !!publishLoading} 
             className="btn btn-primary" 
-            style={{ background: '#16a34a', borderColor: '#16a34a', padding: '0.6rem 1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ 
+              background: '#16a34a', 
+              borderColor: '#16a34a', 
+              padding: '0.6rem 1.25rem', 
+              fontWeight: 700, 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem',
+              opacity: publishLoading ? 0.8 : 1,
+              cursor: publishLoading ? 'wait' : 'pointer'
+            }}
           >
-            <Check size={16} /> Aprobar y Publicar Actividad
+            {publishLoading === 'publishing' ? (
+              <>
+                <RefreshCw size={16} className="spin" /> Publicando actividad...
+              </>
+            ) : (
+              <>
+                <Check size={16} /> Aprobar y Publicar Actividad
+              </>
+            )}
           </button>
         </div>
       )}
@@ -1646,14 +1668,55 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
             </button>
             <button 
               onClick={togglePublish} 
-              disabled={saving}
+              disabled={saving || !!publishLoading}
               className={`btn ${activity?.is_published ? 'btn-secondary' : 'btn-primary'}`}
-              style={activity?.is_published ? { borderColor: 'var(--border-color)', color: '#dc2626' } : {}}
+              style={{
+                ...(activity?.is_published ? { borderColor: 'var(--border-color)', color: '#dc2626' } : {}),
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                fontWeight: 700,
+                opacity: publishLoading ? 0.8 : 1,
+                cursor: publishLoading ? 'wait' : 'pointer'
+              }}
             >
-              {activity?.is_published ? 'Despublicar' : 'Publicar Actividad'}
+              {publishLoading === 'publishing' ? (
+                <>
+                  <RefreshCw size={15} className="spin" /> Publicando...
+                </>
+              ) : publishLoading === 'unpublishing' ? (
+                <>
+                  <RefreshCw size={15} className="spin" /> Despublicando...
+                </>
+              ) : activity?.is_published ? (
+                'Despublicar'
+              ) : (
+                'Publicar Actividad'
+              )}
             </button>
           </div>
         </div>
+
+        {publishLoading && (
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: '4px',
+            background: 'rgba(252, 163, 17, 0.15)',
+            overflow: 'hidden',
+            borderRadius: '2px',
+            marginBottom: '1.25rem'
+          }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              background: publishLoading === 'publishing' ? 'linear-gradient(90deg, #16a34a, #4ade80, #16a34a)' : 'linear-gradient(90deg, #f59e0b, #ef4444, #f59e0b)',
+              borderRadius: '2px',
+              animation: 'shimmer 1s infinite linear',
+              backgroundSize: '200% 100%'
+            }} />
+          </div>
+        )}
 
         {error && <div style={{ background: '#fef2f2', color: '#b91c1c', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><AlertTriangle size={16}/> {error}</div>}
         {success && <div style={{ background: '#f0fdf4', color: '#15803d', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={16}/> {success}</div>}
@@ -2305,6 +2368,38 @@ export default function AdminClassReinforcement({ classId, onOpenUploadModal }) 
                 <Sparkles size={14} color="var(--gold)" />
                 <span>Sí, generar y reemplazar</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Indicador flotante con animación durante publicación / despublicación */}
+      {publishLoading && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          zIndex: 9999,
+          background: publishLoading === 'publishing' ? '#14532d' : '#1e293b',
+          color: '#ffffff',
+          padding: '0.85rem 1.4rem',
+          borderRadius: '12px',
+          boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.35), 0 5px 15px -3px rgba(0, 0, 0, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.85rem',
+          fontSize: '0.9rem',
+          fontWeight: 600,
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <RefreshCw size={20} className="spin" style={{ color: '#4ade80' }} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+              {publishLoading === 'publishing' ? 'Publicando actividad...' : 'Despublicando actividad...'}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '2px', fontWeight: 400 }}>
+              {publishLoading === 'publishing' ? 'Guardando preguntas y habilitando para alumnos' : 'Regresando a estado borrador'}
             </div>
           </div>
         </div>
