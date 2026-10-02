@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
-import { createDoubt, fetchStudentDoubtsForClass } from '@/services/doubtService';
+import { createDoubt, fetchStudentDoubtsForClass, updateDoubt, deleteDoubt } from '@/services/doubtService';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import { calculateProgramProgressDetails } from '@/services/programService';
 import { isClassLiveOrSoon, formatClassDate } from '@/utils/dateUtils';
 import { safeJsonParse, safeSetItem, safeRemoveItem } from '@/utils/storageUtils';
@@ -852,6 +853,9 @@ export default function ClassDetail() {
 
   // ESTADOS DEL MODAL DE DUDAS Y PERSISTENCIA
   const [isDoubtModalOpen, setIsDoubtModalOpen] = useState(false);
+  const [editingDoubt, setEditingDoubt] = useState(null);
+  const [doubtToDelete, setDoubtToDelete] = useState(null);
+  const [isDeletingDoubt, setIsDeletingDoubt] = useState(false);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [touched, setTouched] = useState({ subject: false, description: false });
@@ -1203,8 +1207,68 @@ export default function ClassDetail() {
     fetchClassDetail();
   }, [id, currentUser?.id]);
 
+  // SINCRONIZACIÓN Y RECARGA DINÁMICA DE DUDAS
+  const refreshDoubts = async () => {
+    if (!id) return;
+    try {
+      if (currentUser?.id) {
+        const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
+        setUserDoubts(doubts || []);
+      }
+      const userRole = currentUser?.role;
+      if (userRole === 'admin' || userRole === 'teacher') {
+        const { data } = await supabase
+          .from('class_doubts')
+          .select('*, users_profile:student_id(full_name, email)')
+          .eq('class_id', id)
+          .neq('status', 'archivada')
+          .order('created_at', { ascending: false });
+        if (data) setAllClassDoubts(data);
+      }
+    } catch (err) {
+      console.warn('Error refreshing doubts in ClassDetail:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`realtime-class-doubts-${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'class_doubts', filter: `class_id=eq.${id}` },
+        () => {
+          refreshDoubts();
+        }
+      )
+      .subscribe();
+
+    const handleLocalUpdate = () => {
+      refreshDoubts();
+    };
+    window.addEventListener('liater-doubt-changed', handleLocalUpdate);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('liater-doubt-changed', handleLocalUpdate);
+    };
+  }, [id, currentUser?.id]);
+
   // MANEJO DE ACCESIBILIDAD Y ESCAPE EN EL MODAL DE DUDAS
-  const openDoubtModal = () => {
+  const openDoubtModal = (doubtToEdit = null) => {
+    if (doubtToEdit && doubtToEdit.id) {
+      setEditingDoubt(doubtToEdit);
+      setSubject(doubtToEdit.subject || '');
+      setDescription(doubtToEdit.description || '');
+      setTopic(doubtToEdit.topic || moduleTitle || '');
+    } else {
+      setEditingDoubt(null);
+      setSubject('');
+      setDescription('');
+      setTopic(moduleTitle || '');
+    }
+    setTouched({ subject: false, description: false });
     setIsDoubtModalOpen(true);
     setSubmitError('');
     setSuccessMsg('');
@@ -1215,6 +1279,7 @@ export default function ClassDetail() {
 
   const closeDoubtModal = () => {
     setIsDoubtModalOpen(false);
+    setEditingDoubt(null);
     setSubmitError('');
     setSuccessMsg('');
     doubtButtonRef.current?.focus();
@@ -1229,6 +1294,32 @@ export default function ClassDetail() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isDoubtModalOpen]);
+
+  // ELIMINACIÓN DE DUDA POR EL ESTUDIANTE
+  const handleConfirmDeleteDoubt = async () => {
+    if (!doubtToDelete) return;
+    setIsDeletingDoubt(true);
+    try {
+      const { success, error } = await deleteDoubt(doubtToDelete.id, currentUser?.id);
+      if (!success && error) {
+        console.error('Error al eliminar duda:', error);
+      }
+
+      // Actualización optimista inmediata
+      setUserDoubts(prev => prev.filter(d => d.id !== doubtToDelete.id));
+      setAllClassDoubts(prev => prev.filter(d => d.id !== doubtToDelete.id));
+
+      // Notificación local inmediata
+      window.dispatchEvent(new CustomEvent('liater-doubt-changed', {
+        detail: { action: 'delete', doubtId: doubtToDelete.id, classId: id }
+      }));
+    } catch (err) {
+      console.error('Error en handleConfirmDeleteDoubt:', err);
+    } finally {
+      setIsDeletingDoubt(false);
+      setDoubtToDelete(null);
+    }
+  };
 
   // VALIDACIÓN DEL FORMULARIO
   const subjectError = touched.subject && !subject.trim()
@@ -1248,7 +1339,7 @@ export default function ClassDetail() {
                       description.trim().length > 0 &&
                       description.length <= 1500;
 
-  // ENVÍO DE LA DUDA A SUPABASE CON MANEJO DE ESTADOS
+  // ENVÍO O EDICIÓN DE LA DUDA A SUPABASE CON MANEJO DE ESTADOS
   const handleSubmitDoubt = async (e) => {
     e.preventDefault();
     setTouched({ subject: true, description: true });
@@ -1256,7 +1347,7 @@ export default function ClassDetail() {
     if (!isFormValid || submitting) return;
 
     if (!currentUser?.id) {
-      setSubmitError('Debes iniciar sesión para enviar una duda.');
+      setSubmitError('Debes iniciar sesión para gestionar una duda.');
       return;
     }
 
@@ -1264,41 +1355,82 @@ export default function ClassDetail() {
     setSubmitError('');
     setSuccessMsg('');
 
-    const { data, error } = await createDoubt({
-      class_id: id,
-      module_id: moduleId,
-      program_id: clsData?.program_id,
-      student_id: currentUser.id,
-      teacher_id: clsData?.teacher_id,
-      subject,
-      description,
-      topic
-    });
+    if (editingDoubt) {
+      // MODO EDICIÓN DE DUDA EXISTENTE
+      const { data, error } = await updateDoubt(editingDoubt.id, {
+        subject,
+        description,
+        topic
+      });
 
-    if (error) {
-      console.error('Supabase Error on createDoubt:', error);
-      const errorMsg = error?.message || error?.details || JSON.stringify(error) || 'Ocurrió un error desconocido.';
-      setSubmitError(`Error en Supabase: ${errorMsg}`);
+      if (error) {
+        console.error('Supabase Error on updateDoubt:', error);
+        const errorMsg = error?.message || error?.details || JSON.stringify(error) || 'Ocurrió un error al actualizar.';
+        setSubmitError(`Error en Supabase: ${errorMsg}`);
+        setSubmitting(false);
+        return;
+      }
+
+      setSuccessMsg('Tu duda fue actualizada exitosamente y los cambios se reflejan al docente.');
       setSubmitting(false);
-      return;
+
+      // Actualizar lista local de inmediato
+      const trimmedSubj = subject.trim();
+      const trimmedDesc = description.trim();
+      const trimmedTopic = topic ? topic.trim() : null;
+
+      setUserDoubts(prev => prev.map(d => d.id === editingDoubt.id ? { ...d, subject: trimmedSubj, description: trimmedDesc, topic: trimmedTopic } : d));
+      setAllClassDoubts(prev => prev.map(d => d.id === editingDoubt.id ? { ...d, subject: trimmedSubj, description: trimmedDesc, topic: trimmedTopic } : d));
+
+      window.dispatchEvent(new CustomEvent('liater-doubt-changed', {
+        detail: { action: 'update', doubtId: editingDoubt.id, classId: id }
+      }));
+
+      setTimeout(() => {
+        setIsDoubtModalOpen(false);
+        setEditingDoubt(null);
+        setSuccessMsg('');
+      }, 1500);
+
+    } else {
+      // MODO CREACIÓN DE NUEVA DUDA
+      const { data, error } = await createDoubt({
+        class_id: id,
+        module_id: moduleId,
+        program_id: clsData?.program_id,
+        student_id: currentUser.id,
+        teacher_id: clsData?.teacher_id,
+        subject,
+        description,
+        topic
+      });
+
+      if (error) {
+        console.error('Supabase Error on createDoubt:', error);
+        const errorMsg = error?.message || error?.details || JSON.stringify(error) || 'Ocurrió un error desconocido.';
+        setSubmitError(`Error en Supabase: ${errorMsg}`);
+        setSubmitting(false);
+        return;
+      }
+
+      setSuccessMsg('Tu duda fue enviada. El docente podrá revisarla para atenderla durante la clase.');
+      setSubject('');
+      setDescription('');
+      setTouched({ subject: false, description: false });
+      setSubmitting(false);
+
+      const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
+      setUserDoubts(doubts || []);
+
+      window.dispatchEvent(new CustomEvent('liater-doubt-changed', {
+        detail: { action: 'create', classId: id }
+      }));
+
+      setTimeout(() => {
+        setIsDoubtModalOpen(false);
+        setSuccessMsg('');
+      }, 2000);
     }
-
-    // ÉXITO EN INSERCIÓN: Mensaje requerido, limpiar campos y recargar dudas
-    setSuccessMsg('Tu duda fue enviada. El docente podrá revisarla para atenderla durante la clase.');
-    setSubject('');
-    setDescription('');
-    setTouched({ subject: false, description: false });
-    setSubmitting(false);
-
-    // Actualizar lista de dudas enviadas en la vista
-    const { doubts } = await fetchStudentDoubtsForClass(id, currentUser.id);
-    setUserDoubts(doubts || []);
-
-    // Cerrar modal automáticamente después de 2 segundos
-    setTimeout(() => {
-      setIsDoubtModalOpen(false);
-      setSuccessMsg('');
-    }, 2000);
   };
 
   if (loading) {
@@ -2353,36 +2485,136 @@ export default function ClassDetail() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                       {userDoubts.map(doubt => (
                         <div key={doubt.id} style={{
-                          padding: '0.65rem 0.85rem',
-                          background: 'var(--surface-light)',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color)'
+                          padding: '0.75rem 0.85rem',
+                          background: 'var(--surface-light, #F8FAFC)',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-color, #E2E8F0)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.45rem',
+                          boxShadow: '0 1px 2px rgba(20, 33, 61, 0.03)'
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy, #14213D)', lineHeight: 1.35, wordBreak: 'break-word' }}>
                               {doubt.subject}
                             </span>
                             <span style={{
                               fontSize: '0.68rem',
-                              padding: '0.15rem 0.5rem',
-                              borderRadius: '10px',
-                              fontWeight: 600,
+                              padding: '0.18rem 0.55rem',
+                              borderRadius: '8px',
+                              fontWeight: 700,
                               whiteSpace: 'nowrap',
-                              background: doubt.status === 'atendida' ? '#dcfce7' :
-                                          doubt.status === 'revisada' ? '#fef3c7' :
-                                          doubt.status === 'archivada' ? '#f1f5f9' : '#dbeafe',
+                              background: doubt.status === 'atendida' ? '#DCFCE7' :
+                                          doubt.status === 'revisada' ? '#FEF3C7' :
+                                          doubt.status === 'archivada' ? '#F1F5F9' : '#DBEAFE',
                               color: doubt.status === 'atendida' ? '#166534' :
-                                     doubt.status === 'revisada' ? '#92400e' :
-                                     doubt.status === 'archivada' ? '#475569' : '#1e40af'
+                                     doubt.status === 'revisada' ? '#92400E' :
+                                     doubt.status === 'archivada' ? '#475569' : '#1E40AF'
                             }}>
                               {doubt.status === 'atendida' ? 'Atendida en clase' :
                                doubt.status === 'revisada' ? 'Revisada' :
                                doubt.status === 'archivada' ? 'Archivada' : 'Enviada'}
                             </span>
                           </div>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </span>
+
+                          {doubt.description && (
+                            <p style={{
+                              fontSize: '0.78rem',
+                              color: '#475569',
+                              margin: 0,
+                              lineHeight: 1.45,
+                              wordBreak: 'break-word',
+                              whiteSpace: 'pre-wrap'
+                            }}>
+                              {doubt.description}
+                            </p>
+                          )}
+
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            marginTop: '0.2rem',
+                            paddingTop: '0.45rem',
+                            borderTop: '1px solid #E2E8F0'
+                          }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748B)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Clock size={11} />
+                              {new Date(doubt.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+
+                            {/* ACCIONES: EDITAR Y ELIMINAR */}
+                            {doubt.status === 'enviada' ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => openDoubtModal(doubt)}
+                                  title="Editar esta duda"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    padding: '0.25rem 0.55rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #CBD5E1',
+                                    background: '#FFFFFF',
+                                    color: '#334155',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseOver={e => {
+                                    e.currentTarget.style.borderColor = 'var(--gold, #FCA311)';
+                                    e.currentTarget.style.color = 'var(--navy, #14213D)';
+                                    e.currentTarget.style.background = '#FEFCE8';
+                                  }}
+                                  onMouseOut={e => {
+                                    e.currentTarget.style.borderColor = '#CBD5E1';
+                                    e.currentTarget.style.color = '#334155';
+                                    e.currentTarget.style.background = '#FFFFFF';
+                                  }}
+                                >
+                                  <Pencil size={11} /> Editar
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setDoubtToDelete(doubt)}
+                                  title="Eliminar esta duda"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    padding: '0.25rem 0.55rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #FECACA',
+                                    background: '#FFFFFF',
+                                    color: '#DC2626',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseOver={e => {
+                                    e.currentTarget.style.borderColor = '#DC2626';
+                                    e.currentTarget.style.background = '#FEE2E2';
+                                  }}
+                                  onMouseOut={e => {
+                                    e.currentTarget.style.borderColor = '#FECACA';
+                                    e.currentTarget.style.background = '#FFFFFF';
+                                  }}
+                                >
+                                  <Trash2 size={11} /> Eliminar
+                                </button>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '0.68rem', color: '#64748B', fontStyle: 'italic' }}>
+                                {doubt.status === 'atendida' ? '✓ Duda atendida' : 'Docente revisando'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2474,7 +2706,7 @@ export default function ClassDetail() {
                   width: '42px',
                   height: '42px',
                   borderRadius: '12px',
-                  background: '#eff6ff',
+                  background: editingDoubt ? '#FEF3C7' : '#eff6ff',
                   color: 'var(--navy)',
                   display: 'flex',
                   alignItems: 'center',
@@ -2482,14 +2714,14 @@ export default function ClassDetail() {
                   flexShrink: 0
                 }}
               >
-                <HelpCircle size={22} color="var(--gold-dark)" />
+                {editingDoubt ? <Pencil size={20} color="#B45309" /> : <HelpCircle size={22} color="var(--gold-dark)" />}
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>
-                  Enviar Duda al Docente
+                  {editingDoubt ? 'Editar Duda' : 'Enviar Duda al Docente'}
                 </h3>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Clase: {clsData.title}
+                  Clase: {clsData?.title || 'Sesión'}
                 </span>
               </div>
             </div>
@@ -2510,7 +2742,9 @@ export default function ClassDetail() {
             }}>
               <Info size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--gold-dark)' }} />
               <span>
-                Tu duda será revisada por el docente para ser atendida durante la clase o en el espacio académico correspondiente.
+                {editingDoubt
+                  ? 'Modifica los datos de tu consulta. Los cambios se actualizarán de inmediato en la bandeja del docente.'
+                  : 'Tu duda será revisada por el docente para ser atendida durante la clase o en el espacio académico correspondiente.'}
               </span>
             </div>
 
@@ -2698,7 +2932,7 @@ export default function ClassDetail() {
                     boxShadow: isFormValid && !submitting ? '0 2px 4px rgba(20, 33, 61, 0.2)' : 'none'
                   }}
                 >
-                  <Send size={15} /> {submitting ? 'Guardando...' : 'Enviar una duda'}
+                  <Send size={15} /> {submitting ? 'Guardando...' : editingDoubt ? 'Guardar Cambios' : 'Enviar una duda'}
                 </button>
               </div>
 
@@ -2706,6 +2940,20 @@ export default function ClassDetail() {
           </div>
         </div>
       )}
+
+      {/* 4. MODAL ACCESIBLE DE CONFIRMACIÓN PARA ELIMINAR DUDA */}
+      <ConfirmModal
+        isOpen={Boolean(doubtToDelete)}
+        onClose={() => setDoubtToDelete(null)}
+        onConfirm={handleConfirmDeleteDoubt}
+        title="Eliminar Duda"
+        message={`¿Estás seguro de que deseas eliminar tu duda "${doubtToDelete?.subject || 'esta duda'}"?`}
+        note="Esta consulta se retirará permanentemente y dejará de aparecer en la bandeja del docente."
+        confirmText="Eliminar Duda"
+        cancelText="Conservar"
+        isDanger={true}
+        loading={isDeletingDoubt}
+      />
 
       {/* =================================================================== */}
       {/* MODAL / EXPERIENCIA INTERACTIVA DE LA ACTIVIDAD DE REFORZAMIENTO */}

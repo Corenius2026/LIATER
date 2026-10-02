@@ -4077,7 +4077,17 @@ function DudasTab() {
         });
       }
 
+      // Excluir dudas archivadas/eliminadas
+      filteredForTeacher = filteredForTeacher.filter(d => d.status !== 'archivada');
+
       setDoubts(filteredForTeacher);
+
+      // Mantener selectedDoubt sincronizado con la versión fresca (actualizada o eliminada)
+      setSelectedDoubt(prev => {
+        if (!prev) return null;
+        const fresh = filteredForTeacher.find(d => d.id === prev.id);
+        return fresh || null;
+      });
     } catch (err) {
       console.error('Error general al cargar dudas:', err);
     } finally {
@@ -4087,7 +4097,30 @@ function DudasTab() {
 
   useEffect(() => {
     fetchDoubtsAndClasses();
-  }, [programId]);
+
+    // Sincronización en tiempo real vía Supabase Realtime
+    const channel = supabase
+      .channel('teacher-doubts-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'class_doubts' },
+        () => {
+          fetchDoubtsAndClasses();
+        }
+      )
+      .subscribe();
+
+    // Listener local para cambios instantáneos entre componentes
+    const handleLocalUpdate = () => {
+      fetchDoubtsAndClasses();
+    };
+    window.addEventListener('liater-doubt-changed', handleLocalUpdate);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('liater-doubt-changed', handleLocalUpdate);
+    };
+  }, [programId, effectiveTeacherProfileId, currentUserId, isTeacherRole]);
 
   // Deep linking: Si viene un doubtId en la URL, abrir automáticamente el modal correspondiente
   useEffect(() => {
