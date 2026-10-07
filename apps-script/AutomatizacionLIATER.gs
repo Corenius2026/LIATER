@@ -15,12 +15,31 @@
  * 
  * [Carpeta Origen Meet] ➔ "Meet Recordings" / "Grabaciones de Meet" (o MEET_RECORDINGS_FOLDER_ID)
  * 
- * NOMENCLATURA ESTIPULADA:
- *    [2026-2-CUR-ILUM-S04] Hospitalaria - 2026/09/30 17:54 GMT-05:00 - Recording 3
- *    - [2026-2-CUR-ILUM-S04] : Año (2026), Semestre (2), Tipo (CUR), Código (ILUM), Sesión (S04 = Sesión 4)
- *    - Hospitalaria          : Nombre / Tema del curso (ubica la carpeta "CUR-ILUM-2026-2 - Hospitalaria")
- *    - 2026/09/30 17:54 GMT-05:00 : Fecha, hora exacta y zona horaria de la clase
- *    - Recording 3           : Parte de la grabación ➔ Corresponde a "Clase - 3" ("Recording" = Clase - 1)
+ * NOMENCLATURA OFICIAL OBLIGATORIA (Guia_Nomenclatura_LIATER_Mejorada.pdf):
+ *    Identificador Maestro en Calendar / Meet:
+ *    [AAAA-P-TIPO-CODIGO-SNN] Nombre del programa
+ *    - AAAA   : Año calendario (4 dígitos, ej: 2026, 2027)
+ *    - P      : Periodo o cohorte dentro del año (1 o 2)
+ *    - TIPO   : CUR (Curso), DIP (Diplomado), TAL (Taller), SEM (Seminario), CER (Certificación)
+ *    - CODIGO : Código corto y estable del programa (ej: ILUM, IA, AUTO, FV)
+ *    - SNN    : Sesión programada en Calendar (ej: S01, S02, S04, S10)
+ *    - Nombre : Nombre legible del programa (ej: Hospitalaria, Deportiva)
+ * 
+ *    Grabaciones generadas por Google Meet:
+ *    [2026-2-CUR-ILUM-S04] Hospitalaria - 2026/09/30 17:54 GMT-05:00 - Recording
+ *    - Recording / Recording Vídeo     ➔ Clase - 1 (o Clase - 01)
+ *    - Recording 2 / Recording 2 Vídeo ➔ Clase - 2 (o Clase - 02)
+ *    - Recording 3 / Recording 3 Vídeo ➔ Clase - 3 (o Clase - 03)
+ * 
+ *    Estructura en Google Drive (Regla 09 de la guía):
+ *    PROGRAMAS - LIATER
+ *      └── LIATER - Cursos 2026
+ *            └── CUR-ILUM-2026-2 - Hospitalaria  (TIPO-CODIGO-AAAA-P - Nombre)
+ *                  └── Sesión - 04 (o Sesión - 4)
+ *                        └── Clase - 01 (o Clase - 1)
+ * 
+ * ⚠️ REGLA ESTRICTA: Solo se procesan y mueven archivos que tengan este formato maestro exacto.
+ * Cualquier reunión informal, sin corchetes o con formato no estándar es ignorada automáticamente.
  * 
  * FUNCIONES DISPONIBLES:
  * 1. `organizarGrabacionesDeMeet()`: Mueve grabaciones de video (.mp4) que cumplan la nomenclatura hacia
@@ -636,6 +655,12 @@ function diagnosticarEstructura() {
       countSub++;
       var sf = meetSubs.next();
       var sfName = sf.getName();
+
+      if (!cumpleNomenclaturaEstipulada(sfName, "")) {
+        console.log("      📁 [Subcarpeta Meet #" + countSub + "] '" + sfName + "' [Omitida: No cumple la nomenclatura oficial [AAAA-P-TIPO-CODIGO-SNN]]");
+        continue;
+      }
+
       var sInfo = parseNomenclaturaGrabacion(sfName, "");
       var sProg = encontrarProgramaParaGrabacion(programasParaDiag, sInfo);
 
@@ -705,47 +730,23 @@ function diagnosticarEstructura() {
 // ============================================================================
 
 /**
- * Valida si un nombre de archivo cumple estrictamente con la nomenclatura estipulada
- * Ej: [2026-2-CUR-ILUM-S04] Hospitalaria - 2026/09/30 17:54 GMT-05:00 - Recording 3
+ * Valida si un nombre de archivo o carpeta cumple estrictamente con el estándar maestro
+ * estipulado en la Guía Operativa (Guia_Nomenclatura_LIATER_Mejorada.pdf):
+ * Formato obligatorio: [AAAA-P-TIPO-CODIGO-SNN] Nombre del programa
+ * Ej: [2026-2-CUR-ILUM-S04] Hospitalaria - 2026/09/30 17:54 GMT-05:00 - Recording
  */
 function cumpleNomenclaturaEstipulada(str, parentFolderName) {
   if (!str && !parentFolderName) return false;
-  var texto = (str || "") + " " + (parentFolderName || "");
+  var texto = ((str || "") + " " + (parentFolderName || "")).replace(/\s*\((?:recurring|recurrente)\)/gi, "").trim();
 
-  // 1. Tag oficial en corchetes [2026-2-CUR-ILUM-S04]
-  var tagMatch = texto.match(/\[([^\]]+)\]/);
-  if (tagMatch) {
-    var tag = tagMatch[1];
-    if (/-S0*\d+/i.test(tag) || /\bS0*\d+\b/i.test(tag) || /CUR|DIP/i.test(tag)) {
-      return true;
-    }
-  }
-
-  // 2. Formato natural con sesión/semana y palabras clave de cursos LIATER
-  // Ej: "Semana 1 Curso de iluminación de hospitales (recurring)"
-  // Ej: "Iluminación deportiva Profesional 2026 (recurring)"
-  // Ej: "XV diplomado FV - 2026/09/10 17:45 GMT-05:00"
-  var norm = limpiarTexto(texto);
-  var tieneTema = (
-    norm.indexOf("HOSPIT") !== -1 ||
-    norm.indexOf("DEPORT") !== -1 ||
-    norm.indexOf("FOTOVOL") !== -1 ||
-    norm.indexOf("FV") !== -1 ||
-    norm.indexOf("ILUM") !== -1 ||
-    norm.indexOf("LIATER") !== -1
-  );
-
-  var tieneSesionOFecha = (
-    /(?:sesi[oó]n|session|semana|s)\s*[-–—:]*\s*#?\s*0*(\d+)/i.test(texto) ||
-    /\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(texto) ||
-    /inaugural|conferencia|recording|grabaci[oó]n|clase/i.test(texto)
-  );
-
-  if (tieneTema && tieneSesionOFecha) {
-    return true;
-  }
-
-  return false;
+  // El identificador maestro OBLIGATORIAMENTE debe estar en corchetes: [AAAA-P-TIPO-CODIGO-SNN]
+  // - AAAA: 4 dígitos de año (ej: 2026)
+  // - P: Periodo 1 o 2
+  // - TIPO: CUR, DIP, TAL, SEM, CER (3 letras)
+  // - CODIGO: Código alfanumérico corto y estable (ej: ILUM, IA, AUTO, FV)
+  // - SNN: S seguido del número de sesión (ej: S01, S04, S10)
+  var masterTagRegex = /\[(\d{4})-([12])-([A-Za-z]{3})-([A-Za-z0-9]+)-S0*(\d+)\]/i;
+  return masterTagRegex.test(texto);
 }
 
 /**
@@ -792,32 +793,58 @@ function extraerNumeroClaseArchivo(tag, str, recordingPart) {
 
 /**
  * Decodifica la nomenclatura completa de una grabación de Meet
- * Acepta opcionalmente el nombre de la carpeta padre (subcarpeta de Google Meet)
+ * según el estándar oficial de Guia_Nomenclatura_LIATER_Mejorada.pdf:
+ * Tag maestro: [AAAA-P-TIPO-CODIGO-SNN] Nombre del programa
+ * Carpeta esperada en Drive: TIPO-CODIGO-AAAA-P - Nombre
  */
 function parseNomenclaturaGrabacion(str, parentFolderName) {
   if (!str && !parentFolderName) return null;
 
   var parent = (parentFolderName || "").replace(/\s*\((?:recurring|recurrente)\)/gi, "").trim();
   var cleanStr = (str || "").replace(/\s*\((?:recurring|recurrente)\)/gi, "").trim();
+  var textoCompleto = cleanStr + " " + parent;
 
-  var tagMatch = cleanStr.match(/\[([^\]]+)\]/) || parent.match(/\[([^\]]+)\]/);
-  var tag = tagMatch ? tagMatch[1].trim() : "";
+  // 1. Tag maestro obligatorio: [AAAA-P-TIPO-CODIGO-SNN]
+  var masterTagRegex = /\[(\d{4})-([12])-([A-Za-z]{3})-([A-Za-z0-9]+)-S0*(\d+)\]/i;
+  var tagMatch = cleanStr.match(masterTagRegex) || parent.match(masterTagRegex);
 
-  // 1. Extraer número de sesión (S04 -> 4, Semana 1 -> 1)
-  var sessionNumber = null;
-  var sMatch = (tag && tag.match(/-S0*(\d+)\b/i)) || 
-               cleanStr.match(/\bS0*(\d+)\b/i) || 
-               cleanStr.match(/(?:sesi[oó]n|session|semana|s)\s*[-–—:]*\s*#?\s*0*(\d+)/i) ||
-               parent.match(/(?:sesi[oó]n|session|semana|s)\s*[-–—:]*\s*#?\s*0*(\d+)/i);
-  if (sMatch) {
-    sessionNumber = parseInt(sMatch[1], 10);
-  } else if (/inaugural|conferencia/i.test(cleanStr) || /inaugural|conferencia/i.test(parent)) {
-    sessionNumber = 1;
+  if (!tagMatch) {
+    return null; // Si no cumple el identificador maestro, se descarta
   }
 
-  // 2. Extraer fecha, hora y zona horaria (ej: '2026/09/30 17:54 GMT-05:00')
-  var dateMatch = cleanStr.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?:\s*(GMT[+-]\d{1,2}(?::\d{2})?|[+-]\d{2}:?\d{2}))?/i) ||
-                  parent.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?:\s*(GMT[+-]\d{1,2}(?::\d{2})?|[+-]\d{2}:?\d{2}))?/i);
+  var anio = tagMatch[1];
+  var periodo = tagMatch[2];
+  var tipoCodigo = tagMatch[3].toUpperCase(); // CUR, DIP, TAL, etc.
+  var codigoProg = tagMatch[4].toUpperCase(); // ILUM, IA, AUTO, FV
+  var sessionNumber = parseInt(tagMatch[5], 10);
+  var tag = tagMatch[0]; // Ej: [2026-2-CUR-ILUM-S04]
+
+  var tipo = (tipoCodigo === "DIP") ? "diplomado" : "curso";
+
+  // 2. Extraer nombre / tema del programa (ubicado justo después del corchete del tag)
+  var baseParaTema = cleanStr.indexOf(tag) !== -1 ? cleanStr : parent;
+  var idxTag = baseParaTema.indexOf(tag);
+  var textoPostTag = idxTag !== -1 ? baseParaTema.substring(idxTag + tag.length) : baseParaTema;
+
+  var topic = textoPostTag
+    .replace(/\s*\((?:recurring|recurrente)\)/gi, "")
+    .replace(/-?\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}.*$/, "")
+    .replace(/-?\s*(?:recording|grabaci[oó]n|parte|part|video|vídeo)\b.*$/i, "")
+    .replace(/\.(mp4|mov|mkv|avi|webm|m4v|gdoc|txt|doc|docx)$/i, "")
+    .replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "")
+    .trim();
+
+  // Si no se extrajo tema de cleanStr pero parent tiene texto
+  if (!topic && parent.indexOf(tag) !== -1) {
+    var idxParentTag = parent.indexOf(tag);
+    topic = parent.substring(idxParentTag + tag.length)
+      .replace(/\s*\((?:recurring|recurrente)\)/gi, "")
+      .replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "")
+      .trim();
+  }
+
+  // 3. Extraer fecha, hora y zona horaria (generada automáticamente por Meet)
+  var dateMatch = textoCompleto.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?:\s*(GMT[+-]\d{1,2}(?::\d{2})?|[+-]\d{2}:?\d{2}))?/i);
   var isoDateString = null;
   var formattedDate = null;
   var rawDateStr = null;
@@ -846,58 +873,39 @@ function parseNomenclaturaGrabacion(str, parentFolderName) {
     formattedDate = y + "-" + m + "-" + d + " " + hh + ":" + mi;
   }
 
-  // 3. Extraer año
-  var anio = null;
-  var anioMatch = (tag || cleanStr || parent).match(/\b(20\d{2})\b/);
-  if (anioMatch) anio = anioMatch[1];
+  // 4. Determinar la clase a partir del consecutivo de Recording (Regla 08 de la guía):
+  // "Recording" / "Recording Vídeo" ➔ Clase 1
+  // "Recording 2" / "Recording 2 Vídeo" ➔ Clase 2
+  // "Recording 3" / "Recording 3 Vídeo" ➔ Clase 3
+  var partMatch = cleanStr.match(/(?:recording|grabaci[oó]n|parte|part)\s*(\d+)/i) ||
+                  parent.match(/(?:recording|grabaci[oó]n|parte|part)\s*(\d+)/i);
+  var classNumber = partMatch ? parseInt(partMatch[1], 10) : 1;
 
-  // 4. Extraer tipo de programa (curso / diplomado)
-  var tipo = null;
-  if (/CUR/i.test(tag) || /CURSO/i.test(cleanStr) || /CURSO/i.test(parent)) {
-    tipo = "curso";
-  } else if (/DIP/i.test(tag) || /DIPLOMAD/i.test(cleanStr) || /DIPLOMAD/i.test(parent)) {
-    tipo = "diplomado";
-  }
-
-  // 5. Extraer número de parte (Recording 3 -> 3, Recording -> 1)
-  var partMatch = cleanStr.match(/Recording\s*(\d+)/i) || 
-                  cleanStr.match(/Grabaci[oó]n\s*(\d+)/i) || 
-                  cleanStr.match(/Parte\s*(\d+)/i);
-  var recordingPart = partMatch ? parseInt(partMatch[1], 10) : 1;
-
-  // 6. Determinar la clase (Clase 1, Clase 2, Clase 3)
-  var classNumber = extraerNumeroClaseArchivo(tag, cleanStr, recordingPart);
-
-  // 7. Extraer tema / nombre del programa (ej: 'Hospitalaria')
-  var baseParaTema = cleanStr.indexOf("[") !== -1 ? cleanStr : (parent || cleanStr);
-  var cleanName = baseParaTema.replace(/\[[^\]]+\]/, "");
-  cleanName = cleanName.replace(/\s*\((?:recurring|recurrente)\)/gi, "");
-  cleanName = cleanName.replace(/-?\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}.*$/, "");
-  cleanName = cleanName.replace(/-?\s*(?:recording|grabaci[oó]n|transcript|transcripci[oó]n|parte|part|chat)\b.*$/i, "");
-  cleanName = cleanName.replace(/\.(mp4|mov|mkv|avi|webm|m4v|gdoc|txt|doc|docx)$/i, "");
-  cleanName = cleanName.replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "").trim();
-  var topic = cleanName;
-
-  // 8. Código de programa base (ej. 'CUR-ILUM' o '2026-2-CUR-ILUM')
-  var programCode = "";
-  if (tag) {
-    programCode = tag.replace(/-S0*\d+.*$/i, "").trim();
-  }
+  // 5. Nomenclatura oficial de la carpeta destino en Google Drive (Regla 09 de la guía):
+  // Patrón: TIPO-CODIGO-AAAA-P - Nombre (ej: "CUR-ILUM-2026-2 - Hospitalaria")
+  var codigoPrograma = tipoCodigo + "-" + codigoProg + "-" + anio + "-" + periodo;
+  var carpetaEsperada = codigoPrograma + (topic ? " - " + topic : "");
 
   return {
     raw: str || parentFolderName,
+    valido: true,
     tag: tag,
-    programCode: programCode,
+    anio: anio,
+    periodo: periodo,
+    tipoCodigo: tipoCodigo,
+    tipo: tipo,
+    codigo: codigoProg,
+    programCode: codigoPrograma,
+    codigoPrograma: codigoPrograma,
+    carpetaEsperada: carpetaEsperada,
     topic: topic,
     sessionNumber: sessionNumber,
     classNumber: classNumber,
+    recordingPart: classNumber,
     isoDateString: isoDateString,
     formattedDate: formattedDate,
     rawDateStr: rawDateStr,
-    recordingPart: recordingPart,
-    anio: anio,
-    tipo: tipo,
-    esGrabacionMeet: Boolean(tag || dateMatch || /Recording|Grabaci[oó]n/i.test(cleanStr) || sessionNumber)
+    esGrabacionMeet: true
   };
 }
 
@@ -1022,42 +1030,43 @@ function coincidenRaicesTema(tema, nombreCarpeta) {
 function encontrarProgramaParaGrabacion(programas, infoNom) {
   if (!infoNom || !programas || programas.length === 0) return null;
 
+  var normEsperada = limpiarTexto(infoNom.carpetaEsperada);
+  var normCodigoProg = limpiarTexto(infoNom.codigoPrograma);
   var normTopic = limpiarTexto(infoNom.topic);
-  var normCode = limpiarTexto(infoNom.programCode);
 
-  // 1. Coincidencia por Tema y Código simultáneos
-  for (var i = 0; i < programas.length; i++) {
-    var p = programas[i];
-    var normP = limpiarTexto(p.nombre);
-
-    var coincideTema = normTopic && (normP.indexOf(normTopic) !== -1 || coincidenRaicesTema(normTopic, normP));
-    var coincideCodigo = normCode && (normP.indexOf(normCode) !== -1 || coincidenTokensCodigo(normCode, normP) || (infoNom.tag && coincidenTokensCodigo(infoNom.tag, normP)));
-
-    if (coincideTema && coincideCodigo) {
-      return p;
-    }
-  }
-
-  // 2. Coincidencia por tokens del código (ej. "2026-2-CUR-ILUM" con "CUR-ILUM-2026-2")
-  if (normCode) {
-    for (var k = 0; k < programas.length; k++) {
-      var pr = programas[k];
-      var normPr = limpiarTexto(pr.nombre);
-      if (normPr.indexOf(normCode) !== -1 || coincidenTokensCodigo(normCode, normPr)) {
-        return pr;
+  // 1. Coincidencia EXACTA con la carpeta oficial según la Guía LIATER (Regla 09):
+  // Ej: "CUR-ILUM-2026-2 - Hospitalaria", "CUR-ILUM-2026-2 - Deportiva"
+  if (normEsperada) {
+    for (var i = 0; i < programas.length; i++) {
+      var p = programas[i];
+      var normP = limpiarTexto(p.nombre);
+      if (normP === normEsperada) {
+        return p;
       }
     }
   }
 
-  // 3. Coincidencia por Tema específico / raíces (ej. "HOSPITALARIA" con "CUR-ILUM-2026-2 - Hospitalaria" o "Curso en iluminación hospitalaria")
-  if (normTopic) {
+  // 2. Coincidencia por código oficial (ej. CUR-ILUM-2026-2) y tema simultáneos
+  if (normCodigoProg) {
     for (var j = 0; j < programas.length; j++) {
-      var prog = programas[j];
-      var normProg = limpiarTexto(prog.nombre);
-      if (normProg.indexOf(normTopic) !== -1 || coincidenRaicesTema(normTopic, normProg)) {
-        if (infoNom.anio && prog.anio && infoNom.anio !== prog.anio) continue;
-        return prog;
+      var pr = programas[j];
+      var normPr = limpiarTexto(pr.nombre);
+      if (normPr.indexOf(normCodigoProg) !== -1) {
+        if (!normTopic || normPr.indexOf(normTopic) !== -1 || coincidenRaicesTema(normTopic, normPr)) {
+          return pr;
+        }
       }
+    }
+  }
+
+  // 3. Coincidencia por tokens del código y raíces de tema
+  for (var k = 0; k < programas.length; k++) {
+    var prk = programas[k];
+    var normPrk = limpiarTexto(prk.nombre);
+    var coincideTokens = coincidenTokensCodigo(infoNom.codigoPrograma, normPrk) || (infoNom.tag && coincidenTokensCodigo(infoNom.tag, normPrk));
+    var coincideTema = normTopic && (normPrk.indexOf(normTopic) !== -1 || coincidenRaicesTema(normTopic, normPrk));
+    if (coincideTokens && coincideTema) {
+      return prk;
     }
   }
 
