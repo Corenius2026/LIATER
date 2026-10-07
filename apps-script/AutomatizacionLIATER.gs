@@ -23,8 +23,9 @@
  *    - Recording 3           : Parte de la grabación ➔ Corresponde a "Clase - 3" ("Recording" = Clase - 1)
  * 
  * FUNCIONES DISPONIBLES:
- * 1. `organizarGrabacionesDeMeet()`: Mueve grabaciones que cumplan la nomenclatura hacia su subcarpeta
- *    exacta de Sesión y Clase (ej. "CUR-ILUM-2026-2 - Hospitalaria / Sesión - 4 / Clase - 3").
+ * 1. `organizarGrabacionesDeMeet()`: Mueve grabaciones de video (.mp4) que cumplan la nomenclatura hacia
+ *    su subcarpeta existente de Sesión y Clase (ej. "CUR-ILUM-2026-2 - Hospitalaria / Sesión - 4 / Clase - 3").
+ *    ⚠️ NUNCA crea carpetas nuevas; utiliza exclusivamente la estructura existente y descarta documentos Word.
  * 2. `sincronizarSoloVideos()`: Organiza grabaciones pendientes y vincula las URLs de video en Supabase.
  * 3. `procesarTranscripcionesEIA()`: Lee transcripciones y genera cuestionarios con Gemini.
  * 4. `ejecutarTodo()`: Ejecuta en orden: Organizar Grabaciones ➔ Sincronizar Videos ➔ Transcripciones IA.
@@ -178,7 +179,11 @@ function organizarGrabacionesDeMeet() {
           var infoS = parseNomenclaturaGrabacion(fnS, subSesion.getName());
           if (!infoS) continue;
 
-          var destinoClase = encontrarOCrearCarpetaClase(subSesion, infoS.classNumber);
+          var destinoClase = buscarCarpetaClaseExistente(subSesion, infoS.classNumber);
+          if (!destinoClase) {
+            console.warn("   ⚠️ No se encontró la subcarpeta existente para Clase " + infoS.classNumber + " en '" + subSesion.getName() + "'. No se creará ninguna carpeta.");
+            continue;
+          }
 
           // Verificar si ya está dentro de la carpeta de la clase
           var pS = fS.getParents();
@@ -241,11 +246,21 @@ function procesarYGuardarArchivo(file, parentName, programas, config, stats) {
     return false;
   }
 
-  // 1. Obtener/crear la carpeta de la Sesión (ej: "Sesión - 4")
-  var carpetaSesion = encontrarOCrearCarpetaSesion(progDestino.carpeta, info.sessionNumber);
+  // 1. Buscar la carpeta existente de la Sesión (ej: "Sesión - 4")
+  var carpetaSesion = buscarCarpetaSesionExistente(progDestino.carpeta, info.sessionNumber);
+  if (!carpetaSesion) {
+    stats.errores++;
+    console.warn("   ⚠️ No se encontró la carpeta existente para 'Sesión - " + info.sessionNumber + "' en '" + progDestino.nombre + "'. No se creará ninguna carpeta nueva.");
+    return false;
+  }
 
-  // 2. Obtener/crear la carpeta de la Clase (ej: "Clase - 1")
-  var carpetaClase = encontrarOCrearCarpetaClase(carpetaSesion, info.classNumber);
+  // 2. Buscar la carpeta existente de la Clase (ej: "Clase - 1")
+  var carpetaClase = buscarCarpetaClaseExistente(carpetaSesion, info.classNumber);
+  if (!carpetaClase) {
+    stats.errores++;
+    console.warn("   ⚠️ No se encontró la carpeta existente para 'Clase - " + info.classNumber + "' en '" + progDestino.nombre + " / " + carpetaSesion.getName() + "'. No se creará ninguna carpeta nueva.");
+    return false;
+  }
 
   // Verificar si ya está en el destino para evitar operaciones redundantes
   var parents = file.getParents();
@@ -590,7 +605,21 @@ function diagnosticarEstructura() {
           countDirect++;
           var dInfo = parseNomenclaturaGrabacion(df.getName(), mf.getName());
           var dProg = encontrarProgramaParaGrabacion(programasParaDiag, dInfo);
-          console.log("      🎥 [Video directo] " + df.getName() + " ➔ Sesión " + (dInfo.sessionNumber || "?") + " - Clase " + dInfo.classNumber + " (" + (dProg ? dProg.nombre : "⚠️ Programa no detectado") + ")");
+          var destTxtD = "";
+          if (dProg) {
+            var dSess = buscarCarpetaSesionExistente(dProg.carpeta, dInfo.sessionNumber);
+            var dClase = dSess ? buscarCarpetaClaseExistente(dSess, dInfo.classNumber) : null;
+            if (dSess && dClase) {
+              destTxtD = " ➔ '" + dProg.nombre + " / " + dSess.getName() + " / " + dClase.getName() + "' (Carpeta existente ✓)";
+            } else if (!dSess) {
+              destTxtD = " ➔ ⚠️ Falta 'Sesión - " + dInfo.sessionNumber + "' en '" + dProg.nombre + "' (No se creará carpeta)";
+            } else {
+              destTxtD = " ➔ ⚠️ Falta 'Clase - " + dInfo.classNumber + "' en '" + dProg.nombre + " / " + dSess.getName() + "' (No se creará carpeta)";
+            }
+          } else {
+            destTxtD = " ➔ ⚠️ Programa destino no detectado";
+          }
+          console.log("      🎥 [Video directo] " + df.getName() + destTxtD);
         } else {
           console.log("      📄 [Omitido] " + df.getName() + " (Documento/Word/transcripción - se queda en Meet)");
         }
@@ -621,7 +650,21 @@ function diagnosticarEstructura() {
         var esVid = esArchivoVideo(subFile);
         var fInfo = parseNomenclaturaGrabacion(subFile.getName(), sfName);
         if (esVid) {
-          console.log("         └─ (" + countF + ") 🎥 " + subFile.getName() + " ➔ Sesión " + (fInfo.sessionNumber || "?") + " / Clase " + fInfo.classNumber);
+          var destTxtSub = "";
+          if (sProg) {
+            var sSess = buscarCarpetaSesionExistente(sProg.carpeta, fInfo.sessionNumber);
+            var sClase = sSess ? buscarCarpetaClaseExistente(sSess, fInfo.classNumber) : null;
+            if (sSess && sClase) {
+              destTxtSub = " ➔ '" + sProg.nombre + " / " + sSess.getName() + " / " + sClase.getName() + "' (Carpeta existente ✓)";
+            } else if (!sSess) {
+              destTxtSub = " ➔ ⚠️ Falta 'Sesión - " + fInfo.sessionNumber + "' en '" + sProg.nombre + "' (No se creará carpeta)";
+            } else {
+              destTxtSub = " ➔ ⚠️ Falta 'Clase - " + fInfo.classNumber + "' en '" + sProg.nombre + " / " + sSess.getName() + "' (No se creará carpeta)";
+            }
+          } else {
+            destTxtSub = " ➔ ⚠️ Programa destino no detectado";
+          }
+          console.log("         └─ (" + countF + ") 🎥 " + subFile.getName() + destTxtSub);
         } else {
           console.log("         └─ (" + countF + ") 📄 " + subFile.getName() + " [Omitido: Es documento/Word/transcripción]");
         }
@@ -710,7 +753,10 @@ function cumpleNomenclaturaEstipulada(str, parentFolderName) {
  */
 function extraerNumeroSesionCarpeta(nombre) {
   if (!nombre) return null;
-  var match = nombre.match(/(?:sesi[oó]n|session|semana|s)\s*[-–—:]*\s*#?\s*0*(\d+)\b/i);
+  var norm = limpiarTexto(nombre);
+  var match = norm.match(/(?:\bSESION\b|\bSESSION\b|\bSEMANA\b)\s*[-–—:]*\s*#?\s*0*(\d+)\b/) ||
+              norm.match(/\bS\s*[-–—:]*\s*0*(\d+)\b/) ||
+              norm.match(/\bS0*(\d+)\b/);
   return match ? parseInt(match[1], 10) : null;
 }
 
@@ -719,7 +765,10 @@ function extraerNumeroSesionCarpeta(nombre) {
  */
 function extraerNumeroClaseCarpeta(nombre) {
   if (!nombre) return null;
-  var match = nombre.match(/(?:clase|class|c)\s*[-–—:]*\s*#?\s*0*(\d+)\b/i);
+  var norm = limpiarTexto(nombre);
+  var match = norm.match(/(?:\bCLASE\b|\bCLASS\b)\s*[-–—:]*\s*#?\s*0*(\d+)\b/) ||
+              norm.match(/\bC\s*[-–—:]*\s*0*(\d+)\b/) ||
+              norm.match(/\bC0*(\d+)\b/);
   return match ? parseInt(match[1], 10) : null;
 }
 
@@ -857,82 +906,77 @@ function parseNomenclaturaGrabacion(str, parentFolderName) {
 // ============================================================================
 
 /**
- * Busca o crea la subcarpeta de la Sesión (ej. "Sesión - 4") dentro del programa
+ * Busca EXCLUSIVAMENTE la subcarpeta existente de la Sesión (ej. "Sesión - 4", "Sesión - 1")
+ * dentro de la carpeta del programa.
+ * ⚠️ NUNCA crea carpetas nuevas; si no existe, retorna null.
  */
-function encontrarOCrearCarpetaSesion(carpetaPrograma, sessionNumber) {
-  if (!sessionNumber) {
-    return carpetaPrograma;
+function buscarCarpetaSesionExistente(carpetaPrograma, sessionNumber) {
+  if (!sessionNumber || !carpetaPrograma) {
+    return null;
   }
 
   var subfolders = carpetaPrograma.getFolders();
-  var subcarpetasExistentes = [];
-  var patronDetectado = "Sesión - "; // Formato estándar visto en LIATER (ej: "Sesión - 4")
-
   while (subfolders.hasNext()) {
     var sub = subfolders.next();
-    subcarpetasExistentes.push(sub);
-
     var fn = sub.getName();
-    if (/^sesi[oó]n\s*-\s*\d+/i.test(fn)) {
-      patronDetectado = "Sesión - ";
-    } else if (/^sesi[oó]n\s+\d+/i.test(fn)) {
-      patronDetectado = "Sesión ";
-    }
-  }
+    if (esCarpetaExcluida(fn)) continue;
 
-  // 1. Buscar si ya existe la carpeta de la sesión (ej. "Sesión - 4")
-  for (var i = 0; i < subcarpetasExistentes.length; i++) {
-    var folder = subcarpetasExistentes[i];
-    var num = extraerNumeroSesionCarpeta(folder.getName());
+    var num = extraerNumeroSesionCarpeta(fn);
     if (num === sessionNumber) {
-      return folder;
+      return sub;
     }
   }
 
-  // 2. Si no existe, crear la carpeta de la sesión
-  var nuevoNombre = patronDetectado + sessionNumber;
-  console.log("   + Creando carpeta de sesión: '" + nuevoNombre + "' en '" + carpetaPrograma.getName() + "'");
-  return carpetaPrograma.createFolder(nuevoNombre);
+  return null;
 }
 
 /**
- * Busca o crea la subcarpeta de la Clase (ej. "Clase - 1", "Clase - 2", "Clase - 3")
- * dentro de la carpeta de la Sesión (ej: "Sesión - 4")
+ * Busca EXCLUSIVAMENTE la subcarpeta existente de la Clase (ej. "Clase - 1", "Clase - 2", "Clase - 3")
+ * dentro de la carpeta de la Sesión.
+ * ⚠️ NUNCA crea carpetas nuevas; si no existe, retorna null.
  */
-function encontrarOCrearCarpetaClase(carpetaSesion, classNumber) {
+function buscarCarpetaClaseExistente(carpetaSesion, classNumber) {
+  if (!carpetaSesion) {
+    return null;
+  }
+
   if (!classNumber) {
     classNumber = 1;
   }
 
   var subfolders = carpetaSesion.getFolders();
-  var subcarpetasExistentes = [];
-  var patronDetectado = "Clase - "; // Formato estándar visto en LIATER (ej: "Clase - 1")
+  var primeraClase = null;
 
   while (subfolders.hasNext()) {
     var sub = subfolders.next();
-    subcarpetasExistentes.push(sub);
-
     var fn = sub.getName();
-    if (/^clase\s*-\s*\d+/i.test(fn)) {
-      patronDetectado = "Clase - ";
-    } else if (/^clase\s+\d+/i.test(fn)) {
-      patronDetectado = "Clase ";
-    }
-  }
+    if (esCarpetaExcluida(fn)) continue;
 
-  // 1. Buscar si ya existe la subcarpeta de la clase (ej. "Clase - 1", "Clase - 2", "Clase - 3")
-  for (var i = 0; i < subcarpetasExistentes.length; i++) {
-    var folder = subcarpetasExistentes[i];
-    var num = extraerNumeroClaseCarpeta(folder.getName());
+    var num = extraerNumeroClaseCarpeta(fn);
     if (num === classNumber) {
-      return folder;
+      return sub;
+    }
+
+    if (num === 1 && !primeraClase) {
+      primeraClase = sub;
     }
   }
 
-  // 2. Si no existe, crear la carpeta de la clase
-  var nuevoNombre = patronDetectado + classNumber;
-  console.log("   + Creando carpeta de clase: '" + nuevoNombre + "' en '" + carpetaSesion.getName() + "'");
-  return carpetaSesion.createFolder(nuevoNombre);
+  // Si se buscaba Clase 1 y no hubo coincidencia exacta pero existe la primera clase
+  if (classNumber === 1 && primeraClase) {
+    return primeraClase;
+  }
+
+  return null;
+}
+
+// Aliases para compatibilidad: NUNCA crean carpetas nuevas
+function encontrarOCrearCarpetaSesion(carpetaPrograma, sessionNumber) {
+  return buscarCarpetaSesionExistente(carpetaPrograma, sessionNumber);
+}
+
+function encontrarOCrearCarpetaClase(carpetaSesion, classNumber) {
+  return buscarCarpetaClaseExistente(carpetaSesion, classNumber);
 }
 
 /**
@@ -1031,117 +1075,106 @@ function encontrarProgramaParaGrabacion(programas, infoNom) {
 }
 
 /**
- * Mapea las carpetas académicas desde la raíz "PROGRAMAS - LIATER"
+ * Determina si una carpeta corresponde a un curso o diplomado de LIATER.
+ * Se basa en la nomenclatura oficial (ej: "CUR-ILUM-2026-2 - Hospitalaria", "CUR-ILUM-2026-2 - Deportiva")
+ * o en que contenga directamente subcarpetas de sesiones ("Sesión - 1", "Sesión - 2", etc.).
  */
-function descubrirProgramas(rootFolder) {
-  var programas = [];
-  var subcarpetasRaiz = rootFolder.getFolders();
-  var hijosRaiz = [];
+function esCarpetaDePrograma(folder) {
+  if (!folder) return false;
+  var nombre = folder.getName();
+  var norm = limpiarTexto(nombre);
 
-  while (subcarpetasRaiz.hasNext()) {
-    hijosRaiz.push(subcarpetasRaiz.next());
+  if (esCarpetaExcluida(nombre)) return false;
+  if (/^PROGRAMAS\s*-\s*LIATER/.test(norm)) return false;
+  if (/^LIATER\s*-\s*(?:CURSOS|DIPLOMADOS)/.test(norm)) return false;
+
+  // 1. Si el nombre coincide con la nomenclatura oficial de programas LIATER
+  // Ej: "CUR-ILUM-2026-2 - Hospitalaria", "CUR-ILUM-2026-2 - Deportiva", "DIP-FV-2026-1 - ..."
+  if (/^(?:CUR|DIP)[-_]/.test(norm) || /20\d{2}[-_][12][-_](?:CUR|DIP)/.test(norm)) {
+    return true;
   }
 
-  for (var i = 0; i < hijosRaiz.length; i++) {
-    var carpetaN1 = hijosRaiz[i];
-    var nombreN1 = carpetaN1.getName();
-
-    if (esCarpetaExcluida(nombreN1)) continue;
-
-    var infoCat = analizarCategoriaAnio(nombreN1);
-
-    if (infoCat.esCategoria) {
-      var subcarpetasProg = carpetaN1.getFolders();
-      while (subcarpetasProg.hasNext()) {
-        var carpetaProg = subcarpetasProg.next();
-        var nombreProg = carpetaProg.getName();
-
-        if (esCarpetaExcluida(nombreProg)) continue;
-
-        var tipoProg = infoCat.tipo;
-        if (!tipoProg) {
-          if (limpiarTexto(nombreProg).indexOf("DIP") !== -1) tipoProg = "diplomado";
-          else tipoProg = "curso";
-        }
-
-        var anioProg = infoCat.anio;
-        if (!anioProg) {
-          var anioMatch = nombreProg.match(/\b(20\d{2})\b/);
-          if (anioMatch) anioProg = anioMatch[1];
-        }
-
-        programas.push({
-          carpeta: carpetaProg,
-          id: carpetaProg.getId(),
-          nombre: nombreProg,
-          tipo: tipoProg,
-          anio: anioProg || "",
-          categoriaNombre: nombreN1,
-          categoriaId: carpetaN1.getId()
-        });
-      }
-    } else {
-      var tipoDirecto = "curso";
-      if (limpiarTexto(nombreN1).indexOf("DIP") !== -1) tipoDirecto = "diplomado";
-
-      var anioDirectoMatch = nombreN1.match(/\b(20\d{2})\b/);
-      var anioDirecto = anioDirectoMatch ? anioDirectoMatch[1] : "";
-
-      programas.push({
-        carpeta: carpetaN1,
-        id: carpetaN1.getId(),
-        nombre: nombreN1,
-        tipo: tipoDirecto,
-        anio: anioDirecto,
-        categoriaNombre: rootFolder.getName(),
-        categoriaId: rootFolder.getId()
-      });
+  // 2. Si contiene directamente subcarpetas de sesiones ("Sesión - 1", "Sesión - 2", etc.)
+  var subs = folder.getFolders();
+  while (subs.hasNext()) {
+    var subName = subs.next().getName();
+    if (extraerNumeroSesionCarpeta(subName) !== null) {
+      return true;
     }
   }
 
-  if (programas.length === 0) {
-    var infoRaiz = analizarCategoriaAnio(rootFolder.getName());
-    var tipoRaiz = infoRaiz.tipo || (limpiarTexto(rootFolder.getName()).indexOf("DIP") !== -1 ? "diplomado" : "curso");
+  return false;
+}
 
+/**
+ * Mapea las carpetas de cursos y diplomados desde la carpeta raíz.
+ * Explora jerárquicamente hasta encontrar las carpetas con la nomenclatura del curso
+ * (ej: "CUR-ILUM-2026-2 - Hospitalaria") y no desciende dentro de sus sesiones.
+ * ⚠️ NUNCA crea carpetas nuevas.
+ */
+function descubrirProgramas(rootFolder) {
+  var programas = [];
+  var idsVistos = {};
+
+  function explorar(folder, nivel) {
+    if (!folder || idsVistos[folder.getId()] || nivel > 4) return;
+    idsVistos[folder.getId()] = true;
+
+    var nombre = folder.getName();
+    if (esCarpetaExcluida(nombre)) return;
+
+    // Si es una carpeta de curso/diplomado
+    if (nivel > 0 && esCarpetaDePrograma(folder)) {
+      var tipo = (limpiarTexto(nombre).indexOf("DIP") !== -1 || limpiarTexto(nombre).indexOf("DIPLOMAD") !== -1) ? "diplomado" : "curso";
+      var anioMatch = nombre.match(/\b(20\d{2})\b/);
+      var anio = anioMatch ? anioMatch[1] : "";
+
+      programas.push({
+        carpeta: folder,
+        id: folder.getId(),
+        nombre: nombre,
+        tipo: tipo,
+        anio: anio
+      });
+      // Detener recursión: no explorar sesiones como si fueran programas
+      return;
+    }
+
+    // Si es un contenedor de nivel superior (ej: "PROGRAMAS - LIATER", "LIATER - Cursos 2026")
+    var subfolders = folder.getFolders();
+    while (subfolders.hasNext()) {
+      explorar(subfolders.next(), nivel + 1);
+    }
+  }
+
+  explorar(rootFolder, 0);
+
+  // Fallback si la raíz apuntaba directamente a la carpeta de un curso
+  if (programas.length === 0 && esCarpetaDePrograma(rootFolder)) {
+    var nomRaiz = rootFolder.getName();
+    var tipoRaiz = (limpiarTexto(nomRaiz).indexOf("DIP") !== -1) ? "diplomado" : "curso";
+    var anioMatchRaiz = nomRaiz.match(/\b(20\d{2})\b/);
     programas.push({
       carpeta: rootFolder,
       id: rootFolder.getId(),
-      nombre: rootFolder.getName(),
+      nombre: nomRaiz,
       tipo: tipoRaiz,
-      anio: infoRaiz.anio || "",
-      categoriaNombre: "Raíz",
-      categoriaId: rootFolder.getId()
+      anio: anioMatchRaiz ? anioMatchRaiz[1] : ""
     });
   }
 
   return programas;
 }
 
-function analizarCategoriaAnio(nombreCarpeta) {
-  var norm = limpiarTexto(nombreCarpeta);
-
-  var tipo = "";
-  if (norm.indexOf("DIPLOMAD") !== -1 || norm.indexOf("DIP-") !== -1) {
-    tipo = "diplomado";
-  } else if (norm.indexOf("CURSO") !== -1 || norm.indexOf("CUR-") !== -1) {
-    tipo = "curso";
-  }
-
-  var anioMatch = nombreCarpeta.match(/\b(20\d{2})\b/);
-  var anio = anioMatch ? anioMatch[1] : "";
-
-  return {
-    tipo: tipo,
-    anio: anio,
-    esCategoria: Boolean(tipo || anio)
-  };
-}
-
 function esCarpetaExcluida(nombreCarpeta) {
   var norm = limpiarTexto(nombreCarpeta);
+  if (!norm) return false;
+
   var nombresExcluidos = [
     "MATERIAL",
     "MATERIALES",
+    "MATERIAL GENERAL",
+    "MATERIAL DE CLASE",
     "PLANTILLAS",
     "TEMPLATES",
     "GENERAL",
@@ -1154,7 +1187,8 @@ function esCarpetaExcluida(nombreCarpeta) {
   ];
 
   for (var i = 0; i < nombresExcluidos.length; i++) {
-    if (norm === nombresExcluidos[i] || norm.indexOf(nombresExcluidos[i] + " -") === 0 || norm.indexOf(nombresExcluidos[i] + "_") === 0) {
+    var exc = nombresExcluidos[i];
+    if (norm === exc || norm.indexOf(exc + " -") === 0 || norm.indexOf(exc + "_") === 0 || norm.indexOf(exc + " ") === 0) {
       return true;
     }
   }
