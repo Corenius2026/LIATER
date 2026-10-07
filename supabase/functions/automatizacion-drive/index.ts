@@ -252,6 +252,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     program_folder_id?: unknown;
     program_type?: unknown;
     program_year?: unknown;
+    session_number?: unknown;
+    class_number?: unknown;
+    program_topic?: unknown;
   };
 
   try {
@@ -276,12 +279,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const folderId = normalizeDriveFolderId(rawFolderId);
-  const folderName = typeof body.folder_name === "string" ? body.folder_name.trim() : "";
-  const docName = typeof body.doc_name === "string" ? body.doc_name.trim() : "";
+  const rawFolderName = typeof body.folder_name === "string" ? body.folder_name.trim() : "";
+  const folderName = rawFolderName.replace(/\s*\((?:recurring|recurrente)\)/gi, "").trim();
+  const rawDocName = typeof body.doc_name === "string" ? body.doc_name.trim() : "";
+  const docName = rawDocName.replace(/\s*\((?:recurring|recurrente)\)/gi, "").trim();
   const programName = typeof body.program_name === "string" ? body.program_name.trim() : "";
   const programFolderId = typeof body.program_folder_id === "string" ? normalizeDriveFolderId(body.program_folder_id) : "";
   const programType = typeof body.program_type === "string" ? body.program_type.trim() : "";
   const programYear = typeof body.program_year === "string" ? body.program_year.trim() : "";
+  const programTopic = typeof body.program_topic === "string" ? body.program_topic.trim() : "";
+  const sessionNum = typeof body.session_number === "number" ? body.session_number : (typeof body.session_number === "string" ? parseInt(body.session_number, 10) : null);
+  const classNum = typeof body.class_number === "number" ? body.class_number : (typeof body.class_number === "string" ? parseInt(body.class_number, 10) : 1);
 
   // Normalizar URL del video de la clase si viene en el payload
   let videoUrl = typeof body.video_url === "string" ? body.video_url.trim() : "";
@@ -362,21 +370,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
         if (pMatch) matchedProg = pMatch;
       }
 
-      if (!matchedProg && programName) {
+      if (!matchedProg && (programName || programTopic || folderName)) {
         const { data: progs } = await supabaseAdmin
           .from("diploma_programs")
           .select("id, title, drive_folder_id");
 
         if (progs && progs.length > 0) {
-          const normProg = programName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const normProg = ((programName || "") + " " + (programTopic || "") + " " + (folderName || "")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s*\((?:recurring|recurrente)\)/gi, "");
           for (const p of progs) {
             const normTitle = (p.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             if (normTitle && (normProg.includes(normTitle) || normTitle.includes(normProg))) {
               matchedProg = p;
               break;
             }
-            // Buscar palabras clave significativas (ej. "deportiva", "hospitalaria")
-            const words = normProg.split(/[\s\-_]+/).filter((w: string) => w.length > 3 && !['cur', 'dip', 'ilum', 'liater', 'curso', 'diplomado', '2026', '2025'].includes(w));
+
+            // Buscar raíces clave semánticas
+            const roots = ["hospit", "deport", "fotovol", "fv", "ilum"];
+            for (const r of roots) {
+              if (normProg.includes(r) && normTitle.includes(r)) {
+                matchedProg = p;
+                break;
+              }
+            }
+            if (matchedProg) break;
+
+            // Buscar palabras clave significativas
+            const words = normProg.split(/[\s\-_]+/).filter((w: string) => w.length > 3 && !['cur', 'dip', 'ilum', 'liater', 'curso', 'diplomado', '2026', '2025', 'recurring', 'recurrente'].includes(w));
             for (const w of words) {
               if (normTitle.includes(w)) {
                 matchedProg = p;
@@ -397,34 +416,62 @@ Deno.serve(async (req: Request): Promise<Response> => {
             .eq("id", matchedProg.id);
         }
 
-        // Buscar clases dentro de este programa
-        const { data: pClasses } = await supabaseAdmin
-          .from("class_sessions")
-          .select("id, title, video_url, drive_folder_id, order_index")
-          .eq("program_id", matchedProg.id)
-          .order("order_index", { ascending: true });
+        // 1. Si viene sessionNum, intentar vincular por la sesión temática (subtopic)
+        if (sessionNum) {
+          const { data: pSubtopics } = await supabaseAdmin
+            .from("subtopics")
+            .select("id, title, order_index")
+            .eq("program_id", matchedProg.id);
 
-        if (pClasses && pClasses.length > 0) {
-          // Intentar coincidencia por número de orden en el nombre de la carpeta o archivo
-          const numMatch = (folderName + " " + docName).match(/(?:clase|sesion|session|modulo|c|s)\s*#?\s*(\d+)/i) || (folderName + " " + docName).match(/\b(\d+)\b/);
-          if (numMatch) {
-            const num = parseInt(numMatch[1], 10);
-            session = pClasses.find(c => c.order_index === num) || null;
+          if (pSubtopics && pSubtopics.length > 0) {
+            const targetSub = pSubtopics.find(s => s.order_index === sessionNum || (s.title && (s.title.toLowerCase().includes(`sesion ${sessionNum}`) || s.title.toLowerCase().includes(`sesión ${sessionNum}`) || s.title.toLowerCase().includes(`semana ${sessionNum}`))));
+            if (targetSub) {
+              const { data: subClasses } = await supabaseAdmin
+                .from("class_sessions")
+                .select("id, title, video_url, drive_folder_id, order_index")
+                .eq("subtopic_id", targetSub.id)
+                .order("order_index", { ascending: true });
+
+              if (subClasses && subClasses.length > 0) {
+                session = subClasses.find(c => c.order_index === classNum) || subClasses[0];
+                if (session) {
+                  console.log(`Clase '${session.title}' vinculada por Sesión #${sessionNum} (Subtema: '${targetSub.title}') y Clase #${classNum}.`);
+                }
+              }
+            }
           }
+        }
 
-          // Si el programa tiene exactamente 1 clase y no hay número explícito
-          if (!session && pClasses.length === 1) {
-            session = pClasses[0];
-          }
+        // 2. Si aún no se encontró, buscar entre todas las clases del programa
+        if (!session) {
+          const { data: pClasses } = await supabaseAdmin
+            .from("class_sessions")
+            .select("id, title, video_url, drive_folder_id, order_index")
+            .eq("program_id", matchedProg.id)
+            .order("order_index", { ascending: true });
 
-          // Si aún no, buscar coincidencia por título
-          if (!session) {
-            const normF = (folderName + " " + docName).toLowerCase();
-            session = pClasses.find(c => normF.includes((c.title || "").toLowerCase())) || null;
-          }
+          if (pClasses && pClasses.length > 0) {
+            // Intentar coincidencia por número de orden en el nombre de la carpeta o archivo
+            const numMatch = (folderName + " " + docName).match(/(?:clase|sesion|session|modulo|c|s)\s*#?\s*(\d+)/i) || (folderName + " " + docName).match(/\b(\d+)\b/);
+            if (numMatch) {
+              const num = parseInt(numMatch[1], 10);
+              session = pClasses.find(c => c.order_index === num) || null;
+            }
 
-          if (session) {
-            console.log(`Clase '${session.title}' vinculada por contexto de programa '${matchedProg.title}'.`);
+            // Si el programa tiene exactamente 1 clase y no hay número explícito
+            if (!session && pClasses.length === 1) {
+              session = pClasses[0];
+            }
+
+            // Si aún no, buscar coincidencia por título
+            if (!session) {
+              const normF = (folderName + " " + docName).toLowerCase();
+              session = pClasses.find(c => normF.includes((c.title || "").toLowerCase())) || null;
+            }
+
+            if (session) {
+              console.log(`Clase '${session.title}' vinculada por contexto de programa '${matchedProg.title}'.`);
+            }
           }
         }
       }
