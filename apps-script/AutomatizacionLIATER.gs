@@ -321,7 +321,10 @@ function procesarYGuardarArchivo(file, parentName, programas, config, stats) {
 // ============================================================================
 
 /**
- * Organiza grabaciones pendientes y actualiza enlaces de video en Supabase
+ * Escanea EXCLUSIVAMENTE la carpeta raíz "PROGRAMAS - LIATER",
+ * detecta los cursos y las clases existentes, y sincroniza las grabaciones de video
+ * hacia la plataforma LIATER / Supabase.
+ * ⚠️ NO escanea carpetas de Google Meet / Meet Recordings.
  */
 function sincronizarSoloVideos() {
   console.log("=================================================");
@@ -334,12 +337,7 @@ function sincronizarSoloVideos() {
   var rootFolder = abrirCarpetaRaiz(config.rootFolderId);
   if (!rootFolder) return;
 
-  // Paso previo automático: Organizar archivos en sus carpetas de sesión y clase
-  try {
-    organizarGrabacionesDeMeet();
-  } catch (eMeet) {
-    console.warn("Aviso en organización previa de grabaciones: " + eMeet.message);
-  }
+  console.log("📂 Escaneando exclusivamente la carpeta raíz de programas: '" + rootFolder.getName() + "'");
 
   var programas = descubrirProgramas(rootFolder);
   console.log("\nTotal de programas a sincronizar: " + programas.length);
@@ -1222,7 +1220,38 @@ function recolectarVideosDePrograma(programa) {
     while (files.hasNext()) {
       var file = files.next();
       if (esArchivoVideo(file)) {
-        var nom = parseNomenclaturaGrabacion(file.getName()) || parseNomenclaturaGrabacion(folderName);
+        var nom = parseNomenclaturaGrabacion(file.getName(), folderName);
+        if (!nom) {
+          // Si el archivo no tiene la nomenclatura completa en su nombre pero está ubicado
+          // dentro de la jerarquía de Clase / Sesión / Programa:
+          var numClase = extraerNumeroClaseCarpeta(folderName) || 1;
+          var pParents = folder.getParents();
+          var parentFolder = pParents.hasNext() ? pParents.next() : null;
+          var numSesion = parentFolder ? extraerNumeroSesionCarpeta(parentFolder.getName()) : null;
+
+          var progMatch = programa.nombre.match(/([A-Z]{3})-([A-Z0-9]+)-(\d{4})-([12])(?:\s*-\s*(.+))?/i);
+          if (progMatch) {
+            var sStr = numSesion ? (numSesion < 10 ? "0" + numSesion : "" + numSesion) : "01";
+            var tagGen = "[" + progMatch[3] + "-" + progMatch[4] + "-" + progMatch[1].toUpperCase() + "-" + progMatch[2].toUpperCase() + "-S" + sStr + "]";
+            nom = {
+              valido: true,
+              tag: tagGen,
+              anio: progMatch[3],
+              periodo: progMatch[4],
+              tipoCodigo: progMatch[1].toUpperCase(),
+              tipo: progMatch[1].toUpperCase() === "DIP" ? "diplomado" : "curso",
+              codigo: progMatch[2].toUpperCase(),
+              programCode: progMatch[1].toUpperCase() + "-" + progMatch[2].toUpperCase() + "-" + progMatch[3] + "-" + progMatch[4],
+              codigoPrograma: progMatch[1].toUpperCase() + "-" + progMatch[2].toUpperCase() + "-" + progMatch[3] + "-" + progMatch[4],
+              topic: (progMatch[5] || "").trim(),
+              sessionNumber: numSesion || 1,
+              classNumber: numClase,
+              recordingPart: numClase,
+              esGrabacionMeet: true
+            };
+          }
+        }
+
         itemsVideo.push({
           archivo: file,
           nombreArchivo: file.getName(),
