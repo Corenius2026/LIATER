@@ -170,6 +170,9 @@ function organizarGrabacionesDeMeet() {
           var fS = filesEnSesion.next();
           var fnS = fS.getName();
 
+          // FILTRO ESTRICTO: Solo mover archivos de VIDEO
+          if (!esArchivoVideo(fS)) continue;
+
           if (!cumpleNomenclaturaEstipulada(fnS, subSesion.getName())) continue;
 
           var infoS = parseNomenclaturaGrabacion(fnS, subSesion.getName());
@@ -211,6 +214,12 @@ function organizarGrabacionesDeMeet() {
  */
 function procesarYGuardarArchivo(file, parentName, programas, config, stats) {
   var fileName = file.getName();
+
+  // FILTRO ESTRICTO: Solo mover archivos de VIDEO (.mp4, .mov, .mkv, etc.)
+  // NO mover archivos de Word (.docx, .doc), Google Docs, transcripciones, notas ni chats
+  if (!esArchivoVideo(file)) {
+    return false;
+  }
 
   // Filtro: Solo procesar si el archivo o la carpeta padre cumplen la nomenclatura
   if (!cumpleNomenclaturaEstipulada(fileName, parentName)) {
@@ -575,15 +584,20 @@ function diagnosticarEstructura() {
     var countDirect = 0;
     while (meetFiles.hasNext()) {
       var df = meetFiles.next();
+      var esVidD = esArchivoVideo(df);
       if (cumpleNomenclaturaEstipulada(df.getName(), mf.getName())) {
-        countDirect++;
-        var dInfo = parseNomenclaturaGrabacion(df.getName(), mf.getName());
-        var dProg = encontrarProgramaParaGrabacion(programasParaDiag, dInfo);
-        console.log("      📄 [Archivo directo] " + df.getName() + " ➔ Sesión " + (dInfo.sessionNumber || "?") + " - Clase " + dInfo.classNumber + " (" + (dProg ? dProg.nombre : "⚠️ Programa no detectado") + ")");
+        if (esVidD) {
+          countDirect++;
+          var dInfo = parseNomenclaturaGrabacion(df.getName(), mf.getName());
+          var dProg = encontrarProgramaParaGrabacion(programasParaDiag, dInfo);
+          console.log("      🎥 [Video directo] " + df.getName() + " ➔ Sesión " + (dInfo.sessionNumber || "?") + " - Clase " + dInfo.classNumber + " (" + (dProg ? dProg.nombre : "⚠️ Programa no detectado") + ")");
+        } else {
+          console.log("      📄 [Omitido] " + df.getName() + " (Documento/Word/transcripción - se queda en Meet)");
+        }
       }
     }
     if (countDirect === 0) {
-      console.log("      ℹ Sin grabaciones directas en la raíz de esta carpeta.");
+      console.log("      ℹ Sin grabaciones de video directas en la raíz de esta carpeta.");
     }
 
     // Subcarpetas de Meet
@@ -604,8 +618,13 @@ function diagnosticarEstructura() {
       while (filesInSub.hasNext()) {
         countF++;
         var subFile = filesInSub.next();
+        var esVid = esArchivoVideo(subFile);
         var fInfo = parseNomenclaturaGrabacion(subFile.getName(), sfName);
-        console.log("         └─ (" + countF + ") " + subFile.getName() + " ➔ Sesión " + (fInfo.sessionNumber || "?") + " / Clase " + fInfo.classNumber);
+        if (esVid) {
+          console.log("         └─ (" + countF + ") 🎥 " + subFile.getName() + " ➔ Sesión " + (fInfo.sessionNumber || "?") + " / Clase " + fInfo.classNumber);
+        } else {
+          console.log("         └─ (" + countF + ") 📄 " + subFile.getName() + " [Omitido: Es documento/Word/transcripción]");
+        }
       }
       if (countF === 0) {
         console.log("         └─ (Subcarpeta vacía o sin archivos)");
@@ -1369,31 +1388,36 @@ function esArchivoVideo(file) {
   var name = (file.getName() || "").toLowerCase();
   var norm = limpiarTexto(file.getName() || "");
 
+  // 1. Descartar explícitamente cualquier documento Word (.docx, .doc), Google Docs, texto, PDF, transcripción, notas o chat
   if (
-    name.endsWith(".txt") ||
-    name.endsWith(".doc") ||
+    mime.indexOf("document") !== -1 ||
+    mime.indexOf("word") !== -1 ||
+    mime.indexOf("text") !== -1 ||
+    mime.indexOf("pdf") !== -1 ||
+    mime.indexOf("sheet") !== -1 ||
     name.endsWith(".docx") ||
-    name.endsWith(".pdf") ||
+    name.endsWith(".doc") ||
+    name.endsWith(".txt") ||
     name.endsWith(".gdoc") ||
+    name.endsWith(".pdf") ||
+    name.endsWith(".vtt") ||
+    name.endsWith(".sbv") ||
     norm.indexOf("TRANSCRIP") !== -1 ||
-    norm.indexOf("CHAT") !== -1
+    norm.indexOf("TRANSIC") !== -1 ||
+    norm.indexOf("CHAT") !== -1 ||
+    norm.indexOf("NOTAS") !== -1 ||
+    norm.indexOf("ASISTENCIA") !== -1
   ) {
     return false;
   }
 
+  // 2. Comprobar extensiones de video explícitas
   if (/\.(mp4|mov|mkv|avi|webm|m4v|wmv|flv|3gp|ts|mts)$/i.test(name)) {
     return true;
   }
 
+  // 3. Comprobar MIME type de video
   if (mime.indexOf("video") !== -1 || mime === "application/vnd.google-apps.video") {
-    return true;
-  }
-
-  if (
-    norm.indexOf("GRABACION") !== -1 ||
-    norm.indexOf("RECORDING") !== -1 ||
-    norm.indexOf("VIDEO") !== -1
-  ) {
     return true;
   }
 
