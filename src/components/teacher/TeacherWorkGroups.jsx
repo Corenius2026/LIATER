@@ -5,9 +5,19 @@ import {
   Users, Search, ExternalLink, Download, FileText,
   Paperclip, Code, HardDrive, Archive, Plus, X,
   CheckCircle, AlertCircle, MessageSquare, Eye, Lock,
-  RefreshCw
+  RefreshCw, Unlock, Layers, FileSpreadsheet
 } from 'lucide-react';
-import { getProgramWorkGroups, addGroupMaterial } from '@/services/groupService';
+import {
+  getProgramWorkGroups,
+  addGroupMaterial,
+  toggleGroupMaterialDownload
+} from '@/services/groupService';
+import {
+  triggerResourceDownload,
+  isMaterialDownloadable,
+  isNonPreviewableFormat,
+  getFileExtension
+} from '@/utils/resourceUtils';
 import MaterialFrameViewerModal from '@/components/common/MaterialFrameViewerModal';
 
 export default function TeacherWorkGroups({ programId, programTitle }) {
@@ -26,6 +36,7 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
   const [matType, setMatType] = useState('link');
   const [matUrl, setMatUrl] = useState('');
   const [matFile, setMatFile] = useState(null);
+  const [formAllowDownload, setFormAllowDownload] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchGroups = async () => {
@@ -58,10 +69,25 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
   const getMaterialIcon = (mat) => {
     const p = mat.provider || '';
     const t = mat.material_type || '';
+    const ext = getFileExtension(mat.file_name, mat.url, mat.title).toLowerCase();
+
+    if (['dwg', 'dxf', 'rvt', 'ifc', 'skp'].includes(ext)) {
+      return <Layers size={16} color="#0284C7" />;
+    }
+    if (['xlsx', 'xls', 'csv', 'ods'].includes(ext)) {
+      return <FileSpreadsheet size={16} color="#16A34A" />;
+    }
+    if (ext === 'pdf' || t === 'pdf') {
+      return <FileText size={16} color="#DC2626" />;
+    }
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext) || t === 'archive') {
+      return <Archive size={16} color="#F59E0B" />;
+    }
+    if (['doc', 'docx'].includes(ext)) {
+      return <FileText size={16} color="#2563EB" />;
+    }
     if (p === 'github' || t === 'code') return <Code size={16} color="#24292e" />;
     if (p === 'drive' || t === 'drive') return <HardDrive size={16} color="#0F9D58" />;
-    if (t === 'pdf') return <FileText size={16} color="#DC2626" />;
-    if (t === 'archive') return <Archive size={16} color="#F59E0B" />;
     return <Paperclip size={16} color="var(--gold-dark)" />;
   };
 
@@ -93,6 +119,7 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
     setMatType('link');
     setMatUrl('');
     setMatFile(null);
+    setFormAllowDownload(false);
     setShowAttachModal(true);
   };
 
@@ -121,7 +148,8 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
         description: matDesc,
         materialType: matType,
         url: matUrl,
-        file: matFile
+        file: matFile,
+        allowDownload: formAllowDownload
       });
       setShowAttachModal(false);
       await fetchGroups();
@@ -129,6 +157,22 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
       alert('Error guardando material: ' + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── ACCIÓN: ALTERNAR PERMISO DE DESCARGA (DOCENTE) ──
+  const handleToggleMaterialDownload = async (mat) => {
+    try {
+      const currentAllow = isMaterialDownloadable(mat);
+      await toggleGroupMaterialDownload(mat.id, mat.allow_download);
+      setGroups(prev => prev.map(g => ({
+        ...g,
+        work_group_materials: (g.work_group_materials || []).map(m =>
+          m.id === mat.id ? { ...m, allow_download: !currentAllow } : m
+        )
+      })));
+    } catch (err) {
+      alert('Error cambiando permiso de descarga: ' + err.message);
     }
   };
 
@@ -422,6 +466,10 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                       {materials.map(mat => {
                         const uploaderName = mat.users_profile?.full_name || 'Miembro del grupo';
+                        const nonPreviewable = isNonPreviewableFormat(mat.file_name, mat.material_type, mat.url, mat.title);
+                        const downloadable = isMaterialDownloadable(mat);
+                        const ext = getFileExtension(mat.file_name, mat.url, mat.title);
+
                         return (
                           <div
                             key={mat.id}
@@ -444,34 +492,122 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
                                 <div style={{ fontSize: '0.83rem', fontWeight: 700, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                   {mat.title}
                                 </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  Subido por: <strong>{uploaderName}</strong>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.15rem', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    Subido por: <strong>{uploaderName}</strong>
+                                  </span>
+                                  {nonPreviewable ? (
+                                    <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: '#DCFCE7', color: '#15803D', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      <Download size={10} /> Descarga Directa {ext ? `(.${ext.toUpperCase()})` : ''}
+                                    </span>
+                                  ) : downloadable ? (
+                                    <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: '#DCFCE7', color: '#15803D', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      <Download size={10} /> Descargable
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '0.66rem', fontWeight: 600, padding: '1px 6px', borderRadius: '4px', background: '#F1F5F9', color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      <Lock size={10} /> Solo lectura
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => setViewingMaterial({ ...mat, groupName: group.name })}
-                              title="Visualizar documento en visor seguro (solo lectura)"
-                              style={{
-                                background: '#FFFFFF',
-                                border: '1px solid #CBD5E1',
-                                color: 'var(--navy)',
-                                borderRadius: '6px',
-                                padding: '0.3rem 0.65rem',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                flexShrink: 0
-                              }}
-                            >
-                              <Eye size={13} color="var(--gold-dark, #b45309)" />
-                              <span>Visualizar</span>
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                              {nonPreviewable ? (
+                                <button
+                                  type="button"
+                                  onClick={() => triggerResourceDownload(mat.url, mat.file_name || mat.title)}
+                                  title="Descargar archivo a tu equipo"
+                                  style={{
+                                    background: '#DCFCE7',
+                                    border: '1px solid #86EFAC',
+                                    color: '#15803D',
+                                    borderRadius: '6px',
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}
+                                >
+                                  <Download size={13} />
+                                  <span>Descargar</span>
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingMaterial({ ...mat, groupName: group.name })}
+                                    title="Visualizar documento en pantalla"
+                                    style={{
+                                      background: '#FFFFFF',
+                                      border: '1px solid #CBD5E1',
+                                      color: 'var(--navy)',
+                                      borderRadius: '6px',
+                                      padding: '0.3rem 0.6rem',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem'
+                                    }}
+                                  >
+                                    <Eye size={13} color="var(--gold-dark, #b45309)" />
+                                    <span>Visualizar</span>
+                                  </button>
+
+                                  {downloadable && (
+                                    <button
+                                      type="button"
+                                      onClick={() => triggerResourceDownload(mat.url, mat.file_name || mat.title)}
+                                      title="Descargar documento a tu equipo"
+                                      style={{
+                                        background: '#F0FDF4',
+                                        border: '1px solid #BBF7D0',
+                                        color: '#16A34A',
+                                        borderRadius: '6px',
+                                        padding: '0.3rem 0.6rem',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem'
+                                      }}
+                                    >
+                                      <Download size={13} />
+                                      <span>Descargar</span>
+                                    </button>
+                                  )}
+                                </>
+                              )}
+
+                              {/* Alternar permiso de descarga a estudiantes */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMaterialDownload(mat)}
+                                title={downloadable ? 'Descarga permitida a estudiantes (Clic para bloquear)' : 'Descarga bloqueada a estudiantes (Clic para permitir descarga)'}
+                                style={{
+                                  background: downloadable ? '#DCFCE7' : '#F1F5F9',
+                                  border: `1px solid ${downloadable ? '#86EFAC' : '#CBD5E1'}`,
+                                  color: downloadable ? '#15803D' : '#64748B',
+                                  borderRadius: '6px',
+                                  padding: '0.3rem 0.5rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                              >
+                                {downloadable ? <Unlock size={12} /> : <Lock size={12} />}
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -567,7 +703,13 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
                     required
                     placeholder="https://drive.google.com/..."
                     value={matUrl}
-                    onChange={(e) => setMatUrl(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMatUrl(val);
+                      if (val && isNonPreviewableFormat('', '', val, matTitle)) {
+                        setFormAllowDownload(true);
+                      }
+                    }}
                     style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }}
                   />
                 </div>
@@ -579,7 +721,20 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
                   <input
                     type="file"
                     required
-                    onChange={(e) => setMatFile(e.target.files?.[0] || null)}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setMatFile(file);
+                      if (file) {
+                        const isNonPrev = isNonPreviewableFormat(file.name);
+                        // Para .dwg, Excel, ZIP u otros formatos no previsualizables: descargables por defecto
+                        if (isNonPrev) {
+                          setFormAllowDownload(true);
+                        } else {
+                          // Para PDF: por defecto protegido (solo visualización), el docente puede activarlo
+                          setFormAllowDownload(false);
+                        }
+                      }
+                    }}
                     style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px dashed var(--border-color)', fontSize: '0.85rem' }}
                   />
                   <div style={{ marginTop: '0.4rem', fontSize: '0.78rem', color: '#0F9D58', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
@@ -588,6 +743,83 @@ export default function TeacherWorkGroups({ programId, programTitle }) {
                   </div>
                 </div>
               )}
+
+              {/* PERMISO DE DESCARGA (INTERRUPTOR DESLIZANTE) */}
+              <div
+                onClick={() => setFormAllowDownload(!formAllowDownload)}
+                style={{
+                  background: formAllowDownload ? 'rgba(20, 33, 61, 0.03)' : '#F8FAFC',
+                  border: formAllowDownload ? '1.5px solid var(--navy, #14213D)' : '1px solid #E2E8F0',
+                  borderRadius: '10px',
+                  padding: '0.8rem 0.95rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.83rem', fontWeight: 700, color: 'var(--navy, #14213D)' }}>
+                      ¿Permitir descarga por los estudiantes?
+                    </span>
+                    {formAllowDownload ? (
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#16A34A', background: '#DCFCE7', padding: '2px 7px', borderRadius: '6px' }}>
+                        Descargable
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', background: '#E2E8F0', padding: '2px 7px', borderRadius: '6px' }}>
+                        Solo lectura
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.73rem', color: '#64748B' }}>
+                    {formAllowDownload
+                      ? '✓ Los estudiantes e integrantes del grupo podrán descargar el archivo original a su equipo.'
+                      : '✗ Modo protegido: los estudiantes solo podrán visualizar el archivo en la plataforma sin botón de descarga.'}
+                  </p>
+                </div>
+
+                {/* Pill Slider */}
+                <div
+                  role="switch"
+                  aria-checked={formAllowDownload}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === ' ' || e.key === 'Enter') {
+                      e.preventDefault();
+                      setFormAllowDownload(!formAllowDownload);
+                    }
+                  }}
+                  style={{
+                    width: '42px',
+                    height: '24px',
+                    borderRadius: '9999px',
+                    background: formAllowDownload ? 'var(--navy, #14213D)' : '#CBD5E1',
+                    position: 'relative',
+                    flexShrink: 0,
+                    transition: 'background-color 0.25s ease'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: formAllowDownload ? '#FCA311' : '#FFFFFF',
+                      position: 'absolute',
+                      top: '3px',
+                      left: '3px',
+                      transform: formAllowDownload ? 'translateX(18px)' : 'translateX(0)',
+                      transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}
+                  />
+                </div>
+              </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '0.35rem' }}>

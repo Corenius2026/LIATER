@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { isNonPreviewableFormat } from '@/utils/resourceUtils';
 
 /**
  * Servicio: groupService.js
@@ -409,7 +410,8 @@ export async function addGroupMaterial({
   fileName = '',
   fileSize = null,
   provider = 'link',
-  file = null
+  file = null,
+  allowDownload = null
 }) {
   if (!groupId || !title) throw new Error('Datos incompletos para guardar el entregable.');
 
@@ -418,6 +420,21 @@ export async function addGroupMaterial({
   let finalFileSize = fileSize;
   let finalProvider = provider;
   let finalType = materialType;
+
+  // Deducir si por formato (.dwg, Excel, ZIP) debe ser descargable de forma predeterminada
+  const isNonPreview = isNonPreviewableFormat(
+    file ? file.name : finalFileName,
+    finalType,
+    finalUrl,
+    title
+  );
+  let finalAllowDownload = false;
+  if (allowDownload !== null && allowDownload !== undefined) {
+    finalAllowDownload = Boolean(allowDownload);
+  } else if (isNonPreview) {
+    // Formatos no previsualizables en web (.dwg, Excel, etc.): descargables por defecto
+    finalAllowDownload = true;
+  }
 
   // Si se adjuntó un archivo físico, subir a la carpeta general de Google Drive del curso
   if (file) {
@@ -463,7 +480,7 @@ export async function addGroupMaterial({
     formData.append('programId', cleanProgramId);
     formData.append('classId', 'general'); // Carpeta general de Google Drive del curso
     formData.append('resourceType', 'file');
-    formData.append('allowDownload', 'true');
+    formData.append('allowDownload', String(finalAllowDownload));
     const groupPrefix = resolvedGroupName ? `[${resolvedGroupName}]` : '[Grupo]';
     formData.append('customTitle', `${groupPrefix} ${title.trim()}`);
 
@@ -524,16 +541,64 @@ export async function addGroupMaterial({
     url: finalUrl,
     file_name: finalFileName || null,
     file_size: finalFileSize || null,
-    provider: finalProvider
+    provider: finalProvider,
+    allow_download: finalAllowDownload
   };
+
+  let data = null;
+  let error = null;
+
+  try {
+    const res = await supabase
+      .from('work_group_materials')
+      .insert([payload])
+      .select('*')
+      .single();
+    data = res.data;
+    error = res.error;
+  } catch (insertErr) {
+    error = insertErr;
+  }
+
+  // Respaldo defensivo si la columna allow_download aún no se ha migrado en Supabase
+  if (error && (error.message?.includes('allow_download') || error.details?.includes('allow_download'))) {
+    console.warn('Columna allow_download no existe aún en work_group_materials, guardando sin ella...');
+    delete payload.allow_download;
+    const retry = await supabase
+      .from('work_group_materials')
+      .insert([payload])
+      .select('*')
+      .single();
+    if (retry.error) throw retry.error;
+    data = retry.data;
+  } else if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Alterna el permiso de descarga de un material de grupo.
+ */
+export async function toggleGroupMaterialDownload(materialId, currentAllow) {
+  if (!materialId) throw new Error('ID de material requerido');
+  const nextVal = !Boolean(currentAllow);
 
   const { data, error } = await supabase
     .from('work_group_materials')
-    .insert([payload])
-    .select('*')
+    .update({ allow_download: nextVal, updated_at: new Date().toISOString() })
+    .eq('id', materialId)
+    .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (error.message?.includes('allow_download')) {
+      throw new Error('La columna allow_download no existe aún en la base de datos. Por favor ejecuta la migración SQL en Supabase.');
+    }
+    throw error;
+  }
+
   return data;
 }
 
