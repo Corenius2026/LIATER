@@ -1934,7 +1934,7 @@ export default function ClassDetail() {
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
                   }}
                 >
-                  <Pencil size={13} color="var(--gold-dark)" /> {clsData.video_url ? 'Editar Grabación' : 'Configurar Grabación'}
+                  <Pencil size={13} color="var(--gold-dark)" /> <span>{clsData.video_url ? 'Editar Grabación' : 'Configurar Grabación'}</span>
                 </button>
               )}
             </div>
@@ -1955,7 +1955,7 @@ export default function ClassDetail() {
                     className="btn btn-primary"
                     style={{ marginTop: '0.85rem', fontSize: '0.78rem', padding: '0.4rem 0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
-                    <Plus size={14} /> Cargar Enlace de Video
+                    <Plus size={14} /> <span>Cargar Enlace de Video</span>
                   </button>
                 )}
               </div>
@@ -1988,7 +1988,7 @@ export default function ClassDetail() {
                     boxShadow: '0 2px 6px rgba(20,33,61,0.2)'
                   }}
                 >
-                  <Plus size={14} color="var(--gold)" /> Agregar Material
+                  <Plus size={14} color="var(--gold)" /> <span>Agregar Material</span>
                 </button>
               )}
             </div>
@@ -2006,7 +2006,7 @@ export default function ClassDetail() {
                     className="btn btn-primary"
                     style={{ fontSize: '0.8rem', padding: '0.45rem 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                   >
-                    <Plus size={14} /> Subir o Vincular Primer Recurso
+                    <Plus size={14} /> <span>Subir o Vincular Primer Recurso</span>
                   </button>
                 )}
               </div>
@@ -2068,7 +2068,7 @@ export default function ClassDetail() {
                           cursor: 'pointer'
                         }}
                       >
-                        <Eye size={14} /> Abrir
+                        <Eye size={14} /> <span>Abrir</span>
                       </button>
 
                       {res.allow_download && (
@@ -2090,7 +2090,7 @@ export default function ClassDetail() {
                             gap: '0.35rem'
                           }}
                         >
-                          <Download size={13} /> Descargar
+                          <Download size={13} /> <span>Descargar</span>
                         </button>
                       )}
 

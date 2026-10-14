@@ -56,7 +56,11 @@ export function triggerResourceDownload(url, title = '') {
   link.rel = 'noopener noreferrer';
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
+  setTimeout(() => {
+    if (link.parentNode) {
+      link.parentNode.removeChild(link);
+    }
+  }, 100);
 }
 
 /**
